@@ -796,6 +796,50 @@ pub enum Key {
     VoluntaryHoursDelta,
     /// Label fuer den Erfuellungsgrad in Prozent ("Freiwillig Erfuellungsgrad").
     VoluntaryHoursFulfillment,
+
+    // ─── Phase 55: Manual-Rebooking + HR-Alert (F3 + F5) ────────────────────
+    /// Approve-Button im Suggestion-Modal (HR-ALERT-03).
+    RebookingApprove,
+    /// Reject-Button im Suggestion-Modal (HR-ALERT-03).
+    RebookingReject,
+    /// Submit-Button im Manual-Rebooking-Modal (REB-MANUAL-01).
+    RebookingSubmit,
+    /// Titel des Suggestion-Modals (HR-ALERT-02).
+    RebookingModalTitleSuggestion,
+    /// Titel des Manual-Rebooking-Modals (REB-MANUAL-01).
+    RebookingModalTitleManual,
+    /// Titel des HR-Alert-Banners (HR-ALERT-01).
+    RebookingBannerTitle,
+    /// Body-Text des HR-Alert-Banners.
+    RebookingBannerBody,
+    /// Radio-Label "Freiwillig → Bezahlt" (D-55-06).
+    RebookingDirectionVolunteerToExtra,
+    /// Radio-Label "Bezahlt → Freiwillig" (D-55-06).
+    RebookingDirectionExtraToVolunteer,
+    /// Inline-Warn i18n-Key fuer HTTP 409 Slot-Kollision (T-55-01).
+    RebookingErrorSlotTaken,
+    /// Inline-Warn i18n-Key fuer HTTP 409 Bereits-Verarbeitet (T-4).
+    RebookingErrorAlreadyResolved,
+    /// Label des Stundenfelds im Manual-Modal (REB-MANUAL-03).
+    RebookingHoursLabel,
+    /// Label "IST" — Spaltenkopf im Suggestion-Modal (HR-ALERT-02).
+    RebookingIstColumn,
+    /// Label "DANN" — Spaltenkopf im Suggestion-Modal (HR-ALERT-02).
+    RebookingDannColumn,
+    /// Label "Vorschau" — Preview-Section-Kopf im Manual-Modal (REB-MANUAL-03).
+    RebookingPreviewLabel,
+    /// Row-Label "Stundenkonto" im Suggestion-Modal.
+    RebookingRowBalance,
+    /// Row-Label "Freiwillig geleistet" im Suggestion-Modal.
+    RebookingRowVoluntaryIst,
+    /// Row-Label "Freiwillig zugesagt" im Suggestion-Modal.
+    RebookingRowVoluntarySoll,
+    /// Row-Label "Freiwilligkeits-Delta" im Suggestion-Modal.
+    RebookingRowVoluntaryDelta,
+    /// Label des Wochen-Feldes im Manual-Modal (D-55-05).
+    RebookingWeekLabel,
+    /// Label des Jahres-Feldes im Manual-Modal (D-55-05).
+    RebookingYearLabel,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {

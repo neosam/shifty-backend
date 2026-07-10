@@ -151,6 +151,8 @@ mod working_hours_mapping_tests {
             dynamic_hours: 0.0,
             overall_hours: 0.0,
             volunteer_hours: 99.0,
+            has_pending_rebooking: false,
+            pending_rebooking_id: None,
         };
         let emp = Employee::from(&short);
         assert_eq!(emp.volunteer_hours, 0.0);

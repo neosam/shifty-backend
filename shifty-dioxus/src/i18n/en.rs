@@ -1231,4 +1231,67 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         Key::VoluntaryHoursFulfillment,
         "Voluntary fulfillment",
     );
+
+    // Phase 55: Manual-Rebooking + HR-Alert (F3 + F5)
+    i18n.add_text(Locale::En, Key::RebookingApprove, "Approve");
+    i18n.add_text(Locale::En, Key::RebookingReject, "Reject");
+    i18n.add_text(Locale::En, Key::RebookingSubmit, "Book");
+    i18n.add_text(
+        Locale::En,
+        Key::RebookingModalTitleSuggestion,
+        "Rebooking suggestion",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::RebookingModalTitleManual,
+        "Manual rebooking",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::RebookingBannerTitle,
+        "Voluntary rebooking suggested",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::RebookingBannerBody,
+        "HR: balance offset possible \u{2014} click to review",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::RebookingDirectionVolunteerToExtra,
+        "Voluntary \u{2192} Paid",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::RebookingDirectionExtraToVolunteer,
+        "Paid \u{2192} Voluntary",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::RebookingErrorSlotTaken,
+        "Calendar week already booked",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::RebookingErrorAlreadyResolved,
+        "Suggestion already processed",
+    );
+    i18n.add_text(Locale::En, Key::RebookingHoursLabel, "Hours");
+    i18n.add_text(Locale::En, Key::RebookingIstColumn, "Current");
+    i18n.add_text(Locale::En, Key::RebookingDannColumn, "After");
+    i18n.add_text(Locale::En, Key::RebookingPreviewLabel, "Preview");
+    i18n.add_text(Locale::En, Key::RebookingRowBalance, "Hour balance");
+    i18n.add_text(
+        Locale::En,
+        Key::RebookingRowVoluntaryIst,
+        "Voluntary logged",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::RebookingRowVoluntarySoll,
+        "Voluntary committed",
+    );
+    i18n.add_text(Locale::En, Key::RebookingRowVoluntaryDelta, "Voluntary delta");
+    i18n.add_text(Locale::En, Key::RebookingWeekLabel, "Calendar week");
+    i18n.add_text(Locale::En, Key::RebookingYearLabel, "Year");
 }

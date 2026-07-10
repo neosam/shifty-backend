@@ -1342,4 +1342,71 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         Key::VoluntaryHoursFulfillment,
         "Ehrenamt Erf\u{00FC}llungsgrad",
     );
+
+    // Phase 55: Manual-Rebooking + HR-Alert (F3 + F5)
+    i18n.add_text(Locale::De, Key::RebookingApprove, "Best\u{00E4}tigen");
+    i18n.add_text(Locale::De, Key::RebookingReject, "Ablehnen");
+    i18n.add_text(Locale::De, Key::RebookingSubmit, "Buchen");
+    i18n.add_text(
+        Locale::De,
+        Key::RebookingModalTitleSuggestion,
+        "Vorschlag zur Umbuchung",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::RebookingModalTitleManual,
+        "Manuelle Umbuchung",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::RebookingBannerTitle,
+        "Freiwilligen-Umbuchung vorgeschlagen",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::RebookingBannerBody,
+        "HR: Ausgleich m\u{00F6}glich \u{2014} anklicken zum Pr\u{00FC}fen",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::RebookingDirectionVolunteerToExtra,
+        "Freiwillig \u{2192} Bezahlt",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::RebookingDirectionExtraToVolunteer,
+        "Bezahlt \u{2192} Freiwillig",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::RebookingErrorSlotTaken,
+        "Kalenderwoche bereits belegt",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::RebookingErrorAlreadyResolved,
+        "Vorschlag bereits verarbeitet",
+    );
+    i18n.add_text(Locale::De, Key::RebookingHoursLabel, "Stunden");
+    i18n.add_text(Locale::De, Key::RebookingIstColumn, "IST");
+    i18n.add_text(Locale::De, Key::RebookingDannColumn, "DANN");
+    i18n.add_text(Locale::De, Key::RebookingPreviewLabel, "Vorschau");
+    i18n.add_text(Locale::De, Key::RebookingRowBalance, "Stundenkonto");
+    i18n.add_text(
+        Locale::De,
+        Key::RebookingRowVoluntaryIst,
+        "Freiwillig geleistet",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::RebookingRowVoluntarySoll,
+        "Freiwillig zugesagt",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::RebookingRowVoluntaryDelta,
+        "Freiwilligkeits-Delta",
+    );
+    i18n.add_text(Locale::De, Key::RebookingWeekLabel, "Kalenderwoche");
+    i18n.add_text(Locale::De, Key::RebookingYearLabel, "Jahr");
 }

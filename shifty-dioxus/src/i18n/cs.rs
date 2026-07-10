@@ -1330,4 +1330,73 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         Key::VoluntaryHoursFulfillment,
         "Dobrovolné plnění",
     );
+
+    // Phase 55: Manual-Rebooking + HR-Alert (F3 + F5)
+    // [ASSUMED] cs-Uebersetzung analog EN/DE — native-check als
+    // Manual-Verify (RESEARCH §D.4, gleiches Muster wie Phase 54).
+    i18n.add_text(Locale::Cs, Key::RebookingApprove, "Potvrdit");
+    i18n.add_text(Locale::Cs, Key::RebookingReject, "Zamítnout");
+    i18n.add_text(Locale::Cs, Key::RebookingSubmit, "Zaúčtovat");
+    i18n.add_text(
+        Locale::Cs,
+        Key::RebookingModalTitleSuggestion,
+        "Návrh přeúčtování",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::RebookingModalTitleManual,
+        "Ruční přeúčtování",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::RebookingBannerTitle,
+        "Návrh přeúčtování dobrovolných hodin",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::RebookingBannerBody,
+        "HR: možné vyrovnání \u{2014} klikněte pro kontrolu",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::RebookingDirectionVolunteerToExtra,
+        "Dobrovolné \u{2192} Placené",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::RebookingDirectionExtraToVolunteer,
+        "Placené \u{2192} Dobrovolné",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::RebookingErrorSlotTaken,
+        "Kalendářní týden je již obsazen",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::RebookingErrorAlreadyResolved,
+        "Návrh již byl zpracován",
+    );
+    i18n.add_text(Locale::Cs, Key::RebookingHoursLabel, "Hodiny");
+    i18n.add_text(Locale::Cs, Key::RebookingIstColumn, "Nyní");
+    i18n.add_text(Locale::Cs, Key::RebookingDannColumn, "Poté");
+    i18n.add_text(Locale::Cs, Key::RebookingPreviewLabel, "Náhled");
+    i18n.add_text(Locale::Cs, Key::RebookingRowBalance, "Účet hodin");
+    i18n.add_text(
+        Locale::Cs,
+        Key::RebookingRowVoluntaryIst,
+        "Dobrovolné odpracováno",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::RebookingRowVoluntarySoll,
+        "Dobrovolné závazek",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::RebookingRowVoluntaryDelta,
+        "Dobrovolné rozdíl",
+    );
+    i18n.add_text(Locale::Cs, Key::RebookingWeekLabel, "Kalendářní týden");
+    i18n.add_text(Locale::Cs, Key::RebookingYearLabel, "Rok");
 }
