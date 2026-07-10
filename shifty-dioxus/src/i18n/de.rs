@@ -131,12 +131,12 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
 
     // Weekly overview page
     i18n.add_text(Locale::De, Key::WeeklyOverviewTitle, "Jahresübersicht");
-    i18n.add_text(Locale::De, Key::PaidVolunteer, "Bezahlt / Freiwillig");
-    i18n.add_text(Locale::De, Key::Committed, "Freiwillig zugesagt");
+    i18n.add_text(Locale::De, Key::PaidVolunteer, "Bezahlt / Ehrenamt");
+    i18n.add_text(Locale::De, Key::Committed, "Ehrenamt zugesagt");
     i18n.add_text(
         Locale::De,
         Key::PaidCommittedVolunteer,
-        "Bezahlt / Freiwillig zugesagt / Freiwillig",
+        "Bezahlt / Ehrenamt zugesagt / Ehrenamt",
     );
     i18n.add_text(
         Locale::De,
@@ -454,11 +454,11 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::ShowInactive, "Inaktive anzeigen");
     i18n.add_text(Locale::De, Key::ShowPaid, "Bezahlt");
     i18n.add_text(Locale::De, Key::ShowUnpaid, "Unbezahlte anzeigen");
-    i18n.add_text(Locale::De, Key::CommittedVoluntaryLabel, "Freiwillige Zusage (h)");
+    i18n.add_text(Locale::De, Key::CommittedVoluntaryLabel, "Ehrenamt-Zusage (h)");
     i18n.add_text(
         Locale::De,
         Key::CommittedVoluntaryHelp,
-        "Zugesagte freiwillige Stunden.",
+        "Zugesagte Ehrenamt-Stunden.",
     );
     i18n.add_text(Locale::De, Key::EmployeesShowAll, "alle");
     i18n.add_text(Locale::De, Key::Values, "Werte");
@@ -625,7 +625,7 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         "Neuen Verkäufer erstellen",
     );
     i18n.add_text(Locale::De, Key::Paid, "Bezahlt");
-    i18n.add_text(Locale::De, Key::Volunteer, "Freiwillig");
+    i18n.add_text(Locale::De, Key::Volunteer, "Ehrenamt");
     i18n.add_text(Locale::De, Key::Inactive, "Inaktiv");
     i18n.add_text(Locale::De, Key::Login, "Anmelden");
     i18n.add_text(Locale::De, Key::LogoutUser, "Abmelden {user}");
@@ -800,7 +800,7 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::De, Key::AbsenceFilterPersonLabel, "Person");
     i18n.add_text(Locale::De, Key::AbsenceFilterPersonAll, "Alle Personen");
     i18n.add_text(Locale::De, Key::AbsenceGroupEmployees, "Angestellte");
-    i18n.add_text(Locale::De, Key::AbsenceGroupVolunteers, "Freiwillige");
+    i18n.add_text(Locale::De, Key::AbsenceGroupVolunteers, "Ehrenamtliche");
     i18n.add_text(Locale::De, Key::AbsenceFilterStatusLabel, "Status");
     i18n.add_text(Locale::De, Key::AbsenceFilterStatusAll, "Alle");
     i18n.add_text(Locale::De, Key::AbsenceStatusActive, "Aktiv");
@@ -1333,8 +1333,8 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(
         Locale::De,
         Key::VoluntaryHoursIstPerWeek,
-        "Freiwillig \u{00D8} / Woche",
+        "Ehrenamt \u{00D8} / Woche",
     );
-    i18n.add_text(Locale::De, Key::VoluntaryHoursSoll, "Freiwillig Soll");
-    i18n.add_text(Locale::De, Key::VoluntaryHoursDelta, "Freiwillig Delta");
+    i18n.add_text(Locale::De, Key::VoluntaryHoursSoll, "Ehrenamt Soll");
+    i18n.add_text(Locale::De, Key::VoluntaryHoursDelta, "Ehrenamt Delta");
 }

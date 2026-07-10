@@ -1570,14 +1570,15 @@ mod tests {
             hours_label: ImStr::from("h"),
             week_short: ImStr::from("W"),
         });
-        // Must contain "5.00" (the formatted volunteer hours) and "Volunteer" label
+        // Must contain "5.00" (the formatted volunteer hours) and "Voluntary" label
+        // (Phase 54-08 Gap G2 i18n unification: Key::Volunteer -> "Voluntary" in En.)
         assert!(
             html.contains("5.00"),
             "WeekListExpanded must show volunteer hours value: {html}"
         );
         assert!(
-            html.contains("Volunteer"),
-            "WeekListExpanded must show Volunteer label: {html}"
+            html.contains("Voluntary"),
+            "WeekListExpanded must show Voluntary label: {html}"
         );
     }
 
@@ -1592,10 +1593,11 @@ mod tests {
             hours_label: ImStr::from("h"),
             week_short: ImStr::from("W"),
         });
-        // "Volunteer" should not appear when volunteer_hours == 0
+        // "Voluntary" should not appear when volunteer_hours == 0
+        // (Phase 54-08 Gap G2 i18n unification.)
         assert!(
-            !html.contains("Volunteer"),
-            "WeekListExpanded must NOT show Volunteer label when volunteer_hours==0: {html}"
+            !html.contains("Voluntary"),
+            "WeekListExpanded must NOT show Voluntary label when volunteer_hours==0: {html}"
         );
     }
 
@@ -1612,9 +1614,10 @@ mod tests {
             html.contains("7.50"),
             "WeekDetailPanel must show volunteer hours value: {html}"
         );
+        // Phase 54-08 Gap G2 i18n unification: Key::Volunteer -> "Voluntary" in En.
         assert!(
-            html.contains("Volunteer"),
-            "WeekDetailPanel must show Volunteer label: {html}"
+            html.contains("Voluntary"),
+            "WeekDetailPanel must show Voluntary label: {html}"
         );
     }
 
@@ -1627,9 +1630,10 @@ mod tests {
             week,
             hours_label: ImStr::from("h"),
         });
+        // Phase 54-08 Gap G2 i18n unification.
         assert!(
-            !html.contains("Volunteer"),
-            "WeekDetailPanel must NOT show Volunteer when volunteer_hours==0: {html}"
+            !html.contains("Voluntary"),
+            "WeekDetailPanel must NOT show Voluntary when volunteer_hours==0: {html}"
         );
     }
 

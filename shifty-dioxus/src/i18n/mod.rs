@@ -1141,21 +1141,23 @@ mod tests {
     fn i18n_committed_keys_match_german_reference() {
         // Phase-16 D-02/CVC-08 guard: pins the De copy for the committed token +
         // three-band header, and protects against the Locale::De/Locale::En swap bug.
+        // Phase 54-08 Gap G2 i18n unification: Freiwillig -> Ehrenamt.
         let i18n = generate(Locale::De);
-        assert_eq!(i18n.t(Key::Committed).as_ref(), "Freiwillig zugesagt");
+        assert_eq!(i18n.t(Key::Committed).as_ref(), "Ehrenamt zugesagt");
         assert_eq!(
             i18n.t(Key::PaidCommittedVolunteer).as_ref(),
-            "Bezahlt / Freiwillig zugesagt / Freiwillig"
+            "Bezahlt / Ehrenamt zugesagt / Ehrenamt"
         );
     }
 
     #[test]
     fn i18n_committed_keys_match_english_reference() {
+        // Phase 54-08 Gap G2 i18n unification: Volunteer -> Voluntary.
         let i18n = generate(Locale::En);
         assert_eq!(i18n.t(Key::Committed).as_ref(), "Voluntary committed");
         assert_eq!(
             i18n.t(Key::PaidCommittedVolunteer).as_ref(),
-            "Paid / Voluntary committed / Volunteer"
+            "Paid / Voluntary committed / Voluntary"
         );
     }
 
@@ -1182,20 +1184,23 @@ mod tests {
     #[test]
     fn i18n_phase17_keys_match_german_reference() {
         // Pitfall-6 guard: ensures de.rs uses Locale::De (not accidentally Locale::En).
+        // Phase 54-08 Gap G2 i18n unification: Freiwillige Zusage -> Ehrenamt-Zusage.
         let i18n = generate(Locale::De);
         assert_eq!(
             i18n.t(Key::CommittedVoluntaryLabel).as_ref(),
-            "Freiwillige Zusage (h)"
+            "Ehrenamt-Zusage (h)"
         );
         assert_eq!(i18n.t(Key::EmployeesShowAll).as_ref(), "alle");
     }
 
     #[test]
     fn i18n_phase17_keys_match_english_reference() {
+        // Phase 54-08 Gap G2 i18n unification: capitalization normalized
+        // ("Voluntary Commitment" -> "Voluntary commitment") per user request.
         let i18n = generate(Locale::En);
         assert_eq!(
             i18n.t(Key::CommittedVoluntaryLabel).as_ref(),
-            "Voluntary Commitment (h)"
+            "Voluntary commitment (h)"
         );
         assert_eq!(i18n.t(Key::EmployeesShowAll).as_ref(), "all");
     }
@@ -1748,9 +1753,10 @@ mod tests {
             de.t(Key::DynamicHourHelp).as_ref(),
             "Das Soll entspricht immer den geleisteten Stunden \u{2014} ideal, wenn die Person nach Stunden bezahlt wird."
         );
+        // Phase 54-08 Gap G2 i18n unification: freiwillige -> Ehrenamt-.
         assert_eq!(
             de.t(Key::CommittedVoluntaryHelp).as_ref(),
-            "Zugesagte freiwillige Stunden."
+            "Zugesagte Ehrenamt-Stunden."
         );
     }
 

@@ -624,8 +624,9 @@ mod tests {
             current_week: 27,
             i18n: generate(Locale::En),
         });
+        // Phase 54-08 Gap G2 i18n unification: last band "Volunteer" -> "Voluntary".
         assert!(
-            html.contains("Paid / Voluntary committed / Volunteer"),
+            html.contains("Paid / Voluntary committed / Voluntary"),
             "header should use the three-band key copy: {html}"
         );
     }

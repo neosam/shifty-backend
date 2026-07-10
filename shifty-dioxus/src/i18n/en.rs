@@ -103,12 +103,12 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
 
     // Weekly overview page
     i18n.add_text(Locale::En, Key::WeeklyOverviewTitle, "Weekly Overview");
-    i18n.add_text(Locale::En, Key::PaidVolunteer, "Paid / Volunteer");
+    i18n.add_text(Locale::En, Key::PaidVolunteer, "Paid / Voluntary");
     i18n.add_text(Locale::En, Key::Committed, "Voluntary committed");
     i18n.add_text(
         Locale::En,
         Key::PaidCommittedVolunteer,
-        "Paid / Voluntary committed / Volunteer",
+        "Paid / Voluntary committed / Voluntary",
     );
     i18n.add_text(
         Locale::En,
@@ -146,7 +146,7 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::CategoryHolidays, "Holiday");
     i18n.add_text(Locale::En, Key::CategoryUnavailable, "Unavailable");
     i18n.add_text(Locale::En, Key::CategoryUnpaidLeave, "Unpaid Leave");
-    i18n.add_text(Locale::En, Key::CategoryVolunteerWork, "Volunteer Work");
+    i18n.add_text(Locale::En, Key::CategoryVolunteerWork, "Voluntary work");
     i18n.add_text(Locale::En, Key::CategoryCustom, "Custom");
 
     i18n.add_text(
@@ -411,7 +411,7 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::ShowInactive, "Show Inactive");
     i18n.add_text(Locale::En, Key::ShowPaid, "Paid");
     i18n.add_text(Locale::En, Key::ShowUnpaid, "Show Unpaid");
-    i18n.add_text(Locale::En, Key::CommittedVoluntaryLabel, "Voluntary Commitment (h)");
+    i18n.add_text(Locale::En, Key::CommittedVoluntaryLabel, "Voluntary commitment (h)");
     i18n.add_text(
         Locale::En,
         Key::CommittedVoluntaryHelp,
@@ -574,7 +574,7 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         "Create new sales person",
     );
     i18n.add_text(Locale::En, Key::Paid, "Paid");
-    i18n.add_text(Locale::En, Key::Volunteer, "Volunteer");
+    i18n.add_text(Locale::En, Key::Volunteer, "Voluntary");
     i18n.add_text(Locale::En, Key::Inactive, "Inactive");
     i18n.add_text(Locale::En, Key::Login, "Login");
     i18n.add_text(Locale::En, Key::LogoutUser, "Logout {user}");
@@ -733,7 +733,7 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::AbsenceFilterPersonLabel, "Person");
     i18n.add_text(Locale::En, Key::AbsenceFilterPersonAll, "All people");
     i18n.add_text(Locale::En, Key::AbsenceGroupEmployees, "Employees");
-    i18n.add_text(Locale::En, Key::AbsenceGroupVolunteers, "Volunteers");
+    i18n.add_text(Locale::En, Key::AbsenceGroupVolunteers, "Voluntary staff");
     i18n.add_text(Locale::En, Key::AbsenceFilterStatusLabel, "Status");
     i18n.add_text(Locale::En, Key::AbsenceFilterStatusAll, "All");
     i18n.add_text(Locale::En, Key::AbsenceStatusActive, "Active");
