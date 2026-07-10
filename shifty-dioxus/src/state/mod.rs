@@ -7,6 +7,7 @@ pub mod employee;
 pub mod employee_work_details;
 pub mod feature_flag;
 pub mod pdf_export_config;
+pub mod rebooking;
 pub mod sales_person_available;
 pub mod shiftplan;
 pub mod slot_edit;

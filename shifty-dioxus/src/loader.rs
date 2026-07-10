@@ -1,6 +1,7 @@
 use rest_types::{
-    BlockTO, ExtraHoursTO, GenerateInvitationRequest, InvitationResponse, SalesPersonTO,
-    UserRole, UserTO, WeekMessageTO,
+    BlockTO, ExtraHoursTO, GenerateInvitationRequest, InvitationResponse,
+    ManualRebookingRequestTO, RebookingBatchTO, RebookingSuggestionTO, SalesPersonTO, UserRole,
+    UserTO, WeekMessageTO,
 };
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -17,6 +18,9 @@ use crate::{
         employee::{Employee, ExtraHours, VoluntaryStats},
         employee_work_details::{EmployeeWorkDetails, WorkingHoursMini},
         feature_flag::FeatureFlag,
+        rebooking::{
+            ManualRebookingRequest, RebookingBatch, RebookingSubmitError, RebookingSuggestion,
+        },
         sales_person_available::SalesPersonUnavailable,
         shiftplan::{Booking, BookingConflict, SalesPerson},
         slot_edit::SlotEditItem,
@@ -1007,6 +1011,199 @@ pub async fn save_pdf_export_config(
 /// erwartet **204 No Content**.
 pub async fn trigger_pdf_export_now(config: Config) -> Result<(), ShiftyError> {
     api::trigger_pdf_export(&config).await
+}
+
+// ─── Phase 55 F3+F5: Rebooking-Loader (Manual + Suggestions) ────────────
+//
+// Vier Direct-HTTP-Loader — nutzen `reqwest::Client` statt `api::`-Wrapper,
+// weil die 4 Endpoints strukturierte 409-Bodies mit `{"error":"..."}`
+// zurueckliefern (Plan 55-02, T-4/T-55-01 Mitigation) und wir daraus
+// deterministisch auf `RebookingSubmitError::SlotTaken`/`AlreadyResolved`
+// mappen. Kein Reuse von `error_for_status_ref()`, weil das die 409-Body-
+// Information verwerfen wuerde.
+//
+// Alle vier Endpoints sind in shifty-dioxus/Dioxus.toml als
+// `[[web.proxy]]` fuer `/rebooking` und `/rebooking-suggestions`
+// gemappt (Plan 55-02 Task 2).
+
+/// Extrahiert das `error`-Feld aus einem strukturierten 409-Body und
+/// mapped auf die passende `RebookingSubmitError`-Variante. Wenn der
+/// Body nicht parsbar ist oder das Feld unbekannt ist, fallen wir auf
+/// `Other(body)` zurueck.
+fn map_conflict_body(body: &str, expected_slot_taken_key: bool) -> RebookingSubmitError {
+    #[derive(serde::Deserialize)]
+    struct ConflictBody<'a> {
+        error: &'a str,
+    }
+    match serde_json::from_str::<ConflictBody>(body) {
+        Ok(parsed) => match parsed.error {
+            "RebookingErrorSlotTaken" if expected_slot_taken_key => {
+                RebookingSubmitError::SlotTaken
+            }
+            "RebookingErrorAlreadyResolved" => RebookingSubmitError::AlreadyResolved,
+            other => RebookingSubmitError::Other(other.to_string()),
+        },
+        Err(_) => RebookingSubmitError::Other(body.to_string()),
+    }
+}
+
+/// Phase 55 (D-55-05 + D-55-06): `POST /rebooking/manual`.
+///
+/// - 200 → `RebookingBatch`.
+/// - 409 mit `{"error":"RebookingErrorSlotTaken"}` → `SlotTaken`.
+/// - 400 / sonstige Fehler → `Other(<body>)`.
+pub async fn submit_manual_rebooking(
+    config: Config,
+    request: ManualRebookingRequest,
+) -> Result<RebookingBatch, RebookingSubmitError> {
+    info!("Submitting manual rebooking");
+    let url = format!("{}/rebooking/manual", config.backend);
+    let payload: ManualRebookingRequestTO = (&request).into();
+    let client = reqwest::Client::new();
+    let response = client
+        .post(url)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| RebookingSubmitError::Other(format!("network: {e}")))?;
+    let status = response.status();
+    if status.is_success() {
+        let to: RebookingBatchTO = response
+            .json()
+            .await
+            .map_err(|e| RebookingSubmitError::Other(format!("parse: {e}")))?;
+        Ok(RebookingBatch::from(&to))
+    } else {
+        let body = response.text().await.unwrap_or_default();
+        if status.as_u16() == 409 {
+            Err(map_conflict_body(&body, true))
+        } else {
+            Err(RebookingSubmitError::Other(body))
+        }
+    }
+}
+
+/// Phase 55 (HR-ALERT-02): `GET /rebooking-suggestions` liefert alle
+/// pending RebookingSuggestions ueber alle SalesPersons. HR-Sicht.
+///
+/// Fehler bleiben als `ShiftyError::Reqwest` durch — die HR-Seite
+/// rendert dann einen leeren State (kein 409-Fall).
+pub async fn load_rebooking_suggestions_pending(
+    config: Config,
+) -> Result<Rc<[RebookingSuggestion]>, ShiftyError> {
+    info!("Fetching pending rebooking suggestions");
+    let url = format!("{}/rebooking-suggestions", config.backend);
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let tos: Vec<RebookingSuggestionTO> = response.json().await?;
+    let out: Rc<[RebookingSuggestion]> = tos.iter().map(RebookingSuggestion::from).collect();
+    info!("Fetched {} pending rebooking suggestions", out.len());
+    Ok(out)
+}
+
+/// Phase 55 (HR-ALERT-03): `POST /rebooking-suggestions/{id}/approve`.
+///
+/// - 200 → `RebookingBatch` mit `state = Approved`.
+/// - 409 mit `{"error":"RebookingErrorAlreadyResolved"}` → `AlreadyResolved`.
+/// - sonstige Fehler → `Other(<body>)`.
+pub async fn approve_rebooking_suggestion(
+    config: Config,
+    batch_id: Uuid,
+) -> Result<RebookingBatch, RebookingSubmitError> {
+    info!("Approving rebooking suggestion {}", batch_id);
+    let url = format!("{}/rebooking-suggestions/{}/approve", config.backend, batch_id);
+    let client = reqwest::Client::new();
+    let response = client
+        .post(url)
+        .send()
+        .await
+        .map_err(|e| RebookingSubmitError::Other(format!("network: {e}")))?;
+    let status = response.status();
+    if status.is_success() {
+        let to: RebookingBatchTO = response
+            .json()
+            .await
+            .map_err(|e| RebookingSubmitError::Other(format!("parse: {e}")))?;
+        Ok(RebookingBatch::from(&to))
+    } else {
+        let body = response.text().await.unwrap_or_default();
+        if status.as_u16() == 409 {
+            Err(map_conflict_body(&body, false))
+        } else {
+            Err(RebookingSubmitError::Other(body))
+        }
+    }
+}
+
+/// Phase 55 (HR-ALERT-03): `POST /rebooking-suggestions/{id}/reject`.
+///
+/// Fehlerbehandlung analog `approve_rebooking_suggestion`.
+pub async fn reject_rebooking_suggestion(
+    config: Config,
+    batch_id: Uuid,
+) -> Result<RebookingBatch, RebookingSubmitError> {
+    info!("Rejecting rebooking suggestion {}", batch_id);
+    let url = format!("{}/rebooking-suggestions/{}/reject", config.backend, batch_id);
+    let client = reqwest::Client::new();
+    let response = client
+        .post(url)
+        .send()
+        .await
+        .map_err(|e| RebookingSubmitError::Other(format!("network: {e}")))?;
+    let status = response.status();
+    if status.is_success() {
+        let to: RebookingBatchTO = response
+            .json()
+            .await
+            .map_err(|e| RebookingSubmitError::Other(format!("parse: {e}")))?;
+        Ok(RebookingBatch::from(&to))
+    } else {
+        let body = response.text().await.unwrap_or_default();
+        if status.as_u16() == 409 {
+            Err(map_conflict_body(&body, false))
+        } else {
+            Err(RebookingSubmitError::Other(body))
+        }
+    }
+}
+
+#[cfg(test)]
+mod rebooking_loader_tests {
+    use super::*;
+
+    #[test]
+    fn map_conflict_body_recognises_slot_taken_when_expected() {
+        let out = map_conflict_body(r#"{"error":"RebookingErrorSlotTaken"}"#, true);
+        assert_eq!(out, RebookingSubmitError::SlotTaken);
+    }
+
+    #[test]
+    fn map_conflict_body_ignores_slot_taken_when_not_expected() {
+        // approve/reject sollen keine SlotTaken erwarten; Fallback → Other
+        let out = map_conflict_body(r#"{"error":"RebookingErrorSlotTaken"}"#, false);
+        assert_eq!(
+            out,
+            RebookingSubmitError::Other("RebookingErrorSlotTaken".to_string())
+        );
+    }
+
+    #[test]
+    fn map_conflict_body_recognises_already_resolved() {
+        let out = map_conflict_body(r#"{"error":"RebookingErrorAlreadyResolved"}"#, true);
+        assert_eq!(out, RebookingSubmitError::AlreadyResolved);
+    }
+
+    #[test]
+    fn map_conflict_body_falls_back_to_other_for_unknown_key() {
+        let out = map_conflict_body(r#"{"error":"SomethingElse"}"#, true);
+        assert_eq!(out, RebookingSubmitError::Other("SomethingElse".to_string()));
+    }
+
+    #[test]
+    fn map_conflict_body_falls_back_to_other_for_unparseable() {
+        let out = map_conflict_body("not json", true);
+        assert_eq!(out, RebookingSubmitError::Other("not json".to_string()));
+    }
 }
 
 #[cfg(test)]
