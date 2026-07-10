@@ -56,6 +56,28 @@ Cross-Entity-Invarianten:
   `SalesPersonService` (v2.6 Phase 54). HR-only via API-Level
   None-Redaktion (Non-HR erhält alle Felder `None`, kein 403).
   Siehe Feature [F14](../features/F14-rebooking.md).
+- `RebookingReconciliationService` — F3-(Manuelle Umbuchung) und
+  F5-(HR-Alert / Vorschlag)-Writer, der zwei `ExtraHours`-Zeilen
+  (Marker `ExtraHoursSource::Rebooking`) + einen `rebooking_batch` +
+  einen `rebooking_batch_entry` in einer einzigen Transaktion
+  orchestriert; führt Approve/Reject über ein state-conditional
+  `UPDATE ... WHERE state='pending'` für HR-ALERT-03-Race-Sicherheit
+  aus (v2.6 Phase 55). Deps: `ExtraHoursService`,
+  `RebookingBatchService` (Basic), `ReportingService`,
+  `PermissionService`, `ClockService`, `UuidService`,
+  `TransactionDao`. HR-gated als erster `await` in jeder public
+  Methode; kein Undo-Pfad (Anti-Feature REB-UNDO-01, [D-55-04]).
+  Siehe Feature [F14](../features/F14-rebooking.md).
+
+  **Konstruktionsreihenfolge in `shifty_bin/src/main.rs`:** gebaut
+  NACH `reporting_service` (Business-Logic, Phase 54) und NACH
+  `rebooking_batch_service` (Basic, Phase 54). Das ist die dritte
+  Business-Logic-Wellenschicht im Phase-55-DI-Graphen. Das Runtime-
+  Diagramm in
+  [`diagrams/service-graph-runtime.mmd`](./diagrams/service-graph-runtime.mmd)
+  bildet den Zustand vor Phase 55 ab und rendert diesen Knoten noch
+  nicht; ein Nachzieh-Refresh des Graphen ist auf das nächste
+  Milestone-Close-Audit verschoben.
 
 ## Regeln
 

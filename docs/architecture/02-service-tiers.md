@@ -55,6 +55,27 @@ cross-entity invariants:
   `SalesPersonService` (v2.6 Phase 54). HR-only via API-level
   None-redaction (Non-HR receives all-`None` fields, not 403).
   See feature [F14](../features/F14-rebooking.md).
+- `RebookingReconciliationService` — F3 (Manual Rebooking) + F5
+  (HR-Alert / Suggestion) writer that orchestrates two `ExtraHours`
+  rows (marker `ExtraHoursSource::Rebooking`) + one `rebooking_batch`
+  + one `rebooking_batch_entry` in a single transaction; runs
+  approve/reject through a state-conditional `UPDATE ... WHERE
+  state='pending'` for HR-ALERT-03 race safety (v2.6 Phase 55). Deps:
+  `ExtraHoursService`, `RebookingBatchService` (Basic),
+  `ReportingService`, `PermissionService`, `ClockService`,
+  `UuidService`, `TransactionDao`. HR-gated as first `await` in every
+  public method; no undo path (Anti-Feature REB-UNDO-01, [D-55-04]).
+  See feature [F14](../features/F14-rebooking.md).
+
+  **Construction order in `shifty_bin/src/main.rs`:** built AFTER
+  `reporting_service` (Business-Logic, Phase 54) and AFTER
+  `rebooking_batch_service` (Basic, Phase 54). This is the third
+  Business-Logic wave layer in the Phase 55 DI graph. The runtime
+  diagram in
+  [`diagrams/service-graph-runtime.mmd`](./diagrams/service-graph-runtime.mmd)
+  reflects the pre-Phase-55 state and does not yet render this node;
+  a follow-up graph refresh is deferred to the next milestone-close
+  audit.
 
 ## Rules
 
