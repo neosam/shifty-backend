@@ -19,10 +19,11 @@
 use crate::permission::Authentication;
 use crate::ServiceError;
 use async_trait::async_trait;
-use dao::rebooking_batch::{RebookingBatchEntity, RebookingBatchEntryEntity};
+use dao::rebooking_batch::{RebookingBatchEntity, RebookingBatchEntryEntity, RebookingBatchState};
 use dao::MockTransaction;
 use mockall::automock;
 use std::fmt::Debug;
+use std::sync::Arc;
 use uuid::Uuid;
 
 #[automock(type Context=(); type Transaction=MockTransaction;)]
@@ -71,4 +72,45 @@ pub trait RebookingBatchService {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<RebookingBatchEntity, ServiceError>;
+
+    /// Phase 55 (D-55-02): Liefert alle aktiven `state='pending'`-Batches
+    /// fuer einen SalesPerson. HR-gated. Konsumiert vom
+    /// `ShortEmployeeReportTO.has_pending_rebooking`-Prediktor (Plan 55-02)
+    /// und vom `RebookingReconciliationService::list_pending_for_sales_person`.
+    async fn find_pending_for_sales_person(
+        &self,
+        sales_person_id: Uuid,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Arc<[RebookingBatchEntity]>, ServiceError>;
+
+    /// Phase 55 (D-55-02): Liefert alle aktiven `state='pending'`-Batches
+    /// **phase-weit** (ueber alle Personen). HR-gated. Konsumiert vom
+    /// `RebookingReconciliationService::list_pending_for_sales_person(None, ...)`
+    /// fuer den `GET /rebooking-suggestions`-Endpoint (Plan 55-02).
+    async fn list_all_pending(
+        &self,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Arc<[RebookingBatchEntity]>, ServiceError>;
+
+    /// Phase 55 (HR-ALERT-03, T-55-01): state-conditional UPDATE fuer
+    /// Approve/Reject-Race-Schutz. HR-gated.
+    ///
+    /// Erzeugt intern eine frische `new_version` via `UuidService` und
+    /// reicht sie an den DAO durch. Rueckgabe: Anzahl affected rows. `0`
+    /// bedeutet, dass der Batch bereits nicht mehr im `expected_state` war
+    /// (parallele HR-Aktion) — der Aufrufer (Reconciliation-Service) mappt
+    /// das auf `ServiceError::BatchAlreadyResolved`.
+    #[allow(clippy::too_many_arguments)]
+    async fn update_state_conditional(
+        &self,
+        batch_id: Uuid,
+        expected_state: RebookingBatchState,
+        new_state: RebookingBatchState,
+        approved: Option<time::PrimitiveDateTime>,
+        approved_by: Option<Arc<str>>,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<u64, ServiceError>;
 }

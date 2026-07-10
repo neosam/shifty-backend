@@ -272,6 +272,15 @@ fn error_handler(result: Result<Response, RestError>) -> Response {
                 .body(Body::new(err.to_string()))
                 .unwrap()
         }
+        // Phase 55 (HR-ALERT-03, T-55-01): parallel HR-Approve/Reject race hit
+        // an already-transitioned batch → HTTP 409 Conflict. The FE (Plan 55-02)
+        // reloads the suggestion list on this signal.
+        Err(RestError::ServiceError(err @ ServiceError::BatchAlreadyResolved)) => {
+            Response::builder()
+                .status(409)
+                .body(Body::new(err.to_string()))
+                .unwrap()
+        }
         Err(RestError::ServiceError(ServiceError::InternalError)) => Response::builder()
             .status(500)
             .body(Body::new("Internal server error".to_string()))

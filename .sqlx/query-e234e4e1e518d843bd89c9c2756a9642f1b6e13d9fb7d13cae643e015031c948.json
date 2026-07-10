@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE rebooking_batch\n                  SET state = ?,\n                      approved = ?,\n                      approved_by = ?,\n                      update_version = ?,\n                      update_process = ?\n                WHERE id = ? AND state = ? AND deleted IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "e234e4e1e518d843bd89c9c2756a9642f1b6e13d9fb7d13cae643e015031c948"
+}

@@ -112,4 +112,52 @@ pub trait RebookingBatchDao {
         batch_id: Uuid,
         tx: Self::Transaction,
     ) -> Result<Arc<[RebookingBatchEntryEntity]>, DaoError>;
+
+    /// Phase 55 (D-55-02, HR-ALERT): Liefert alle aktiven (`deleted IS NULL`)
+    /// Batches mit `state='pending'` fuer diesen SalesPerson, ueber alle
+    /// iso_year/iso_week hinweg. Konsumiert vom
+    /// `ShortEmployeeReportTO.has_pending_rebooking`-Prediktor (Plan 55-02)
+    /// und vom `RebookingReconciliationService::list_pending_for_sales_person`
+    /// (Plan 55-01, Task 3).
+    async fn find_pending_for_sales_person(
+        &self,
+        sales_person_id: Uuid,
+        tx: Self::Transaction,
+    ) -> Result<Arc<[RebookingBatchEntity]>, DaoError>;
+
+    /// Phase 55 (D-55-02): Liefert ALLE aktiven (`deleted IS NULL`) Batches
+    /// mit `state='pending'` ueber alle Personen. Konsumiert vom
+    /// `RebookingReconciliationService::list_pending_for_sales_person(None, ...)`
+    /// fuer den phase-weiten `GET /rebooking-suggestions`-Endpoint (Plan 55-02).
+    async fn list_all_pending(
+        &self,
+        tx: Self::Transaction,
+    ) -> Result<Arc<[RebookingBatchEntity]>, DaoError>;
+
+    /// Phase 55 (HR-ALERT-03, T-55-01): state-conditional UPDATE mit
+    /// Race-Schutz. Fuehrt aus:
+    ///
+    /// ```sql
+    /// UPDATE rebooking_batch
+    ///    SET state = ?, approved = ?, approved_by = ?,
+    ///        update_version = ?, update_process = ?
+    ///  WHERE id = ? AND state = ? AND deleted IS NULL
+    /// ```
+    ///
+    /// Rueckgabe: Anzahl affected rows. `0` bedeutet, dass der Batch bereits
+    /// nicht mehr im `expected_state` war (parallele Approve/Reject-Race).
+    /// Der Aufrufer (Reconciliation-Service) entscheidet, wie er reagiert
+    /// (typischerweise `ServiceError::BatchAlreadyResolved` bei `0`).
+    #[allow(clippy::too_many_arguments)]
+    async fn update_state_conditional(
+        &self,
+        batch_id: Uuid,
+        expected_state: RebookingBatchState,
+        new_state: RebookingBatchState,
+        approved: Option<time::PrimitiveDateTime>,
+        approved_by: Option<Arc<str>>,
+        new_version: Uuid,
+        process: &str,
+        tx: Self::Transaction,
+    ) -> Result<u64, DaoError>;
 }

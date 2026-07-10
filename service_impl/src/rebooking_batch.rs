@@ -5,10 +5,14 @@
 //! Ab Phase 55 wird dieser Service vom Business-Logic
 //! `RebookingReconciliationService` konsumiert.
 
+use std::sync::Arc;
+
 use crate::gen_service_impl;
 use async_trait::async_trait;
 use dao::{
-    rebooking_batch::{RebookingBatchDao, RebookingBatchEntity, RebookingBatchEntryEntity},
+    rebooking_batch::{
+        RebookingBatchDao, RebookingBatchEntity, RebookingBatchEntryEntity, RebookingBatchState,
+    },
     TransactionDao,
 };
 use service::{
@@ -197,5 +201,88 @@ impl<Deps: RebookingBatchServiceDeps> RebookingBatchService for RebookingBatchSe
 
         self.transaction_dao.commit(tx).await?;
         Ok(new_batch)
+    }
+
+    async fn find_pending_for_sales_person(
+        &self,
+        sales_person_id: Uuid,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Arc<[RebookingBatchEntity]>, ServiceError> {
+        self.permission_service
+            .check_permission(HR_PRIVILEGE, context)
+            .await?;
+
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+        let result = self
+            .rebooking_batch_dao
+            .find_pending_for_sales_person(sales_person_id, tx.clone())
+            .await?;
+        self.transaction_dao.commit(tx).await?;
+        Ok(result)
+    }
+
+    async fn list_all_pending(
+        &self,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Arc<[RebookingBatchEntity]>, ServiceError> {
+        self.permission_service
+            .check_permission(HR_PRIVILEGE, context)
+            .await?;
+
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+        let result = self
+            .rebooking_batch_dao
+            .list_all_pending(tx.clone())
+            .await?;
+        self.transaction_dao.commit(tx).await?;
+        Ok(result)
+    }
+
+    /// Phase 55 (HR-ALERT-03, T-55-01): state-conditional UPDATE.
+    ///
+    /// Erzeugt intern eine frische `new_version` via UuidService — der DAO
+    /// bekommt sie als expliziten Parameter. `rows_affected == 0` wird
+    /// **nicht** als Fehler zurueckgegeben; der Aufrufer (`RebookingReconciliation
+    /// Service::approve_suggestion` / `reject_suggestion`) entscheidet, wie
+    /// er auf "already-transitioned" reagiert (typischerweise
+    /// `ServiceError::BatchAlreadyResolved`).
+    async fn update_state_conditional(
+        &self,
+        batch_id: Uuid,
+        expected_state: RebookingBatchState,
+        new_state: RebookingBatchState,
+        approved: Option<time::PrimitiveDateTime>,
+        approved_by: Option<Arc<str>>,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<u64, ServiceError> {
+        self.permission_service
+            .check_permission(HR_PRIVILEGE, context)
+            .await?;
+
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+
+        let new_version = self.uuid_service.new_uuid(&format!(
+            "{REBOOKING_BATCH_SERVICE_PROCESS}::update_state_conditional version"
+        ));
+
+        let affected = self
+            .rebooking_batch_dao
+            .update_state_conditional(
+                batch_id,
+                expected_state,
+                new_state,
+                approved,
+                approved_by,
+                new_version,
+                REBOOKING_BATCH_SERVICE_PROCESS,
+                tx.clone(),
+            )
+            .await?;
+
+        self.transaction_dao.commit(tx).await?;
+        Ok(affected)
     }
 }

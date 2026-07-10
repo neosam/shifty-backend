@@ -1,0 +1,80 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, sales_person_id, iso_year, iso_week, kind, state, created,\n                      approved, approved_by, deleted, update_version\n               FROM rebooking_batch\n               WHERE state = 'pending' AND deleted IS NULL\n               ORDER BY iso_year, iso_week, sales_person_id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "sales_person_id",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "iso_year",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "iso_week",
+        "ordinal": 3,
+        "type_info": "Integer"
+      },
+      {
+        "name": "kind",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "state",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "created",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "approved",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "approved_by",
+        "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "deleted",
+        "ordinal": 9,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 10,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "3274b39e1e957625bc786e7e720f17e6c39aa37c0f4ee1ee996db980363424c2"
+}

@@ -339,6 +339,93 @@ impl RebookingBatchDao for RebookingBatchDaoImpl {
         .map(RebookingBatchEntryEntity::try_from)
         .collect::<Result<Arc<[_]>, _>>()?)
     }
+
+    async fn find_pending_for_sales_person(
+        &self,
+        sales_person_id: Uuid,
+        tx: Self::Transaction,
+    ) -> Result<Arc<[RebookingBatchEntity]>, DaoError> {
+        let sp_vec = sales_person_id.as_bytes().to_vec();
+        Ok(query_as!(
+            RebookingBatchDb,
+            r#"SELECT id, sales_person_id, iso_year, iso_week, kind, state, created,
+                      approved, approved_by, deleted, update_version
+               FROM rebooking_batch
+               WHERE sales_person_id = ? AND state = 'pending' AND deleted IS NULL
+               ORDER BY iso_year, iso_week"#,
+            sp_vec,
+        )
+        .fetch_all(tx.tx.lock().await.as_mut())
+        .await
+        .map_db_error()?
+        .iter()
+        .map(RebookingBatchEntity::try_from)
+        .collect::<Result<Arc<[_]>, _>>()?)
+    }
+
+    async fn list_all_pending(
+        &self,
+        tx: Self::Transaction,
+    ) -> Result<Arc<[RebookingBatchEntity]>, DaoError> {
+        Ok(query_as!(
+            RebookingBatchDb,
+            r#"SELECT id, sales_person_id, iso_year, iso_week, kind, state, created,
+                      approved, approved_by, deleted, update_version
+               FROM rebooking_batch
+               WHERE state = 'pending' AND deleted IS NULL
+               ORDER BY iso_year, iso_week, sales_person_id"#,
+        )
+        .fetch_all(tx.tx.lock().await.as_mut())
+        .await
+        .map_db_error()?
+        .iter()
+        .map(RebookingBatchEntity::try_from)
+        .collect::<Result<Arc<[_]>, _>>()?)
+    }
+
+    async fn update_state_conditional(
+        &self,
+        batch_id: Uuid,
+        expected_state: RebookingBatchState,
+        new_state: RebookingBatchState,
+        approved: Option<time::PrimitiveDateTime>,
+        approved_by: Option<Arc<str>>,
+        new_version: Uuid,
+        process: &str,
+        tx: Self::Transaction,
+    ) -> Result<u64, DaoError> {
+        let id_vec = batch_id.as_bytes().to_vec();
+        let expected_str = state_to_str(&expected_state);
+        let new_state_str = state_to_str(&new_state);
+        let approved_str = approved
+            .map(|d| d.format(&Iso8601::DATE_TIME))
+            .transpose()
+            .map_db_error()?;
+        let approved_by_str = approved_by.as_deref().map(str::to_string);
+        let version_vec = new_version.as_bytes().to_vec();
+
+        let result = query!(
+            r#"UPDATE rebooking_batch
+                  SET state = ?,
+                      approved = ?,
+                      approved_by = ?,
+                      update_version = ?,
+                      update_process = ?
+                WHERE id = ? AND state = ? AND deleted IS NULL"#,
+            new_state_str,
+            approved_str,
+            approved_by_str,
+            version_vec,
+            process,
+            id_vec,
+            expected_str,
+        )
+        .execute(tx.tx.lock().await.as_mut())
+        .await
+        .map_db_error()?;
+
+        Ok(result.rows_affected())
+    }
 }
 
 #[cfg(test)]
