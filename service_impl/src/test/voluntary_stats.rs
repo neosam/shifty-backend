@@ -360,7 +360,8 @@ fn f2_soll_absence_whole_week_out_d_54_5_01() {
     );
 
     let soll_no_absence = committed_voluntary_target_in_range(&wh, from, to, &[]);
-    let soll_absence = committed_voluntary_target_in_range(&wh, from, to, &[abs.clone()]);
+    let soll_absence =
+        committed_voluntary_target_in_range(&wh, from, to, std::slice::from_ref(&abs));
 
     // v2.6.0-Falschwert waere `soll_no_absence` gewesen (Pfad B war absence-
     // blind); v2.6.1 zieht 3 Wochen a 5.0h = 15.0h ab.
@@ -400,7 +401,7 @@ fn f2_soll_partial_absence_week_still_whole_week_out() {
         AbsenceCategory::SickLeave,
     );
 
-    let soll = committed_voluntary_target_in_range(&wh, from, to, &[abs.clone()]);
+    let soll = committed_voluntary_target_in_range(&wh, from, to, std::slice::from_ref(&abs));
     let cw = contract_weeks_count_in_range(&wh, from, to, &[abs]);
     assert!(
         (soll - 0.0).abs() < 1e-3,
@@ -471,7 +472,7 @@ fn f2_soll_deleted_absence_is_ignored() {
     // Tombstone: gelaeschte Row darf NICHT die Woche nullen.
     abs.deleted = Some(datetime!(2026 - 06 - 01 10:00:00));
 
-    let soll = committed_voluntary_target_in_range(&wh, from, to, &[abs.clone()]);
+    let soll = committed_voluntary_target_in_range(&wh, from, to, std::slice::from_ref(&abs));
     let cw = contract_weeks_count_in_range(&wh, from, to, &[abs]);
     // Erwartung: identisch zum &[]-Fall — 7 Tage * 7.0/7 = 7.0, 1 Contract-Woche.
     assert!(
@@ -941,8 +942,9 @@ mod service_tests {
         // exakt matchen — beweist Weiterreichung ohne Semantik-Drift.
         let wh_vec = vec![wh_row];
         let expected_soll =
-            committed_voluntary_target_in_range(&wh_vec, from, to, &[abs.clone()]);
-        let expected_cw = contract_weeks_count_in_range(&wh_vec, from, to, &[abs.clone()]);
+            committed_voluntary_target_in_range(&wh_vec, from, to, std::slice::from_ref(&abs));
+        let expected_cw =
+            contract_weeks_count_in_range(&wh_vec, from, to, std::slice::from_ref(&abs));
         assert!(
             (result.soll_total.unwrap() - expected_soll).abs() < 1e-3,
             "service soll_total ({}) must match pure fn ({})",

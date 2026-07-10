@@ -70,6 +70,11 @@ path = "../dao_impl_sqlite"
 version = "0.8.2"
 features = ["runtime-tokio", "sqlite"]
 
+# Phase 55 Plan 03 (VOL-ACCT-03 CI-Guard): proptest fuer
+# Rebooking-Roundtrip-Neutralitaets-Property (128 cases pro Block, pure-fn).
+[dev-dependencies.proptest]
+version = "1"
+
 [dependencies.time-tz]
 version = "2"
 features = ["db"]

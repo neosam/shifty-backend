@@ -39,6 +39,8 @@ pub mod rebooking_batch;
 #[cfg(test)]
 pub mod rebooking_reconciliation;
 #[cfg(test)]
+pub mod rebooking_roundtrip_neutrality;
+#[cfg(test)]
 pub mod pdf_export_scheduler;
 #[cfg(test)]
 pub mod pdf_shiftplan;
