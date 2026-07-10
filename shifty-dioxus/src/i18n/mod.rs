@@ -794,6 +794,8 @@ pub enum Key {
     VoluntaryHoursSoll,
     /// Label fuer den Delta-Wert ("Freiwillig Delta").
     VoluntaryHoursDelta,
+    /// Label fuer den Erfuellungsgrad in Prozent ("Freiwillig Erfuellungsgrad").
+    VoluntaryHoursFulfillment,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {

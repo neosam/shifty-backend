@@ -84,6 +84,7 @@ impl<Deps: VoluntaryStatsServiceDeps> VoluntaryStatsService for VoluntaryStatsSe
                 soll_total: None,
                 delta: None,
                 contract_weeks: None,
+                ist_per_soll_pct: None,
             });
         }
 
@@ -153,6 +154,14 @@ impl<Deps: VoluntaryStatsServiceDeps> VoluntaryStatsService for VoluntaryStatsSe
             ist_total / contract_weeks as f32
         };
         let delta = ist_total - soll_total;
+        // Erfuellungsgrad: None wenn kein Soll (Nicht-Freiwillige oder Range
+        // komplett in Absence-Wochen → Division-by-zero-Guard). Sonst
+        // ist/soll * 100 (kann >100 sein bei Ist > Soll).
+        let ist_per_soll_pct = if soll_total.abs() < 1e-6 {
+            None
+        } else {
+            Some((ist_total / soll_total) * 100.0)
+        };
 
         Ok(VoluntaryStats {
             ist_per_contract_week: Some(ist_per_contract_week),
@@ -160,6 +169,7 @@ impl<Deps: VoluntaryStatsServiceDeps> VoluntaryStatsService for VoluntaryStatsSe
             soll_total: Some(soll_total),
             delta: Some(delta),
             contract_weeks: Some(contract_weeks),
+            ist_per_soll_pct,
         })
     }
 }

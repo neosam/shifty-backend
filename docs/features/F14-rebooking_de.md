@@ -281,6 +281,15 @@ aktiver (`deleted.is_none()`) Absence-Records — und wenden ein
 `contract_weeks_count_in_range` sind Absence-bewusst (whole-week-out,
 D-54.5-01 / D-54.5-02). Siehe Phase `54.5-voluntary-soll-absence-fix`.
 
+**v2.6.1-Nachtrag (Quick-Task 260710) — Voluntary-Erfüllungsgrad:**
+`VoluntaryStats` (und der DTO-Spiegel `VoluntaryStatsTO`) bekommt ein
+sechstes Feld `ist_per_soll_pct: Option<f32>` = `ist_total /
+soll_total * 100` — der Erfüllungsgrad in Prozent. `None`, wenn
+`soll_total ≈ 0` (Division-by-zero-Guard: Nicht-Freiwillige oder ein
+Range, der komplett in Absence-Wochen fällt). Werte können > 100 %
+sein, wenn Ist > Soll (Freiwillige über-erfüllt). Die FE-Zeile wird
+ausgeblendet, wenn das Feld `None` ist.
+
 ## 6. REST (Phase 54)
 
 | Methode | Pfad | DTO In | DTO Out | Auth |
@@ -295,6 +304,8 @@ serde `#[serde(default)]` für Wire-Kompatibilität):
 - `soll_total` — F2-Soll (`committed_voluntary` pro-rata über den Range).
 - `delta` — `ist_total − soll_total`.
 - `contract_weeks` — F1-Nenner (Audit).
+- `ist_per_soll_pct` — Erfüllungsgrad in Prozent (`ist_total /
+  soll_total * 100`), `None` wenn `soll_total ≈ 0`.
 
 **Query-Vertrag:** sowohl `from_date` als auch `to_date` sind inklusive
 ISO-8601-Daten (`YYYY-MM-DD`). Ungültiges Format oder

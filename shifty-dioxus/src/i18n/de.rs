@@ -1337,4 +1337,9 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
     );
     i18n.add_text(Locale::De, Key::VoluntaryHoursSoll, "Ehrenamt Soll");
     i18n.add_text(Locale::De, Key::VoluntaryHoursDelta, "Ehrenamt Delta");
+    i18n.add_text(
+        Locale::De,
+        Key::VoluntaryHoursFulfillment,
+        "Ehrenamt Erf\u{00FC}llungsgrad",
+    );
 }

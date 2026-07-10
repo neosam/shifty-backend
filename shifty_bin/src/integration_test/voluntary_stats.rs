@@ -189,6 +189,15 @@ async fn rest_voluntary_stats_hr_returns_populated_fields() {
         (ist_per - 2.0).abs() < 1e-3,
         "HR expects F1 = 8.0 / 4 = 2.0; got {ist_per}"
     );
+    // Quick-Task 260710: Erfuellungsgrad = ist_total / soll_total * 100.
+    // Fixture liefert ist=8.0, soll=8.0 => 100 %.
+    let pct = to
+        .ist_per_soll_pct
+        .expect("HR expects ist_per_soll_pct set when soll_total > 0");
+    assert!(
+        (pct - 100.0).abs() < 1e-3,
+        "HR expects Erfuellungsgrad = 8.0/8.0*100 = 100.0; got {pct}"
+    );
 }
 
 /// Non-HR-Pfad: unbekannter User, kein Role-Binding auf `hr`.
@@ -250,12 +259,18 @@ async fn rest_voluntary_stats_non_hr_returns_all_null() {
         "Non-HR expects contract_weeks = null, got {:?}",
         to.contract_weeks
     );
+    assert!(
+        to.ist_per_soll_pct.is_none(),
+        "Non-HR expects ist_per_soll_pct = null, got {:?}",
+        to.ist_per_soll_pct
+    );
 
     // Verifiziere zusaetzlich die JSON-Wire-Repraesentation: alle Felder muessen
     // physisch als `null` (bzw. weggelassen im serde-Default-Weg) im JSON auftauchen.
     assert!(
         body_str.contains("\"ist_per_contract_week\":null")
-            && body_str.contains("\"contract_weeks\":null"),
+            && body_str.contains("\"contract_weeks\":null")
+            && body_str.contains("\"ist_per_soll_pct\":null"),
         "Non-HR response body must serialize null-fields explicitly; got: {body_str}"
     );
 }

@@ -1325,4 +1325,9 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
     );
     i18n.add_text(Locale::Cs, Key::VoluntaryHoursSoll, "Dobrovolné plán");
     i18n.add_text(Locale::Cs, Key::VoluntaryHoursDelta, "Dobrovolné rozdíl");
+    i18n.add_text(
+        Locale::Cs,
+        Key::VoluntaryHoursFulfillment,
+        "Dobrovolné plnění",
+    );
 }

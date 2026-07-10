@@ -414,6 +414,10 @@ pub struct VoluntaryStats {
     pub delta: Option<f32>,
     /// Nenner fuer F1: Anzahl Vertragswochen (D-F1-01).
     pub contract_weeks: Option<u32>,
+    /// Erfuellungsgrad `ist_total / soll_total * 100` in Prozent. `None`, wenn
+    /// `soll_total ~= 0` (keine Freiwilligen-Zusage im Range). FE blendet die
+    /// zugehoerige Zeile aus, wenn `None`.
+    pub ist_per_soll_pct: Option<f32>,
 }
 
 impl From<&VoluntaryStatsTO> for VoluntaryStats {
@@ -424,6 +428,7 @@ impl From<&VoluntaryStatsTO> for VoluntaryStats {
             soll_total: to.soll_total,
             delta: to.delta,
             contract_weeks: to.contract_weeks,
+            ist_per_soll_pct: to.ist_per_soll_pct,
         }
     }
 }

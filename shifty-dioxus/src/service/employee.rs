@@ -85,6 +85,7 @@ pub static EMPLOYEE_STORE: GlobalSignal<EmployeeStore> = Signal::global(|| Emplo
         soll_total: None,
         delta: None,
         contract_weeks: None,
+        ist_per_soll_pct: None,
     },
 });
 

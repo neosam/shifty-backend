@@ -268,6 +268,15 @@ Absence records — and apply a **whole-week-out** overlay:
 `contract_weeks_count_in_range` are Absence-aware (whole-week-out,
 D-54.5-01 / D-54.5-02). See phase `54.5-voluntary-soll-absence-fix`.
 
+**v2.6.1 addendum (Quick-Task 260710) — Voluntary fulfillment ratio:**
+`VoluntaryStats` (and its DTO mirror `VoluntaryStatsTO`) gained a
+sixth field `ist_per_soll_pct: Option<f32>` = `ist_total / soll_total *
+100` — the fulfillment ratio in percent. It is `None` when
+`soll_total ≈ 0` (division-by-zero guard: non-volunteers or a range
+that falls entirely into absence weeks). Values can exceed 100 % when
+Ist > Soll (volunteer over-delivered). The FE row hides the cell when
+the field is `None`.
+
 ## 6. REST (Phase 54)
 
 | Method | Path | DTO In | DTO Out | Auth |
@@ -282,6 +291,8 @@ D-54.5-01 / D-54.5-02). See phase `54.5-voluntary-soll-absence-fix`.
 - `soll_total` — F2 Soll (`committed_voluntary` pro-rata across the range).
 - `delta` — `ist_total − soll_total`.
 - `contract_weeks` — F1 denominator (audit).
+- `ist_per_soll_pct` — fulfillment ratio in percent (`ist_total /
+  soll_total * 100`), `None` when `soll_total ≈ 0`.
 
 **Query contract:** both `from_date` and `to_date` are inclusive
 ISO-8601 dates (`YYYY-MM-DD`). Invalid format or `from_date > to_date`

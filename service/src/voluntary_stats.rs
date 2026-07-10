@@ -68,6 +68,10 @@ pub struct VoluntaryStats {
     /// Nenner fuer F1: Anzahl Vertragswochen mit gueltiger `EmployeeWorkDetails`-Row
     /// im Range (`expected_hours == 0` zaehlt MIT, D-F1-01).
     pub contract_weeks: Option<u32>,
+    /// Erfuellungsgrad `ist_total / soll_total * 100` in Prozent. `None`, wenn
+    /// `soll_total` ~= 0 (Nicht-Freiwillige oder Range komplett in
+    /// Absence-Wochen). Bei Ist > Soll >100%.
+    pub ist_per_soll_pct: Option<f32>,
 }
 
 #[automock(type Context=(); type Transaction=MockTransaction;)]

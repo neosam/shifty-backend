@@ -709,6 +709,10 @@ pub struct VoluntaryStatsTO {
     /// (`expected_hours == 0` zaehlt MIT, D-F1-01).
     #[serde(default)]
     pub contract_weeks: Option<u32>,
+    /// Erfuellungsgrad `ist_total / soll_total * 100` in Prozent. `None`, wenn
+    /// `soll_total ~= 0` (keine Freiwilligen-Zusage im Range).
+    #[serde(default)]
+    pub ist_per_soll_pct: Option<f32>,
 }
 
 #[cfg(feature = "service-impl")]
@@ -720,6 +724,7 @@ impl From<&service::voluntary_stats::VoluntaryStats> for VoluntaryStatsTO {
             soll_total: stats.soll_total,
             delta: stats.delta,
             contract_weeks: stats.contract_weeks,
+            ist_per_soll_pct: stats.ist_per_soll_pct,
         }
     }
 }

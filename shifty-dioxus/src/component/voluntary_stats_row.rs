@@ -62,6 +62,17 @@ pub fn VoluntaryStatsRow(props: VoluntaryStatsRowProps) -> Element {
                 {format!("{:+.2} {}", delta, hours_str)}
             } },
         }
+        // Quick-Task 260710: Erfuellungsgrad in %. Wird ausgeblendet, wenn
+        // Backend `None` liefert (soll_total ~= 0 → keine Freiwilligen-Zusage
+        // im Range).
+        if let Some(pct) = stats.ist_per_soll_pct {
+            TupleRow {
+                label: ImStr::from(i18n.t(Key::VoluntaryHoursFulfillment).as_ref()),
+                value: rsx! { span { class: "font-mono tabular-nums",
+                    {format!("{:.0} %", pct)}
+                } },
+            }
+        }
     }
 }
 
@@ -105,6 +116,7 @@ mod tests {
                         soll_total: None,
                         delta: None,
                         contract_weeks: Some(4),
+                        ist_per_soll_pct: None,
                     }
                 }
             }
@@ -128,6 +140,7 @@ mod tests {
                         soll_total: Some(8.0),
                         delta: Some(0.0),
                         contract_weeks: Some(4),
+                        ist_per_soll_pct: Some(100.0),
                     }
                 }
             }
@@ -142,6 +155,60 @@ mod tests {
     }
 
     #[test]
+    fn renders_fulfillment_row_when_pct_is_some() {
+        // Quick-Task 260710: ist_per_soll_pct = Some(80.0) => vierte Zelle
+        // wird gerendert, formatiert als "80 %".
+        fn app() -> Element {
+            rsx! {
+                VoluntaryStatsRow {
+                    stats: VoluntaryStats {
+                        ist_per_contract_week: Some(2.0),
+                        ist_total: Some(8.0),
+                        soll_total: Some(10.0),
+                        delta: Some(-2.0),
+                        contract_weeks: Some(4),
+                        ist_per_soll_pct: Some(80.0),
+                    }
+                }
+            }
+        }
+        let html = render(app);
+        assert!(html.contains("80 %"), "fulfillment '80 %' missing: {html}");
+        // Delta ist ebenfalls weiterhin sichtbar (Regression-Guard).
+        assert!(html.contains("-2.00"), "delta row missing: {html}");
+    }
+
+    #[test]
+    fn omits_fulfillment_row_when_pct_is_none() {
+        // Quick-Task 260710: ist_per_soll_pct = None (soll=0-Guard) =>
+        // Zeile wird ausgeblendet, aber Ist/Soll/Delta bleiben sichtbar.
+        fn app() -> Element {
+            rsx! {
+                VoluntaryStatsRow {
+                    stats: VoluntaryStats {
+                        ist_per_contract_week: Some(0.0),
+                        ist_total: Some(0.0),
+                        soll_total: Some(0.0),
+                        delta: Some(0.0),
+                        contract_weeks: Some(0),
+                        ist_per_soll_pct: None,
+                    }
+                }
+            }
+        }
+        let html = render(app);
+        // Kein Prozentzeichen im Output (das ist der eindeutige Marker,
+        // dass die Fulfillment-Zeile ausgeblendet ist).
+        assert!(
+            !html.contains(" %"),
+            "expected no '%' when pct is None: {html}"
+        );
+        // Delta ist immer noch drin (Regression-Guard: nur die pct-Zeile
+        // faellt weg, nicht mehr).
+        assert!(html.contains("+0.00"), "delta row must still render: {html}");
+    }
+
+    #[test]
     fn negative_delta_gets_warn_class() {
         fn app() -> Element {
             rsx! {
@@ -152,6 +219,7 @@ mod tests {
                         soll_total: Some(8.0),
                         delta: Some(-4.0),
                         contract_weeks: Some(4),
+                        ist_per_soll_pct: Some(50.0),
                     }
                 }
             }

@@ -1226,4 +1226,9 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     );
     i18n.add_text(Locale::En, Key::VoluntaryHoursSoll, "Voluntary target");
     i18n.add_text(Locale::En, Key::VoluntaryHoursDelta, "Voluntary delta");
+    i18n.add_text(
+        Locale::En,
+        Key::VoluntaryHoursFulfillment,
+        "Voluntary fulfillment",
+    );
 }

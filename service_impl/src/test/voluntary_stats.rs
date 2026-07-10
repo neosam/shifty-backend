@@ -599,6 +599,7 @@ mod service_tests {
         assert!(result.soll_total.is_none());
         assert!(result.delta.is_none());
         assert!(result.contract_weeks.is_none());
+        assert!(result.ist_per_soll_pct.is_none());
     }
 
     /// VOL-STAT-01 + VOL-ACCT-01 (Gap-Closure 54-09-Ist-Fix): HR-Aufrufer
@@ -694,6 +695,13 @@ mod service_tests {
             result.delta.unwrap()
         );
         assert!((result.ist_per_contract_week.unwrap() - 2.5).abs() < 1e-3);
+        // Erfuellungsgrad: 10 / 4 * 100 = 250 % (Ist uebersteigt Soll,
+        // typisch bei Freiwilligen, die mehr leisten als zugesagt).
+        assert!(
+            (result.ist_per_soll_pct.unwrap() - 250.0).abs() < 1e-3,
+            "expected ist_per_soll_pct=250.0 (10/4*100), got {}",
+            result.ist_per_soll_pct.unwrap()
+        );
     }
 
     /// Divisions-Guard: contract_weeks == 0 => ist_per_contract_week = 0
@@ -758,6 +766,89 @@ mod service_tests {
         assert!((result.ist_per_contract_week.unwrap() - 0.0).abs() < 1e-3);
         assert!((result.ist_total.unwrap() - 0.0).abs() < 1e-3);
         assert!((result.soll_total.unwrap() - 0.0).abs() < 1e-3);
+        // Erfuellungsgrad: soll=0 => None (Division-by-zero-Guard, FE
+        // blendet die Zeile aus).
+        assert!(
+            result.ist_per_soll_pct.is_none(),
+            "expected ist_per_soll_pct=None when soll_total=0, got {:?}",
+            result.ist_per_soll_pct
+        );
+    }
+
+    /// Erfuellungsgrad (Quick-Task 260710): Standard-Fall Ist < Soll.
+    /// Fixture: committed_voluntary=2.0/Woche ueber KW 10..=13 (4 Wochen)
+    /// => soll_total = 8.0. Report liefert ist_total = 6.4.
+    /// Erwartung: ist_per_soll_pct = 6.4/8.0*100 = 80.0 %.
+    #[tokio::test]
+    async fn service_hr_pct_matches_ist_over_soll_at_80_percent() {
+        let sp_id = Uuid::new_v4();
+
+        let mut permission_service = MockPermissionService::new();
+        permission_service
+            .expect_check_permission()
+            .returning(|_, _| Ok(()));
+
+        let mut sales_person_service = MockSalesPersonService::new();
+        let sp = make_sales_person(sp_id);
+        let sp_clone = sp.clone();
+        sales_person_service
+            .expect_get()
+            .returning(move |_, _, _| Ok(sp_clone.clone()));
+
+        let mut reporting_service = MockReportingService::new();
+        let sp_for_report = sp.clone();
+        reporting_service
+            .expect_get_report_for_employee_range()
+            .returning(move |_, _, _, _, _, _| Ok(make_report(sp_for_report.clone(), 6.4)));
+
+        // KW 10..=13/2026 = 28 Tage, committed_voluntary=2.0/Woche.
+        // soll_total = 28 * 2.0/7 = 8.0.
+        let wh: Arc<[EmployeeWorkDetails]> = Arc::from(vec![make_working_hours(
+            sp_id,
+            (2026, 10),
+            (2026, 13),
+            40.0,
+            2.0,
+        )]);
+        let mut employee_work_details_service = MockEmployeeWorkDetailsService::new();
+        employee_work_details_service
+            .expect_find_by_sales_person_id()
+            .returning(move |_, _, _| Ok(wh.clone()));
+
+        let mut absence_service = MockAbsenceService::new();
+        absence_service
+            .expect_find_by_sales_person()
+            .returning(|_, _, _| Ok(Arc::from(Vec::<AbsencePeriod>::new())));
+
+        let mut transaction_dao = dao::MockTransactionDao::new();
+        transaction_dao
+            .expect_use_transaction()
+            .returning(|_| Ok(dao::MockTransaction));
+        transaction_dao.expect_commit().returning(|_| Ok(()));
+
+        let svc: VoluntaryStatsServiceImpl<TestDeps> = VoluntaryStatsServiceImpl {
+            reporting_service: Arc::new(reporting_service),
+            employee_work_details_service: Arc::new(employee_work_details_service),
+            sales_person_service: Arc::new(sales_person_service),
+            absence_service: Arc::new(absence_service),
+            permission_service: Arc::new(permission_service),
+            transaction_dao: Arc::new(transaction_dao),
+        };
+
+        let from = ShiftyDate::from_ymd(2026, 3, 2).unwrap();
+        let to = ShiftyDate::from_ymd(2026, 3, 29).unwrap();
+        let result = svc
+            .get_voluntary_stats(sp_id, from, to, Authentication::Context(()), None)
+            .await
+            .expect("HR must succeed");
+
+        assert!((result.soll_total.unwrap() - 8.0).abs() < 1e-3);
+        assert!((result.ist_total.unwrap() - 6.4).abs() < 1e-3);
+        assert!(
+            (result.ist_per_soll_pct.unwrap() - 80.0).abs() < 1e-3,
+            "expected ist_per_soll_pct=80.0 (6.4/8.0*100), got {}",
+            result.ist_per_soll_pct.unwrap()
+        );
     }
 
     // ─── Phase 54.5 Service-Tests (D-54.5-03) ────────────────────────────────
@@ -949,6 +1040,8 @@ mod service_tests {
         assert!((result.soll_total.unwrap() - 4.0).abs() < 1e-3);
         assert!((result.delta.unwrap() - 6.0).abs() < 1e-3);
         assert!((result.ist_per_contract_week.unwrap() - 2.5).abs() < 1e-3);
+        // Erfuellungsgrad: 10/4*100 = 250 %.
+        assert!((result.ist_per_soll_pct.unwrap() - 250.0).abs() < 1e-3);
     }
 
     /// D-54.5-03 Non-HR-Path laedt AbsenceService NICHT. Beweis: MockAbsenceService
