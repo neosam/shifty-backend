@@ -6,7 +6,7 @@
 use dioxus::prelude::*;
 use uuid::Uuid;
 
-use crate::component::EmployeeShort;
+use crate::component::{EmployeeShort, RebookingAlertBanner};
 use crate::i18n::Key;
 use crate::js;
 use crate::loader;
@@ -31,6 +31,14 @@ pub(crate) fn employee_visible(e: &Employee, show_all: bool, term: &str) -> bool
 pub struct EmployeesListProps {
     #[props(!optional, default = None)]
     pub active_id: Option<Uuid>,
+    /// Phase 55 (HR-ALERT-01, D-55-02): Handler, den `RebookingAlertBanner`
+    /// mit der batch_id des offenen Vorschlags aufruft. Der Parent (typisch
+    /// `page/employees.rs` via `EmployeesShell`) oeffnet daraufhin das
+    /// `RebookingSuggestionModal`. Default ist ein Noop, damit
+    /// `EmployeesShell`-Konsumenten (z. B. Employee-Details) keinen Handler
+    /// setzen muessen — das Banner ist dort ohnehin nicht das Ziel.
+    #[props(default = EventHandler::new(|_| {}))]
+    pub on_banner_click: EventHandler<Uuid>,
 }
 
 const SEARCH_INPUT_CLASSES: &str =
@@ -139,15 +147,36 @@ pub fn EmployeesList(props: EmployeesListProps) -> Element {
                                     let id = employee.sales_person.id;
                                     let active = props.active_id == Some(id);
                                     let target = target_hours_for(&employee);
+                                    // Phase 55 (HR-ALERT-01, D-55-02): Banner
+                                    // rendert exakt dann, wenn Backend-Flag
+                                    // `has_pending_rebooking = true` — KEIN
+                                    // FE-Recompute des Predicates.
+                                    let banner_batch_id = if employee.has_pending_rebooking {
+                                        employee.pending_rebooking_id
+                                    } else {
+                                        None
+                                    };
+                                    let on_banner_click = props.on_banner_click;
                                     rsx! {
-                                        Link {
-                                            to: Route::EmployeeDetails {
-                                                employee_id: id.to_string(),
-                                            },
-                                            EmployeeShort {
-                                                employee,
-                                                active,
-                                                target_hours: target,
+                                        div { class: "flex flex-col",
+                                            Link {
+                                                to: Route::EmployeeDetails {
+                                                    employee_id: id.to_string(),
+                                                },
+                                                EmployeeShort {
+                                                    employee,
+                                                    active,
+                                                    target_hours: target,
+                                                }
+                                            }
+                                            if let Some(batch_id) = banner_batch_id {
+                                                div { class: "px-3 pb-2",
+                                                    RebookingAlertBanner {
+                                                        sales_person_id: id,
+                                                        pending_rebooking_id: batch_id,
+                                                        on_click: move |bid| on_banner_click.call(bid),
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -218,6 +247,8 @@ mod tests {
             vacation_entitlement: 0.0,
             vacation_carryover: 0,
             custom_extra_hours: Rc::from([]),
+            has_pending_rebooking: false,
+            pending_rebooking_id: None,
         };
         assert_eq!(target_hours_for(&employee), 0.0);
     }
@@ -281,6 +312,8 @@ mod tests {
             vacation_entitlement: 0.0,
             vacation_carryover: 0,
             custom_extra_hours: Rc::from([]),
+            has_pending_rebooking: false,
+            pending_rebooking_id: None,
         }
     }
 

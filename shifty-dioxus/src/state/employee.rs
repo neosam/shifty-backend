@@ -282,6 +282,14 @@ pub struct Employee {
     pub vacation_carryover: i32,
 
     pub custom_extra_hours: Rc<[CustomExtraHours]>,
+
+    /// Phase 55 (HR-ALERT-01/02, D-55-02): Backend-flag; wenn `true`, rendert
+    /// die Employees-Liste den `RebookingAlertBanner` fuer diesen Employee.
+    /// Kein FE-Recompute — reine Spiegelung von `ShortEmployeeReportTO`.
+    pub has_pending_rebooking: bool,
+    /// Phase 55 (HR-ALERT-01/02): batch_id des offenen Vorschlags, mit der
+    /// der Banner-Klick das `RebookingSuggestionModal` oeffnet.
+    pub pending_rebooking_id: Option<Uuid>,
 }
 
 impl From<&ShortEmployeeReportTO> for Employee {
@@ -305,6 +313,8 @@ impl From<&ShortEmployeeReportTO> for Employee {
             vacation_entitlement: 0.0,
             vacation_carryover: 0,
             custom_extra_hours: [].into(),
+            has_pending_rebooking: report.has_pending_rebooking,
+            pending_rebooking_id: report.pending_rebooking_id,
         }
     }
 }
@@ -333,6 +343,8 @@ impl Employee {
             vacation_entitlement: 0.0,
             vacation_carryover: 0,
             custom_extra_hours: [].into(),
+            has_pending_rebooking: false,
+            pending_rebooking_id: None,
         }
     }
 }
@@ -367,6 +379,12 @@ impl From<&EmployeeReportTO> for Employee {
                 .iter()
                 .map(CustomExtraHours::from)
                 .collect(),
+            // Phase 55: die Full-Report-Ansicht (Employee-Details) rendert
+            // den Banner nicht; `has_pending_rebooking` bleibt hier `false`.
+            // Der Alert-Flag wandert nur via `ShortEmployeeReportTO` in die
+            // Employees-Liste.
+            has_pending_rebooking: false,
+            pending_rebooking_id: None,
         }
     }
 }

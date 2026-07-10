@@ -19,6 +19,12 @@ use crate::router::Route;
 #[derive(Props, Clone, PartialEq)]
 pub struct EmployeesShellProps {
     pub children: Element,
+    /// Phase 55 (HR-ALERT-01, D-55-02): reicht den Banner-Klick-Handler an
+    /// die interne `EmployeesList` durch. Der Parent (page/employees.rs)
+    /// haelt das Signal fuer das Suggestion-Modal. Default-Noop haelt
+    /// EmployeeDetails-Konsumenten unveraendert.
+    #[props(default = EventHandler::new(|_| {}))]
+    pub on_banner_click: EventHandler<Uuid>,
 }
 
 #[component]
@@ -38,7 +44,7 @@ pub fn EmployeesShell(props: EmployeesShellProps) -> Element {
             }
         } else {
             rsx! {
-                EmployeesList { active_id: active_id }
+                EmployeesList { active_id: active_id, on_banner_click: props.on_banner_click }
             }
         }
     } else {
@@ -47,7 +53,7 @@ pub fn EmployeesShell(props: EmployeesShellProps) -> Element {
                 aside {
                     class: "w-[280px] shrink-0 border-r border-border bg-surface md:w-[320px] lg:w-[360px] overflow-y-auto",
                     style: "max-height: calc(100vh - 56px);",
-                    EmployeesList { active_id: active_id }
+                    EmployeesList { active_id: active_id, on_banner_click: props.on_banner_click }
                 }
                 main { class: "flex-1 min-w-0", { props.children } }
             }
