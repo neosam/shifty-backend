@@ -6,15 +6,15 @@ current_phase: 55
 current_phase_name: Manuelle Umbuchung + HR-Alert-Modal (F3 + F5
 status: executing
 stopped_at: Phase 55 plan-phase abgeschlossen — 6 Plaene (Wave 1/2/3/4) geschrieben + plan-checker VERIFICATION PASSED nach 1 Revisions-Iteration. Bereit fuer execute-phase.
-last_updated: "2026-07-10T20:12:55.687Z"
+last_updated: "2026-07-10T20:28:20.013Z"
 last_activity: 2026-07-10
 last_activity_desc: Phase 55 execution started
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 17
-  completed_plans: 16
-  percent: 50
+  completed_plans: 17
+  percent: 75
 ---
 
 # Project State: Shifty Backend
@@ -34,7 +34,7 @@ progress:
 ## Current Position
 
 Phase: 55 (Manuelle Umbuchung + HR-Alert-Modal (F3 + F5)) — EXECUTING
-Plan: 5 of 6
+Plan: 6 of 6
 Status: Ready to execute
 Last activity: 2026-07-10 — Phase 55 execution started
 
@@ -206,7 +206,7 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-07-10T20:12:39.362Z
+**Last session:** 2026-07-10T20:27:52.756Z
 **Stopped at:** Completed 54-02 Plan (Basic-Tier RebookingBatchService)
 **Resume file:** None
 
@@ -270,6 +270,11 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 - [Phase ?]: D-55-EXEC-04-01 Direct-HTTP-Loader statt api::-Wrapper fuer strukturierte 409-Bodies (RebookingErrorSlotTaken/AlreadyResolved-Mapping)
 - [Phase ?]: D-55-EXEC-04-02 i18n-Keys leben in i18n/mod.rs (nicht i18n/i18n.rs); 21 neue Rebooking-Keys in en/de/cs synchron
 - [Phase ?]: D-55-EXEC-04-03 Dead-Code-Allows mit reason bis Plan 55-05 (Modals gemounted); fallen automatisch weg beim Page-Mount
+- [Phase ?]: D-55-EXEC-05-01 Header-Row-Button in EmployeeDetails, kein TopBar-Menu-Refactor
+- [Phase ?]: D-55-EXEC-05-02 Employee-Struct-Felder statt Signal-Wrapping fuer has_pending_rebooking
+- [Phase ?]: D-55-EXEC-05-03 no_billing_period_content_in_source-Test praezisiert (BillingPeriodModal statt breitem Modal)
+- [Phase ?]: D-55-EXEC-05-04 find-Filter auf load_rebooking_suggestions_pending statt neuem Suggestion-per-ID-Endpoint
+- [Phase ?]: D-55-EXEC-05-05 Cleanup Wave-4-Dead-Code-Allows (component/mod.rs + loader.rs)
 
 ## Performance Metrics
 
@@ -304,3 +309,4 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 | Phase 55 P03 | 20 | 1 tasks | 5 files |
 | Phase 55 P55-04 | 30min | 2 tasks | 11 files |
 | Phase 55 P55-06 | 12min | 2 tasks | 4 files |
+| Phase 55 P05 | 15min | 2 tasks | 10 files |

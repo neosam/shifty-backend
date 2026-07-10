@@ -113,7 +113,7 @@ Kein Follow-up — MEMORY `feedback_docs_always_current_no_followup.md`.
       D-26-03 / VFA-01; Ist/Soll driften nicht mehr auseinander bei
       Abwesenheits-Wochen. Reiner Fix, keine neuen Features.
 
-- [ ] **Phase 55: Manuelle Umbuchung + HR-Alert-Modal (F3 + F5)** —
+- [x] **Phase 55: Manuelle Umbuchung + HR-Alert-Modal (F3 + F5)** — (completed 2026-07-10)
       RebookingReconciliationService.rebook_manual + suggest/approve/reject +
       FE-Alert-Banner + Vorschlags-Modal
 
@@ -390,13 +390,13 @@ mit Approve/Reject),
 `shifty-dioxus/Dioxus.toml` (Proxy `/rebooking`, `/rebooking-suggestions`),
 `shifty-dioxus/i18n/{de,en,cs}/*.ftl` (Modal-Labels, Approve/Reject, Banner-Text).
 
-**Plans:** 5/6 plans executed
+**Plans:** 6/6 plans complete
 
 - [x] 55-01-PLAN.md — Backend-BL: RebookingReconciliationService + DAO-Erweiterung (find_pending_for_sales_person, update_state_conditional) + Predicate-Truth-Table
 - [x] 55-02-PLAN.md — REST-Endpoints (4 Routen) + rest-types-DTOs + ShortEmployeeReportTO-Erweiterung + DI-Wiring + Dioxus.toml-Proxy
 - [x] 55-03-PLAN.md — Property-Test „Rebooking-Roundtrip-Neutralität" (VOL-ACCT-03-CI-Guard) + Reporting-Filter source==Manual
 - [x] 55-04-PLAN.md — FE-Komponenten (Alert-Banner + Suggestion-Modal + Manual-Modal) + Loader + State-Mapper + i18n en/de/cs
-- [ ] 55-05-PLAN.md — FE-Integration (page/employees Banner-Row + page/employee_details F3-Trigger in Header/TopBar)
+- [x] 55-05-PLAN.md — FE-Integration (page/employees Banner-Row + page/employee_details F3-Trigger in Header/TopBar)
 - [x] 55-06-PLAN.md — Docs-Freshness (F14 EN+DE F3/F5-Sektionen + 02-service-tiers.md BL-Eintrag)
 
 **UI hint**: yes
@@ -534,7 +534,7 @@ Dry-Run-Vorschau-Header).
 |-------|----------------|--------|-----------|
 | 54. Data-Model + Voluntary Statistics (F1 + F2) | 9/9 | Complete | 2026-07-10 |
 | 54.5. Voluntary-Soll Absence-Aware-Angleichung (Hotfix v2.6.1) | 2/2 | Complete | 2026-07-10 |
-| 55. Manuelle Umbuchung + HR-Alert-Modal (F3 + F5) | 5/6 | In Progress|  |
+| 55. Manuelle Umbuchung + HR-Alert-Modal (F3 + F5) | 6/6 | Complete   | 2026-07-10 |
 | 56. Wochen-Cron + Rollout-Backfill (F4) | 0/? | Not started | - |
 
 Requirements-Coverage: 17/17 mapped (5 → P54, 7 → P55, 5 → P56).
