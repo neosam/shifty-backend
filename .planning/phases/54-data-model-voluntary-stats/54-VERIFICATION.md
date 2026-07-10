@@ -236,3 +236,58 @@ Ein Browser-Smoke-Test (HR sieht die Zeile, Non-HR nicht) und ein cs-Locale-Nati
 
 _Verifiziert: 2026-07-07_
 _Verifier: Claude (gsd-verifier)_
+
+---
+
+## Gap-Closure Round 2 (Plans 54-07 + 54-08 + 54-09-Ist-Fix)
+
+_Verifiziert: 2026-07-10_
+_Verifier: Claude (Sonnet 4.6 / Opus 4.7 Executor)_
+
+### Automatisierte Gates (alle grün)
+
+**Backend:**
+- `SQLX_OFFLINE=true cargo build --workspace` — green
+- `SQLX_OFFLINE=true DATABASE_URL="sqlite::memory:" cargo test --workspace` — green, 0 failed
+- `SQLX_OFFLINE=true cargo clippy --workspace -- -D warnings` — green, 0 warnings
+
+**Frontend:**
+- `cd shifty-dioxus && cargo build --target wasm32-unknown-unknown` — green
+- `cargo test -p shifty-dioxus` — 806/806 passed
+- `cargo clippy -p shifty-dioxus -- -D warnings` — green
+
+**Grep-Guards (alle 0):**
+- Alte fn-Namen im Backend + Docs: 0 Treffer
+- `Freiwillig`-Strings in `shifty-dioxus/src/i18n/de.rs`: 0
+- `Volunteer`/`Volunteer Work` in `shifty-dioxus/src/i18n/en.rs`: 0
+- `?year=` in `get_voluntary_stats` in api.rs: 0
+- `shifty-dioxus/src/i18n/cs.rs` unangetastet (Round-2)
+
+### Manual-Roundtrip (User-verifiziert)
+
+- **Ehrenamt Soll:** korrekt (Range-basierter Wert, nicht 177h).
+- **Ehrenamt Ist:** enthält jetzt alle drei Volunteer-Quellen (manuelle
+  ExtraHours + Shiftplan-Cap-Überlauf + no_contract-Shiftplan-Stunden) —
+  konsistent zum OVERALL-"Ehrenamt"-Wert. User-Zitat nach Fix: „Jetzt
+  sieht es richtig aus."
+- **Ehrenamt Delta:** Ist − Soll, matcht die tatsächliche Situation.
+- **Terminologie DE:** überall „Ehrenamt", kein „Freiwillig" mehr sichtbar.
+- **Terminologie EN:** überall „Voluntary", kein „Volunteer" mehr sichtbar.
+- **Non-HR:** die 3 Ehrenamt-Zeilen nicht sichtbar (Backend-Redaktion aktiv).
+
+### Gap-Status
+
+| Gap | Status | Notiz |
+|-----|--------|-------|
+| G1 (Range-Cutoff, 177h → ~55h) | **resolved** | Plans 54-07 + 54-08 landen Range-Semantik. |
+| G1-Follow-up (Ist deckte nur ExtraHours ab) | **resolved** | Plan 54-09-Ist-Fix delegiert an `EmployeeReport::volunteer_hours` — alle drei Volunteer-Quellen konsistent. |
+| G2 (Ehrenamt/Voluntary-Vereinheitlichung) | **resolved** | Plan 54-08 vereinheitlicht i18n de.rs + en.rs; cs.rs unangetastet (User-Deferral). |
+
+### Zusammenfassung
+
+Phase 54 ist komplett — automatisierte + manuelle Verifikation grün. Die
+Rebooking-Marker-Strukturen (`extra_hours.source`, `rebooking_batch`) sind
+als Datenmodell-Vorbereitung für Phase 55 in der DB angelegt, aber wirken
+in Phase 54 NICHT im Voluntary-Stats-Aggregat. Der Rebooking-Neutralitäts-
+Filter greift ab Phase 55 zentral im `ReportingService`.
+

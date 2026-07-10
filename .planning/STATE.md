@@ -3,18 +3,18 @@ gsd_state_version: 1.0
 milestone: v2.6
 milestone_name: — Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
 current_phase: 54
-current_phase_name: Data-Model + Voluntary Statistics (F1 + F2
-status: executing
-stopped_at: Completed 54-02 Plan (Basic-Tier RebookingBatchService)
-last_updated: "2026-07-10T05:34:30.699Z"
-last_activity: 2026-07-07
-last_activity_desc: Phase 54 Plan 01 complete (3 migrations + RebookingBatchDao trait + ExtraHoursSource marker; 880 tests green, clippy green)
+current_phase_name: Data-Model + Voluntary Statistics (F1 + F2)
+status: phase_complete
+stopped_at: Completed Plan 54-09 — Gap-Closure Round 2 verified (Range-Cutoff + Ist-Fix + Terminologie); Phase 54 complete
+last_updated: "2026-07-10T09:20:00.000Z"
+last_activity: 2026-07-10
+last_activity_desc: Phase 54 komplett — Gap-Closure Round 2 (Plans 54-07 + 54-08 + 54-09 inkl. Ist-Fix) User-approved ("Jetzt sieht es richtig aus"); Backend + FE Gates alle grün; G1 + G2 resolved
 progress:
   total_phases: 3
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 9
-  completed_plans: 8
-  percent: 0
+  completed_plans: 9
+  percent: 33
 ---
 
 # Project State: Shifty Backend
@@ -33,10 +33,10 @@ progress:
 
 ## Current Position
 
-Phase: 54 (Data-Model + Voluntary Statistics (F1 + F2)) — EXECUTING
-Plan: 6 of 6 (Wave 2 = Plans 02 + 03 parallel)
-Status: Plan 01 complete; Wave 2 ready
-Last activity: 2026-07-07 — Phase 54 Plan 01 complete (3 migrations + RebookingBatchDao trait + ExtraHoursSource marker; 880 tests green, clippy green)
+Phase: 54 (Data-Model + Voluntary Statistics (F1 + F2)) — COMPLETE
+Plan: 9 of 9 (inkl. Gap-Closure-Sub-Plans 54-07/08/09)
+Status: Gap-Closure Round 2 abgeschlossen; Backend + FE-Gates alle grün; Manual-UAT User-approved
+Last activity: 2026-07-10 — Plans 54-07 (Range-Semantik BE) + 54-08 (FE-Range + i18n Ehrenamt/Voluntary) + 54-09 (UAT Round 2 + Ist-Fix: ist_total delegiert an EmployeeReport.volunteer_hours) — 6 Commits (7aefad3, ddfd3dc, a4f72e5, 00de0d8, ecfbfa6, 85df384, 77c9ec45)
 
 ## Quick Tasks Completed
 

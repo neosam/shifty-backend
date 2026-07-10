@@ -121,3 +121,40 @@ blocked: 0
     - "cs: keine Änderung (Native-Check als Test 3 geskippt; 'Dobrovoln…' ist bereits einheitlich in cs.rs)"
     - "docs/features/F*.md: nicht anfassen — englische Docs verwenden schon 'voluntary'"
   debug_session: ""
+
+---
+
+## Round 2 — Post-Gap-Closure (Plans 54-07 + 54-08 + 54-09-Ist-Fix)
+
+_Datum: 2026-07-10_
+
+### Test 1 — HR-Roundtrip (Range-Cutoff + Ist-Aggregat)
+
+- **Result:** `pass`
+- **Vorher:** Ehrenamt Soll = 177h, Delta = -Soll (Ist = 0).
+- **Nachher (Range-Fix):** Ehrenamt Soll ≈ Range-basiert korrekt.
+- **Nachher (Ist-Fix):** Ehrenamt Ist enthält alle drei Volunteer-Quellen
+  (manuelle VolunteerWork-ExtraHours + Shiftplan-Cap-Überlauf +
+  no_contract-Shiftplan-Stunden) — deckungsgleich mit dem OVERALL-
+  „Ehrenamt"-Wert.
+- **User-Feedback:** „Jetzt sieht es richtig aus."
+
+### Test 2 — Non-HR-Roundtrip
+
+- **Result:** `pass`
+- Ehrenamt Ø/Soll/Delta-Zeilen bleiben für Non-HR nicht sichtbar
+  (Backend-Redaktion + Component-Guard).
+
+### Test 3 — cs-Locale
+
+- **Result:** `skipped`
+- User-Feedback aus Round 1: „Das wird schon passen. Das brauchen wir
+  nicht prüfen."
+- Deferred-Item bleibt in Plan 54-08 (`54-08-cs-rename`).
+
+### Terminologie-Konsistenz
+
+- **DE:** durchgängig „Ehrenamt" — geprüft in HR-View (Ehrenamt Ø/Woche,
+  Ehrenamt Soll, Ehrenamt Delta).
+- **EN:** durchgängig „Voluntary" — kein „Volunteer" mehr in Labels sichtbar.
+
