@@ -226,6 +226,8 @@ fn build_service(
                                 unpaid_leave_hours: 0.0,
                                 volunteer_hours: 0.0,
                                 custom_absence_hours: Arc::from(Vec::new()),
+                                has_pending_rebooking: false,
+                                pending_rebooking_id: None,
                             };
                             (w, Arc::from(vec![report]))
                         } else {

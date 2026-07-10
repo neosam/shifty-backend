@@ -158,6 +158,14 @@ pub struct ShortEmployeeReport {
     pub unpaid_leave_hours: f32,
     pub volunteer_hours: f32,
     pub custom_absence_hours: Arc<[CustomExtraHours]>,
+    /// Phase 55 (HR-ALERT-01, D-55-02): Backend-computed alert flag.
+    /// True wenn `alert_predicate(balance, voluntary_ist, cap_active)` erfuellt
+    /// UND ein `rebooking_batch(kind=HrSuggestion, state=Pending)` fuer die
+    /// Person existiert. Non-HR-Kontext: false (Redaktion).
+    pub has_pending_rebooking: bool,
+    /// Phase 55 (HR-ALERT-01, D-55-02): batch-id des pending HrSuggestion
+    /// (falls `has_pending_rebooking=true`), sonst None.
+    pub pending_rebooking_id: Option<uuid::Uuid>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

@@ -378,6 +378,19 @@ pub struct ShortEmployeeReportTO {
     pub overall_hours: f32,
     #[serde(default)]
     pub volunteer_hours: f32,
+    /// Phase 55 (HR-ALERT-01, D-55-02): true wenn ein pending
+    /// rebooking_batch(kind=HrSuggestion, state=Pending) fuer diese Person
+    /// existiert. Backend-computed via predicate D-55-01 + DAO-Query
+    /// find_pending_for_sales_person. Non-HR-Kontext: false (Redaktion via
+    /// gleichem HR-Gate wie andere HR-only-Felder).
+    #[serde(default)]
+    pub has_pending_rebooking: bool,
+    /// Phase 55 (HR-ALERT-01, D-55-02): id des pending batches (falls
+    /// has_pending_rebooking=true), sonst None. FE nutzt die id um das
+    /// Vorschlags-Modal zu laden (GET /rebooking-suggestions liefert
+    /// die volle Payload nach id-Filter).
+    #[serde(default)]
+    pub pending_rebooking_id: Option<Uuid>,
 }
 
 #[cfg(feature = "service-impl")]
@@ -390,6 +403,8 @@ impl From<&service::reporting::ShortEmployeeReport> for ShortEmployeeReportTO {
             dynamic_hours: report.dynamic_hours,
             overall_hours: report.overall_hours,
             volunteer_hours: report.volunteer_hours,
+            has_pending_rebooking: report.has_pending_rebooking,
+            pending_rebooking_id: report.pending_rebooking_id,
         }
     }
 }
@@ -2743,5 +2758,219 @@ mod test_shiftplan_slot_to_effective_to {
         // Compile-check: an unused binding on the clipped value keeps intent
         // explicit for future readers even though it's not otherwise consumed.
         let _ = clipped;
+    }
+}
+
+// =====================================================================
+// Phase 55 Plan 02 (F3 REB-MANUAL + F5 HR-ALERT) — Rebooking-Wire-Typen.
+// =====================================================================
+//
+// Design-Anker:
+// - D-55-02: `ShortEmployeeReportTO.has_pending_rebooking` +
+//   `pending_rebooking_id` als Alert-Flag (oben additiv ergaenzt).
+// - D-55-03: `RebookingSuggestionTO.voluntary_delta_before/after` sind
+//   Backend-computed (Fat-Backend — FE macht KEINE Subtraktion).
+// - D-55-04: kein `undo`/`delete` — nur `approve`/`reject` als
+//   One-Shot-Endpoints.
+// - D-55-05: `ManualRebookingRequestTO.iso_year/iso_week` HR-gewaehlt.
+// - D-55-06: `ManualRebookingRequestTO.direction` als Body-Feld (nicht
+//   aus Hours-Vorzeichen abgeleitet).
+
+/// Phase 55 (D-55-06): Richtung einer Rebooking-Buchung. Bidirektional
+/// mit `service::rebooking_reconciliation::RebookingDirection`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub enum RebookingDirectionTO {
+    /// `-N VolunteerWork` + `+N ExtraWork` — Balance ausgleichen.
+    VolunteerToExtra,
+    /// `-N ExtraWork` + `+N VolunteerWork` — Umkehrpfad.
+    ExtraToVolunteer,
+}
+#[cfg(feature = "service-impl")]
+impl From<&service::rebooking_reconciliation::RebookingDirection> for RebookingDirectionTO {
+    fn from(dir: &service::rebooking_reconciliation::RebookingDirection) -> Self {
+        match dir {
+            service::rebooking_reconciliation::RebookingDirection::VolunteerToExtra => {
+                Self::VolunteerToExtra
+            }
+            service::rebooking_reconciliation::RebookingDirection::ExtraToVolunteer => {
+                Self::ExtraToVolunteer
+            }
+        }
+    }
+}
+#[cfg(feature = "service-impl")]
+impl From<&RebookingDirectionTO> for service::rebooking_reconciliation::RebookingDirection {
+    fn from(to: &RebookingDirectionTO) -> Self {
+        match to {
+            RebookingDirectionTO::VolunteerToExtra => Self::VolunteerToExtra,
+            RebookingDirectionTO::ExtraToVolunteer => Self::ExtraToVolunteer,
+        }
+    }
+}
+
+/// Phase 54 DAO-Enum, gespiegelt fuer Wire. Bidirektional mit
+/// `dao::rebooking_batch::RebookingBatchKind`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub enum RebookingBatchKindTO {
+    Manual,
+    HrSuggestion,
+    AutoCron,
+    AutoCronBackfill,
+}
+#[cfg(feature = "service-impl")]
+impl From<&dao::rebooking_batch::RebookingBatchKind> for RebookingBatchKindTO {
+    fn from(kind: &dao::rebooking_batch::RebookingBatchKind) -> Self {
+        match kind {
+            dao::rebooking_batch::RebookingBatchKind::Manual => Self::Manual,
+            dao::rebooking_batch::RebookingBatchKind::HrSuggestion => Self::HrSuggestion,
+            dao::rebooking_batch::RebookingBatchKind::AutoCron => Self::AutoCron,
+            dao::rebooking_batch::RebookingBatchKind::AutoCronBackfill => Self::AutoCronBackfill,
+        }
+    }
+}
+#[cfg(feature = "service-impl")]
+impl From<&RebookingBatchKindTO> for dao::rebooking_batch::RebookingBatchKind {
+    fn from(to: &RebookingBatchKindTO) -> Self {
+        match to {
+            RebookingBatchKindTO::Manual => Self::Manual,
+            RebookingBatchKindTO::HrSuggestion => Self::HrSuggestion,
+            RebookingBatchKindTO::AutoCron => Self::AutoCron,
+            RebookingBatchKindTO::AutoCronBackfill => Self::AutoCronBackfill,
+        }
+    }
+}
+
+/// Phase 54 DAO-Enum, gespiegelt fuer Wire. Bidirektional mit
+/// `dao::rebooking_batch::RebookingBatchState`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub enum RebookingBatchStateTO {
+    Pending,
+    Approved,
+    Rejected,
+    SkippedLocked,
+}
+#[cfg(feature = "service-impl")]
+impl From<&dao::rebooking_batch::RebookingBatchState> for RebookingBatchStateTO {
+    fn from(state: &dao::rebooking_batch::RebookingBatchState) -> Self {
+        match state {
+            dao::rebooking_batch::RebookingBatchState::Pending => Self::Pending,
+            dao::rebooking_batch::RebookingBatchState::Approved => Self::Approved,
+            dao::rebooking_batch::RebookingBatchState::Rejected => Self::Rejected,
+            dao::rebooking_batch::RebookingBatchState::SkippedLocked => Self::SkippedLocked,
+        }
+    }
+}
+#[cfg(feature = "service-impl")]
+impl From<&RebookingBatchStateTO> for dao::rebooking_batch::RebookingBatchState {
+    fn from(to: &RebookingBatchStateTO) -> Self {
+        match to {
+            RebookingBatchStateTO::Pending => Self::Pending,
+            RebookingBatchStateTO::Approved => Self::Approved,
+            RebookingBatchStateTO::Rejected => Self::Rejected,
+            RebookingBatchStateTO::SkippedLocked => Self::SkippedLocked,
+        }
+    }
+}
+
+/// Wire-Repraesentation der `RebookingBatchEntity` (Phase 54 DAO).
+/// Rueckgabe von `POST /rebooking/manual`,
+/// `POST /rebooking-suggestions/{id}/approve|reject`.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct RebookingBatchTO {
+    pub id: Uuid,
+    pub sales_person_id: Uuid,
+    pub iso_year: u32,
+    pub iso_week: u8,
+    pub kind: RebookingBatchKindTO,
+    pub state: RebookingBatchStateTO,
+    pub created: PrimitiveDateTime,
+    #[serde(default)]
+    pub approved: Option<PrimitiveDateTime>,
+    #[serde(default)]
+    pub approved_by: Option<Arc<str>>,
+    #[serde(rename = "$version")]
+    #[serde(default)]
+    pub version: Uuid,
+}
+#[cfg(feature = "service-impl")]
+impl From<&dao::rebooking_batch::RebookingBatchEntity> for RebookingBatchTO {
+    fn from(entity: &dao::rebooking_batch::RebookingBatchEntity) -> Self {
+        Self {
+            id: entity.id,
+            sales_person_id: entity.sales_person_id,
+            iso_year: entity.iso_year,
+            iso_week: entity.iso_week,
+            kind: (&entity.kind).into(),
+            state: (&entity.state).into(),
+            created: entity.created,
+            approved: entity.approved,
+            approved_by: entity.approved_by.clone(),
+            version: entity.version,
+        }
+    }
+}
+
+/// Request-Body fuer `POST /rebooking/manual`.
+///
+/// HR waehlt Woche + Richtung + Menge im F3-Modal; Backend berechnet
+/// nichts, buche 1:1 (D-55-05 + D-55-06). Alle Felder required (kein
+/// `serde(default)`) — die Route ist neu, es gibt keinen Legacy-Payload.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ManualRebookingRequestTO {
+    pub sales_person_id: Uuid,
+    pub iso_year: u32,
+    pub iso_week: u8,
+    pub direction: RebookingDirectionTO,
+    pub hours: f32,
+}
+
+/// Response von `GET /rebooking-suggestions` (Array) und Payload fuer
+/// `RebookingReconciliationService::suggest_for_week` /
+/// `list_pending_for_sales_person`.
+///
+/// D-55-03 (Fat-Backend): sowohl `voluntary_delta_before` als auch
+/// `voluntary_delta_after` sind **Backend-berechnete** Felder — das FE
+/// darf `voluntary_ist - voluntary_soll` NICHT selbst rechnen. Precedent:
+/// MEMORY `feedback_fat_backend_thin_client`.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct RebookingSuggestionTO {
+    pub batch_id: Uuid,
+    pub sales_person_id: Uuid,
+    pub iso_year: u32,
+    pub iso_week: u8,
+    /// Vom Backend berechnete Rebooking-Menge (D-55-03,
+    /// `min(|balance|, voluntary_ist)`). Stets `>= 0.0`.
+    pub proposed_hours: f32,
+    pub balance_before: f32,
+    pub voluntary_ist_before: f32,
+    pub voluntary_soll_before: f32,
+    /// Backend-computed = `voluntary_ist_before - voluntary_soll_before`
+    /// (D-55-03, Fat-Backend).
+    pub voluntary_delta_before: f32,
+    pub balance_after: f32,
+    pub voluntary_ist_after: f32,
+    pub voluntary_soll_after: f32,
+    /// Backend-computed = `voluntary_ist_after - voluntary_soll_after`
+    /// (D-55-03, Fat-Backend).
+    pub voluntary_delta_after: f32,
+}
+#[cfg(feature = "service-impl")]
+impl From<&service::rebooking_reconciliation::RebookingSuggestion> for RebookingSuggestionTO {
+    fn from(s: &service::rebooking_reconciliation::RebookingSuggestion) -> Self {
+        Self {
+            batch_id: s.batch_id,
+            sales_person_id: s.sales_person_id,
+            iso_year: s.iso_year,
+            iso_week: s.iso_week,
+            proposed_hours: s.proposed_hours,
+            balance_before: s.balance_before,
+            voluntary_ist_before: s.voluntary_ist_before,
+            voluntary_soll_before: s.voluntary_soll_before,
+            voluntary_delta_before: s.voluntary_delta_before,
+            balance_after: s.balance_after,
+            voluntary_ist_after: s.voluntary_ist_after,
+            voluntary_soll_after: s.voluntary_soll_after,
+            voluntary_delta_after: s.voluntary_delta_after,
+        }
     }
 }

@@ -7,7 +7,7 @@ resolver = "2"
 [features]
 #default = ["service-impl"]
 default = []
-service-impl = ["dep:service", "dep:shifty-utils"]
+service-impl = ["dep:service", "dep:shifty-utils", "dep:dao"]
 
 [dependencies.service]
 path = "../service"
@@ -15,6 +15,14 @@ optional = true
 
 [dependencies.shifty-utils]
 path = "../shifty-utils"
+optional = true
+
+# Phase 55 Plan 02 (D-55-02, D-55-04): RebookingBatchTO spiegelt die Phase 54
+# DAO-Enums (Kind/State) und die Entity-Felder direkt fuer die Wire. Feature-
+# gated identisch zu `service` — TO-Konsumenten ohne service-impl brauchen
+# den DAO-Typ nicht.
+[dependencies.dao]
+path = "../dao"
 optional = true
 
 [dependencies.serde]

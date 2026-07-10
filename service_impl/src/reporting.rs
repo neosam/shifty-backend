@@ -1069,6 +1069,11 @@ impl<Deps: ReportingServiceDeps> ReportingServiceImpl<Deps> {
                     unpaid_leave_hours: unpaid_leave_hours + absence_derived_unpaid_leave_hours,
                     volunteer_hours,
                     custom_absence_hours,
+                    // Phase 55 (HR-ALERT-01, D-55-02): Default false/None hier;
+                    // `enrich_reports_with_pending_rebooking` fuellt post-hoc
+                    // predicate-gated + HR-gated + DAO-basiert.
+                    has_pending_rebooking: false,
+                    pending_rebooking_id: None,
                 });
             }
 
@@ -1491,6 +1496,11 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 unpaid_leave_hours: weekly_hours.unpaid_leave_hours + absence_derived_unpaid_leave_hours,
                 volunteer_hours: weekly_hours.volunteer_hours,
                 custom_absence_hours,
+                // Phase 55 (HR-ALERT-01, D-55-02): Default false/None hier;
+                // `enrich_reports_with_pending_rebooking` fuellt post-hoc
+                // predicate-gated + HR-gated + DAO-basiert.
+                has_pending_rebooking: false,
+                pending_rebooking_id: None,
             });
         }
         Ok(short_employee_report.into())
