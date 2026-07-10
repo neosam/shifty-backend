@@ -42,6 +42,7 @@ Last activity: 2026-07-10 — v2.6.1 Hotfix ge-shippt (voluntary_stats Soll now 
 
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
+| 260710-p8k | Voluntary Erfüllungsgrad (`ist_per_soll_pct = ist/soll*100`) im Employee-Detail-Report; FE-Zeile bleibt bei `soll≈0` unsichtbar | 2026-07-10 | e2aee9b | _(inline, kein Verzeichnis — kleiner atomarer Commit)_ |
 | 260702-jql | Special-Day Duplikat-Hinweis nach Create ausblenden, erst bei Feld-Änderung wieder | 2026-07-02 | b9d270b | [260702-jql-special-day-duplikat-hinweis-nach-create](./quick/260702-jql-special-day-duplikat-hinweis-nach-create/) |
 
 ## Deferred Items
