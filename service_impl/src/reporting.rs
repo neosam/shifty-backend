@@ -12,8 +12,7 @@ use service::{
     clock::ClockService,
     employee_work_details::{EmployeeWorkDetails, EmployeeWorkDetailsService},
     extra_hours::{
-        Availability, ExtraHours, ExtraHoursCategory, ExtraHoursService, ExtraHoursSource,
-        ReportType,
+        Availability, ExtraHours, ExtraHoursCategory, ExtraHoursService, ReportType,
     },
     permission::{Authentication, HR_PRIVILEGE},
     reporting::{
@@ -174,35 +173,16 @@ pub fn committed_voluntary_prorata_for_week(
         .sum()
 }
 
-/// Phase 54 Gap-Closure G1 (VOL-STAT-01 / VOL-ACCT-01-Ist, D-54-DM-02):
-/// Summe der `VolunteerWork`-`ExtraHours` im Range `[from_date ..= to_date]`
-/// (kalendarisch, Tag-Vergleich), gefiltert auf `source == Manual` und
-/// `deleted.is_none()`. Rebooking-Marker-Rows sind ausgeschlossen
-/// (VOL-ACCT-03).
-///
-/// Argumentation Range-Cutoff: die Employee-Report-Chain rechnet bis zur
-/// aktuellen KW / Range-Ende — nicht ueber das volle ISO-Jahr. Ohne Cutoff
-/// zeigte 5h/Woche committed seit KW 18 einen Soll-Wert von ~177h
-/// (=~35 Rest-Jahres-Wochen); mit Cutoff nur die tatsaechlichen Range-Wochen.
-pub fn voluntary_ist_total_in_range(
-    extra_hours: &[ExtraHours],
-    from_date: ShiftyDate,
-    to_date: ShiftyDate,
-) -> f32 {
-    let from = from_date.to_date();
-    let to = to_date.to_date();
-    extra_hours
-        .iter()
-        .filter(|eh| eh.deleted.is_none())
-        .filter(|eh| matches!(eh.category, ExtraHoursCategory::VolunteerWork))
-        .filter(|eh| eh.source == ExtraHoursSource::Manual)
-        .filter(|eh| {
-            let d = eh.date_time.date();
-            from <= d && d <= to
-        })
-        .map(|eh| eh.amount)
-        .sum()
-}
+// Phase 54 Gap-Closure 54-09-Ist-Fix: die frühere Range-basierte
+// Voluntary-Ist-pure-fn (source=Manual-Filter über die ExtraHours-Rows)
+// ist entfernt. Das Ist-Aggregat kommt jetzt aus dem bereits
+// aggregierten `EmployeeReport::volunteer_hours` (via
+// `ReportingService::get_report_for_employee_range`) — das deckt alle drei
+// Erfassungsquellen (manuelle VolunteerWork-ExtraHours + Shiftplan-Cap-
+// Überlauf + no_contract-Shiftplan-Stunden) konsistent ab, statt nur die
+// erste zu zählen. Der source-Marker-Filter für Rebooking-Neutralität wird
+// ab Phase 55 zentral im ReportingService greifen und trifft dann
+// automatisch auch diese Kette.
 
 /// Phase 54 Gap-Closure G1 (VOL-STAT-01-Nenner, D-F1-01):
 /// Anzahl ISO-Wochen im Range `[from_date ..= to_date]`, in denen mindestens

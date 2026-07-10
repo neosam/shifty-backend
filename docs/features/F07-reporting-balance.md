@@ -304,11 +304,12 @@ Chronologically:
   [F14](./F14-rebooking.md) for the full rule set. **Reader impact:**
   Balance-chain aggregates in `service_impl/src/reporting.rs` and
   its downstream consumers will filter `source = 'manual'` from
-  Phase 55 onward — the first live consumer is
-  `voluntary_ist_total_in_range(..)` (Plan 54-03 landed the initial
-  full-year reader; Plan 54-07 Gap G1 replaced it with the Range-based
-  variant). In Phase 54 no
-  writer sets `rebooking`, so every existing row continues to enter
+  Phase 55 onward. In Phase 54 the filter is not yet active; the
+  Voluntary-Stats Ist aggregate delegates to
+  `EmployeeReport::volunteer_hours` (via
+  `ReportingService::get_report_for_employee_range`), so it inherits
+  whatever central filter the reporting chain applies. No writer
+  currently sets `rebooking`, so every existing row continues to enter
   the Balance identically (backfill via column DEFAULT).
 
 Reporting itself writes into **none** of these tables.

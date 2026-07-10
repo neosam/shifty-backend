@@ -322,18 +322,22 @@ impl service_impl::rebooking_batch::RebookingBatchServiceDeps for RebookingBatch
 type RebookingBatchService =
     service_impl::rebooking_batch::RebookingBatchServiceImpl<RebookingBatchServiceDependencies>;
 
-// Phase 54 (VOL-STAT + VOL-ACCT, Plan 03): VoluntaryStatsServiceImpl ist
-// Business-Logic-Tier. Konsumiert ExtraHoursService (Basic) +
-// EmployeeWorkDetailsService (=WorkingHoursService, Basic) +
-// SalesPersonService (Basic) + PermissionService + TransactionDao. Kein
-// Zyklus — dieser Service wird von keinem existierenden Service konsumiert.
+// Phase 54 (VOL-STAT + VOL-ACCT, Plan 03 + Gap-Closure 54-09-Ist-Fix):
+// VoluntaryStatsServiceImpl ist Business-Logic-Tier. Konsumiert
+// ReportingService (Business-Logic, aggregiert volunteer_hours aus allen
+// drei Quellen: manual VolunteerWork + auto_volunteer + no_contract) +
+// EmployeeWorkDetailsService (=WorkingHoursService, Basic, fuer Soll) +
+// SalesPersonService (Basic, Existenz-Check) + PermissionService +
+// TransactionDao. Konstruktions-Reihenfolge: NACH ReportingService.
+// Kein Zyklus — VoluntaryStatsService wird von keinem anderen Service
+// konsumiert.
 pub struct VoluntaryStatsServiceDependencies;
 impl service_impl::voluntary_stats::VoluntaryStatsServiceDeps
     for VoluntaryStatsServiceDependencies
 {
     type Context = Context;
     type Transaction = Transaction;
-    type ExtraHoursService = ExtraHoursService;
+    type ReportingService = ReportingService;
     type EmployeeWorkDetailsService = WorkingHoursService;
     type SalesPersonService = SalesPersonService;
     type PermissionService = PermissionService;
@@ -1130,21 +1134,6 @@ impl RestStateImpl {
                 transaction_dao: transaction_dao.clone(),
             },
         );
-        // Phase 54 Plan 03 (VOL-STAT + VOL-ACCT): Business-Logic-Tier
-        // VoluntaryStatsService — konstruiert NACH extra_hours_service,
-        // working_hours_service, sales_person_service, permission_service,
-        // transaction_dao (Basic-Services-Wave). Kein Zyklus.
-        let voluntary_stats_service = Arc::new(
-            service_impl::voluntary_stats::VoluntaryStatsServiceImpl::<
-                VoluntaryStatsServiceDependencies,
-            > {
-                extra_hours_service: extra_hours_service.clone(),
-                employee_work_details_service: working_hours_service.clone(),
-                sales_person_service: sales_person_service.clone(),
-                permission_service: permission_service.clone(),
-                transaction_dao: transaction_dao.clone(),
-            },
-        );
         // Phase 48 (EXP-02/EXP-03, D-48-BASIC): Basic-Tier — konstruiert
         // parallel zu den anderen Basic-Services (kein Domain-Service als Dep).
         let pdf_export_config_service = Arc::new(
@@ -1196,6 +1185,24 @@ impl RestStateImpl {
             special_day_service: special_day_service.clone(),
             toggle_service: toggle_service.clone(),
         });
+
+        // Phase 54 Plan 03 + Gap-Closure 54-09-Ist-Fix (VOL-STAT + VOL-ACCT):
+        // Business-Logic-Tier VoluntaryStatsService — konstruiert NACH
+        // reporting_service (Business-Logic-Dep fuer volunteer_hours-Aggregat),
+        // working_hours_service, sales_person_service, permission_service,
+        // transaction_dao. Kein Zyklus — kein Service konsumiert
+        // VoluntaryStatsService.
+        let voluntary_stats_service = Arc::new(
+            service_impl::voluntary_stats::VoluntaryStatsServiceImpl::<
+                VoluntaryStatsServiceDependencies,
+            > {
+                reporting_service: reporting_service.clone(),
+                employee_work_details_service: working_hours_service.clone(),
+                sales_person_service: sales_person_service.clone(),
+                permission_service: permission_service.clone(),
+                transaction_dao: transaction_dao.clone(),
+            },
+        );
 
         // Phase 52 (WOP-01, D-52-01): ShiftplanCatalogService wird VOR
         // BookingInformationService konstruiert, damit dieser den

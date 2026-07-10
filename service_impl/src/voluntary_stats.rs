@@ -1,29 +1,37 @@
-//! Phase 54 Plan 03 + Gap-Closure G1 (Plan 54-07) — Business-Logic-Tier
-//! VoluntaryStatsService (VOL-STAT-01/02, VOL-ACCT-01/02/03).
+//! Phase 54 Plan 03 + Gap-Closure G1 (Plan 54-07 + 54-09-Ist-Fix) —
+//! Business-Logic-Tier VoluntaryStatsService (VOL-STAT-01/02, VOL-ACCT-01/02).
 //!
-//! Kombiniert die drei Range-basierten pure fns aus `crate::reporting`
-//! (`voluntary_ist_total_in_range`, `contract_weeks_count_in_range`,
-//! `committed_voluntary_target_in_range`) mit einem HR-Gate an erster Stelle.
-//! Non-HR-Aufrufer erhalten ein `VoluntaryStats` mit lauter `None`-Feldern
-//! (API-Level-Redaktion, Praezedenz VAC-OFFSET-01 v1.8 — kein 403).
+//! Ist-Aggregat: der bereits aggregierte `EmployeeReport::volunteer_hours`
+//! aus `ReportingService::get_report_for_employee_range` — dieser Wert
+//! entspricht dem OVERALL-"Ehrenamt"-Feld auf der Employee-Detail-Seite und
+//! deckt beide Erfassungsquellen (manuelle VolunteerWork-ExtraHours +
+//! Shiftplan-Cap-Ueberlauf `auto_volunteer_hours` + no_contract-Shiftplan-
+//! Stunden) konsistent ab.
 //!
-//! Cross-Service-Calls verwenden `Authentication::Full` (Bypass, Auth wurde
-//! bereits am Einstieg geprueft — Praezedenz `reference_toggle_service_full_context_bypass`).
+//! Soll-Aggregat: `committed_voluntary_target_in_range` — tages-basiert
+//! pro-rata (D-F2-01).
+//! Contract-Weeks-Nenner: `contract_weeks_count_in_range` — D-F1-01
+//! (expected_hours=0 zaehlt MIT).
 //!
-//! Gap-Closure G1: die Methode akzeptiert `(from_date, to_date)` statt
-//! `year`; die ExtraHours werden bei Range-Straddle ueber
-//! `from_year..=to_year` geladen und dann Tag-basiert gefiltert.
+//! HR-Gate an erster Stelle; Non-HR-Aufrufer erhalten alle Felder als
+//! None (API-Level-Redaktion, Praezedenz VAC-OFFSET-01 v1.8, kein 403).
+//! Cross-Service-Calls verwenden `Authentication::Full` (Bypass, Auth
+//! wurde bereits am Einstieg geprueft — Praezedenz
+//! `reference_toggle_service_full_context_bypass`).
+//!
+//! Anmerkung Phase 54 Marker-Strukturen (rebooking_batch, source-Spalte):
+//! In Phase 54 als Datenmodell-Vorbereitung angelegt, aber NOCH NICHT in
+//! diesem Ist-Aggregat aktiv — der Rebooking-neutralitaets-Filter wird
+//! ab Phase 55 im ReportingService selbst greifen und dann automatisch
+//! auch diese Kette treffen.
 
 use crate::gen_service_impl;
-use crate::reporting::{
-    committed_voluntary_target_in_range, contract_weeks_count_in_range,
-    voluntary_ist_total_in_range,
-};
+use crate::reporting::{committed_voluntary_target_in_range, contract_weeks_count_in_range};
 use async_trait::async_trait;
 use dao::TransactionDao;
 use service::employee_work_details::EmployeeWorkDetailsService;
-use service::extra_hours::ExtraHoursService;
 use service::permission::{Authentication, HR_PRIVILEGE};
+use service::reporting::ReportingService;
 use service::sales_person::SalesPersonService;
 use service::voluntary_stats::{VoluntaryStats, VoluntaryStatsService};
 use service::{PermissionService, ServiceError};
@@ -32,7 +40,7 @@ use uuid::Uuid;
 
 gen_service_impl! {
     struct VoluntaryStatsServiceImpl: VoluntaryStatsService = VoluntaryStatsServiceDeps {
-        ExtraHoursService: ExtraHoursService<Transaction = Self::Transaction, Context = Self::Context> = extra_hours_service,
+        ReportingService: ReportingService<Transaction = Self::Transaction, Context = Self::Context> = reporting_service,
         EmployeeWorkDetailsService: EmployeeWorkDetailsService<Transaction = Self::Transaction, Context = Self::Context> = employee_work_details_service,
         SalesPersonService: SalesPersonService<Transaction = Self::Transaction, Context = Self::Context> = sales_person_service,
         PermissionService: PermissionService<Context = Self::Context> = permission_service,
@@ -80,26 +88,26 @@ impl<Deps: VoluntaryStatsServiceDeps> VoluntaryStatsService for VoluntaryStatsSe
             .get(sales_person_id, Authentication::Full, Some(tx.clone()))
             .await?;
 
-        // ExtraHours ueber die im Range beruehrten ISO-Jahre laden. Wenn
-        // to_date im Folgejahr liegt, iterieren wir from_year..=to_year und
-        // konkatenieren.
-        let from_year = from_date.as_shifty_week().year;
-        let to_year = to_date.as_shifty_week().year;
-        let mut extra_hours_for_sp: Vec<service::extra_hours::ExtraHours> = Vec::new();
-        for year in from_year..=to_year {
-            let extra_hours = self
-                .extra_hours_service
-                .find_by_iso_year(year, Authentication::Full, Some(tx.clone()))
-                .await?;
-            extra_hours_for_sp.extend(
-                extra_hours
-                    .iter()
-                    .filter(|eh| eh.sales_person_id == sales_person_id)
-                    .cloned(),
-            );
-        }
+        // Ist-Aggregat: der aggregierte `volunteer_hours`-Wert aus dem
+        // Range-Report. Deckt manuelle VolunteerWork-ExtraHours PLUS
+        // Shiftplan-Cap-Ueberlauf PLUS no_contract-Shiftplan-Stunden ab —
+        // konsistent zum OVERALL-"Ehrenamt"-Wert auf der UI. carryover=false,
+        // weil `volunteer_hours` nicht carryover-abhaengig ist (nur
+        // `balance_hours` beruecksichtigt carryover — hier irrelevant).
+        let report = self
+            .reporting_service
+            .get_report_for_employee_range(
+                &sales_person_id,
+                from_date,
+                to_date,
+                false,
+                Authentication::Full,
+                Some(tx.clone()),
+            )
+            .await?;
+        let ist_total = report.volunteer_hours;
 
-        // EmployeeWorkDetails des SalesPerson laden.
+        // EmployeeWorkDetails des SalesPerson fuer Soll + Contract-Weeks.
         let working_hours = self
             .employee_work_details_service
             .find_by_sales_person_id(sales_person_id, Authentication::Full, Some(tx.clone()))
@@ -108,7 +116,6 @@ impl<Deps: VoluntaryStatsServiceDeps> VoluntaryStatsService for VoluntaryStatsSe
 
         self.transaction_dao.commit(tx).await?;
 
-        let ist_total = voluntary_ist_total_in_range(&extra_hours_for_sp, from_date, to_date);
         let soll_total =
             committed_voluntary_target_in_range(&working_hours_vec, from_date, to_date);
         let contract_weeks =

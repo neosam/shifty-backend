@@ -75,26 +75,30 @@ Phase 55/56.
   starting in Phase 55. In Phase 54 no writer sets this value — the
   Marker exists as a *reader-side filter target* only.
 
-**Reader rule:** every aggregate that must remain balance-neutral in
-the presence of future rebooking pairs filters `source = 'manual'`.
-The first consumer is Plan 54-03's
-`voluntary_ist_total_in_range(extra_hours, from_date, to_date)`
-(introduced as a Range-based reader in Plan 54-07 Gap-Closure G1),
-which sums the Ist voluntary hours for F1/F2 and must exclude the future
-`rebooking` noise; otherwise the same voluntary hour would be counted
-twice (once as its original `Volunteer` row, once as the
-`Rebooking`-source row that neutralises it inside the paid chain).
+**Reader rule (planned for Phase 55):** every aggregate that must remain
+balance-neutral in the presence of future rebooking pairs will filter
+`source = 'manual'`. In Phase 54 the filter is not active yet — the
+Voluntary-Stats Ist aggregate reads
+`EmployeeReport::volunteer_hours` from `ReportingService` and inherits
+whatever filter that central path applies. When Phase 55 lands the
+`source == 'manual'` cutoff inside `ReportingService`, this chain picks
+it up automatically; otherwise a voluntary hour would be counted twice
+(once as its original `Volunteer` row, once as the `Rebooking`-source
+row that neutralises it inside the paid chain).
 
 **Audit rule:** `rebooking`-sourced rows stay in the database and stay
 visible in *audit* queries — they are how F5 explains "why did the
 balance change on that date". They are only invisible to end-user
 aggregates.
 
-**Balance-neutrality guarantee (VOL-ACCT-03):** the property test in
-`service_impl/src/test/voluntary_stats.rs` shows that inserting an
-equal-and-opposite pair `(+h, -h)` both stamped `source = 'rebooking'`
-does not change `voluntary_ist_total_in_range(..)` — the F1/F2 numbers
-stay stable across a rebooking event.
+**Balance-neutrality guarantee (VOL-ACCT-03) — planned for Phase 55:**
+once `source == 'manual'` filtering lands inside `ReportingService`
+(Phase 55), inserting an equal-and-opposite pair `(+h, -h)` both stamped
+`source = 'rebooking'` will not change `EmployeeReport::volunteer_hours`
+— the F1/F2 numbers stay stable across a rebooking event because the
+Voluntary-Stats chain consumes `EmployeeReport::volunteer_hours`
+directly. The property test is deferred to Phase 55 together with the
+first live rebooking writer.
 
 ## 4. Batch Structure
 
@@ -160,23 +164,25 @@ Transaction). `VoluntaryStatsService` is Business-Logic (consumes three
 other domain services). The distinction is enforced in the runtime
 graph — see [`../architecture/diagrams/service-graph-runtime.mmd`](../architecture/diagrams/service-graph-runtime.mmd).
 
-### Pure functions in `service_impl::reporting`
+### Aggregation model in `VoluntaryStatsService`
 
-`VoluntaryStatsService` is thin. The math lives in three range-based
-pure fns beside `committed_voluntary_prorata_for_week` (internal per-week
-building block) in `service_impl/src/reporting.rs`:
+`VoluntaryStatsService` is thin. Two responsibilities:
+
+**Ist (VOL-STAT-01 / VOL-ACCT-01-Ist):** delegates to
+`ReportingService::get_report_for_employee_range` and reads
+`EmployeeReport::volunteer_hours` for the requested range. That aggregate
+covers all three sources — manual VolunteerWork ExtraHours, Shiftplan
+cap-overflow (`auto_volunteer_hours`), and no-contract Shiftplan hours —
+consistent with the OVERALL "Ehrenamt" value displayed on the Employee
+detail page. The Rebooking-neutrality filter (`source == 'manual'`) is not
+active in this service in Phase 54; it lands centrally in
+`ReportingService` from Phase 55 and automatically flows into this chain.
+
+**Soll + contract-weeks:** two range-based pure fns beside
+`committed_voluntary_prorata_for_week` (internal per-week building block)
+in `service_impl/src/reporting.rs`:
 
 ```rust
-/// VOL-STAT-01 / VOL-ACCT-01-Ist — Manual-only sum of Volunteer hours
-/// in the date range `[from_date ..= to_date]`. Filters source = Manual
-/// + soft-deletes. (Phase 54 Gap-Closure G1 — Range-based supersedes the
-/// earlier full-year variant.)
-pub fn voluntary_ist_total_in_range(
-    extra_hours: &[ExtraHours],
-    from_date: ShiftyDate,
-    to_date: ShiftyDate,
-) -> f32;
-
 /// F1 denominator / D-F1-01 — number of ISO weeks in the range with at
 /// least one active-contract day inside the range. `expected_hours = 0`
 /// still counts. Edge-weeks count as 1 (day-level dilution happens in

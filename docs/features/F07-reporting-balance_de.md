@@ -304,13 +304,13 @@ Chronologisch:
   siehe Feature [F14](./F14-rebooking.md). **Reader-Impact:**
   Balance-Ketten-Aggregate in `service_impl/src/reporting.rs` und
   ihre nachgelagerten Konsumenten filtern ab Phase 55
-  `source = 'manual'` — erster Live-Konsument ist
-  `voluntary_ist_total_in_range(..)` (Plan 54-03 lieferte den ersten
-  Full-Year-Reader; Plan 54-07 Gap G1 löste ihn durch die Range-Variante
-  ab).
-  In Phase 54 setzt kein Writer `rebooking`, daher gehen alle Bestandszeilen
-  weiterhin identisch in die Balance ein (Backfill via
-  Column-DEFAULT).
+  `source = 'manual'`. In Phase 54 ist der Filter noch NICHT aktiv; das
+  Voluntary-Stats-Ist-Aggregat delegiert an
+  `EmployeeReport::volunteer_hours` (via
+  `ReportingService::get_report_for_employee_range`) und erbt damit den
+  zentralen Filter der Reporting-Kette. Aktuell setzt kein Writer
+  `rebooking`, daher gehen alle Bestandszeilen weiterhin identisch in die
+  Balance ein (Backfill via Column-DEFAULT).
 
 Reporting selbst schreibt in **keine** dieser Tabellen.
 
