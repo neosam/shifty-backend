@@ -1,6 +1,6 @@
 [package]
 name = "rest-types"
-version = "2.6.1-dev"
+version = "2.6.1"
 edition = "2021"
 resolver = "2"
 

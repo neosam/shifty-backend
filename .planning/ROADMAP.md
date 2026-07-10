@@ -108,6 +108,11 @@ Kein Follow-up — MEMORY `feedback_docs_always_current_no_followup.md`.
       RebookingBatch-Basic-Service + VoluntaryStatsService (BL, HR-gated) + FE-Row
       im Employee-Detail-Report
 
+- [ ] **Phase 54.5: Voluntary-Soll Absence-Aware-Angleichung an VFA-01 (Hotfix v2.6.1)** —
+      `committed_voluntary_target_in_range` rechnet whole-week-out konsistent zu
+      D-26-03 / VFA-01; Ist/Soll driften nicht mehr auseinander bei
+      Abwesenheits-Wochen. Reiner Fix, keine neuen Features.
+
 - [ ] **Phase 55: Manuelle Umbuchung + HR-Alert-Modal (F3 + F5)** —
       RebookingReconciliationService.rebook_manual + suggest/approve/reject +
       FE-Alert-Banner + Vorschlags-Modal
@@ -226,6 +231,59 @@ MEMORY `feedback_dioxus_proxy_for_new_backend_endpoints.md`),
 - [ ] 54-09-PLAN.md — Manual-UAT-Round-2 Roundtrip + VERIFICATION/UAT-Doc-Update
 
 **UI hint**: yes
+
+---
+
+#### Phase 54.5: Voluntary-Soll Absence-Aware-Angleichung an VFA-01 (Hotfix v2.6.1)
+
+**Goal:** Der in v2.6.0 ausgelieferte `voluntary_stats.soll_total` überschätzt das
+Freiwilligen-Soll systematisch für Personen mit Abwesenheiten. Ursache: die
+Weekly-Anzeige (`WeeklySummary.committed_voluntary_hours`) rechnet whole-week-out
+konsistent zu D-26-03 / VFA-01 (ein Absence-Tag → gesamte KW = 0), während
+`committed_voluntary_target_in_range` (`reporting.rs:257`) Abwesenheit gar nicht
+berücksichtigt und tages-pro-rata weiterläuft. Ist (delegiert an
+`EmployeeReport.volunteer_hours`, spiegelt Weekly-Semantik) und Soll driften
+auseinander → Delta systematisch negativ. Diese Phase gleicht Soll an die
+Weekly-Semantik an, ohne neue Features. Release als Patch **v2.6.1**.
+
+**Depends on:** Phase 54 (VoluntaryStatsService, F1/F2-Range-Semantik geshippt).
+
+**Requirements:** VOL-STAT-01, VOL-ACCT-01 (Konsistenz-Bugfix, keine neuen REQ-IDs).
+
+**Success Criteria** (what must be TRUE):
+
+  1. `voluntary_stats.soll_total` für einen Range mit Absence-Wochen liefert exakt
+     denselben Wert wie die Summe der `WeeklySummary.committed_voluntary_hours`
+     über die Wochen des Range (Ist/Soll-Symmetrie).
+
+  2. Whole-Week-Out-Semantik (D-26-03 / VFA-01): eine KW mit ≥1 Absence-Tag
+     (Vacation, SickLeave, UnpaidLeave — kategorie-agnostisch) → Soll-Beitrag
+     dieser KW = 0. Nicht pro-rata pro Absence-Tag.
+
+  3. `EmployeeReport.volunteer_hours` (Ist-Quelle) bleibt unverändert — der Fix
+     wirkt ausschließlich auf die Soll-Seite.
+
+  4. Golden-Test dokumentiert den Sprung: Fixture mit 3 Absence-Wochen zeigt
+     den v2.6.0-Wert (falsch) im Kommentar, `assert!` gegen den v2.6.1-Wert
+     (korrekt). Erklärender Kommentar mit D-26-03-Bezug.
+
+  5. Contract-Weeks-Nenner (`contract_weeks_count_in_range`) — per D-54.5-02
+     (CONTEXT.md) Absence-Wochen werden ebenfalls ausgeklammert.
+
+  6. Docs (`docs/features/F14-rebooking.{md,_de.md}` + `docs/domain/time-accounting.{md,_de.md}`)
+     synchron im Wrap-Commit (MEMORY `feedback_docs_always_current_no_followup`).
+
+  7. Release-Tag `v2.6.1` via `/release-version`; Milestone bleibt v2.6 offen.
+
+**Explizit NICHT in Scope** (bleibt Phase 55/56): manuelle Umbuchung,
+HR-Alert-Modal, Cron-Backfill.
+
+**Plans:** 2 plans
+
+- [ ] 54.5-01-PLAN.md — Fix (`committed_voluntary_target_in_range` + `contract_weeks_count_in_range` absence-aware) + Golden-Tests + Docs-Sync (F14 EN+DE, time-accounting EN+DE) in einem Wrap-Commit
+- [ ] 54.5-02-PLAN.md — Release v2.6.1 via `release-version`-Skill (Backend-Bump + Tag + shifty-nix-Pin; Deployment bleibt manuell)
+
+**UI hint**: no (reiner Backend-Fix; FE zeigt geänderten Wert automatisch).
 
 ---
 
@@ -468,6 +526,7 @@ Dry-Run-Vorschau-Header).
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 54. Data-Model + Voluntary Statistics (F1 + F2) | 9/9 | Complete | 2026-07-10 |
+| 54.5. Voluntary-Soll Absence-Aware-Angleichung (Hotfix v2.6.1) | 0/? | Not started | - |
 | 55. Manuelle Umbuchung + HR-Alert-Modal (F3 + F5) | 0/? | Not started | - |
 | 56. Wochen-Cron + Rollout-Backfill (F4) | 0/? | Not started | - |
 
