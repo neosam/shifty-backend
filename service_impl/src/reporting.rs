@@ -13,7 +13,8 @@ use service::{
     clock::ClockService,
     employee_work_details::{EmployeeWorkDetails, EmployeeWorkDetailsService},
     extra_hours::{
-        Availability, ExtraHours, ExtraHoursCategory, ExtraHoursService, ReportType,
+        Availability, ExtraHours, ExtraHoursCategory, ExtraHoursService, ExtraHoursSource,
+        ReportType,
     },
     permission::{Authentication, HR_PRIVILEGE},
     reporting::{
@@ -1128,7 +1129,11 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 .filter(|wh| wh.sales_person_id == paid_employee.id)
                 .cloned()
                 .collect();
-            let extra_hours_array = self
+            // Phase 55 (VOL-ACCT-03, D-55-03): Rebooking-Rows sind
+            // Pair-Nullsummen (+N/-N mit ExtraHoursSource::Rebooking); fuer
+            // Read-Aggregate MUESSEN sie ausgeklammert werden (Pitfall 1
+            // Doppel-Zaehlung; Property-Test 55-03 als CI-Guard).
+            let extra_hours_array: Arc<[ExtraHours]> = self
                 .extra_hours_service
                 .find_by_sales_person_id_and_year(
                     paid_employee.id,
@@ -1137,7 +1142,11 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                     Authentication::Full,
                     tx.clone(),
                 )
-                .await?;
+                .await?
+                .iter()
+                .filter(|eh| eh.source != ExtraHoursSource::Rebooking)
+                .cloned()
+                .collect();
             let previous_year_carryover = self
                 .carryover_service
                 .get_carryover(
@@ -1553,7 +1562,10 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 tx.clone(),
             )
             .await?;
-        let extra_hours = self
+        // Phase 55 (VOL-ACCT-03, D-55-03): Rebooking-Rows sind Pair-Nullsummen;
+        // fuer Read-Aggregate MUESSEN sie ausgeklammert werden (Pitfall 1
+        // Doppel-Zaehlung; Property-Test 55-03 als CI-Guard).
+        let extra_hours: Arc<[ExtraHours]> = self
             .extra_hours_service
             .find_by_sales_person_id_and_year_range(
                 *sales_person_id,
@@ -1562,7 +1574,11 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 Authentication::Full,
                 tx.clone(),
             )
-            .await?;
+            .await?
+            .iter()
+            .filter(|eh| eh.source != ExtraHoursSource::Rebooking)
+            .cloned()
+            .collect();
 
         // Additiver Merge (Phase 8.4 / D-01): immer beide Quellen.
         // Die lebenden `extra_hours` fliessen ungefiltert (deleted IS NULL-
@@ -1745,10 +1761,17 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             .shiftplan_report_service
             .extract_shiftplan_report_for_week(year, week, Authentication::Full, tx.clone())
             .await?;
-        let extra_hours = self
+        // Phase 55 (VOL-ACCT-03, D-55-03): Rebooking-Rows sind Pair-Nullsummen;
+        // fuer Read-Aggregate MUESSEN sie ausgeklammert werden (Pitfall 1
+        // Doppel-Zaehlung; Property-Test 55-03 als CI-Guard).
+        let extra_hours: Arc<[ExtraHours]> = self
             .extra_hours_service
             .find_by_week(year, week, Authentication::Full, tx.clone())
-            .await?;
+            .await?
+            .iter()
+            .filter(|eh| eh.source != ExtraHoursSource::Rebooking)
+            .cloned()
+            .collect();
         info!("Extra hours: {:?}", &extra_hours);
 
         // Phase 52 Follow-Up (WOP-04): pre-build the two in-memory indexes
@@ -1827,10 +1850,17 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             .shiftplan_report_service
             .extract_shiftplan_report_for_iso_year(year, Authentication::Full, tx.clone())
             .await?;
-        let extra_hours = self
+        // Phase 55 (VOL-ACCT-03, D-55-03): Rebooking-Rows sind Pair-Nullsummen;
+        // fuer Read-Aggregate MUESSEN sie ausgeklammert werden (Pitfall 1
+        // Doppel-Zaehlung; Property-Test 55-03 als CI-Guard).
+        let extra_hours: Arc<[ExtraHours]> = self
             .extra_hours_service
             .find_by_iso_year(year, Authentication::Full, tx.clone())
-            .await?;
+            .await?
+            .iter()
+            .filter(|eh| eh.source != ExtraHoursSource::Rebooking)
+            .cloned()
+            .collect();
         info!("Extra hours (year batch): {:?}", &extra_hours);
 
         // Phase 52 Follow-Up (WOP-04): pre-build the two in-memory indexes

@@ -149,6 +149,7 @@ pub trait RebookingReconciliationService {
     /// (`(sp, iso_year, iso_week)` bereits belegt) werden vom
     /// `RebookingBatchService::create` unveraendert als
     /// `ServiceError::EntityAlreadyExists` propagiert (HTTP 409 in Plan 02).
+    #[allow(clippy::too_many_arguments)]
     async fn rebook_manual(
         &self,
         sales_person_id: Uuid,

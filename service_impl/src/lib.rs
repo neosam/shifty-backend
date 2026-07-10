@@ -26,6 +26,7 @@ pub mod pdf_render;
 pub mod pdf_shiftplan;
 pub mod permission;
 pub mod rebooking_batch;
+pub mod rebooking_reconciliation;
 pub mod reporting;
 pub mod sales_person;
 pub mod sales_person_shiftplan;
