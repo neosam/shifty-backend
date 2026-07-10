@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v2.6
 milestone_name: — Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
-current_phase: "55"
-current_phase_name: Manuelle Umbuchung + HR-Alert-Modal (F3 + F5)
-status: ready_to_execute
+current_phase: 55
+current_phase_name: Manuelle Umbuchung + HR-Alert-Modal (F3 + F5
+status: executing
 stopped_at: Phase 55 plan-phase abgeschlossen — 6 Plaene (Wave 1/2/3/4) geschrieben + plan-checker VERIFICATION PASSED nach 1 Revisions-Iteration. Bereit fuer execute-phase.
-last_updated: "2026-07-10T19:15:00.000Z"
+last_updated: "2026-07-10T19:05:21.681Z"
 last_activity: 2026-07-10
-last_activity_desc: Phase 55 plan-phase — 6 Plaene (55-01 Backend-BL / 55-02 REST+DTOs / 55-03 Property-Test / 55-04 FE-Komponenten / 55-05 FE-Integration / 55-06 Docs-Sync F14). 5 Blocker + 5 Warnings in Iteration 1 (Wave-Contract-Konflikte + Fat-Backend-Verstoss bei Delta) via targeted Revision behoben; Iteration 2 = PASSED.
+last_activity_desc: Phase 55 execution started
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 17
-  completed_plans: 11
+  completed_plans: 12
   percent: 50
 ---
 
@@ -33,10 +33,10 @@ progress:
 
 ## Current Position
 
-Phase: 55 (Manuelle Umbuchung + HR-Alert-Modal, F3 + F5) — PLANNED
-Plan: 0 of 6 (Executor uebernimmt Wave 1 → 4)
-Status: ready_to_execute — 6 Plaene geschrieben + plan-checker VERIFICATION PASSED. Wave 1 (55-01 Backend-BL) startet ohne Deps.
-Last activity: 2026-07-10 — Phase 55 plan-phase abgeschlossen (6 Plaene, Wave 1/2/3/4)
+Phase: 55 (Manuelle Umbuchung + HR-Alert-Modal (F3 + F5)) — EXECUTING
+Plan: 2 of 6
+Status: Ready to execute
+Last activity: 2026-07-10 — Phase 55 execution started
 
 ## Quick Tasks Completed
 
@@ -206,7 +206,7 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-07-07T18:43:16.871Z
+**Last session:** 2026-07-10T19:05:12.008Z
 **Stopped at:** Completed 54-02 Plan (Basic-Tier RebookingBatchService)
 **Resume file:** None
 
@@ -263,6 +263,10 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 - [Phase 54]: Basic-tier RebookingBatchDao consumes only Transaction (no Domain-Service deps); mirrors WeekStatusDao precedent for str<->enum roundtrip.
 - [Phase ?]: [54-02] Basic-Tier RebookingBatchService via gen_service_impl! — HR-gated, deps strikt DAO+Permission+Clock+Uuid+Transaction; D-54-DM-01 UNIQUE-Slot via Same-Transaction Pre-Check → EntityAlreadyExists.
 - [Phase ?]: Plan 54-04: HR-Only-Redaktion verbleibt im Service (VoluntaryStatsService), Handler leitet 1:1 durch — VAC-OFFSET-01-Praezedenz konsistent
+- [Phase ?]: D-55-01 alert_predicate (balance<=-0.5h) als pure fn im BL-Foundation Plan 55-01
+- [Phase ?]: D-55-03 proposed_rebooking_hours = min(|balance|, voluntary_ist).max(0) als pure fn (Plan 55-01)
+- [Phase ?]: Task 3 Trade-off: voluntary_soll_before=0.0 im Hydrate; VoluntaryStatsService kommt im REST-Handler-Layer nach (Plan 55-02)
+- [Phase ?]: Reporting-Filter zentral (VOL-ACCT-03 Wave-1-Owner), nicht per-Konsument — Konsistenz-Garantie ueber alle BL-Konsumenten
 
 ## Performance Metrics
 
@@ -292,3 +296,4 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 | Phase 54 P05 | 10min | 5 tasks | 10 files |
 | Phase 54 P06 | 11m | 5 tasks | 14 files |
 | Phase 54 P08 | 6 | 4 tasks | 8 files |
+| Phase 55 P01 | 25min | 3 tasks | 12 files |

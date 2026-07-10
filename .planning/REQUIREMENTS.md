@@ -60,13 +60,13 @@ im Backend.
 
 ### Manuelle Umbuchung (REB-MANUAL — F3)
 
-- [ ] **REB-MANUAL-01**: HR kann im Mitarbeiter-Jahresreport eine Umbuchung
+- [x] **REB-MANUAL-01**: HR kann im Mitarbeiter-Jahresreport eine Umbuchung
       Freiwillig ↔ Bezahlt anlegen (1-Klick-Aktion). Ergebnis: zwei atomar
       geschriebene ExtraHours-Rows (`−N` in Quell-Kategorie, `+N` in
       Ziel-Kategorie) plus ein `rebooking_batch(kind=manual)` mit einem
       `rebooking_batch_entry`. Alles in einer Transaktion; Rollback bei Fehler.
 
-- [ ] **REB-MANUAL-02**: Beide Richtungen werden unterstützt:
+- [x] **REB-MANUAL-02**: Beide Richtungen werden unterstützt:
       `VolunteerWork → ExtraWork` (Standard-Fall Ausgleich) und
       `ExtraWork → VolunteerWork` (Korrektur überzahlter Zusagen).
 
@@ -124,13 +124,13 @@ im Backend.
       (VOL-ACCT-01-Delta). Alle DANN-Werte backend-computed
       (`RebookingSuggestionTO`).
 
-- [ ] **HR-ALERT-03**: HR bestätigt oder lehnt ab. Bei Approve: Rebooking wie
+- [x] **HR-ALERT-03**: HR bestätigt oder lehnt ab. Bei Approve: Rebooking wie
       REB-MANUAL-01 plus `rebooking_batch(kind=hr_suggestion, state=approved)`.
       Bei Reject: `state=rejected` persistiert (bleibt sichtbar-vermerkt).
       State-conditional UPDATE (`WHERE state='pending'`, affected-rows == 1) für
       Concurrency (Pitfall 12).
 
-- [ ] **HR-ALERT-04**: Persistiertes `rebooking_batch(kind=hr_suggestion)`
+- [x] **HR-ALERT-04**: Persistiertes `rebooking_batch(kind=hr_suggestion)`
       teilt die UNIQUE-Slot mit F4-`auto_cron` — Claim-on-Suggest-Strategie
       (Pitfall 7): sobald HR einen Vorschlag hat (`state=pending`), skipt F4-
       Cron diese Woche für diese Person. Vermeidet Stale-Vorschläge nach Cron-
