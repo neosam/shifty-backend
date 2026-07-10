@@ -2491,7 +2491,11 @@ pub fn AbsencesPage() -> Element {
                 mode: modal_mode.read().clone(),
                 is_hr: is_hr,
                 sales_persons: sales_persons_for_modal.clone(),
-                current_sp_id: *current_sp_id.read(),
+                // Quick-Task 260710-r7v: wenn HR eine Person gefiltert hat,
+                // wird die im Neue-Abwesenheit-Modal vorausgewaehlt statt der
+                // selbst-eingeloggte User. Sonst faellt zurueck auf den self
+                // (self-view / Employee-Path haben kein person_filter).
+                current_sp_id: person_filter_val.or(*current_sp_id.read()),
                 on_close: move |_| modal_open.set(false),
                 on_delete_request: on_delete_request,
             }
@@ -3098,6 +3102,72 @@ mod tests {
         assert!(
             html.contains("0,5 Urlaubstage"),
             "Expected Half hint text in: {html}"
+        );
+    }
+
+    /// Quick-Task 260710-r7v: `current_sp_id: Some(id)` im Create-Mode
+    /// preselectet die uebergebene SalesPerson im Employee-Dropdown
+    /// (statt Uuid::nil). Der Prod-Callsite reicht `person_filter_val.or(self)`
+    /// durch — dieser Test sichert das Endverhalten im Modal ab.
+    #[test]
+    fn absence_modal_preselects_current_sp_id_in_create_mode() {
+        // Deterministische UUIDs damit die Test-Closure keine Captures braucht
+        // (VirtualDom::new erwartet einen fn pointer).
+        const TARGET_STR: &str = "11111111-1111-1111-1111-111111111111";
+        const OTHER_STR: &str = "22222222-2222-2222-2222-222222222222";
+        fn app() -> Element {
+            pin_de_locale();
+            let target_id: Uuid = TARGET_STR.parse().unwrap();
+            let other_id: Uuid = OTHER_STR.parse().unwrap();
+            let target_sp = SalesPerson {
+                id: target_id,
+                name: Rc::<str>::from("Target Person"),
+                background_color: Rc::<str>::from("#00ff00"),
+                is_paid: true,
+                inactive: false,
+                version: Uuid::nil(),
+            };
+            let other_sp = SalesPerson {
+                id: other_id,
+                name: Rc::<str>::from("Other Person"),
+                background_color: Rc::<str>::from("#ff0000"),
+                is_paid: true,
+                inactive: false,
+                version: Uuid::nil(),
+            };
+            let sales_persons: Rc<[SalesPerson]> = Rc::from([target_sp, other_sp]);
+            rsx! {
+                AbsenceModal {
+                    open: true,
+                    mode: AbsenceModalMode::Create,
+                    is_hr: true,
+                    sales_persons: sales_persons,
+                    current_sp_id: Some(target_id),
+                    on_close: |_| {},
+                    on_delete_request: |_| {},
+                }
+            }
+        }
+        let html = render(app);
+        // Das <option value="{target_id}"> muss `selected` tragen.
+        let target_option_idx = html
+            .find(&format!("value=\"{}\"", TARGET_STR))
+            .unwrap_or_else(|| panic!("target option missing: {html}"));
+        let target_window = &html
+            [target_option_idx..(target_option_idx + 120).min(html.len())];
+        assert!(
+            target_window.contains("selected"),
+            "Expected target person to be selected: window={target_window}"
+        );
+        // Die andere Person darf NICHT selected sein.
+        let other_option_idx = html
+            .find(&format!("value=\"{}\"", OTHER_STR))
+            .unwrap_or_else(|| panic!("other option missing: {html}"));
+        let other_window = &html
+            [other_option_idx..(other_option_idx + 120).min(html.len())];
+        assert!(
+            !other_window.contains("selected"),
+            "Other person must NOT be selected: window={other_window}"
         );
     }
 
