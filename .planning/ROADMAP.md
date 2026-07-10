@@ -108,7 +108,7 @@ Kein Follow-up — MEMORY `feedback_docs_always_current_no_followup.md`.
       RebookingBatch-Basic-Service + VoluntaryStatsService (BL, HR-gated) + FE-Row
       im Employee-Detail-Report
 
-- [ ] **Phase 54.5: Voluntary-Soll Absence-Aware-Angleichung an VFA-01 (Hotfix v2.6.1)** —
+- [x] **Phase 54.5: Voluntary-Soll Absence-Aware-Angleichung an VFA-01 (Hotfix v2.6.1)** — (completed 2026-07-10, shipped as v2.6.1)
       `committed_voluntary_target_in_range` rechnet whole-week-out konsistent zu
       D-26-03 / VFA-01; Ist/Soll driften nicht mehr auseinander bei
       Abwesenheits-Wochen. Reiner Fix, keine neuen Features.
@@ -526,7 +526,7 @@ Dry-Run-Vorschau-Header).
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 54. Data-Model + Voluntary Statistics (F1 + F2) | 9/9 | Complete | 2026-07-10 |
-| 54.5. Voluntary-Soll Absence-Aware-Angleichung (Hotfix v2.6.1) | 0/? | Not started | - |
+| 54.5. Voluntary-Soll Absence-Aware-Angleichung (Hotfix v2.6.1) | 2/2 | Complete | 2026-07-10 |
 | 55. Manuelle Umbuchung + HR-Alert-Modal (F3 + F5) | 0/? | Not started | - |
 | 56. Wochen-Cron + Rollout-Backfill (F4) | 0/? | Not started | - |
 

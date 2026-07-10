@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v2.6
 milestone_name: — Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
-current_phase: "54.5"
-current_phase_name: Voluntary-Soll Absence-Aware-Angleichung an VFA-01 (Hotfix v2.6.1)
-status: discuss_phase
-stopped_at: Phase 54.5 (Hotfix) eingeschoben — Ist/Soll-Drift bei Freiwilligen mit Abwesenheit; v2.6.0 shippt zu hohes Soll. discuss-phase-Start.
-last_updated: "2026-07-10T12:00:00.000Z"
+current_phase: "55"
+current_phase_name: Manuelle Umbuchung + HR-Alert-Modal (F3 + F5)
+status: planning
+stopped_at: v2.6.1 released — Voluntary-Soll Absence-Aware-Fix ge-shippt (Tag v2.6.1 auf main + shifty-nix-Pin auf v2.6.1). Nächste Phase 55 (F3+F5) noch nicht gestartet.
+last_updated: "2026-07-10T13:30:00.000Z"
 last_activity: 2026-07-10
-last_activity_desc: Phase 54.5 als Hotfix zwischen 54 und 55 eingeschoben — ROADMAP-Einträge (Phasenliste + Details + Progress-Table) + Verzeichnis .planning/phases/54.5-voluntary-soll-absence-fix/ angelegt; discuss-phase-Start.
+last_activity_desc: v2.6.1 Hotfix ge-shippt — voluntary_stats Soll now whole-week-out on absence weeks (D-54.5-01/02); shifty-nix pinned to v2.6.1. Deployment bleibt manuell.
 progress:
   total_phases: 4
-  completed_phases: 1
-  total_plans: 9
-  completed_plans: 9
-  percent: 25
+  completed_phases: 2
+  total_plans: 11
+  completed_plans: 11
+  percent: 50
 ---
 
 # Project State: Shifty Backend
@@ -28,15 +28,15 @@ progress:
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
 - **Last shipped/closed**: **v2.5 Weekly-Overview Performance & Freiwilligen-Abwesenheiten** (shipped + archiviert 2026-07-06, Phasen 52–53, 8 Pläne + 3 Follow-Ups, 9/9 Requirements WOP-01..05 + VAA-01..04, verified_closeout, Audit `passed`)
 - **Current milestone**: **v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter** (planning; Roadmap 2026-07-06 geschrieben)
-- **Current focus**: **Phase 54.5** — Hotfix v2.6.1: `committed_voluntary_target_in_range` (`reporting.rs:257`) ignoriert Absence komplett, während `WeeklySummary.committed_voluntary_hours` (`booking_information.rs:513–521`) whole-week-out per D-26-03 / VFA-01 rechnet. Ist (delegiert an `EmployeeReport.volunteer_hours`) und Soll driften auseinander → `voluntary_stats.delta` systematisch negativ verzerrt. discuss-phase klärt: (a) whole-week-out vs. pro-rata-pro-Tag, (b) Contract-Weeks-Nenner (Absence-KW rausrechnen oder unverändert).
+- **Current focus**: **Phase 55** — Manuelle Umbuchung + HR-Alert-Modal (F3 + F5). RebookingReconciliationService.rebook_manual + suggest/approve/reject-Flow + FE-Alert-Banner + Vorschlags-Modal. Phase 54.5 ist als v2.6.1 ge-shippt (Voluntary-Soll whole-week-out bei Absence-Wochen); Milestone v2.6 bleibt offen.
 - **Snapshot-Schema-Version**: aktuell **12**. Potenzieller Bump 12→13 in **Phase 56** discuss-phase zu pinnen (REB-AUTO-05; Beweislast beim „Nein"-Zweig = Straddling-Golden-Snapshot).
 
 ## Current Position
 
-Phase: 54.5 (Voluntary-Soll Absence-Aware-Angleichung an VFA-01 — Hotfix v2.6.1) — DISCUSS
+Phase: 55 (Manuelle Umbuchung + HR-Alert-Modal, F3 + F5) — NOT STARTED
 Plan: 0 of ? (Plans werden in plan-phase erzeugt)
-Status: discuss_phase — Design-Kalibrierungen offen (whole-week-out vs. pro-rata; Contract-Weeks-Nenner)
-Last activity: 2026-07-10 — Phase 54.5 als Hotfix zwischen 54 und 55 eingeschoben (ROADMAP + STATE + Verzeichnis)
+Status: planning — Phase 55 wartet auf discuss-phase (F3-Manual-Rebooking + F5-HR-Alert-Modal); v2.6.1 ist ge-shippt.
+Last activity: 2026-07-10 — v2.6.1 Hotfix ge-shippt (voluntary_stats Soll now whole-week-out on absence weeks)
 
 ## Quick Tasks Completed
 
