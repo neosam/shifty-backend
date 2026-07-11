@@ -165,7 +165,6 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
         .as_ref()
         .map(|a| a.has_privilege("hr"))
         .unwrap_or(false);
-    let manual_rebooking_label = ImStr::from(i18n.t(Key::RebookingModalTitleManual).as_ref());
     // Aktuelle ISO-KW als Default fuer das Manual-Modal (D-55-05: HR waehlt
     // im Modal frei; Default ist die laufende Woche).
     let current_iso_year = js::get_current_year();
@@ -231,19 +230,10 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
                         "{back_label}"
                     }
                 }
-                // Phase 55 (D-55-06, WARNING #3): Header-Row-Button unter TopBar
-                // und oberhalb der Voluntary-Stats-Zeile (im EmployeeView).
-                // KEIN Einbau in die Voluntary-Stats-Row selbst — die bleibt
-                // reine Lese-Anzeige. HR-only Sichtbarkeit via `is_hr`.
-                if is_hr {
-                    div { class: "flex justify-end",
-                        Btn {
-                            variant: BtnVariant::Secondary,
-                            on_click: move |_| cr.send(EmployeeDetailsAction::OpenManualRebooking),
-                            "{manual_rebooking_label}"
-                        }
-                    }
-                }
+                // Phase 55 (F3, D-55-05/06 amended 2026-07-11 — user feedback:
+                // Header-Row-Button war zu prominent → F3-Trigger nun als Eintrag
+                // im "Mehr ▾"-Dropdown in EmployeeView). HR-Gate bleibt: der
+                // Handler wird nur bei is_hr an EmployeeView weitergereicht.
                 EmployeeView {
                     onupdate: move |_| cr.send(EmployeeDetailsAction::Update),
                     show_vacation: true,
@@ -261,6 +251,11 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
                             employee_id: employee_id.to_string(),
                         });
                     })),
+                    on_open_manual_rebooking: if is_hr {
+                        Some(EventHandler::new(move |_| cr.send(EmployeeDetailsAction::OpenManualRebooking)))
+                    } else {
+                        None
+                    },
                 }
             }
         }

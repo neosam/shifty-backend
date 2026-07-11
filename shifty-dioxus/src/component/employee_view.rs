@@ -117,6 +117,12 @@ pub struct EmployeeViewPlainProps {
     /// header row that navigates to the Absences page for this person.
     #[props(!optional, default = None)]
     pub on_nav_to_absences: Option<EventHandler<()>>,
+
+    /// Phase 55 (F3, D-55-05/06 amended 2026-07-11): when set, appends a
+    /// "Manuelle Umbuchung" entry to the "Mehr ▾" dropdown. Owner passes
+    /// `Some(handler)` only for HR-authorized contexts; `None` hides the entry.
+    #[props(!optional, default = None)]
+    pub on_open_manual_rebooking: Option<EventHandler<()>>,
 }
 
 fn current_week_expected_hours(
@@ -205,6 +211,7 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
     let show_until_now_label: ImStr = i18n.t(Key::ShowUntilNowLabel).into();
     let other_hours_str = i18n.t(Key::OtherHours);
     let more_str = i18n.t(Key::More);
+    let manual_rebooking_label: ImStr = ImStr::from(i18n.t(Key::RebookingModalTitleManual).as_ref());
     let show_details_str = i18n.t(Key::ShowDetails);
     let hide_details_str = i18n.t(Key::HideDetails);
     let week_short_str = i18n.t(Key::WeekShort);
@@ -311,20 +318,35 @@ pub fn EmployeeViewPlain(props: EmployeeViewPlainProps) -> Element {
                         "{other_hours_str}"
                     }
                 }
-                DropdownTrigger {
-                    entries: [
+                {
+                    let mut entries: Vec<crate::state::dropdown::DropdownEntry> = vec![
                         (
                             show_full_year_label.clone(),
-                            Box::new(move |_| on_full_year.call(())),
+                            Box::new(move |_| on_full_year.call(())) as Box<dyn Fn(Option<std::rc::Rc<str>>) + 'static>,
                             props.full_year,
                         ).into(),
                         (
                             show_until_now_label,
-                            Box::new(move |_| on_until_now.call(())),
+                            Box::new(move |_| on_until_now.call(())) as Box<dyn Fn(Option<std::rc::Rc<str>>) + 'static>,
                             !props.full_year,
                         ).into(),
-                    ].into(),
-                    Btn { variant: BtnVariant::Secondary, "{more_str} ▾" }
+                    ];
+                    // Phase 55 (F3, D-55-05/06 amended 2026-07-11 — user feedback:
+                    // Header-Row-Button war zu prominent → in "Mehr ▾" verlagert):
+                    // Rebooking-Eintrag anhängen, wenn Handler HR-authorized ist.
+                    if let Some(handler) = props.on_open_manual_rebooking {
+                        entries.push((
+                            manual_rebooking_label.clone(),
+                            Box::new(move |_| handler.call(())) as Box<dyn Fn(Option<std::rc::Rc<str>>) + 'static>,
+                            false,
+                        ).into());
+                    }
+                    rsx! {
+                        DropdownTrigger {
+                            entries: entries.into(),
+                            Btn { variant: BtnVariant::Secondary, "{more_str} ▾" }
+                        }
+                    }
                 }
             }
             if !props.full_year {
@@ -1151,6 +1173,11 @@ pub struct EmployeeViewProps {
     /// identity header that navigates to the Absences view for this person.
     #[props(!optional, default = None)]
     pub on_nav_to_absences: Option<EventHandler<()>>,
+    /// Phase 55 (F3, D-55-05/06 amended 2026-07-11): when set, appends a
+    /// "Manuelle Umbuchung" entry to the "Mehr ▾" dropdown. Owner passes
+    /// `Some(handler)` only for HR-authorized contexts; `None` hides the entry.
+    #[props(!optional, default = None)]
+    pub on_open_manual_rebooking: Option<EventHandler<()>>,
 }
 
 #[component]
@@ -1221,6 +1248,7 @@ pub fn EmployeeView(props: EmployeeViewProps) -> Element {
             },
             on_open_extra_hours: props.on_open_extra_hours,
             on_nav_to_absences: props.on_nav_to_absences,
+            on_open_manual_rebooking: props.on_open_manual_rebooking,
         }
     }
 }
