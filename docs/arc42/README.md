@@ -46,6 +46,6 @@ Update triggers for this documentation:
 
 - New or removed crate / service tier rule change → chapter 5.
 - New external system (IdP, WebDAV target, …) → chapters 3 and 7.
-- Significant architectural decision (usually via an OpenSpec change) → chapter 9.
+- Significant architectural decision (usually pinned in a GSD phase) → chapter 9.
 - New cross-cutting convention → chapter 8.
 - Resolved or newly discovered debt → chapter 11.

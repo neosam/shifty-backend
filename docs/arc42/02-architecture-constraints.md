@@ -18,7 +18,7 @@
 | Constraint | Background |
 | --- | --- |
 | **Very small team / solo maintainer** | Optimizes for low coordination overhead: monolith, one repo per deployable, conventions enforced by compiler + clippy instead of review processes. |
-| **Spec-driven change workflow (OpenSpec)** | Non-trivial changes go through `openspec/` proposals (proposal → design → tasks → specs). Archived changes double as decision records (see [chapter 9](09-architecture-decisions.md)). |
+| **Structured change workflow (GSD)** | Work is organized in milestones → phases under `.planning/` (roadmap, requirements with REQ-IDs, per-phase discuss → plan → execute cycle). Design decisions are pinned per phase (`D-<phase>-<n>` in phase CONTEXT files); milestones close with an audit. The older OpenSpec workflow (`openspec/`) is retired; its archive remains as historical decision records (see [chapter 9](09-architecture-decisions.md)). |
 | **Version control via jj (Jujutsu)** | Commits and pushes are made with `jj`, not raw git ([onboarding](../onboarding/README.md)). |
 | **Releases via `/release-version` skill** | SemVer since v2.0; version derived from the GSD milestone + git tags; `cli-update-version.sh` mechanizes the bump/tag/push. Deploy remains a manual `nixos-rebuild switch`. |
 | **Frontend lives in-tree but builds separately** | `shifty-dioxus/` is excluded from the Cargo workspace (different target, different toolchain) yet versioned in the same repo to keep DTOs and API in lock-step. |

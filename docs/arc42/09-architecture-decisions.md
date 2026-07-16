@@ -1,12 +1,18 @@
 # 9. Architecture Decisions
 
-Since ~2026-03, significant decisions are made through the **OpenSpec
-workflow**: `openspec/changes/` proposals (proposal → design → tasks → specs)
-are the primary decision records, archived under
-`openspec/changes/archive/` with the resulting capability specs in
-`openspec/specs/`. New decisions should be recorded there; this chapter
-lists the foundational decisions that predate OpenSpec (or span the whole
-system) in lightweight ADR form.
+Significant decisions are made through the **GSD workflow** (`.planning/`):
+each milestone is broken into phases, and every phase's *discuss* step pins
+its design decisions as numbered calibrations (`D-<phase>-<n>`) in the phase
+CONTEXT file before planning and execution; milestones close with an audit.
+Those pinned decisions are the primary decision records going forward.
+
+Historical note: from ~2026-03 to ~2026-04 decisions went through the
+now-retired **OpenSpec** workflow; its archive
+(`openspec/changes/archive/`, capability specs in `openspec/specs/`) remains
+a valuable record of that era's rationale but is no longer updated.
+
+This chapter lists the foundational decisions that predate (or span) both
+workflows in lightweight ADR form.
 
 ## ADR-1: Rust monolith with trait-separated layers
 
@@ -94,7 +100,7 @@ change past payouts, and a validator must distinguish "computed under old
 rules" from "data bug".
 **Consequences:** Formula evolution requires disciplined version bumps
 (forgotten bump = false bug reports); snapshots store aggregates only, row
-detail stays live. (OpenSpec: `billing-period-snapshot-versioning`.)
+detail stays live. (Historical spec: `openspec/specs/billing-period-snapshot-versioning`.)
 
 ## ADR-9: Persisted year-end carryover
 

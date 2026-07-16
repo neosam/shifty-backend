@@ -62,7 +62,7 @@ Concrete, testable scenarios (Q# ↔ quality goals in
 | M1 | A new developer sets up the project. | Day 1 of [first-week](../onboarding/first-week.md): backend + frontend run locally with mock auth, no IdP or DB server required. |
 | M2 | A new aggregate (entity + CRUD + permissions) is added. | Pattern is mechanical: DAO trait + impl, Basic service trait + impl, REST handlers + TOs, migration, tests — no existing service needs modification unless it composes the new one. |
 | M3 | Business logic must be unit-tested without a database. | Every dependency is an `automock`-ed trait; `MockClockService` makes time deterministic. |
-| M4 | A change is proposed that touches domain semantics. | It goes through OpenSpec (proposal/design/specs) and lands as an archived decision record. |
+| M4 | A change is proposed that touches domain semantics. | It goes through the GSD phase cycle (discuss → plan → execute); design decisions are pinned as `D-<phase>-<n>` records in the phase CONTEXT file. |
 
 ### Reliability & reproducibility (Q4)
 

@@ -51,8 +51,8 @@ architecture-specific vocabulary.
 | **`snapshot_schema_version`** | Version stamp on snapshot rows; bumped whenever formula, value types, or inputs change. |
 | **`bookings_view`** | Denormalized SQL view (booking ⋈ person ⋈ slot ⋈ plan) powering read paths like the booking log. |
 | **mock_auth / oidc** | Compile-time auth modes: dev auto-admin without IdP vs OpenID Connect against an external IdP. |
-| **OpenSpec** | Spec-driven change workflow in `openspec/`; archived changes serve as decision records. |
-| **GSD** | Milestone/phase planning tooling (`.planning/`) that also drives SemVer derivation for releases. |
+| **GSD ("Get Shit Done")** | The active workflow (`.planning/`): milestones → phases with a discuss → plan → execute cycle, pinned design decisions (`D-<phase>-<n>`), requirements with REQ-IDs, and milestone audits; also drives SemVer derivation for releases. |
+| **OpenSpec** | Retired spec-driven change workflow in `openspec/` (~2026-03/04); its archive serves as historical decision records. |
 | **jj (Jujutsu)** | The VCS used for committing/pushing in this repo (git-compatible). |
 | **`.sqlx/` offline cache** | Committed SQLx query metadata enabling compile-time SQL checks without a live DB (`SQLX_OFFLINE=true`). |
 | **shifty-nix** | Sibling repository containing the NixOS module, systemd service, static frontend delivery, and the deployed version pin. |
