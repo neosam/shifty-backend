@@ -2,19 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.6
 milestone_name: — Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
-current_phase: "55"
-current_phase_name: Manuelle Umbuchung + HR-Alert-Modal (F3 + F5)
-status: discuss_phase
-stopped_at: Phase 55 discuss-phase abgeschlossen — 7 Design-Kalibrierungen gepinnt (D-55-01..07), CONTEXT.md geschrieben. Bereit fuer plan-phase.
-last_updated: "2026-07-10T15:00:00.000Z"
-last_activity: 2026-07-10
-last_activity_desc: Phase 55 discuss-phase — D-F5-01..03 + D-55-UNDO-01 + D-55-F3-01/02 + D-55-F5-04 gepinnt. Nach v2.6.3-Release (Absences-Preselect-Fix). Voluntary-Ehrenamt-Bug bei expected_hours=0 weiter offen (nicht in Phase 55 Scope).
+status: planning
+stopped_at: Completed 54-02 Plan (Basic-Tier RebookingBatchService)
+last_updated: "2026-07-22T19:06:27.662Z"
+last_activity: 2026-07-10 — Phase 55 discuss-phase abgeschlossen, CONTEXT.md geschrieben
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 11
   completed_plans: 11
-  percent: 50
 ---
 
 # Project State: Shifty Backend
@@ -33,9 +29,9 @@ progress:
 
 ## Current Position
 
-Phase: 55 (Manuelle Umbuchung + HR-Alert-Modal, F3 + F5) — DISCUSS COMPLETE
-Plan: 0 of ? (Plans werden in plan-phase erzeugt)
-Status: discuss_phase — 7 Design-Kalibrierungen gepinnt (siehe 55-CONTEXT.md), Planner kann uebernehmen.
+Phase: 55 of 3 (manual rebooking hr alert)
+Plan: Not started
+Status: Ready to plan
 Last activity: 2026-07-10 — Phase 55 discuss-phase abgeschlossen, CONTEXT.md geschrieben
 
 ## Quick Tasks Completed
