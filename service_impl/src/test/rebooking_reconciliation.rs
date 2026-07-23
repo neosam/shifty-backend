@@ -307,7 +307,7 @@ mod service_tests {
     use super::*;
 
     use dao::rebooking_batch::{
-        RebookingBatchEntity, RebookingBatchEntryEntity, RebookingBatchKind, RebookingBatchState,
+        RebookingBatchEntity, RebookingBatchKind, RebookingBatchState,
     };
     use service::rebooking_batch::MockRebookingBatchService;
     use service::reporting::{EmployeeReport, MockReportingService};
