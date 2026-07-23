@@ -40,8 +40,6 @@ pub mod working_hours_overview_layout_toggle;
 pub use atoms::{Btn, BtnVariant, NavBtn, PersonChip};
 pub use contract_modal::ContractModal;
 pub use impersonation_banner::ImpersonationBanner;
-// reason: consumed by page/employee_details.rs (F3-Trigger, Task 2 dieses Plans)
-#[allow(unused_imports)]
 pub use manual_rebooking_modal::ManualRebookingModal;
 pub use rebooking_alert_banner::RebookingAlertBanner;
 pub use rebooking_suggestion_modal::RebookingSuggestionModal;

@@ -1975,7 +1975,6 @@ pub async fn trigger_pdf_export(config: &Config) -> Result<(), ShiftyError> {
 /// POST `/rebooking/manual` (F3, REB-MANUAL-01/02). Legt eine manuelle Umbuchung
 /// fuer den UNIQUE-Slot `(sales_person_id, iso_year, iso_week)` an. Ein belegter
 /// Slot antwortet mit 409 → `ShiftyError::Conflict` (Modal bleibt offen, D-55-05).
-#[allow(dead_code)] // reason: consumed by loader::* which is wired into the Phase-55 modals (Task 2/3) + page (55-05)
 pub async fn post_rebooking_manual(
     config: Config,
     body: rest_types::rebooking::ManualRebookingRequestTO,
@@ -2000,7 +1999,6 @@ pub async fn post_rebooking_manual(
 /// Bewusste Mutation: claimt den pending-Batch und liefert die backend-berechnete
 /// `RebookingSuggestionTO` (inkl. pending-id) zurueck. Ein bereits entschiedener
 /// Slot antwortet mit 409 → `ShiftyError::Conflict` (die aufrufende Seite refetcht).
-#[allow(dead_code)] // reason: consumed by loader::* which is wired into the Phase-55 modals (Task 2/3) + page (55-05)
 pub async fn post_rebooking_suggestion(
     config: Config,
     body: rest_types::rebooking::RebookingSuggestRequestTO,
@@ -2025,7 +2023,6 @@ pub async fn post_rebooking_suggestion(
 /// POST `/rebooking-suggestions/{id}/approve` (HR-ALERT-03). Buchet das -N/+N-Pair
 /// mit den zurueckgegebenen `proposed_hours`. Ein verlorener Race antwortet mit
 /// 409 → `ShiftyError::Conflict` (inline generischer Fehler, dann refetch).
-#[allow(dead_code)] // reason: consumed by loader::* which is wired into the Phase-55 modals (Task 2/3) + page (55-05)
 pub async fn post_rebooking_approve(
     config: Config,
     batch_id: Uuid,
@@ -2048,7 +2045,6 @@ pub async fn post_rebooking_approve(
 /// POST `/rebooking-suggestions/{id}/reject` (HR-ALERT-03). Transitioniert den
 /// pending-Batch auf `Rejected` (Audit-Eintrag, kein Undo, D-55-04). Ein
 /// verlorener Race antwortet mit 409 → `ShiftyError::Conflict`.
-#[allow(dead_code)] // reason: consumed by loader::* which is wired into the Phase-55 modals (Task 2/3) + page (55-05)
 pub async fn post_rebooking_reject(
     config: Config,
     batch_id: Uuid,

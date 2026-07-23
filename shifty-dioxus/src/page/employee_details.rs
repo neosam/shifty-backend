@@ -6,14 +6,19 @@ use crate::{
         atoms::{use_media_query, Btn, BtnVariant},
         employee_work_details_form::EmployeeWorkDetailsFormType,
         error_view::ErrorView,
-        ContractModal, EmployeeView, EmployeesShell, ExtraHoursModal, TopBar,
+        ContractModal, EmployeeView, EmployeesShell, ExtraHoursModal, ManualRebookingModal, TopBar,
     },
+    error::ShiftyError,
     i18n::Key,
+    js,
+    loader,
     router::Route,
     service::{
-        employee::EmployeeAction, employee_work_details::EmployeeWorkDetailsAction, i18n::I18N,
+        auth::AUTH, config::CONFIG, employee::EmployeeAction, employee::EMPLOYEE_STORE,
+        employee_work_details::EmployeeWorkDetailsAction, i18n::I18N,
     },
     state::employee::ExtraHours,
+    state::rebooking::RebookingDirection,
 };
 use dioxus::prelude::*;
 use uuid::Uuid;
@@ -49,6 +54,11 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
     let mut contract_dialog_type = use_signal(|| EmployeeWorkDetailsFormType::New);
     let mut show_extra_hours_dialog = use_signal(|| false);
     let mut editing_extra_hours = use_signal(|| None::<ExtraHours>);
+
+    // Phase 55 (F3, REB-MANUAL-03, D-55-06): Manual-Rebooking-Modal-State.
+    let mut show_manual_rebooking = use_signal(|| false);
+    let mut manual_rebooking_slot_taken = use_signal(|| false);
+    let mut manual_rebooking_in_flight = use_signal(|| false);
 
     // Mirror the route-driven `employee_id` into a signal so the coroutine
     // below reads the CURRENTLY displayed employee at dispatch time. The
@@ -137,6 +147,21 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
     let is_mobile = *use_media_query("(max-width: 720px)").read();
     let back_label = ImStr::from(i18n.t(Key::BackToList).as_ref());
 
+    // Phase 55 (F3, D-55-06): HR-gate + Person-Name/Default-KW fuer das
+    // Manual-Rebooking-Modal. Der Trigger sitzt in der Action-Zone der Seite
+    // (NICHT in der Voluntary-Stats-Zeile) und ist nur im HR-Report-Kontext
+    // sichtbar. Kein FE-Rechnen — die Umbuchung schreibt das Backend.
+    let is_hr = AUTH
+        .read()
+        .auth_info
+        .as_ref()
+        .map(|a| a.has_privilege("hr"))
+        .unwrap_or(false);
+    let person_name: ImStr = ImStr::from(EMPLOYEE_STORE.read().employee.sales_person.name.clone());
+    let manual_trigger_label = ImStr::from(i18n.t(Key::RebookingManualTrigger).as_ref());
+    let default_year = js::get_current_year();
+    let default_week = js::get_current_week();
+
     rsx! {
         TopBar {}
         ErrorView {}
@@ -170,6 +195,58 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
             }
         }
 
+        // Phase 55 (F3, REB-MANUAL-03, D-55-05/06): Manual-Rebooking-Modal.
+        // Submit -> submit_manual_rebooking; bei Erfolg schliessen + Report-Refetch,
+        // bei 409 (belegter Slot) bleibt es offen (slot_taken_error inline).
+        ManualRebookingModal {
+            open: *show_manual_rebooking.read(),
+            person_name: person_name.clone(),
+            default_year,
+            default_week,
+            slot_taken_error: *manual_rebooking_slot_taken.read(),
+            in_flight: *manual_rebooking_in_flight.read(),
+            on_submit: move |(direction, hours, iso_year, iso_week): (RebookingDirection, f32, u32, u8)| {
+                manual_rebooking_slot_taken.set(false);
+                manual_rebooking_in_flight.set(true);
+                let sp_id = *current_employee_id.peek();
+                spawn(async move {
+                    let config = CONFIG.read().clone();
+                    match loader::submit_manual_rebooking(
+                        config,
+                        sp_id,
+                        direction,
+                        hours,
+                        iso_year,
+                        iso_week,
+                    )
+                    .await
+                    {
+                        Ok(()) => {
+                            manual_rebooking_in_flight.set(false);
+                            show_manual_rebooking.set(false);
+                            // Report-Refetch (bestehender Loader-Pfad) — Umbuchung als Batch sichtbar.
+                            employee_service.send(EmployeeAction::Refresh);
+                        }
+                        Err(ShiftyError::Conflict(_)) => {
+                            // Belegter Slot (D-55-05): Modal bleibt offen, inline-Fehler.
+                            manual_rebooking_in_flight.set(false);
+                            manual_rebooking_slot_taken.set(true);
+                        }
+                        Err(_) => {
+                            // Sonstiger Fehler: Modal offen lassen, in-flight aufheben
+                            // (ErrorView surft den globalen Fehler ohnehin).
+                            manual_rebooking_in_flight.set(false);
+                        }
+                    }
+                });
+            },
+            on_cancel: move |_| {
+                show_manual_rebooking.set(false);
+                manual_rebooking_slot_taken.set(false);
+                manual_rebooking_in_flight.set(false);
+            },
+        }
+
         EmployeesShell {
             div { class: "px-4 py-4 md:px-8 md:py-6 flex flex-col gap-4",
                 if is_mobile {
@@ -180,6 +257,21 @@ pub fn EmployeeDetails(props: EmployeeDetailsProps) -> Element {
                             nav.push(Route::Employees {});
                         },
                         "{back_label}"
+                    }
+                }
+                // Phase 55 (F3, D-55-06): Action-Zone der Seite — HR-gated F3-Trigger.
+                // NICHT in der Voluntary-Stats-Zeile (die bleibt reine Lese-Anzeige).
+                if is_hr {
+                    div { class: "flex justify-end",
+                        Btn {
+                            variant: BtnVariant::Secondary,
+                            on_click: move |_| {
+                                manual_rebooking_slot_taken.set(false);
+                                manual_rebooking_in_flight.set(false);
+                                show_manual_rebooking.set(true);
+                            },
+                            "{manual_trigger_label}"
+                        }
                     }
                 }
                 EmployeeView {

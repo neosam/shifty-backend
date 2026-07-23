@@ -1021,7 +1021,6 @@ pub async fn trigger_pdf_export_now(config: Config) -> Result<(), ShiftyError> {
 
 /// F3: manuelle Umbuchung anlegen. Bei belegtem Slot surft 409 als
 /// `ShiftyError::Conflict` durch — das Manual-Modal bleibt offen (D-55-05).
-#[allow(dead_code)] // reason: consumed by the Phase-55 modals (Task 2/3) + page wiring (55-05)
 pub async fn submit_manual_rebooking(
     config: Config,
     sales_person_id: Uuid,
