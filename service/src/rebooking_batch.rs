@@ -19,10 +19,11 @@
 use crate::permission::Authentication;
 use crate::ServiceError;
 use async_trait::async_trait;
-use dao::rebooking_batch::{RebookingBatchEntity, RebookingBatchEntryEntity};
+use dao::rebooking_batch::{RebookingBatchEntity, RebookingBatchEntryEntity, RebookingBatchState};
 use dao::MockTransaction;
 use mockall::automock;
 use std::fmt::Debug;
+use std::sync::Arc;
 use uuid::Uuid;
 
 #[automock(type Context=(); type Transaction=MockTransaction;)]
@@ -71,4 +72,42 @@ pub trait RebookingBatchService {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<RebookingBatchEntity, ServiceError>;
+
+    /// F5-Modell-B Producer (HR-ALERT-04, Claim-on-Suggest): erzeugt einen
+    /// `rebooking_batch(kind=HrSuggestion, state=Pending)` und claimt den
+    /// globalen UNIQUE-Slot `(sales_person_id, iso_year, iso_week)`. Ein bereits
+    /// belegter Slot fuehrt zu `ServiceError::EntityAlreadyExists` (→ HTTP 409).
+    /// Der UNIQUE-Partial-Index ist die Autoritaet — kein Read-then-INSERT. HR-gated.
+    async fn create_pending_suggestion(
+        &self,
+        sales_person_id: Uuid,
+        iso_year: u32,
+        iso_week: u8,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<RebookingBatchEntity, ServiceError>;
+
+    /// Reader fuer `pending_rebooking_id` (55-03): liefert den aktiven Batch im
+    /// UNIQUE-Slot nur, wenn er `state=Pending` ist, sonst `None`. HR-gated.
+    async fn find_pending_for_sales_person(
+        &self,
+        sales_person_id: Uuid,
+        iso_year: u32,
+        iso_week: u8,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Option<RebookingBatchEntity>, ServiceError>;
+
+    /// Race-sichere Decide-Transition (HR-ALERT-03): hebt einen `Pending`-Batch
+    /// atomar auf `Approved`|`Rejected`. Ein bereits entschiedener Batch (bzw.
+    /// ein Double-Approve, rows_affected==0) fuehrt zu
+    /// `ServiceError::EntityAlreadyExists` (→ HTTP 409). HR-gated.
+    async fn update_state(
+        &self,
+        id: Uuid,
+        new_state: RebookingBatchState,
+        approved_by: Option<Arc<str>>,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<(), ServiceError>;
 }

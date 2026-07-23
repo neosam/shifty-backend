@@ -8,8 +8,10 @@
 use crate::gen_service_impl;
 use async_trait::async_trait;
 use dao::{
-    rebooking_batch::{RebookingBatchDao, RebookingBatchEntity, RebookingBatchEntryEntity},
-    TransactionDao,
+    rebooking_batch::{
+        RebookingBatchDao, RebookingBatchEntity, RebookingBatchEntryEntity, RebookingBatchState,
+    },
+    DaoError, TransactionDao,
 };
 use service::{
     clock::ClockService,
@@ -18,6 +20,7 @@ use service::{
     uuid_service::UuidService,
     PermissionService, ServiceError,
 };
+use std::sync::Arc;
 use uuid::Uuid;
 
 const REBOOKING_BATCH_SERVICE_PROCESS: &str = "rebooking-batch-service";
@@ -197,5 +200,129 @@ impl<Deps: RebookingBatchServiceDeps> RebookingBatchService for RebookingBatchSe
 
         self.transaction_dao.commit(tx).await?;
         Ok(new_batch)
+    }
+
+    async fn create_pending_suggestion(
+        &self,
+        sales_person_id: Uuid,
+        iso_year: u32,
+        iso_week: u8,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<RebookingBatchEntity, ServiceError> {
+        // HR-Gate an erster Stelle (T-55-02), vor jedem Datenabruf.
+        self.permission_service
+            .check_permission(HR_PRIVILEGE, context)
+            .await?;
+
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+
+        // Metadaten fuer den Claim-INSERT (analog `create`).
+        let id = self
+            .uuid_service
+            .new_uuid(&format!("{REBOOKING_BATCH_SERVICE_PROCESS}::create_pending_suggestion id"));
+        let version = self.uuid_service.new_uuid(&format!(
+            "{REBOOKING_BATCH_SERVICE_PROCESS}::create_pending_suggestion version"
+        ));
+        let created = self.clock_service.date_time_now();
+
+        // F5-Modell-B Producer: Claim-INSERT. Kein Read-then-INSERT — der
+        // UNIQUE-Partial-Index ist die Autoritaet (Pitfall 6). Eine Kollision
+        // (Slot belegt) kommt als DaoError::EntityAlreadyExists zurueck und wird
+        // auf ServiceError::EntityAlreadyExists(id) gemappt (→ HTTP 409).
+        let result = self
+            .rebooking_batch_dao
+            .create_pending_suggestion(
+                id,
+                sales_person_id,
+                iso_year,
+                iso_week,
+                created,
+                REBOOKING_BATCH_SERVICE_PROCESS,
+                version,
+                tx.clone(),
+            )
+            .await;
+
+        let entity = match result {
+            Ok(entity) => entity,
+            Err(DaoError::EntityAlreadyExists) => {
+                return Err(ServiceError::EntityAlreadyExists(id));
+            }
+            Err(other) => return Err(other.into()),
+        };
+
+        self.transaction_dao.commit(tx).await?;
+        Ok(entity)
+    }
+
+    async fn find_pending_for_sales_person(
+        &self,
+        sales_person_id: Uuid,
+        iso_year: u32,
+        iso_week: u8,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Option<RebookingBatchEntity>, ServiceError> {
+        self.permission_service
+            .check_permission(HR_PRIVILEGE, context)
+            .await?;
+
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+        let result = self
+            .rebooking_batch_dao
+            .find_pending_for_sales_person(sales_person_id, iso_year, iso_week, tx.clone())
+            .await?;
+        self.transaction_dao.commit(tx).await?;
+        Ok(result)
+    }
+
+    async fn update_state(
+        &self,
+        id: Uuid,
+        new_state: RebookingBatchState,
+        approved_by: Option<Arc<str>>,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<(), ServiceError> {
+        // HR-Gate an erster Stelle (T-55-02), vor jedem Datenabruf.
+        self.permission_service
+            .check_permission(HR_PRIVILEGE, context)
+            .await?;
+
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+
+        let approved = self.clock_service.date_time_now();
+        let version = self
+            .uuid_service
+            .new_uuid(&format!("{REBOOKING_BATCH_SERVICE_PROCESS}::update_state version"));
+
+        // Race-sichere state-conditional Transition. Der DAO liefert bei
+        // rows_affected==0 (Batch bereits entschieden / Double-Approve)
+        // DaoError::EntityAlreadyExists → ServiceError::EntityAlreadyExists(id)
+        // (→ HTTP 409, Pitfall 12). Kein version-Guard, kein Read-then-write.
+        let result = self
+            .rebooking_batch_dao
+            .update_state_conditional(
+                id,
+                new_state,
+                Some(approved),
+                approved_by,
+                REBOOKING_BATCH_SERVICE_PROCESS,
+                version,
+                tx.clone(),
+            )
+            .await;
+
+        match result {
+            Ok(()) => {}
+            Err(DaoError::EntityAlreadyExists) => {
+                return Err(ServiceError::EntityAlreadyExists(id));
+            }
+            Err(other) => return Err(other.into()),
+        }
+
+        self.transaction_dao.commit(tx).await?;
+        Ok(())
     }
 }
