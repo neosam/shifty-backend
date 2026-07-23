@@ -149,7 +149,7 @@ that flips `state = Approved` — that is how F5 guarantees the paired
 
 | Service | Tier | Purpose |
 | --- | --- | --- |
-| `RebookingBatchService` | Basic | HR-gated CRUD (find_by_id / find_by_sales_person_year_week / create) on `rebooking_batch` + entries. Deps: `RebookingBatchDao`, `PermissionService`, `ClockService`, `UuidService`, `TransactionDao`. No domain-service dep. |
+| `RebookingBatchService` | Basic | HR-gated CRUD (find_by_id / find_by_sales_person_year_week / create) on `rebooking_batch` + entries, plus the Phase-55 F5-Model-B lifecycle: `create_pending_suggestion` (Claim-on-Suggest producer — INSERTs a `HrSuggestion`/`Pending` batch and claims the UNIQUE week-slot; a taken slot → `EntityAlreadyExists`), `find_pending_for_sales_person` (reader for `pending_rebooking_id`, returns only `Pending`), and `update_state` (race-safe state-conditional transition `Pending → Approved\|Rejected`; a second/already-decided transition → `EntityAlreadyExists` via `rows_affected()==0`, no version-guard). Deps: `RebookingBatchDao`, `PermissionService`, `ClockService`, `UuidService`, `TransactionDao`. No domain-service dep. |
 | `VoluntaryStatsService` | Business-Logic | Read-only F1/F2. Deps: `ExtraHoursService`, `EmployeeWorkDetailsService`, `SalesPersonService`, `PermissionService`, `TransactionDao`. HR-only via API-level None-redaction (not 403). |
 
 **Consumer wiring (Phase 54):** `RebookingBatchService` has no

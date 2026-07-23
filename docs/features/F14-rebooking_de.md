@@ -157,7 +157,7 @@ gepaarten `extra_hours`-Zeilen mit dem Batch-State konsistent sind.
 
 | Service | Tier | Zweck |
 | --- | --- | --- |
-| `RebookingBatchService` | Basic | HR-gated CRUD (find_by_id / find_by_sales_person_year_week / create) auf `rebooking_batch` + Entries. Deps: `RebookingBatchDao`, `PermissionService`, `ClockService`, `UuidService`, `TransactionDao`. Kein Domain-Service-Dep. |
+| `RebookingBatchService` | Basic | HR-gated CRUD (find_by_id / find_by_sales_person_year_week / create) auf `rebooking_batch` + Entries, plus der Phase-55 F5-Modell-B-Lifecycle: `create_pending_suggestion` (Claim-on-Suggest-Producer — INSERTet einen `HrSuggestion`/`Pending`-Batch und claimt den UNIQUE-Wochen-Slot; belegter Slot → `EntityAlreadyExists`), `find_pending_for_sales_person` (Reader fuer `pending_rebooking_id`, liefert nur `Pending`) und `update_state` (race-sichere state-conditional Transition `Pending → Approved\|Rejected`; ein zweiter/bereits entschiedener Wechsel → `EntityAlreadyExists` via `rows_affected()==0`, kein version-Guard). Deps: `RebookingBatchDao`, `PermissionService`, `ClockService`, `UuidService`, `TransactionDao`. Kein Domain-Service-Dep. |
 | `VoluntaryStatsService` | Business-Logic | Read-only F1/F2. Deps: `ExtraHoursService`, `EmployeeWorkDetailsService`, `SalesPersonService`, `PermissionService`, `TransactionDao`. HR-only per API-Level None-Redaktion (nicht 403). |
 
 **Konsumenten-Wiring (Phase 54):** `RebookingBatchService` hat noch
