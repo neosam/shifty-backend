@@ -60,13 +60,13 @@ im Backend.
 
 ### Manuelle Umbuchung (REB-MANUAL — F3)
 
-- [ ] **REB-MANUAL-01**: HR kann im Mitarbeiter-Jahresreport eine Umbuchung
+- [x] **REB-MANUAL-01**: HR kann im Mitarbeiter-Jahresreport eine Umbuchung
       Freiwillig ↔ Bezahlt anlegen (1-Klick-Aktion). Ergebnis: zwei atomar
       geschriebene ExtraHours-Rows (`−N` in Quell-Kategorie, `+N` in
       Ziel-Kategorie) plus ein `rebooking_batch(kind=manual)` mit einem
       `rebooking_batch_entry`. Alles in einer Transaktion; Rollback bei Fehler.
 
-- [ ] **REB-MANUAL-02**: Beide Richtungen werden unterstützt:
+- [x] **REB-MANUAL-02**: Beide Richtungen werden unterstützt:
       `VolunteerWork → ExtraWork` (Standard-Fall Ausgleich) und
       `ExtraWork → VolunteerWork` (Korrektur überzahlter Zusagen).
 
@@ -118,7 +118,7 @@ im Backend.
       `has_pending_rebooking: bool` + `pending_rebooking_id: Option<Uuid>`
       (Fat Backend — FE macht keine Rechnung).
 
-- [ ] **HR-ALERT-02**: Klick auf die Warnzeile öffnet ein Vorschlags-Modal mit
+- [x] **HR-ALERT-02**: Klick auf die Warnzeile öffnet ein Vorschlags-Modal mit
       IST- und DANN-Spalten für: Stundenkonto (Balance), Freiwillige Ist (VOL-
       STAT-01), Freiwilliges Soll (VOL-ACCT-01-Soll), Freiwilliges Delta
       (VOL-ACCT-01-Delta). Alle DANN-Werte backend-computed
