@@ -2883,6 +2883,7 @@ dependencies = [
 name = "rest-types"
 version = "2.6.4-dev"
 dependencies = [
+ "dao",
  "serde",
  "serde_json",
  "service",

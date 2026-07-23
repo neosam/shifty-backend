@@ -1099,6 +1099,12 @@ impl<Deps: ReportingServiceDeps> ReportingServiceImpl<Deps> {
                     unpaid_leave_hours: unpaid_leave_hours + absence_derived_unpaid_leave_hours,
                     volunteer_hours,
                     custom_absence_hours,
+                    // Phase 55 (55-03 Task 3): in diesem per-Woche-Pfad wird der
+                    // Alert-Flag berechnet, sobald cap_active/balance/volunteer
+                    // vorliegen (siehe unten). Default hier, echte Belegung in
+                    // Task 3.
+                    has_pending_rebooking: false,
+                    pending_rebooking_id: None,
                 });
             }
 
@@ -1521,6 +1527,10 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 unpaid_leave_hours: weekly_hours.unpaid_leave_hours + absence_derived_unpaid_leave_hours,
                 volunteer_hours: weekly_hours.volunteer_hours,
                 custom_absence_hours,
+                // Phase 55 (55-03 Task 3): Alert-Flag wird hier berechnet.
+                // Default; echte Belegung in Task 3.
+                has_pending_rebooking: false,
+                pending_rebooking_id: None,
             });
         }
         Ok(short_employee_report.into())

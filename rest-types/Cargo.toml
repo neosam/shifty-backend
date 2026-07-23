@@ -7,10 +7,17 @@ resolver = "2"
 [features]
 #default = ["service-impl"]
 default = []
-service-impl = ["dep:service", "dep:shifty-utils"]
+service-impl = ["dep:service", "dep:shifty-utils", "dep:dao"]
 
 [dependencies.service]
 path = "../service"
+optional = true
+
+# Phase 55 (55-03): Rebooking-Batch-Entity/-State stammen aus dem `dao`-Crate;
+# die From-Mappings in `rebooking.rs` referenzieren sie direkt. Nur unter
+# `service-impl` aktiv, damit das reine Wire-Crate schlank bleibt.
+[dependencies.dao]
+path = "../dao"
 optional = true
 
 [dependencies.shifty-utils]

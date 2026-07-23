@@ -158,6 +158,16 @@ pub struct ShortEmployeeReport {
     pub unpaid_leave_hours: f32,
     pub volunteer_hours: f32,
     pub custom_absence_hours: Arc<[CustomExtraHours]>,
+    // Phase 55 (HR-ALERT-01/03, 55-03): backend-berechneter Alert-Flag fuer den
+    // freiwillige-Umbuchung-Banner (Modell B) + optionale id eines offenen
+    // pending-Batch. Regel (D-55-B + D-55-07): `has_pending_rebooking =
+    // alert_predicate(balance, voluntary_ist, cap_active) UND kein entschiedener
+    // (approved|rejected) Batch fuer (sp, aktuelle iso_woche)`;
+    // `pending_rebooking_id = Some(id)` falls ein pending-Batch offen ist, sonst
+    // None. Berechnet ausschliesslich im short-report-Pfad
+    // (`get_reports_for_all_employees` / `assemble_weeks`).
+    pub has_pending_rebooking: bool,
+    pub pending_rebooking_id: Option<Uuid>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

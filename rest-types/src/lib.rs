@@ -1,5 +1,9 @@
 use std::sync::Arc;
 
+// Phase 55 (55-03): Rebooking-Reconciliation-TOs (F3 + F5-Modell-B) in eigenem
+// Modul (D-55-Pin) statt Aufblaehung dieser lib.rs.
+pub mod rebooking;
+
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "service-impl")]
 use service::booking_information::{
@@ -378,6 +382,14 @@ pub struct ShortEmployeeReportTO {
     pub overall_hours: f32,
     #[serde(default)]
     pub volunteer_hours: f32,
+    // Phase 55 (HR-ALERT-01/03, 55-03): backend-berechneter Alert-Flag fuer den
+    // freiwillige-Umbuchung-Banner + optionale id eines offenen pending-Batch.
+    // `#[serde(default)]` haelt die Wire-Kompat additiv (Praezedenz VAA-04):
+    // alte Clients/Payloads ohne die Felder deserialisieren zu false/None.
+    #[serde(default)]
+    pub has_pending_rebooking: bool,
+    #[serde(default)]
+    pub pending_rebooking_id: Option<Uuid>,
 }
 
 #[cfg(feature = "service-impl")]
@@ -390,6 +402,8 @@ impl From<&service::reporting::ShortEmployeeReport> for ShortEmployeeReportTO {
             dynamic_hours: report.dynamic_hours,
             overall_hours: report.overall_hours,
             volunteer_hours: report.volunteer_hours,
+            has_pending_rebooking: report.has_pending_rebooking,
+            pending_rebooking_id: report.pending_rebooking_id,
         }
     }
 }
@@ -2654,6 +2668,48 @@ mod test_weekly_summary_to_serde_default {
             "committed_voluntary_hours must default to 0.0 when absent (got {})",
             to.committed_voluntary_hours
         );
+    }
+}
+
+/// Phase 55 (HR-ALERT-01, 55-03): Wire-backward-compat — JSON eines
+/// `ShortEmployeeReportTO` OHNE die neuen Alert-Felder deserialisiert zu
+/// `has_pending_rebooking=false` + `pending_rebooking_id=None` (serde-default,
+/// Praezedenz VAA-04). Kein service-impl noetig (reiner Wire-Test).
+#[cfg(test)]
+mod test_short_report_to_serde_default {
+    use super::*;
+
+    #[test]
+    fn short_report_to_default_flags() {
+        // Payload eines aelteren Backends: enthaelt weder has_pending_rebooking
+        // noch pending_rebooking_id. Beide muessen defaulten.
+        let json = r##"{
+            "sales_person": {
+                "id": "00000000-0000-0000-0000-000000000001",
+                "name": "Alice",
+                "background_color": "#fff",
+                "is_paid": true,
+                "inactive": false,
+                "$version": "00000000-0000-0000-0000-000000000002"
+            },
+            "balance_hours": -2.0,
+            "expected_hours": 40.0,
+            "dynamic_hours": 0.0,
+            "overall_hours": 38.0
+        }"##;
+
+        let to: ShortEmployeeReportTO = serde_json::from_str(json)
+            .expect("legacy JSON without the alert fields must deserialize");
+        assert!(
+            !to.has_pending_rebooking,
+            "has_pending_rebooking must default to false when absent"
+        );
+        assert_eq!(
+            to.pending_rebooking_id, None,
+            "pending_rebooking_id must default to None when absent"
+        );
+        // volunteer_hours defaultet weiterhin (Regressions-Guard fuer VAA-04).
+        assert_eq!(to.volunteer_hours, 0.0);
     }
 }
 
