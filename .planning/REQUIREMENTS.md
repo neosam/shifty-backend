@@ -70,7 +70,7 @@ im Backend.
       `VolunteerWork → ExtraWork` (Standard-Fall Ausgleich) und
       `ExtraWork → VolunteerWork` (Korrektur überzahlter Zusagen).
 
-- [ ] **REB-MANUAL-03**: Frontend zeigt einen Umbuchungs-Modal mit Vorschau
+- [x] **REB-MANUAL-03**: Frontend zeigt einen Umbuchungs-Modal mit Vorschau
       (Menge, Richtung, Woche); User bestätigt oder bricht ab. Kein Undo
       nach Bestätigung (Undo defer to v2.7+).
 
@@ -111,7 +111,7 @@ im Backend.
 
 ### HR-Alert + Vorschlags-Modal (HR-ALERT — F5)
 
-- [ ] **HR-ALERT-01**: In der Employee-Overview (`/employees/`) zeigt eine
+- [x] **HR-ALERT-01**: In der Employee-Overview (`/employees/`) zeigt eine
       dauerhafte Warnzeile pro betroffenem SalesPerson. Predicate:
       `cap_planned_hours_to_expected = true` AND `balance < 0` AND
       `voluntary_ist > 0`. Backend-berechnet, im DTO als
