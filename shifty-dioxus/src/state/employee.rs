@@ -282,6 +282,16 @@ pub struct Employee {
     pub vacation_carryover: i32,
 
     pub custom_extra_hours: Rc<[CustomExtraHours]>,
+
+    /// Phase 55 (HR-ALERT-01, D-55-02): backend-berechnetes Alert-Flag fuer den
+    /// Freiwillige-Umbuchung-Banner. Fat Backend, Thin Client — das FE zeigt den
+    /// Banner ausschliesslich, wenn das Backend dieses Flag setzt (kein FE-Rechnen,
+    /// kein FE-Rollen-Check). Nur der `ShortEmployeeReportTO`-Overview-Pfad liefert
+    /// es befuellt; alle anderen Konstruktoren defaulten zu `false`/`None`.
+    pub has_pending_rebooking: bool,
+    /// Optionale id eines offenen pending-Rebooking-Batch (an das Suggestion-Modal
+    /// durchgereicht).
+    pub pending_rebooking_id: Option<Uuid>,
 }
 
 impl From<&ShortEmployeeReportTO> for Employee {
@@ -300,11 +310,14 @@ impl From<&ShortEmployeeReportTO> for Employee {
             sick_leave_hours: 0.0,
             holiday_hours: 0.0,
             unpaid_leave_hours: 0.0,
-            volunteer_hours: 0.0,
+            volunteer_hours: report.volunteer_hours,
             vacation_days: 0.0,
             vacation_entitlement: 0.0,
             vacation_carryover: 0,
             custom_extra_hours: [].into(),
+            // Phase 55: backend-getriebenes Alert-Flag (nur der Overview-Report traegt es).
+            has_pending_rebooking: report.has_pending_rebooking,
+            pending_rebooking_id: report.pending_rebooking_id,
         }
     }
 }
@@ -333,6 +346,9 @@ impl Employee {
             vacation_entitlement: 0.0,
             vacation_carryover: 0,
             custom_extra_hours: [].into(),
+            // Placeholder für unbezahlte Freiwillige: kein Rebooking-Alert.
+            has_pending_rebooking: false,
+            pending_rebooking_id: None,
         }
     }
 }
@@ -367,6 +383,10 @@ impl From<&EmployeeReportTO> for Employee {
                 .iter()
                 .map(CustomExtraHours::from)
                 .collect(),
+            // Der Voll-Report (Detail-Seite) traegt kein Alert-Flag — der Banner
+            // ist eine reine Overview-Angelegenheit (ShortEmployeeReportTO).
+            has_pending_rebooking: false,
+            pending_rebooking_id: None,
         }
     }
 }

@@ -74,6 +74,8 @@ pub static EMPLOYEE_STORE: GlobalSignal<EmployeeStore> = Signal::global(|| Emplo
         vacation_entitlement: 0.0,
         vacation_carryover: 0,
         custom_extra_hours: [].into(),
+        has_pending_rebooking: false,
+        pending_rebooking_id: None,
     },
     extra_hours: Rc::new([]),
     custom_extra_hours_definitions: Rc::new([]),

@@ -58,10 +58,6 @@ pub struct RebookingSuggestionModalProps {
 
 /// DANN-Balance-Faerbung: `text-good` wenn >= 0 (Ausgleich erreicht), sonst
 /// `text-warn`. Rein signum-basiert auf dem backend-berechneten Wert.
-// reason: called from RebookingSuggestionGrid (RSX); the whole subtree is only
-// mounted from page/employees.rs in 55-05, so the non-test bin build sees it as
-// dead until page wiring lands. Also covered by unit tests.
-#[allow(dead_code)]
 fn dann_balance_class(balance_after: f32) -> &'static str {
     if balance_after >= 0.0 {
         "font-mono tabular-nums text-right text-good"

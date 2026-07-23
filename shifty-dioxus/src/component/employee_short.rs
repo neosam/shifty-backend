@@ -93,6 +93,8 @@ mod tests {
             vacation_entitlement: 0.0,
             vacation_carryover: 0,
             custom_extra_hours: Rc::from([]),
+            has_pending_rebooking: false,
+            pending_rebooking_id: None,
         }
     }
 

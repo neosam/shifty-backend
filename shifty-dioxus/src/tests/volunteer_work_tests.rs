@@ -142,8 +142,13 @@ mod working_hours_mapping_tests {
         assert_eq!(emp.volunteer_hours, 12.0);
     }
 
+    /// Phase 55 (HR-ALERT-01): the short-report mapper now carries the
+    /// backend-provided `volunteer_hours` through to `Employee`, because the
+    /// HR-alert banner (`page/employees.rs`) renders the available voluntary
+    /// hours from the overview report row. (Previously this mapper dropped the
+    /// value to 0.0 — superseded by the banner wiring in 55-05.)
     #[test]
-    fn employee_defaults_volunteer_hours_to_zero_for_short_report() {
+    fn employee_carries_volunteer_hours_from_short_report() {
         let short = ShortEmployeeReportTO {
             sales_person: sales_person_to(),
             balance_hours: 0.0,
@@ -155,7 +160,28 @@ mod working_hours_mapping_tests {
             pending_rebooking_id: None,
         };
         let emp = Employee::from(&short);
-        assert_eq!(emp.volunteer_hours, 0.0);
+        assert_eq!(emp.volunteer_hours, 99.0);
+    }
+
+    /// Phase 55 (HR-ALERT-01, D-55-02): the short-report mapper carries the
+    /// backend alert flag + optional pending-batch id through to `Employee`
+    /// so the banner can gate purely on backend authority (no FE role-check).
+    #[test]
+    fn employee_carries_pending_rebooking_flag_from_short_report() {
+        let id = uuid::Uuid::from_u128(0x55);
+        let short = ShortEmployeeReportTO {
+            sales_person: sales_person_to(),
+            balance_hours: -3.0,
+            expected_hours: 0.0,
+            dynamic_hours: 0.0,
+            overall_hours: 0.0,
+            volunteer_hours: 5.0,
+            has_pending_rebooking: true,
+            pending_rebooking_id: Some(id),
+        };
+        let emp = Employee::from(&short);
+        assert!(emp.has_pending_rebooking);
+        assert_eq!(emp.pending_rebooking_id, Some(id));
     }
 }
 

@@ -1043,7 +1043,6 @@ pub async fn submit_manual_rebooking(
 /// F5-Modell-B: Suggestion claimen (POST, kein GET). Erzeugt/oeffnet den
 /// pending-Batch und liefert die backend-berechnete IST/DANN-Vorschau. Bei
 /// bereits entschiedenem Slot surft 409 durch.
-#[allow(dead_code)] // reason: consumed by the Phase-55 modals (Task 2/3) + page wiring (55-05)
 pub async fn open_rebooking_suggestion(
     config: Config,
     sales_person_id: Uuid,
@@ -1061,7 +1060,6 @@ pub async fn open_rebooking_suggestion(
 
 /// F5: Vorschlag bestaetigen — buchet das -N/+N-Pair mit den `proposed_hours`.
 /// Bei verlorenem Race surft 409 durch (inline generischer Fehler + refetch).
-#[allow(dead_code)] // reason: consumed by the Phase-55 modals (Task 2/3) + page wiring (55-05)
 pub async fn approve_rebooking_suggestion(
     config: Config,
     batch_id: Uuid,
@@ -1072,7 +1070,6 @@ pub async fn approve_rebooking_suggestion(
 
 /// F5: Vorschlag ablehnen — transitioniert den Batch auf `Rejected` (Audit,
 /// kein Undo, D-55-04).
-#[allow(dead_code)] // reason: consumed by the Phase-55 modals (Task 2/3) + page wiring (55-05)
 pub async fn reject_rebooking_suggestion(
     config: Config,
     batch_id: Uuid,

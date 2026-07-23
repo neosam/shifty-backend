@@ -44,11 +44,13 @@ impl From<&RebookingDirectionTO> for RebookingDirection {
 ///
 /// Reines Feld-Kopieren aus `RebookingSuggestionTO` — die DANN-Felder
 /// (`balance_after`, `voluntary_ist_after`) sind bereits vom Backend gerechnet.
-#[allow(dead_code)] // reason: constructed by loader::open_rebooking_suggestion, consumed by rebooking_suggestion_modal (Task 3) + page (55-05)
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RebookingSuggestion {
     /// Die pending-Batch-id (fuer Approve/Reject-Routen).
     pub batch_id: Uuid,
+    // reason: field is populated from the TO for completeness/roundtrip parity, but
+    // approve/reject key off `batch_id`; no read site consumes the sales-person id yet.
+    #[allow(dead_code)]
     pub sales_person_id: Uuid,
     /// Vorgeschlagene Umbuchungs-Stunden (backend: `min(|balance|, voluntary_ist)`).
     pub proposed_hours: f32,
