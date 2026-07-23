@@ -37,6 +37,7 @@ use service::sales_person::MockSalesPersonService;
 use service::shiftplan_report::MockShiftplanReportService;
 use service::special_days::MockSpecialDayService;
 use service::toggle::MockToggleService;
+use service::rebooking_batch::MockRebookingBatchService;
 use service::uuid_service::MockUuidService;
 use service::MockPermissionService;
 use shifty_utils::{DayOfWeek, ShiftyDate};
@@ -131,6 +132,7 @@ impl ReportingServiceDeps for NeutralityReportingDeps {
     type TransactionDao = dao::MockTransactionDao;
     type SpecialDayService = MockSpecialDayService;
     type ToggleService = MockToggleService;
+    type RebookingBatchService = MockRebookingBatchService;
 }
 
 fn make_neutrality_sales_person() -> service::sales_person::SalesPerson {
@@ -216,6 +218,7 @@ fn build_reporting_service(
         transaction_dao: Arc::new(transaction_dao),
         special_day_service: Arc::new(MockSpecialDayService::new()),
         toggle_service: Arc::new(toggle_service),
+        rebooking_batch_service: Arc::new(MockRebookingBatchService::new()),
     }
 }
 

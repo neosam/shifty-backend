@@ -542,6 +542,9 @@ impl service_impl::reporting::ReportingServiceDeps for ReportingServiceDependenc
     // Phase 25: holiday derive-on-read deps.
     type SpecialDayService = SpecialDayService;
     type ToggleService = ToggleService;
+    // Phase 55 (HR-ALERT-01/03, 55-03): Basic-Tier RebookingBatchService fuer
+    // den has_pending_rebooking-Lookup im short-report.
+    type RebookingBatchService = RebookingBatchService;
 }
 type ReportingService = service_impl::reporting::ReportingServiceImpl<ReportingServiceDependencies>;
 
@@ -1219,6 +1222,9 @@ impl RestStateImpl {
             // constructed at ~line 753; toggle_service constructed just above).
             special_day_service: special_day_service.clone(),
             toggle_service: toggle_service.clone(),
+            // Phase 55 (55-03): RebookingBatchService (Basic, ~oben konstruiert)
+            // fuer den has_pending_rebooking-Lookup im short-report.
+            rebooking_batch_service: rebooking_batch_service.clone(),
         });
 
         // Phase 54 Plan 03 + Gap-Closure 54-09-Ist-Fix (VOL-STAT + VOL-ACCT):

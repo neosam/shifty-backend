@@ -6,6 +6,7 @@ use std::{
 };
 
 use async_trait::async_trait;
+use dao::rebooking_batch::RebookingBatchState;
 use dao::TransactionDao;
 use service::{
     absence::{AbsenceCategory, AbsencePeriod, AbsenceService, ResolvedAbsence},
@@ -17,6 +18,7 @@ use service::{
         ReportType,
     },
     permission::{Authentication, HR_PRIVILEGE},
+    rebooking_batch::RebookingBatchService,
     reporting::{
         CustomExtraHours, EmployeeReport, ExtraHoursReportCategory, GroupedReportHours,
         ShortEmployeeReport, WorkingHoursDay,
@@ -85,6 +87,11 @@ gen_service_impl! {
         // is Business-Logic tier and may consume both — no cycle.
         SpecialDayService: SpecialDayService<Context = Self::Context> = special_day_service,
         ToggleService: ToggleService<Context = Self::Context, Transaction = Self::Transaction> = toggle_service,
+        // Phase 55 (HR-ALERT-01/03, 55-03): Basic-Tier RebookingBatchService
+        // fuer den has_pending_rebooking-Lookup im short-report. RebookingBatch
+        // ist Basic (kennt keinen Domain-Service) → kein Zyklus mit der BL-
+        // Reconciliation, die ihrerseits ReportingService konsumiert.
+        RebookingBatchService: RebookingBatchService<Context = Self::Context, Transaction = Self::Transaction> = rebooking_batch_service,
     }
 }
 
@@ -1099,10 +1106,12 @@ impl<Deps: ReportingServiceDeps> ReportingServiceImpl<Deps> {
                     unpaid_leave_hours: unpaid_leave_hours + absence_derived_unpaid_leave_hours,
                     volunteer_hours,
                     custom_absence_hours,
-                    // Phase 55 (55-03 Task 3): in diesem per-Woche-Pfad wird der
-                    // Alert-Flag berechnet, sobald cap_active/balance/volunteer
-                    // vorliegen (siehe unten). Default hier, echte Belegung in
-                    // Task 3.
+                    // Phase 55 (55-03): der HR-Alert-Banner wird ueber den
+                    // short-report `get_reports_for_all_employees` getrieben (die
+                    // `/report`-Liste), nicht ueber diesen per-Woche-`assemble_weeks`/
+                    // `get_week`-Pfad. Hier bleiben die Felder daher neutral
+                    // (false/None); die Alert-Berechnung liegt ausschliesslich im
+                    // Employee-Aggregat-Pfad (D-55-B Banner-Regel).
                     has_pending_rebooking: false,
                     pending_rebooking_id: None,
                 });
@@ -1218,6 +1227,11 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 /// Gap (Phase 8.4 / CR-01): symmetrisch zu absense_hours (Z.263) und zur
                 /// Referenz hours_per_week (Z.988). Verhindert dynamic-contract Balance-Asymmetrie (M-02).
                 absence_derived_balance_hours: f32,
+                /// Phase 55 (HR-ALERT-01, 55-03): war die Person in mindestens
+                /// einer Woche des Report-Fensters gedeckelt
+                /// (`cap_planned_hours_to_expected`)? OR-reduziert im fold; Input
+                /// fuer `alert_predicate` (Employee-Ebene). Default false.
+                cap_active: bool,
             }
 
             // Gap (Phase 8.4 / CR-01): derived-Map VOR dem per-Woche-Fold berechnen, damit
@@ -1350,6 +1364,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                             volunteer_hours: auto_volunteer_hours + shiftplan_hours,
                             custom_absence_hours: HashMap::new(),
                             absence_derived_balance_hours: 0.0,
+                            cap_active,
                         }
                     } else if expected_hours <= 0.0 {
                         // Dynamischer Vertrag (Zeile vorhanden, expected=0): Soll=Ist.
@@ -1378,6 +1393,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                             volunteer_hours: auto_volunteer_hours,
                             custom_absence_hours: HashMap::new(),
                             absence_derived_balance_hours: 0.0,
+                            cap_active,
                         }
                     } else {
                         let week_extra_hours: Vec<_> = extra_hours_array
@@ -1463,6 +1479,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                             volunteer_hours,
                             custom_absence_hours,
                             absence_derived_balance_hours,
+                            cap_active,
                         }
                     }
                 })
@@ -1481,6 +1498,9 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                         acc.unpaid_leave_hours += week.unpaid_leave_hours;
                         acc.volunteer_hours += week.volunteer_hours;
                         acc.absence_derived_balance_hours += week.absence_derived_balance_hours;
+                        // Phase 55 (HR-ALERT-01): cap_active auf Employee-Ebene
+                        // OR-reduzieren (gedeckelt in irgendeiner Woche → true).
+                        acc.cap_active = acc.cap_active || week.cap_active;
                         for ((id, name), hours) in week.custom_absence_hours {
                             *acc.custom_absence_hours.entry((id, name)).or_insert(0.0) += hours;
                         }
@@ -1514,6 +1534,60 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
             let dynamic_hours = weekly_hours.dynamic_hours - weekly_hours.absense_hours - weekly_hours.absence_derived_balance_hours;
             let overall_hours = weekly_hours.shiftplan_hours + weekly_hours.extra_working_hours;
             let balance_hours = overall_hours - expected_hours + previous_year_carryover;
+
+            // Phase 55 (HR-ALERT-01/03, 55-03): F5-Modell-B-Banner-Regel
+            // (D-55-B + D-55-07). Der Alert-Flag feuert nur, wenn das Praedikat
+            // erfuellt ist UND kein entschiedener (approved|rejected) Batch im
+            // Slot (sp, aktuelle iso_woche = until_week) liegt. Der Lookup
+            // laeuft ausschliesslich fuer Alert-Kandidaten (Performance).
+            let (has_pending_rebooking, pending_rebooking_id) = if alert_predicate(
+                balance_hours,
+                weekly_hours.volunteer_hours,
+                weekly_hours.cap_active,
+            ) {
+                // Existiert ein ENTSCHIEDENER Batch im Slot? → Alert erloescht
+                // (nach Approve UND Reject, D-55-07).
+                let decided = self
+                    .rebooking_batch_service
+                    .find_by_sales_person_year_week(
+                        paid_employee.id,
+                        year,
+                        until_week,
+                        Authentication::Full,
+                        tx.clone(),
+                    )
+                    .await?
+                    .map(|batch| {
+                        matches!(
+                            batch.state,
+                            RebookingBatchState::Approved | RebookingBatchState::Rejected
+                        )
+                    })
+                    .unwrap_or(false);
+                if decided {
+                    (false, None)
+                } else {
+                    // Banner zeigt sich. pending_rebooking_id = Some(id) falls ein
+                    // offener pending-Batch existiert (HR muss ihn noch
+                    // entscheiden), sonst None (HR loest den Suggest/Claim erst
+                    // per Klick aus).
+                    let pending_id = self
+                        .rebooking_batch_service
+                        .find_pending_for_sales_person(
+                            paid_employee.id,
+                            year,
+                            until_week,
+                            Authentication::Full,
+                            tx.clone(),
+                        )
+                        .await?
+                        .map(|batch| batch.id);
+                    (true, pending_id)
+                }
+            } else {
+                (false, None)
+            };
+
             short_employee_report.push(ShortEmployeeReport {
                 sales_person: Arc::new(paid_employee.clone()),
                 balance_hours,
@@ -1527,10 +1601,8 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 unpaid_leave_hours: weekly_hours.unpaid_leave_hours + absence_derived_unpaid_leave_hours,
                 volunteer_hours: weekly_hours.volunteer_hours,
                 custom_absence_hours,
-                // Phase 55 (55-03 Task 3): Alert-Flag wird hier berechnet.
-                // Default; echte Belegung in Task 3.
-                has_pending_rebooking: false,
-                pending_rebooking_id: None,
+                has_pending_rebooking,
+                pending_rebooking_id,
             });
         }
         Ok(short_employee_report.into())

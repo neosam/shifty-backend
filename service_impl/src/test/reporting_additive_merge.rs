@@ -34,6 +34,7 @@ use service::sales_person::MockSalesPersonService;
 use service::shiftplan_report::MockShiftplanReportService;
 use service::special_days::MockSpecialDayService;
 use service::toggle::MockToggleService;
+use service::rebooking_batch::MockRebookingBatchService;
 use service::uuid_service::MockUuidService;
 use service::MockPermissionService;
 use shifty_utils::ShiftyDate;
@@ -129,6 +130,7 @@ impl ReportingServiceDeps for TestDeps {
     // Phase 25: holiday derive-on-read deps.
     type SpecialDayService = MockSpecialDayService;
     type ToggleService = MockToggleService;
+    type RebookingBatchService = MockRebookingBatchService;
 }
 
 impl ReportingMocks {
@@ -168,6 +170,7 @@ impl ReportingMocks {
             transaction_dao: Arc::new(self.transaction_dao),
             special_day_service: Arc::new(self.special_day_service),
             toggle_service: Arc::new(self.toggle_service),
+            rebooking_batch_service: Arc::new(MockRebookingBatchService::new()),
         }
     }
 }

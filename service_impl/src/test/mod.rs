@@ -53,6 +53,8 @@ pub mod reporting_holiday_auto_credit;
 #[cfg(test)]
 pub mod reporting_cap_overflow;
 #[cfg(test)]
+pub mod reporting_pending_rebooking;
+#[cfg(test)]
 pub mod reporting_no_contract_volunteer;
 #[cfg(test)]
 pub mod reporting_phase2_fixtures;
