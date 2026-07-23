@@ -13,7 +13,8 @@ use service::{
     clock::ClockService,
     employee_work_details::{EmployeeWorkDetails, EmployeeWorkDetailsService},
     extra_hours::{
-        Availability, ExtraHours, ExtraHoursCategory, ExtraHoursService, ReportType,
+        Availability, ExtraHours, ExtraHoursCategory, ExtraHoursService, ExtraHoursSource,
+        ReportType,
     },
     permission::{Authentication, HR_PRIVILEGE},
     reporting::{
@@ -181,9 +182,13 @@ pub fn committed_voluntary_prorata_for_week(
 // `ReportingService::get_report_for_employee_range`) — das deckt alle drei
 // Erfassungsquellen (manuelle VolunteerWork-ExtraHours + Shiftplan-Cap-
 // Überlauf + no_contract-Shiftplan-Stunden) konsistent ab, statt nur die
-// erste zu zählen. Der source-Marker-Filter für Rebooking-Neutralität wird
-// ab Phase 55 zentral im ReportingService greifen und trifft dann
-// automatisch auch diese Kette.
+// erste zu zählen. Der source-Marker-Filter für Rebooking-Neutralität ist
+// ab Phase 55 aktiv: `source == ExtraHoursSource::Manual` filtert die
+// Rebooking-Pair-Rows (-N/+N) am Eingang der drei Report-Aggregations-
+// Funktionen (`assemble_weeks`, `get_reports_for_all_employees`,
+// `hours_per_week`) + `overall_extra_work_hours`, sodass eine einzelne
+// manuelle Umbuchung balance/ist/soll/delta-neutral bleibt (D-55-A1,
+// VOL-ACCT-03). Trifft automatisch auch das VoluntaryStats-Ist-Aggregat.
 
 /// Phase 54 Gap-Closure G1 (VOL-STAT-01-Nenner, D-F1-01) +
 /// Phase 54.5 (D-54.5-02): Anzahl ISO-Wochen im Range
@@ -370,6 +375,28 @@ pub fn apply_weekly_cap(
     } else {
         (shiftplan_hours, 0.0)
     }
+}
+
+/// Phase 55 (HR-ALERT-01 / D-55-01): HR-Alert-Praedikat als testbare pure fn.
+///
+/// Der Banner/Alert fuer freiwillige Umbuchung feuert genau dann, wenn der
+/// Mitarbeiter gedeckelt ist (`cap_active`), sein Stundenkonto mindestens
+/// eine halbe Stunde im Minus liegt (`balance <= -0.5`) UND er ueberhaupt
+/// freiwillige Ist-Stunden hat, die umgebucht werden koennen
+/// (`voluntary_ist > 0.0`). Grenzfaelle: -0.49 → false, -0.5 → true,
+/// -0.51 → true (siehe Truth-Table `alert_predicate_matrix`).
+pub fn alert_predicate(balance: f32, voluntary_ist: f32, cap_active: bool) -> bool {
+    cap_active && balance <= -0.5 && voluntary_ist > 0.0
+}
+
+/// Phase 55 (D-55-03): Vorgeschlagene Umbuchungs-Stunden als pure fn.
+///
+/// `min(|balance|, voluntary_ist)` — es kann hoechstens so viel umgebucht
+/// werden, wie der Mitarbeiter im Minus liegt UND wie an freiwilligen
+/// Ist-Stunden verfuegbar ist. Backend-computed (kein FE-Arithmetik-Vorgriff,
+/// HR-ALERT-02).
+pub fn proposed_hours(balance: f32, voluntary_ist: f32) -> f32 {
+    balance.abs().min(voluntary_ist)
 }
 
 /// Phase 52 Follow-Up #2 (WOP-04): Priority function for the cross-category
@@ -819,6 +846,10 @@ impl<Deps: ReportingServiceDeps> ReportingServiceImpl<Deps> {
                 .collect_to_hash_map_by(|r| r.sales_person_id);
             let extra_hours_bucket = extra_hours
                 .iter()
+                // Phase 55 (VOL-ACCT-03 / D-55-A1): Rebooking-Rows aus dem
+                // Weekly-Summary-Aggregat filtern (VolunteerWork- UND
+                // ExtraWork-Bein) — die Weekly-Sicht ist rebooking-neutral.
+                .filter(|eh| eh.source == ExtraHoursSource::Manual)
                 .filter(|eh| {
                     let sw = eh.to_date().as_shifty_week();
                     sw.year == year && sw.week == week
@@ -1138,6 +1169,14 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                     tx.clone(),
                 )
                 .await?;
+            // Phase 55 (VOL-ACCT-03 / D-55-A1): Rebooking-Rows aus dem
+            // All-Employees-Report filtern (VolunteerWork- UND ExtraWork-Bein),
+            // damit eine Umbuchung in dieser Sicht balance/volunteer-neutral ist.
+            let extra_hours_array: Arc<[ExtraHours]> = extra_hours_array
+                .iter()
+                .filter(|eh| eh.source == ExtraHoursSource::Manual)
+                .cloned()
+                .collect();
             let previous_year_carryover = self
                 .carryover_service
                 .get_carryover(
@@ -1602,6 +1641,9 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
         // `shiftplan_hours_by_week` (siehe unten) ist die einzige Quelle.
         let overall_extra_work_hours = extra_hours
             .iter()
+            // Phase 55 (VOL-ACCT-03 / D-55-A1): Rebooking-Rows raus, damit das
+            // +N-ExtraWork-Bein einer Umbuchung nicht in overall/balance zaehlt.
+            .filter(|eh| eh.source == ExtraHoursSource::Manual)
             .filter(|eh| {
                 eh.to_date() >= from_date
                     && eh.to_date() <= to_date
@@ -2029,6 +2071,12 @@ fn hours_per_week(
         tracing::info!("Week: {}, Year: {}", week.week, week.year);
         let filtered_extra_hours_list = extra_hours_list
             .iter()
+            // Phase 55 (VOL-ACCT-03 / D-55-A1): Rebooking-Rows (source != Manual)
+            // werden aus ALLEN Read-Aggregaten dieser Woche gefiltert — sowohl
+            // aus den VolunteerWork- als auch aus den ExtraWork/WorkingHours-
+            // Sites, die in overall/balance einfliessen. Damit ist eine einzelne
+            // manuelle Umbuchung (-N/+N-Pair) balance/ist/soll/delta-neutral.
+            .filter(|eh| eh.source == ExtraHoursSource::Manual)
             .filter(|eh| eh.to_date().as_shifty_week() == week)
             .collect::<Vec<_>>();
         let filtered_shiftplan_hours_list = shiftplan_hours_list
