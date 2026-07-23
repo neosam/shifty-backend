@@ -6,14 +6,14 @@ current_phase: 55
 current_phase_name: manual-rebooking-hr-alert
 status: executing
 stopped_at: Phase 55 neu geplant — 6 Pläne VERIFIED PASS, bereit zur Ausführung
-last_updated: "2026-07-23T21:51:11.680Z"
+last_updated: "2026-07-23T22:18:40.904Z"
 last_activity: 2026-07-23
 last_activity_desc: Phase 55 execution started
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 17
-  completed_plans: 14
+  completed_plans: 15
   percent: 50
 ---
 
@@ -34,7 +34,7 @@ progress:
 ## Current Position
 
 Phase: 55 (manual-rebooking-hr-alert) — EXECUTING
-Plan: 4 of 6
+Plan: 5 of 6
 Status: Ready to execute
 Last activity: 2026-07-23 — Phase 55 execution started
 
@@ -206,7 +206,7 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-07-23T21:50:12.389Z
+**Last session:** 2026-07-23T22:18:13.903Z
 **Stopped at:** Completed 54-02 Plan (Basic-Tier RebookingBatchService)
 **Resume file:** None
 
@@ -269,6 +269,8 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 - [Phase ?]: Single Pair-write-path rebook() geteilt von rebook_manual (F3) + approve (F5); approve transitioniert bestehenden pending-Batch statt neuen anzulegen
 - [Phase 55]: 55-03: RebookingSuggestionTO auf reale 55-02-Domain-Felder modelliert (keine Fake-Soll/Delta) — Prohibition backend-computed gewahrt
 - [Phase 55]: 55-03: HR-Alert-Banner nur ueber short-report get_reports_for_all_employees getrieben; assemble_weeks/get_week bleibt neutral (false/None)
+- [Phase ?]: 55-04: RebookingSuggestionModal rendert nur backend-gelieferte IST/DANN-Zeilen (Balance + Freiwillig-Ist + proposed_hours); voluntary_soll/delta existieren im Backend nicht (55-03 Deviation) und werden NICHT im FE gerechnet.
+- [Phase ?]: 55-04: Rebooking-Modals sind prop-driven (Callbacks); Async-Dispatch + 409/Refetch gehoert der Page (55-05).
 
 ## Performance Metrics
 
@@ -301,3 +303,4 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 | Phase 55 P01 | 40min | 3 tasks | 8 files |
 | Phase 55 P02 | 40min | 3 tasks | 7 files |
 | Phase 55 P03 | 55 min | 3 tasks | 10 files |
+| Phase 55 P04 | 45min | 3 tasks | 13 files |
