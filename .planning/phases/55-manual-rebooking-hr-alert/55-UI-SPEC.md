@@ -1,10 +1,11 @@
 ---
 phase: 55
 slug: manual-rebooking-hr-alert
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-07-23
+reviewed_at: 2026-07-23
 ---
 
 # Phase 55 — UI Design Contract (Manuelle Umbuchung + HR-Alert-Modal, F3 + F5)
@@ -94,6 +95,12 @@ verwendet (Ausnahme: `Btn`/`nav_item_class`-Atome tragen ihr eigenes `font-mediu
 | Label (betont) | `text-body font-semibold` | 14px | 600 | 20px | Banner-Person-Name, Approve-Button-Text |
 | Lg (Modal-Titel) | `text-lg` | 16px | 600 | 22px | Modal-Titel (kommt aus `Dialog { title }`, nicht neu setzen) |
 | H2 | `text-h2 font-semibold` | 18px | 600 | 24px | (optional) Sektions-Überschrift falls Banner-Gruppe einen Header braucht |
+
+> **Aktiv gesetzte Größen (Checker-Klarstellung):** Neue Phase-55-Oberflächen setzen
+> netto nur **drei** Größen selbst — `micro` / `small` / `body`. `lg` (Modal-Titel) wird
+> aus der `Dialog`-Shell **geerbt** (nicht neu gesetzt), `h2` ist **optional/konditional**.
+> Damit bleibt der effektive Kontrakt innerhalb der ≤4-Größen-Regel; die Tabelle listet
+> die vollständige kanonische `tailwind.config.js`-Skala nur zur Referenz.
 
 **Numerik:** Alle Stunden-/Delta-Werte in `font-mono tabular-nums` (Präzedenz
 `voluntary_stats_row.rs`). IST- und DANN-Zahlen im Suggestion-Modal rechtsbündig,
@@ -544,11 +551,11 @@ Cancel:            BtnVariant::Secondary → "bg-surface text-ink border-border-
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS (Empfehlung umgesetzt: aktiv-gesetzte-Größen-Klarstellung ergänzt)
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** approved 2026-07-23 (gsd-ui-checker, 6/6 PASS)
