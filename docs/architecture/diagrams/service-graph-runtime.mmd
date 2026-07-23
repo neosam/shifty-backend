@@ -63,6 +63,7 @@ graph TD
         PdfExportScheduler[PDF Export Scheduler]
         Scheduler[Scheduler Service]
         VoluntaryStats[Voluntary Stats Service<br/>Phase 54, v2.6]
+        RebookingReconciliation[Rebooking Reconciliation Service<br/>Phase 55, v2.6]
     end
 
     %% Infrastructure edges (session)
@@ -186,5 +187,14 @@ graph TD
     VoluntaryStats --> WorkingHours
     VoluntaryStats --> SalesPerson
 
-    %% Rebooking Batch Service (Phase 54 — Basic-Tier, no domain-service dep;
-    %% first consumer arrives in Phase 55 as RebookingReconciliationService)
+    %% Rebooking Batch Service (Phase 54 — Basic-Tier, no domain-service dep).
+    %% First consumers arrive in Phase 55: RebookingReconciliationService
+    %% (F3/F5 lifecycle) and Reporting (reads pending batch for the HR-alert).
+    Reporting --> RebookingBatch
+
+    %% Rebooking Reconciliation Service (Phase 55 — BL-Tier, F3/F5 write
+    %% orchestrator; single pair-write-path shared by F3 + F5-approve)
+    RebookingReconciliation --> ExtraHours
+    RebookingReconciliation --> RebookingBatch
+    RebookingReconciliation --> Reporting
+    RebookingReconciliation --> VoluntaryStats

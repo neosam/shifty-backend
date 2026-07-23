@@ -56,6 +56,19 @@ Cross-Entity-Invarianten:
   `SalesPersonService` (v2.6 Phase 54). HR-only via API-Level
   None-Redaktion (Non-HR erhält alle Felder `None`, kein 403).
   Siehe Feature [F14](../features/F14-rebooking.md).
+- `RebookingReconciliationService` — F3/F5-Rebooking-Write-Orchestrator
+  (v2.6 Phase 55). Besitzt den einzigen internen Pair-Write-Path,
+  geteilt von der F3-manuellen-One-Shot- und der F5-approve-Lifecycle.
+  Konsumiert `ExtraHoursService`, `RebookingBatchService`,
+  `ReportingService`, `VoluntaryStatsService` (+ `PermissionService`,
+  `TransactionDao`) — klar ein Business-Logic-Service (vier
+  Domain-Service-Deps). Kein Zyklus: keiner dieser vier kennt ihn
+  zurück. Alle vier Methoden HR-gated (T-55-05). DI-konstruiert in
+  `shifty_bin/src/main.rs` **nach** allen Basic-Services und nach
+  `ReportingService` + `VoluntaryStatsService` (Reihenfolge:
+  `extra_hours` → `rebooking_batch` → `reporting` → `voluntary_stats`
+  → `rebooking_reconciliation`, zuletzt). Siehe Feature
+  [F14 §8](../features/F14-rebooking.md).
 
 ## Regeln
 
