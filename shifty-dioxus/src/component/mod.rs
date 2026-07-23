@@ -23,6 +23,7 @@ pub mod impersonation_banner;
 pub mod manual_rebooking_modal;
 pub mod overlay;
 pub mod rebooking_alert_banner;
+pub mod rebooking_suggestion_modal;
 pub mod shiftplan_tab_bar;
 pub mod slot_edit;
 pub mod tooltip;
@@ -45,6 +46,9 @@ pub use manual_rebooking_modal::ManualRebookingModal;
 // reason: consumed by page/employees.rs in 55-05 (banner mount in HR-path)
 #[allow(unused_imports)]
 pub use rebooking_alert_banner::RebookingAlertBanner;
+// reason: consumed by page/employees.rs in 55-05 (opened via banner-click)
+#[allow(unused_imports)]
+pub use rebooking_suggestion_modal::RebookingSuggestionModal;
 pub use dialog::{Dialog, DialogVariant};
 pub use employee_short::EmployeeShort;
 pub use employee_view::EmployeeView;
