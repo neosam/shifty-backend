@@ -61,6 +61,14 @@ pub enum DaoError {
 
     #[error("Enum value not found: {0}")]
     EnumValueNotFound(Arc<str>),
+
+    /// Ein UNIQUE-Constraint wurde verletzt (z.B. der
+    /// `rebooking_batch_week_unique_idx`-Slot ist bereits belegt). Der Service
+    /// mappt diese Variante auf `ServiceError::EntityAlreadyExists`. Wird
+    /// bewusst distinkt gehalten, damit ein Slot-Claim-Kollisions-Pfad ohne
+    /// Read-then-INSERT (Pitfall 6) allein aus dem DB-Fehler erkennbar bleibt.
+    #[error("Entity already exists (unique constraint violation)")]
+    EntityAlreadyExists,
 }
 
 #[automock]

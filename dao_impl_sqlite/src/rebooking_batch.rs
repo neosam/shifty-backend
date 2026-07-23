@@ -155,6 +155,14 @@ fn str_to_state(s: &str) -> Result<RebookingBatchState, DaoError> {
     }
 }
 
+/// Erkennt eine SQLite-UNIQUE-Constraint-Verletzung im rohen `sqlx::Error`,
+/// bevor er via `map_db_error` in `DatabaseQueryError` geboxt wird. So kann der
+/// Claim-INSERT (`create_pending_suggestion`) einen belegten Slot vom generischen
+/// DB-Fehler unterscheiden, ohne Read-then-INSERT (Pitfall 6).
+fn is_unique_violation(err: &sqlx::Error) -> bool {
+    matches!(err, sqlx::Error::Database(db_err) if db_err.is_unique_violation())
+}
+
 // ---------------------------------------------------------------------------
 // DAO-Impl
 // ---------------------------------------------------------------------------
@@ -314,6 +322,141 @@ impl RebookingBatchDao for RebookingBatchDaoImpl {
         }
 
         Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn update_state_conditional(
+        &self,
+        id: Uuid,
+        new_state: RebookingBatchState,
+        approved: Option<time::PrimitiveDateTime>,
+        approved_by: Option<Arc<str>>,
+        process: &str,
+        version: Uuid,
+        tx: Self::Transaction,
+    ) -> Result<(), DaoError> {
+        let id_vec = id.as_bytes().to_vec();
+        let state_str = state_to_str(&new_state);
+        let approved_str = approved
+            .map(|d| d.format(&Iso8601::DATE_TIME))
+            .transpose()
+            .map_db_error()?;
+        let approved_by_str = approved_by.as_ref().map(|s| s.to_string());
+        let version_vec = version.as_bytes().to_vec();
+
+        // State-conditional UPDATE: `state='pending'` ist der harte
+        // Diskriminator (D-55-A2) — KEIN version-Guard. Der Race-/Double-
+        // Approve-Verlierer trifft keine Zeile (rows_affected==0).
+        let result = query!(
+            r#"UPDATE rebooking_batch
+                   SET state = ?, approved = ?, approved_by = ?,
+                       update_process = ?, update_version = ?
+                   WHERE id = ? AND state = 'pending' AND deleted IS NULL"#,
+            state_str,
+            approved_str,
+            approved_by_str,
+            process,
+            version_vec,
+            id_vec,
+        )
+        .execute(tx.tx.lock().await.as_mut())
+        .await
+        .map_db_error()?;
+
+        if result.rows_affected() != 1 {
+            // Batch bereits entschieden / nicht vorhanden → Conflict (HTTP 409).
+            return Err(DaoError::EntityAlreadyExists);
+        }
+        Ok(())
+    }
+
+    async fn find_pending_for_sales_person(
+        &self,
+        sales_person_id: Uuid,
+        iso_year: u32,
+        iso_week: u8,
+        tx: Self::Transaction,
+    ) -> Result<Option<RebookingBatchEntity>, DaoError> {
+        let sp_vec = sales_person_id.as_bytes().to_vec();
+        Ok(query_as!(
+            RebookingBatchDb,
+            r#"SELECT id, sales_person_id, iso_year, iso_week, kind, state, created,
+                      approved, approved_by, deleted, update_version
+               FROM rebooking_batch
+               WHERE sales_person_id = ? AND iso_year = ? AND iso_week = ?
+                 AND state = 'pending' AND deleted IS NULL"#,
+            sp_vec,
+            iso_year,
+            iso_week,
+        )
+        .fetch_optional(tx.tx.lock().await.as_mut())
+        .await
+        .map_db_error()?
+        .as_ref()
+        .map(RebookingBatchEntity::try_from)
+        .transpose()?)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn create_pending_suggestion(
+        &self,
+        id: Uuid,
+        sales_person_id: Uuid,
+        iso_year: u32,
+        iso_week: u8,
+        created: time::PrimitiveDateTime,
+        process: &str,
+        version: Uuid,
+        tx: Self::Transaction,
+    ) -> Result<RebookingBatchEntity, DaoError> {
+        let id_vec = id.as_bytes().to_vec();
+        let sp_vec = sales_person_id.as_bytes().to_vec();
+        let kind_str = kind_to_str(&RebookingBatchKind::HrSuggestion);
+        let state_str = state_to_str(&RebookingBatchState::Pending);
+        let created_str = created.format(&Iso8601::DATE_TIME).map_db_error()?;
+        let version_vec = version.as_bytes().to_vec();
+
+        // Claim-INSERT: der UNIQUE-Partial-Index `rebooking_batch_week_unique_idx`
+        // ist die Autoritaet (kein Read-then-INSERT, Pitfall 6). Eine Kollision
+        // (Slot belegt) mappen wir auf DaoError::EntityAlreadyExists.
+        let insert_result = query!(
+            r#"INSERT INTO rebooking_batch
+                   (id, sales_person_id, iso_year, iso_week, kind, state, created,
+                    approved, approved_by, deleted, update_process, update_version)
+               VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?)"#,
+            id_vec,
+            sp_vec,
+            iso_year,
+            iso_week,
+            kind_str,
+            state_str,
+            created_str,
+            process,
+            version_vec,
+        )
+        .execute(tx.tx.lock().await.as_mut())
+        .await;
+
+        if let Err(err) = insert_result {
+            if is_unique_violation(&err) {
+                return Err(DaoError::EntityAlreadyExists);
+            }
+            return Err(DaoError::DatabaseQueryError(Box::new(err)));
+        }
+
+        Ok(RebookingBatchEntity {
+            id,
+            sales_person_id,
+            iso_year,
+            iso_week,
+            kind: RebookingBatchKind::HrSuggestion,
+            state: RebookingBatchState::Pending,
+            created,
+            approved: None,
+            approved_by: None,
+            deleted: None,
+            version,
+        })
     }
 
     async fn list_entries_for_batch(

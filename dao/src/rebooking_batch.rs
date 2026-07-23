@@ -112,4 +112,53 @@ pub trait RebookingBatchDao {
         batch_id: Uuid,
         tx: Self::Transaction,
     ) -> Result<Arc<[RebookingBatchEntryEntity]>, DaoError>;
+
+    /// Race-sichere State-Transition (Phase 55, HR-ALERT-03): hebt einen
+    /// `state='pending'`-Batch atomar auf `new_state` (`Approved`|`Rejected`).
+    /// Der `WHERE state='pending'`-Guard ist der harte Diskriminator — KEIN
+    /// version-Guard (D-55-A2). Trifft der UPDATE keine Zeile (Batch bereits
+    /// entschieden / nicht vorhanden), liefert er `DaoError::EntityAlreadyExists`
+    /// (rows_affected==0 → Conflict). `process`/`version` stempeln die Row.
+    #[allow(clippy::too_many_arguments)]
+    async fn update_state_conditional(
+        &self,
+        id: Uuid,
+        new_state: RebookingBatchState,
+        approved: Option<time::PrimitiveDateTime>,
+        approved_by: Option<Arc<str>>,
+        process: &str,
+        version: Uuid,
+        tx: Self::Transaction,
+    ) -> Result<(), DaoError>;
+
+    /// Liefert den aktiven Batch fuer den globalen UNIQUE-Slot
+    /// `(sales_person_id, iso_year, iso_week)` **nur**, wenn er `state='pending'`
+    /// ist (Reader fuer `pending_rebooking_id`, Phase 55 55-03). Sonst `None`.
+    async fn find_pending_for_sales_person(
+        &self,
+        sales_person_id: Uuid,
+        iso_year: u32,
+        iso_week: u8,
+        tx: Self::Transaction,
+    ) -> Result<Option<RebookingBatchEntity>, DaoError>;
+
+    /// F5-Modell-B Producer (Phase 55, HR-ALERT-04, Claim-on-Suggest): INSERTet
+    /// einen `rebooking_batch(kind=HrSuggestion, state=Pending)` und claimt damit
+    /// den UNIQUE-Slot `(sales_person_id, iso_year, iso_week)`. Ist der Slot
+    /// bereits belegt, faengt der UNIQUE-Partial-Index die Kollision ab und die
+    /// Methode liefert `DaoError::EntityAlreadyExists` — KEIN Read-then-INSERT
+    /// (der Index ist die Autoritaet, Pitfall 6). Gibt den erzeugten
+    /// `RebookingBatchEntity` (inkl. neuer id) zurueck.
+    #[allow(clippy::too_many_arguments)]
+    async fn create_pending_suggestion(
+        &self,
+        id: Uuid,
+        sales_person_id: Uuid,
+        iso_year: u32,
+        iso_week: u8,
+        created: time::PrimitiveDateTime,
+        process: &str,
+        version: Uuid,
+        tx: Self::Transaction,
+    ) -> Result<RebookingBatchEntity, DaoError>;
 }
