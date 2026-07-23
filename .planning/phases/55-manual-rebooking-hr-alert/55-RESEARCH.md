@@ -446,21 +446,35 @@ impl service_impl::rebooking_reconciliation::RebookingReconciliationServiceDeps
 | A4 | Kein Snapshot-Schema-Bump nötig (12 bleibt) | Snapshot-Sektion | Falls doch ein `value_type` berührt wird → Snapshot-Drift. Analyse unten begründet „Nein". |
 | A5 | `security_enforcement`/`nyquist_validation` nicht in config.json → beide als **enabled** behandelt | Validation/Security | Falls anders gemeint, überflüssige Sektionen — kein Schaden |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Neutralitäts-Filter-Scope (balance ja/nein).**
-   - Was wir wissen: `source` fließt durch; `volunteer_hours`-Sites filtern noch nicht.
-   - Unklar: Ob balance eine Einzel-Umbuchung sehen soll (gewollter Effekt) oder erst nach
-     Roundtrip neutral ist.
-   - Empfehlung: Property-Test ZUERST schreiben; CONTEXT-Constraint spricht für vollständige
-     Filterung beider Rows aus allen Read-Aggregaten → Einzel-Umbuchung ist neutral, die
-     Umbuchung wird nur als Audit-Batch sichtbar. Planner pinnt die Invariante explizit.
+> Alle Open Questions sind durch die Discuss-Phase-Entscheidungen (CONTEXT.md D-55-01…07) und
+> die Planner-Pins (55-01…55-03) aufgelöst. Auflösung pro Frage:
 
-2. **F3-Modal-Vorschau-Umfang.** Empfehlung: minimalistisch (Menge+Richtung+Woche). HR kennt
-   den Kontext; DANN-Rechnung nur für F5-Alert-Modal nötig.
+1. **Q1 — Neutralitäts-Filter-Scope (balance ja/nein).** → **RESOLVED via D-55-A1.** Beide
+   Rebooking-Rows (`-N` UND `+N`) werden aus ALLEN Read-Aggregaten inkl. `balance` gefiltert
+   (VolunteerWork- UND ExtraWork/WorkingHours-Sites). Eine EINZELNE manuelle Umbuchung ist
+   damit balance/ist/soll/delta-neutral; die Umbuchung wird nur als Audit-Batch sichtbar. Der
+   VOL-ACCT-03-Property-Test (55-02 Task 1, TDD-first/RED) beweist diese Invariante empirisch,
+   bevor der Filter entsteht. (Gepinnt in 55-02 `<pinned_decisions>` D-55-A1.)
 
-3. **state-conditional UPDATE: `version`-Guard nötig?** Empfehlung: Nein — `state='pending'`
-   ist harter Diskriminator, Batch ist one-shot (D-55-04). `rows_affected()==1` reicht.
+2. **Q2 — F3-Modal-Vorschau-Umfang.** → **RESOLVED: minimalistisch** (Menge + Richtung + Woche
+   + Text-Vorschau, ohne DANN-Duplikat). HR kennt den Kontext; die DANN-Rechnung ist nur für
+   das F5-Alert-/Suggestion-Modal nötig. (Umgesetzt in 55-04 `manual_rebooking_modal`.)
+
+3. **Q3 — state-conditional UPDATE: `version`-Guard nötig?** → **RESOLVED: Nein** —
+   `WHERE state='pending'` reicht, kein `AND version=?`. Der State ist der harte Diskriminator,
+   der Batch ist one-shot (D-55-04, kein Undo); `rows_affected()==1` fängt den Race ab. (Gepinnt
+   als Prohibition in 55-01, D-55-A2.)
+
+**Zusätzlich RESOLVED — F5-Lifecycle:** Das F5-HR-Alert-Modell ist **Modell B (Claim-on-Suggest)**,
+via User-Entscheidung gepinnt (55-01/02/03 `<pinned_decisions>` D-55-B). HR öffnet das F5-Modal →
+`suggest` erzeugt via `create_pending_suggestion` einen `rebooking_batch(kind=HrSuggestion,
+state=Pending)` und claimt den UNIQUE-Slot (der bisher fehlende pending-Batch-Producer) → HR
+entscheidet via state-conditional UPDATE (approve → Pair-ExtraHours; reject → nur State). Der
+Banner zeigt sich bei true-Prädikat auch OHNE offenen pending-Batch (der alte
+"Predicate true ∧ kein Batch → has_pending_rebooking=false"-Case war der Bug). Der pending-Batch
+ist zugleich das, was der Phase-56-Cron zum Skippen des Slots liest (HR-ALERT-04, ROADMAP §Phase 56).
 
 ## Environment Availability
 
