@@ -8,16 +8,22 @@
 > rebooking pipeline is spread across milestone v2.6, phases 54..56.
 
 **Cluster ID:** F14
-**Status:** partially shipped (Phase 54 = F1/F2 baseline)
-**First introduced:** Milestone v2.6, Phase 54 (2026-07-07). F3 lands
-in Phase 55 (HR-suggest write path); F4 (auto-cron) and F5 (approval
-UI) in Phase 56.
-**Responsible crates:** `service::{rebooking_batch, voluntary_stats}`,
-`service_impl::{rebooking_batch, voluntary_stats}`,
+**Status:** partially shipped (Phase 54 = F1/F2 baseline; Phase 55 = F3
+manual rebooking + F5 HR-alert approve/reject); F4 (auto-cron) still
+planned for Phase 56.
+**First introduced:** Milestone v2.6, Phase 54 (2026-07-07). F3 (manual
+one-shot write path) and F5 (Claim-on-Suggest lifecycle: suggest /
+approve / reject) shipped in Phase 55 (2026-07-23). F4 (auto-cron)
+lands in Phase 56.
+**Responsible crates:** `service::{rebooking_batch, voluntary_stats,
+rebooking_reconciliation}`,
+`service_impl::{rebooking_batch, voluntary_stats, rebooking_reconciliation}`,
 `dao::rebooking_batch`, `dao_impl_sqlite::rebooking_batch`,
-`service_impl::reporting` (four new pure fns),
-`rest::report` (voluntary-stats route),
-`rest-types::VoluntaryStatsTO`, `shifty-dioxus::component::voluntary_stats_row`.
+`service_impl::reporting` (four new pure fns + the `source == Manual`
+neutrality filter + the `has_pending_rebooking` alert flag),
+`rest::{report, rebooking}` (voluntary-stats + F3/F5 routes),
+`rest-types::{VoluntaryStatsTO, rebooking}`,
+`shifty-dioxus::component::voluntary_stats_row`.
 
 ---
 
@@ -54,13 +60,12 @@ worked their contract plus extra volunteer hours.
 | --- | --- | --- | --- |
 | F1 (Ø voluntary per contract week) | v2.6 Phase 54 | shipped | HR-only average — Σ Volunteer / contract-weeks for the ISO year. |
 | F2 (voluntary target + delta) | v2.6 Phase 54 | shipped | HR-only view of `committed_voluntary` pro-rata target vs. actual + delta. |
-| F3 (HR suggest → pending batch) | v2.6 Phase 55 | planned | HR proposes a paired rebooking; batch lands as `state = Pending`. |
+| F3 (manual one-shot rebooking) | v2.6 Phase 55 | shipped | HR rebooks a chosen number of hours in one shot; batch lands as `kind = Manual`, `state = Approved`, paired `extra_hours` written atomically. |
 | F4 (auto-cron scheduler) | v2.6 Phase 56 | planned | Toggle-gated cron auto-creates `AutoCron` suggestions; bumps snapshot schema 12 → 13. |
-| F5 (approval / UI) | v2.6 Phase 55 | planned | HR reviews Pending batches and either approves (writes the paired rows) or rejects. |
+| F5 (HR-alert suggest / approve / reject) | v2.6 Phase 55 | shipped | Claim-on-Suggest (Model B): `suggest` claims a `Pending` `HrSuggestion` batch; `approve` writes the paired rows, `reject` only transitions state. |
 
-**Rule of thumb for Phase 54:** everything that a *reader* needs works
-today. Everything that a *writer* touches (F3/F4/F5) is deferred to
-Phase 55/56.
+**Rule of thumb:** F3 (manual) and F5 (HR-alert) ship in Phase 55 (see
+§8 below). Only the F4 auto-cron writer is still deferred to Phase 56.
 
 ## 3. Marker-Filter Rule ([D-54-DM-02])
 
@@ -75,30 +80,35 @@ Phase 55/56.
   starting in Phase 55. In Phase 54 no writer sets this value — the
   Marker exists as a *reader-side filter target* only.
 
-**Reader rule (planned for Phase 55):** every aggregate that must remain
-balance-neutral in the presence of future rebooking pairs will filter
-`source = 'manual'`. In Phase 54 the filter is not active yet — the
-Voluntary-Stats Ist aggregate reads
-`EmployeeReport::volunteer_hours` from `ReportingService` and inherits
-whatever filter that central path applies. When Phase 55 lands the
-`source == 'manual'` cutoff inside `ReportingService`, this chain picks
-it up automatically; otherwise a voluntary hour would be counted twice
-(once as its original `Volunteer` row, once as the `Rebooking`-source
-row that neutralises it inside the paid chain).
+**Reader rule (active since Phase 55):** every read aggregate that must
+stay balance-neutral in the presence of rebooking pairs filters
+`source == ExtraHoursSource::Manual` (keep `Manual`, exclude
+`Rebooking`). The filter is applied **once at the aggregation entry** of
+each of the four report paths in `service_impl/src/reporting.rs`
+(`get_week`, `get_reports_for_all_employees`, `hours_per_week`,
+`overall_extra_work_hours` — `reporting.rs:859, 1192, 1728, 2161`)
+rather than at every per-category `.filter()` site (D-55-A1). Because
+`Rebooking`-sourced rows only ever carry `ExtraWork`/`VolunteerWork`
+categories, the entry-side cutoff has exactly the same effect for the
+four balance metrics and zero effect on Absence/Holiday aggregates.
+Without it a voluntary hour would be counted twice (once as its
+original `Volunteer` row, once as the `Rebooking`-source row that
+neutralises it inside the paid chain).
 
 **Audit rule:** `rebooking`-sourced rows stay in the database and stay
 visible in *audit* queries — they are how F5 explains "why did the
 balance change on that date". They are only invisible to end-user
 aggregates.
 
-**Balance-neutrality guarantee (VOL-ACCT-03) — planned for Phase 55:**
-once `source == 'manual'` filtering lands inside `ReportingService`
-(Phase 55), inserting an equal-and-opposite pair `(+h, -h)` both stamped
-`source = 'rebooking'` will not change `EmployeeReport::volunteer_hours`
-— the F1/F2 numbers stay stable across a rebooking event because the
-Voluntary-Stats chain consumes `EmployeeReport::volunteer_hours`
-directly. The property test is deferred to Phase 55 together with the
-first live rebooking writer.
+**Balance-neutrality guarantee (VOL-ACCT-03) — active since Phase 55:**
+with the `source == Manual` filter in place, inserting an
+equal-and-opposite pair `(−h, +h)` both stamped `source = 'rebooking'`
+leaves `balance`, `ist`, `soll` and `delta` unchanged — the F1/F2
+numbers stay stable across a rebooking event, both for a single
+rebooking and across a full round-trip. This is nailed by the property
+tests `rebooking_neutrality_single_manual` and
+`rebooking_neutrality_roundtrip`
+(`service_impl/src/test/rebooking_reconciliation.rs`).
 
 ## 4. Batch Structure
 
@@ -151,12 +161,19 @@ that flips `state = Approved` — that is how F5 guarantees the paired
 | --- | --- | --- |
 | `RebookingBatchService` | Basic | HR-gated CRUD (find_by_id / find_by_sales_person_year_week / create) on `rebooking_batch` + entries, plus the Phase-55 F5-Model-B lifecycle: `create_pending_suggestion` (Claim-on-Suggest producer — INSERTs a `HrSuggestion`/`Pending` batch and claims the UNIQUE week-slot; a taken slot → `EntityAlreadyExists`), `find_pending_for_sales_person` (reader for `pending_rebooking_id`, returns only `Pending`), and `update_state` (race-safe state-conditional transition `Pending → Approved\|Rejected`; a second/already-decided transition → `EntityAlreadyExists` via `rows_affected()==0`, no version-guard). Deps: `RebookingBatchDao`, `PermissionService`, `ClockService`, `UuidService`, `TransactionDao`. No domain-service dep. |
 | `VoluntaryStatsService` | Business-Logic | Read-only F1/F2. Deps: `ExtraHoursService`, `EmployeeWorkDetailsService`, `SalesPersonService`, `PermissionService`, `TransactionDao`. HR-only via API-level None-redaction (not 403). |
+| `RebookingReconciliationService` | Business-Logic | Phase 55. The F3/F5 write orchestrator. Owns the single internal pair-write-path shared by F3 and F5-approve. Deps: `ExtraHoursService`, `RebookingBatchService`, `ReportingService`, `VoluntaryStatsService`, `PermissionService`, `TransactionDao`. All four methods HR-gated (T-55-05). See §8. |
 
-**Consumer wiring (Phase 54):** `RebookingBatchService` has no
-consumer inside the code yet — it is DI-wired in `shifty_bin/src/main.rs`
-so Phase 55's `RebookingReconciliationService` can plug in without a
-DI refactor. `VoluntaryStatsService` is consumed exactly once, by the
-REST handler `rest/src/report.rs::get_voluntary_stats`.
+**Consumer wiring (Phase 55).** `RebookingBatchService` (Basic) gained
+its first consumers: `RebookingReconciliationService` (F3/F5 lifecycle)
+and `ReportingService` (reads `find_pending_for_sales_person` for the
+alert banner). `RebookingReconciliationService` is DI-constructed
+**after** all Basic services and after `ReportingService` +
+`VoluntaryStatsService` in `shifty_bin/src/main.rs` (order:
+`extra_hours` → `rebooking_batch` → `reporting` → `voluntary_stats` →
+`rebooking_reconciliation`, last — no `OnceLock` / forward-decl).
+`VoluntaryStatsService` is still consumed by
+`rest/src/report.rs::get_voluntary_stats`; the four F3/F5 routes in
+`rest/src/rebooking.rs` consume `RebookingReconciliationService`.
 
 **Service-tier note.** Per `shifty-backend/CLAUDE.md` conventions,
 `RebookingBatchService` is Basic (only DAO + Permission + Clock + UUID +
@@ -311,26 +328,125 @@ The existing `[[web.proxy]]` entry in `shifty-dioxus/Dioxus.toml` for
 
 - **F04 Extra Hours** — new column `source` lives on the `extra_hours`
   table; the readers upstream in F07/F08 use the marker filter.
-- **F07 Reporting / Balance** — Balance chain will filter
-  `source = 'manual'` from Phase 55 onward (once a `Rebooking` writer
-  exists). Phase 54 introduces the marker but no writer, so all
-  existing rows continue to enter Balance identically.
-- **F08 Billing Period Snapshot** — no version bump in Phase 54.
-  `CURRENT_SNAPSHOT_SCHEMA_VERSION` stays at 12 because Phase 54 adds
-  neither a persisted `value_type` nor a computation change. The
-  12 → 13 bump lives in Phase 56 (REB-AUTO-05, F4-Cron) — see
+- **F07 Reporting / Balance** — the read aggregates now filter
+  `source == Manual` (keep `Manual`, exclude `Rebooking`) at four
+  entry sites since Phase 55, so a rebooking pair is balance / ist /
+  soll / delta-neutral (VOL-ACCT-03). See F07 §2.6.
+- **F08 Billing Period Snapshot** — **no version bump in Phase 55.**
+  `CURRENT_SNAPSHOT_SCHEMA_VERSION` stays at 12: Phase 55 adds neither
+  a persisted `value_type` nor a computation that would change an
+  existing one (the rebooking pair nets to zero inside the aggregate).
+  The 12 → 13 bump lives in Phase 56 (REB-AUTO-05, F4-Cron) — see
   `REQUIREMENTS.md`.
 - **F13 System Infrastructure** — the toggle
   `voluntary_rebooking_auto_active_from` (seeded Phase 54, `enabled = 0`,
   `value = NULL`) will gate the F4 cron in Phase 56. In Phase 54 it
   is dormant.
 
+## 8. F3 Manual Rebooking + F5 HR-Alert (Phase 55)
+
+Phase 55 attaches the write side. The orchestrator is the
+Business-Logic `RebookingReconciliationService`
+(`service::rebooking_reconciliation`,
+`service_impl::rebooking_reconciliation`).
+
+### 8.1 Single pair-write-path (shared by F3 and F5-approve)
+
+There is exactly **one** internal pair-writer,
+`rebook(direction, hours, week)` — a private impl method — used by both
+F3 (`rebook_manual`) and F5 (`approve`). It writes the `−N` (source
+category) / `+N` (target category) `extra_hours` pair, both stamped
+`source = 'rebooking'`, inside the caller's transaction. Sharing the
+writer prevents F3/F5 drift (Pitfall 15). `RebookingDirection` is
+explicit (D-55-06): `VolunteerToExtra` (−N VolunteerWork / +N ExtraWork,
+the standard deficit offset) or `ExtraToVolunteer` (correction of
+over-committed pledges). F5-`approve` always uses `VolunteerToExtra`.
+
+### 8.2 F3 — one-shot manual rebooking (REB-MANUAL-01/02/03)
+
+`rebook_manual(sales_person_id, direction, hours, iso_year, iso_week,
+…)` HR-gates first, then in **one** transaction: writes the pair (§8.1),
+creates a `rebooking_batch` with `kind = Manual`, `state = Approved`,
+and a `rebooking_batch_entry` carrying the two pair ids. There is **no**
+suggest/pending intermediate step. A taken UNIQUE week-slot →
+`EntityAlreadyExists` → HTTP 409.
+
+### 8.3 F5 — Claim-on-Suggest lifecycle (Model B, D-55-B)
+
+The F5 lifecycle is **Claim-on-Suggest** (Model B): the pending batch is
+created at *suggest* time, not at approve time.
+
+- **`suggest(sales_person_id, iso_year, iso_week, …)`** — HR-gated;
+  claims the UNIQUE week-slot via
+  `RebookingBatchService::create_pending_suggestion`, which INSERTs a
+  `kind = HrSuggestion`, `state = Pending` batch. Idempotent on an
+  already-open pending (returns the same id); a **decided** slot →
+  `EntityAlreadyExists` → HTTP 409 (D-55-05, HR-ALERT-04). Returns the
+  backend-computed IST/DANN preview `RebookingSuggestion`:
+  `balance`, `voluntary_ist` (IST), `balance_after = balance +
+  proposed_hours`, `voluntary_ist_after = voluntary_ist −
+  proposed_hours` (DANN), and `proposed_hours = min(|balance|,
+  voluntary_ist)` (D-55-03). The suggestion struct carries **only**
+  these backend-computed fields — there is no `voluntary_soll` /
+  `voluntary_delta` on it.
+- **`approve(rebooking_batch_id, hours, …)`** — HR-gated. Transitions
+  state **first** via `RebookingBatchService::update_state` — a
+  state-conditional UPDATE `… WHERE id = ? AND state = 'pending' AND
+  deleted IS NULL` with a `rows_affected() == 1` guard (Pitfall 12) —
+  and only on success writes the pair (§8.1, `VolunteerToExtra`) in the
+  same transaction. A double-approve loser (`rows_affected() == 0`) →
+  `EntityAlreadyExists` → HTTP 409. `approve` does **not** create a
+  second batch; it transitions the existing pending one.
+- **`reject(rebooking_batch_id, …)`** — HR-gated; transitions state
+  `Pending → Rejected` via the same conditional UPDATE. **No** pair
+  rows are written.
+
+**Claim-on-Suggest / Phase-56 cron consequence:** because the pending
+batch already claims the UNIQUE `(sales_person, iso_year, iso_week)`
+slot (partial index, §4), the F4 auto-cron (Phase 56) cannot race a
+second `AutoCron` batch into a week that HR has an open suggestion for —
+`state = pending` blocks the cron slot.
+
+### 8.4 HR-Alert flag on the short report (HR-ALERT-01, D-55-01)
+
+`ReportingService::get_reports_for_all_employees` computes a per-employee
+alert flag surfaced as `ShortEmployeeReport.has_pending_rebooking` +
+`pending_rebooking_id` (mirrored on `ShortEmployeeReportTO`,
+`#[serde(default)]`, wire-additive). The alert predicate is
+`balance <= -0.5 ∧ voluntary_ist > 0 ∧ cap_active`
+(`alert_predicate`, `service_impl/src/reporting.rs`, boundary-tested at
+−0.49 / −0.50 / −0.51). The banner rule (D-55-B): the flag is `true`
+only when the predicate holds **and** there is no *decided* batch in the
+slot — a decided (approved or rejected) batch suppresses the banner, so
+the alert extinguishes after **both** approve and reject (D-55-07).
+`pending_rebooking_id = Some(pending.id)` when an open pending batch
+exists. There is **no undo** (D-55-04). To keep the read path cheap the
+batch lookup runs only for predicate candidates.
+
+### 8.5 REST routes (Phase 55, `rest/src/rebooking.rs`)
+
+All four routes are HR-gated (at the service) and OpenAPI-documented;
+status mapping (409 / 403 / 422) lives centrally in `error_handler`.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/rebooking/manual` | F3 one-shot manual rebooking. |
+| `POST` | `/rebooking-suggestions` | F5 suggest / claim (a deliberate mutation, Model B). |
+| `POST` | `/rebooking-suggestions/{id}/approve` | F5 approve → writes the pair. |
+| `POST` | `/rebooking-suggestions/{id}/reject` | F5 reject → state only. |
+
+The optional read-only `GET /rebooking-suggestions` list was **not**
+implemented (no list-pending service/DAO exists in 55-01/02; adding one
+would be a Rule-4 architecture change).
+
 ---
 
-**Conclusion.** Phase 54 delivers the read side of F14: HR sees F1/F2
-in the employee report, the audit tables are in place, and the marker
-column tells the future writers where the future rebooking rows will
-live. Milestones v2.6 Phase 55 + Phase 56 attach the writers and the
-cron on top of this baseline without another schema change.
+**Conclusion.** Phase 54 delivered the read side of F14 (F1/F2, audit
+tables, marker column). Phase 55 attaches the write side: F3 manual
+one-shot rebooking and the F5 Claim-on-Suggest HR-alert lifecycle
+(suggest / approve / reject), the `source == Manual` neutrality filter
+(VOL-ACCT-03), and the `has_pending_rebooking` alert flag — **without a
+snapshot schema bump** (stays 12). Phase 56 adds the F4 auto-cron on top
+(then the 12 → 13 bump).
 
 *Last verification against code:* see git blame of this file.
