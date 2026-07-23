@@ -9,7 +9,8 @@
     "skip_discuss": false,
     "research": true,
     "code_review": true,
-    "tdd_mode": true
+    "tdd_mode": true,
+    "_auto_chain_active": true
   },
   "model_profile": "adaptive",
   "git": {
