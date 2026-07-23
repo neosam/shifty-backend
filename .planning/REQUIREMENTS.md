@@ -124,13 +124,13 @@ im Backend.
       (VOL-ACCT-01-Delta). Alle DANN-Werte backend-computed
       (`RebookingSuggestionTO`).
 
-- [ ] **HR-ALERT-03**: HR bestätigt oder lehnt ab. Bei Approve: Rebooking wie
+- [x] **HR-ALERT-03**: HR bestätigt oder lehnt ab. Bei Approve: Rebooking wie
       REB-MANUAL-01 plus `rebooking_batch(kind=hr_suggestion, state=approved)`.
       Bei Reject: `state=rejected` persistiert (bleibt sichtbar-vermerkt).
       State-conditional UPDATE (`WHERE state='pending'`, affected-rows == 1) für
       Concurrency (Pitfall 12).
 
-- [ ] **HR-ALERT-04**: Persistiertes `rebooking_batch(kind=hr_suggestion)`
+- [x] **HR-ALERT-04**: Persistiertes `rebooking_batch(kind=hr_suggestion)`
       teilt die UNIQUE-Slot mit F4-`auto_cron` — Claim-on-Suggest-Strategie
       (Pitfall 7): sobald HR einen Vorschlag hat (`state=pending`), skipt F4-
       Cron diese Woche für diese Person. Vermeidet Stale-Vorschläge nach Cron-

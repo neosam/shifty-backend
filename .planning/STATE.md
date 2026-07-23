@@ -2,15 +2,19 @@
 gsd_state_version: 1.0
 milestone: v2.6
 milestone_name: — Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
-status: planning
+current_phase: 55
+current_phase_name: manual-rebooking-hr-alert
+status: executing
 stopped_at: Phase 55 neu geplant — 6 Pläne VERIFIED PASS, bereit zur Ausführung
-last_updated: "2026-07-23T13:30:00.000Z"
-last_activity: 2026-07-23 — Phase 55 neu geplant (fehlerhafte Pläne ersetzt); RESEARCH/VALIDATION/UI-SPEC/PATTERNS + 6 Pläne (55-01…06); F5 Claim-on-Suggest-Modell (B) gepinnt; plan-checker VERIFIED PASS (8/8 Req)
+last_updated: "2026-07-23T20:58:23.256Z"
+last_activity: 2026-07-23
+last_activity_desc: Phase 55 execution started
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 11
+  total_plans: 17
   completed_plans: 12
+  percent: 50
 ---
 
 # Project State: Shifty Backend
@@ -29,10 +33,10 @@ progress:
 
 ## Current Position
 
-Phase: 55 of 3 (manual rebooking hr alert)
-Plan: 6 Pläne (55-01…55-06), plan-checker VERIFIED PASS
-Status: Ready to execute (`/gsd-execute-phase 55`)
-Last activity: 2026-07-23 — Phase 55 neu geplant (fehlerhafte Pläne ersetzt); F5 Claim-on-Suggest-Modell (B) gepinnt; 8/8 Requirements abgedeckt
+Phase: 55 (manual-rebooking-hr-alert) — EXECUTING
+Plan: 2 of 6
+Status: Ready to execute
+Last activity: 2026-07-23 — Phase 55 execution started
 
 ## Quick Tasks Completed
 
@@ -202,7 +206,7 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-07-07T18:43:16.871Z
+**Last session:** 2026-07-23T20:57:54.989Z
 **Stopped at:** Completed 54-02 Plan (Basic-Tier RebookingBatchService)
 **Resume file:** None
 
@@ -259,6 +263,8 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 - [Phase 54]: Basic-tier RebookingBatchDao consumes only Transaction (no Domain-Service deps); mirrors WeekStatusDao precedent for str<->enum roundtrip.
 - [Phase ?]: [54-02] Basic-Tier RebookingBatchService via gen_service_impl! — HR-gated, deps strikt DAO+Permission+Clock+Uuid+Transaction; D-54-DM-01 UNIQUE-Slot via Same-Transaction Pre-Check → EntityAlreadyExists.
 - [Phase ?]: Plan 54-04: HR-Only-Redaktion verbleibt im Service (VoluntaryStatsService), Handler leitet 1:1 durch — VAC-OFFSET-01-Praezedenz konsistent
+- [Phase ?]: 55-01: Conflict-Variante = ServiceError::EntityAlreadyExists fuer beide 409-Faelle (Slot-Kollision + rows_affected==0)
+- [Phase ?]: 55-01: Neue DaoError::EntityAlreadyExists-Variante als distinktes UNIQUE-Violation-Signal (via is_unique_violation), im Service auf EntityAlreadyExists gemappt
 
 ## Performance Metrics
 
@@ -288,3 +294,4 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 | Phase 54 P05 | 10min | 5 tasks | 10 files |
 | Phase 54 P06 | 11m | 5 tasks | 14 files |
 | Phase 54 P08 | 6 | 4 tasks | 8 files |
+| Phase 55 P01 | 40min | 3 tasks | 8 files |
