@@ -1009,6 +1009,77 @@ pub async fn trigger_pdf_export_now(config: Config) -> Result<(), ShiftyError> {
     api::trigger_pdf_export(&config).await
 }
 
+// ─── Rebooking-Reconciliation loaders (Phase 55, REB-MANUAL / HR-ALERT) ──────
+//
+// Delegieren an die `api::post_rebooking_*`-Clients und mappen die Response
+// ueber die thin State-Mapper (`state::rebooking`). Fat Backend, Thin Client:
+// alle IST/DANN/proposed-Werte kommen backend-fertig; hier kein Rechnen.
+//
+// `open_rebooking_suggestion` ist ein POST-Claim (Modell B) — es erzeugt den
+// pending-Batch und liefert die `RebookingSuggestion` zurueck. Bei 409 reicht
+// der Fehler durch (die Seite refetcht die Overview).
+
+/// F3: manuelle Umbuchung anlegen. Bei belegtem Slot surft 409 als
+/// `ShiftyError::Conflict` durch — das Manual-Modal bleibt offen (D-55-05).
+#[allow(dead_code)] // reason: consumed by the Phase-55 modals (Task 2/3) + page wiring (55-05)
+pub async fn submit_manual_rebooking(
+    config: Config,
+    sales_person_id: Uuid,
+    direction: crate::state::rebooking::RebookingDirection,
+    hours: f32,
+    iso_year: u32,
+    iso_week: u8,
+) -> Result<(), ShiftyError> {
+    let body = rest_types::rebooking::ManualRebookingRequestTO {
+        sales_person_id,
+        direction: direction.into(),
+        hours,
+        iso_year,
+        iso_week,
+    };
+    api::post_rebooking_manual(config, body).await
+}
+
+/// F5-Modell-B: Suggestion claimen (POST, kein GET). Erzeugt/oeffnet den
+/// pending-Batch und liefert die backend-berechnete IST/DANN-Vorschau. Bei
+/// bereits entschiedenem Slot surft 409 durch.
+#[allow(dead_code)] // reason: consumed by the Phase-55 modals (Task 2/3) + page wiring (55-05)
+pub async fn open_rebooking_suggestion(
+    config: Config,
+    sales_person_id: Uuid,
+    iso_year: u32,
+    iso_week: u8,
+) -> Result<crate::state::rebooking::RebookingSuggestion, ShiftyError> {
+    let body = rest_types::rebooking::RebookingSuggestRequestTO {
+        sales_person_id,
+        iso_year,
+        iso_week,
+    };
+    let to = api::post_rebooking_suggestion(config, body).await?;
+    Ok(crate::state::rebooking::RebookingSuggestion::from(&to))
+}
+
+/// F5: Vorschlag bestaetigen — buchet das -N/+N-Pair mit den `proposed_hours`.
+/// Bei verlorenem Race surft 409 durch (inline generischer Fehler + refetch).
+#[allow(dead_code)] // reason: consumed by the Phase-55 modals (Task 2/3) + page wiring (55-05)
+pub async fn approve_rebooking_suggestion(
+    config: Config,
+    batch_id: Uuid,
+    hours: f32,
+) -> Result<(), ShiftyError> {
+    api::post_rebooking_approve(config, batch_id, hours).await
+}
+
+/// F5: Vorschlag ablehnen — transitioniert den Batch auf `Rejected` (Audit,
+/// kein Undo, D-55-04).
+#[allow(dead_code)] // reason: consumed by the Phase-55 modals (Task 2/3) + page wiring (55-05)
+pub async fn reject_rebooking_suggestion(
+    config: Config,
+    batch_id: Uuid,
+) -> Result<(), ShiftyError> {
+    api::post_rebooking_reject(config, batch_id).await
+}
+
 #[cfg(test)]
 mod working_hours_mini_loader_tests {
     use super::*;
@@ -1031,6 +1102,8 @@ mod working_hours_mini_loader_tests {
             dynamic_hours: 8.0,
             overall_hours: 5.0,
             volunteer_hours: 0.0,
+            has_pending_rebooking: false,
+            pending_rebooking_id: None,
         }
     }
 

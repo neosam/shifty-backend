@@ -1231,4 +1231,93 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         Key::VoluntaryHoursFulfillment,
         "Voluntary fulfillment",
     );
+
+    // ─── Phase 55: Manual rebooking + HR-Alert (F3 + F5) ────────────────────
+    // HR-Alert-Banner.
+    i18n.add_text(
+        Locale::En,
+        Key::RebookingAlertBannerText,
+        "Balance {balance} h with {voluntary} h voluntary work \u{2014} rebooking possible.",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::RebookingAlertBannerAction,
+        "Review suggestion \u{2192}",
+    );
+    // Suggestion-Modal.
+    i18n.add_text(
+        Locale::En,
+        Key::RebookingSuggestionModalTitle,
+        "Rebooking suggestion",
+    );
+    i18n.add_text(Locale::En, Key::RebookingColIst, "Now");
+    i18n.add_text(Locale::En, Key::RebookingColDann, "After");
+    i18n.add_text(Locale::En, Key::RebookingRowBalance, "Balance");
+    i18n.add_text(
+        Locale::En,
+        Key::RebookingRowVoluntaryIst,
+        "Voluntary actual",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::RebookingRowVoluntarySoll,
+        "Voluntary target",
+    );
+    i18n.add_text(Locale::En, Key::RebookingRowVoluntaryDelta, "Voluntary delta");
+    i18n.add_text(
+        Locale::En,
+        Key::RebookingProposedHours,
+        "Proposed rebooking: {hours} h",
+    );
+    i18n.add_text(Locale::En, Key::RebookingApprove, "Approve");
+    i18n.add_text(Locale::En, Key::RebookingReject, "Reject");
+    // Manual-Rebooking-Modal.
+    i18n.add_text(
+        Locale::En,
+        Key::ManualRebookingModalTitle,
+        "Manual rebooking",
+    );
+    i18n.add_text(Locale::En, Key::RebookingManualTrigger, "Create rebooking");
+    i18n.add_text(Locale::En, Key::RebookingDirectionLabel, "Direction");
+    i18n.add_text(
+        Locale::En,
+        Key::RebookingDirectionVolunteerToExtra,
+        "Voluntary \u{2192} Paid",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::RebookingDirectionExtraToVolunteer,
+        "Paid \u{2192} Voluntary",
+    );
+    i18n.add_text(Locale::En, Key::RebookingAmountLabel, "Amount (hours)");
+    i18n.add_text(Locale::En, Key::RebookingWeekLabel, "Week (CW)");
+    i18n.add_text(Locale::En, Key::RebookingYearLabel, "Year");
+    i18n.add_text(
+        Locale::En,
+        Key::RebookingPreview,
+        "{direction}: {hours} h in CW {week}/{year}",
+    );
+    i18n.add_text(Locale::En, Key::RebookingManualSubmit, "Create rebooking");
+    i18n.add_text(Locale::En, Key::RebookingCancel, "Cancel");
+    // Errors / states.
+    i18n.add_text(
+        Locale::En,
+        Key::RebookingErrorSlotTaken,
+        "A rebooking already exists for this week. Please choose another week.",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::RebookingErrorAmount,
+        "Amount must be greater than 0.",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::RebookingErrorGeneric,
+        "Rebooking could not be completed.",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::RebookingSuggestionEmpty,
+        "No open suggestion.",
+    );
 }

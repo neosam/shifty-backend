@@ -1330,4 +1330,106 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         Key::VoluntaryHoursFulfillment,
         "Dobrovolné plnění",
     );
+
+    // ─── Phase 55: Ruční přeúčtování + HR-Alert (F3 + F5) ───────────────────
+    // [ASSUMED] cs-Uebersetzung aus 55-UI-SPEC.md Copywriting-Contract.
+    // HR-Alert-Banner.
+    i18n.add_text(
+        Locale::Cs,
+        Key::RebookingAlertBannerText,
+        "Stav hodin {balance} h při {voluntary} h dobrovolné práce \u{2014} vyrovnání možné.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::RebookingAlertBannerAction,
+        "Zkontrolovat návrh \u{2192}",
+    );
+    // Suggestion-Modal.
+    i18n.add_text(
+        Locale::Cs,
+        Key::RebookingSuggestionModalTitle,
+        "Návrh přeúčtování",
+    );
+    i18n.add_text(Locale::Cs, Key::RebookingColIst, "Nyní");
+    i18n.add_text(Locale::Cs, Key::RebookingColDann, "Poté");
+    i18n.add_text(Locale::Cs, Key::RebookingRowBalance, "Stav hodin");
+    i18n.add_text(
+        Locale::Cs,
+        Key::RebookingRowVoluntaryIst,
+        "Dobrovolně skutečnost",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::RebookingRowVoluntarySoll,
+        "Dobrovolně cíl",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::RebookingRowVoluntaryDelta,
+        "Dobrovolně rozdíl",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::RebookingProposedHours,
+        "Navržené přeúčtování: {hours} h",
+    );
+    i18n.add_text(Locale::Cs, Key::RebookingApprove, "Potvrdit");
+    i18n.add_text(Locale::Cs, Key::RebookingReject, "Odmítnout");
+    // Manual-Rebooking-Modal.
+    i18n.add_text(
+        Locale::Cs,
+        Key::ManualRebookingModalTitle,
+        "Ruční přeúčtování",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::RebookingManualTrigger,
+        "Vytvořit přeúčtování",
+    );
+    i18n.add_text(Locale::Cs, Key::RebookingDirectionLabel, "Směr");
+    i18n.add_text(
+        Locale::Cs,
+        Key::RebookingDirectionVolunteerToExtra,
+        "Dobrovolně \u{2192} Placené",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::RebookingDirectionExtraToVolunteer,
+        "Placené \u{2192} Dobrovolně",
+    );
+    i18n.add_text(Locale::Cs, Key::RebookingAmountLabel, "Množství (hodiny)");
+    i18n.add_text(Locale::Cs, Key::RebookingWeekLabel, "Týden (KT)");
+    i18n.add_text(Locale::Cs, Key::RebookingYearLabel, "Rok");
+    i18n.add_text(
+        Locale::Cs,
+        Key::RebookingPreview,
+        "{direction}: {hours} h v KT {week}/{year}",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::RebookingManualSubmit,
+        "Vytvořit přeúčtování",
+    );
+    i18n.add_text(Locale::Cs, Key::RebookingCancel, "Zrušit");
+    // Chyby / stavy.
+    i18n.add_text(
+        Locale::Cs,
+        Key::RebookingErrorSlotTaken,
+        "Pro tento týden již existuje přeúčtování. Zvolte prosím jiný týden.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::RebookingErrorAmount,
+        "Množství musí být větší než 0.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::RebookingErrorGeneric,
+        "Přeúčtování se nepodařilo dokončit.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::RebookingSuggestionEmpty,
+        "Žádný otevřený návrh.",
+    );
 }

@@ -1342,4 +1342,89 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         Key::VoluntaryHoursFulfillment,
         "Ehrenamt Erf\u{00FC}llungsgrad",
     );
+
+    // ─── Phase 55: Manuelle Umbuchung + HR-Alert (F3 + F5) ──────────────────
+    // HR-Alert-Banner.
+    i18n.add_text(
+        Locale::De,
+        Key::RebookingAlertBannerText,
+        "Stundenkonto {balance} h bei {voluntary} h Freiwilligenarbeit \u{2014} Ausgleich m\u{00F6}glich.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::RebookingAlertBannerAction,
+        "Vorschlag pr\u{00FC}fen \u{2192}",
+    );
+    // Suggestion-Modal.
+    i18n.add_text(
+        Locale::De,
+        Key::RebookingSuggestionModalTitle,
+        "Umbuchungs-Vorschlag",
+    );
+    i18n.add_text(Locale::De, Key::RebookingColIst, "Ist");
+    i18n.add_text(Locale::De, Key::RebookingColDann, "Dann");
+    i18n.add_text(Locale::De, Key::RebookingRowBalance, "Stundenkonto");
+    i18n.add_text(Locale::De, Key::RebookingRowVoluntaryIst, "Freiwillig Ist");
+    i18n.add_text(Locale::De, Key::RebookingRowVoluntarySoll, "Freiwillig Soll");
+    i18n.add_text(
+        Locale::De,
+        Key::RebookingRowVoluntaryDelta,
+        "Freiwillig Delta",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::RebookingProposedHours,
+        "Vorgeschlagene Umbuchung: {hours} h",
+    );
+    i18n.add_text(Locale::De, Key::RebookingApprove, "Best\u{00E4}tigen");
+    i18n.add_text(Locale::De, Key::RebookingReject, "Ablehnen");
+    // Manual-Rebooking-Modal.
+    i18n.add_text(
+        Locale::De,
+        Key::ManualRebookingModalTitle,
+        "Manuelle Umbuchung",
+    );
+    i18n.add_text(Locale::De, Key::RebookingManualTrigger, "Umbuchung anlegen");
+    i18n.add_text(Locale::De, Key::RebookingDirectionLabel, "Richtung");
+    i18n.add_text(
+        Locale::De,
+        Key::RebookingDirectionVolunteerToExtra,
+        "Freiwillig \u{2192} Bezahlt",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::RebookingDirectionExtraToVolunteer,
+        "Bezahlt \u{2192} Freiwillig",
+    );
+    i18n.add_text(Locale::De, Key::RebookingAmountLabel, "Menge (Stunden)");
+    i18n.add_text(Locale::De, Key::RebookingWeekLabel, "Woche (KW)");
+    i18n.add_text(Locale::De, Key::RebookingYearLabel, "Jahr");
+    i18n.add_text(
+        Locale::De,
+        Key::RebookingPreview,
+        "{direction}: {hours} h in KW {week}/{year}",
+    );
+    i18n.add_text(Locale::De, Key::RebookingManualSubmit, "Umbuchung anlegen");
+    i18n.add_text(Locale::De, Key::RebookingCancel, "Abbrechen");
+    // Fehler / Zustaende.
+    i18n.add_text(
+        Locale::De,
+        Key::RebookingErrorSlotTaken,
+        "F\u{00FC}r diese Woche existiert bereits eine Umbuchung. Bitte andere Woche w\u{00E4}hlen.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::RebookingErrorAmount,
+        "Menge muss gr\u{00F6}\u{00DF}er als 0 sein.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::RebookingErrorGeneric,
+        "Umbuchung konnte nicht ausgef\u{00FC}hrt werden.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::RebookingSuggestionEmpty,
+        "Kein offener Vorschlag.",
+    );
 }

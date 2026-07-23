@@ -796,6 +796,72 @@ pub enum Key {
     VoluntaryHoursDelta,
     /// Label fuer den Erfuellungsgrad in Prozent ("Freiwillig Erfuellungsgrad").
     VoluntaryHoursFulfillment,
+
+    // ─── Phase 55: Manuelle Umbuchung + HR-Alert (F3 + F5) ──────────────────
+    // Copywriting-Contract siehe 55-UI-SPEC.md. Alle 27 Keys muessen in
+    // de/en/cs vollstaendig sein (Test-Gate i18n_rebooking_keys_present_in_all_locales).
+
+    // HR-Alert-Banner (F5) — 2 Keys.
+    /// Banner-Text mit Platzhaltern `{balance}` + `{voluntary}`.
+    RebookingAlertBannerText,
+    /// Klickbarer Action-Hinweis rechts im Banner ("Vorschlag pruefen \u{2192}").
+    RebookingAlertBannerAction,
+
+    // Suggestion-Modal (F5) — 10 Keys.
+    /// Modal-Titel ("Umbuchungs-Vorschlag").
+    RebookingSuggestionModalTitle,
+    /// IST-Spalten-Header ("Ist").
+    RebookingColIst,
+    /// DANN-Spalten-Header ("Dann").
+    RebookingColDann,
+    /// Zeilen-Label Stundenkonto ("Stundenkonto").
+    RebookingRowBalance,
+    /// Zeilen-Label Freiwillig Ist ("Freiwillig Ist").
+    RebookingRowVoluntaryIst,
+    /// Zeilen-Label Freiwillig Soll ("Freiwillig Soll").
+    RebookingRowVoluntarySoll,
+    /// Zeilen-Label Freiwillig Delta ("Freiwillig Delta").
+    RebookingRowVoluntaryDelta,
+    /// Hervorgehobene Vorschlags-Zeile mit `{hours}`-Platzhalter.
+    RebookingProposedHours,
+    /// Approve-Button ("Bestaetigen").
+    RebookingApprove,
+    /// Reject-Button ("Ablehnen").
+    RebookingReject,
+
+    // Manual-Rebooking-Modal (F3) — 11 Keys.
+    /// Modal-Titel ("Manuelle Umbuchung").
+    ManualRebookingModalTitle,
+    /// Trigger-Button-Label in der TopBar ("Umbuchung anlegen").
+    RebookingManualTrigger,
+    /// Feld-Label Richtung ("Richtung").
+    RebookingDirectionLabel,
+    /// Richtungs-Option Freiwillig -> Bezahlt.
+    RebookingDirectionVolunteerToExtra,
+    /// Richtungs-Option Bezahlt -> Freiwillig.
+    RebookingDirectionExtraToVolunteer,
+    /// Feld-Label Menge ("Menge (Stunden)").
+    RebookingAmountLabel,
+    /// Feld-Label Woche ("Woche (KW)").
+    RebookingWeekLabel,
+    /// Feld-Label Jahr ("Jahr").
+    RebookingYearLabel,
+    /// Vorschau-Zeile mit `{direction}`, `{hours}`, `{week}`, `{year}`.
+    RebookingPreview,
+    /// Submit-Button im Manual-Modal ("Umbuchung anlegen").
+    RebookingManualSubmit,
+    /// Cancel-Button ("Abbrechen").
+    RebookingCancel,
+
+    // Fehler / Zustaende — 4 Keys.
+    /// Inline-Fehler 409 UNIQUE-Slot belegt (Manual-Modal).
+    RebookingErrorSlotTaken,
+    /// Submit-Defense: Menge <= 0.
+    RebookingErrorAmount,
+    /// Generischer Fehler (Netzwerk / 409-Race im Suggestion-Modal).
+    RebookingErrorGeneric,
+    /// Empty-State im Suggestion-Modal (Vorschlag beim Oeffnen weg).
+    RebookingSuggestionEmpty,
 }
 
 pub fn generate(locale: Locale) -> I18n<Key, Locale> {
@@ -1906,6 +1972,99 @@ mod tests {
                 locale,
                 hint
             );
+        }
+    }
+
+    // ===== Phase 55 — Rebooking / HR-Alert i18n presence gate =====
+
+    /// Phase 55 (REB-MANUAL / HR-ALERT): proves all 27 new rebooking keys
+    /// resolve to a non-empty, non-"??" string in de/en/cs. This is the
+    /// hard i18n presence gate for the copywriting contract (55-UI-SPEC.md).
+    #[test]
+    fn i18n_rebooking_keys_present_in_all_locales() {
+        let keys = [
+            // Banner (2)
+            Key::RebookingAlertBannerText,
+            Key::RebookingAlertBannerAction,
+            // Suggestion-Modal (10)
+            Key::RebookingSuggestionModalTitle,
+            Key::RebookingColIst,
+            Key::RebookingColDann,
+            Key::RebookingRowBalance,
+            Key::RebookingRowVoluntaryIst,
+            Key::RebookingRowVoluntarySoll,
+            Key::RebookingRowVoluntaryDelta,
+            Key::RebookingProposedHours,
+            Key::RebookingApprove,
+            Key::RebookingReject,
+            // Manual-Modal (11)
+            Key::ManualRebookingModalTitle,
+            Key::RebookingManualTrigger,
+            Key::RebookingDirectionLabel,
+            Key::RebookingDirectionVolunteerToExtra,
+            Key::RebookingDirectionExtraToVolunteer,
+            Key::RebookingAmountLabel,
+            Key::RebookingWeekLabel,
+            Key::RebookingYearLabel,
+            Key::RebookingPreview,
+            Key::RebookingManualSubmit,
+            Key::RebookingCancel,
+            // Fehler / Zustaende (4)
+            Key::RebookingErrorSlotTaken,
+            Key::RebookingErrorAmount,
+            Key::RebookingErrorGeneric,
+            Key::RebookingSuggestionEmpty,
+        ];
+        assert_eq!(keys.len(), 27, "expected exactly 27 rebooking keys");
+
+        for locale in [Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(locale);
+            for key in keys {
+                let value = i18n.t(key);
+                assert!(
+                    !value.is_empty() && value.as_ref() != "??",
+                    "missing translation for {:?} in {:?}: got `{}`",
+                    key,
+                    locale,
+                    value
+                );
+            }
+        }
+    }
+
+    /// Placeholder-guard: the interpolated rebooking templates keep their
+    /// placeholders so the components can substitute them at render time.
+    #[test]
+    fn i18n_rebooking_templates_carry_placeholders() {
+        for locale in [Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(locale);
+
+            let banner = i18n.t(Key::RebookingAlertBannerText);
+            assert!(
+                banner.contains("{balance}") && banner.contains("{voluntary}"),
+                "RebookingAlertBannerText for {:?} lost placeholders: `{}`",
+                locale,
+                banner
+            );
+
+            let proposed = i18n.t(Key::RebookingProposedHours);
+            assert!(
+                proposed.contains("{hours}"),
+                "RebookingProposedHours for {:?} lost {{hours}}: `{}`",
+                locale,
+                proposed
+            );
+
+            let preview = i18n.t(Key::RebookingPreview);
+            for ph in ["{direction}", "{hours}", "{week}", "{year}"] {
+                assert!(
+                    preview.contains(ph),
+                    "RebookingPreview for {:?} lost {}: `{}`",
+                    locale,
+                    ph,
+                    preview
+                );
+            }
         }
     }
 }
