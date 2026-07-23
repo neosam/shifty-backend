@@ -20,7 +20,9 @@ pub mod extra_hours_modal;
 pub mod footer;
 pub mod form;
 pub mod impersonation_banner;
+pub mod manual_rebooking_modal;
 pub mod overlay;
+pub mod rebooking_alert_banner;
 pub mod shiftplan_tab_bar;
 pub mod slot_edit;
 pub mod tooltip;
@@ -37,6 +39,12 @@ pub mod working_hours_overview_layout_toggle;
 pub use atoms::{Btn, BtnVariant, NavBtn, PersonChip};
 pub use contract_modal::ContractModal;
 pub use impersonation_banner::ImpersonationBanner;
+// reason: consumed by page/employees.rs + page/employee_details.rs in 55-05 (page wiring)
+#[allow(unused_imports)]
+pub use manual_rebooking_modal::ManualRebookingModal;
+// reason: consumed by page/employees.rs in 55-05 (banner mount in HR-path)
+#[allow(unused_imports)]
+pub use rebooking_alert_banner::RebookingAlertBanner;
 pub use dialog::{Dialog, DialogVariant};
 pub use employee_short::EmployeeShort;
 pub use employee_view::EmployeeView;
