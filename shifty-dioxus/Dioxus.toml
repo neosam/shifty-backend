@@ -108,3 +108,7 @@ backend = "http://localhost:3000/admin/cutover"
 backend = "http://localhost:3000/admin/impersonate"
 [[web.proxy]]
 backend = "http://localhost:3000/toggle"
+[[web.proxy]]
+backend = "http://localhost:3000/rebooking"
+[[web.proxy]]
+backend = "http://localhost:3000/rebooking-suggestions"

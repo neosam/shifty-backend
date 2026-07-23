@@ -350,6 +350,30 @@ impl service_impl::voluntary_stats::VoluntaryStatsServiceDeps
 type VoluntaryStatsService =
     service_impl::voluntary_stats::VoluntaryStatsServiceImpl<VoluntaryStatsServiceDependencies>;
 
+// Phase 55 (REB-MANUAL / HR-ALERT, 55-03): RebookingReconciliationServiceImpl
+// ist Business-Logic-Tier. Konsumiert die Basic-Services ExtraHoursService +
+// RebookingBatchService und die Business-Logic-Services ReportingService +
+// VoluntaryStatsService (kein Zyklus — keiner davon kennt die Reconciliation).
+// Konstruktions-Reihenfolge: NACH ExtraHours, RebookingBatch, Reporting,
+// VoluntaryStats (Service-Tier-Konvention CLAUDE.md, kein OnceLock).
+pub struct RebookingReconciliationServiceDependencies;
+impl service_impl::rebooking_reconciliation::RebookingReconciliationServiceDeps
+    for RebookingReconciliationServiceDependencies
+{
+    type Context = Context;
+    type Transaction = Transaction;
+    type ExtraHoursService = ExtraHoursService;
+    type RebookingBatchService = RebookingBatchService;
+    type ReportingService = ReportingService;
+    type VoluntaryStatsService = VoluntaryStatsService;
+    type PermissionService = PermissionService;
+    type TransactionDao = TransactionDao;
+}
+type RebookingReconciliationService =
+    service_impl::rebooking_reconciliation::RebookingReconciliationServiceImpl<
+        RebookingReconciliationServiceDependencies,
+    >;
+
 // Phase 48 (EXP-02/EXP-03, D-48-BASIC): PdfExportConfigServiceImpl ist
 // Basic-Tier — konsumiert AUSSCHLIESSLICH PdfExportConfigDao + Permission +
 // Clock + Uuid + Transaction. Kein Domain-Service als Dep.
@@ -760,6 +784,9 @@ pub struct RestStateImpl {
     // HR-only Voluntary-Stundenkonto-Sicht. Kein REST-Endpoint in Phase 54
     // Plan 03 — der Endpoint kommt in Plan 04.
     voluntary_stats_service: Arc<VoluntaryStatsService>,
+    // Phase 55 (REB-MANUAL / HR-ALERT, 55-03): Business-Logic-Tier HR-gated
+    // Reconciliation — konsumiert von den F3/F5-REST-Routes.
+    rebooking_reconciliation_service: Arc<RebookingReconciliationService>,
     // Phase 48 (EXP-02/EXP-03): admin-gated REST-CRUD für die PDF-Export-Konfig.
     pdf_export_config_service: Arc<PdfExportConfigService>,
     // Phase 48 Plan 04 (EXP-01/EXP-03): Cron-getriebener Nextcloud-Push.
@@ -805,6 +832,7 @@ impl rest::RestStateDef for RestStateImpl {
     type VacationEntitlementOffsetService = VacationEntitlementOffsetService;
     type RebookingBatchService = RebookingBatchService;
     type VoluntaryStatsService = VoluntaryStatsService;
+    type RebookingReconciliationService = RebookingReconciliationService;
     type PdfExportConfigService = PdfExportConfigService;
     type PdfExportScheduler = PdfExportSchedulerService;
     type PdfShiftplanService = PdfShiftplanService;
@@ -916,6 +944,9 @@ impl rest::RestStateDef for RestStateImpl {
     }
     fn voluntary_stats_service(&self) -> Arc<Self::VoluntaryStatsService> {
         self.voluntary_stats_service.clone()
+    }
+    fn rebooking_reconciliation_service(&self) -> Arc<Self::RebookingReconciliationService> {
+        self.rebooking_reconciliation_service.clone()
     }
     fn pdf_export_config_service(&self) -> Arc<Self::PdfExportConfigService> {
         self.pdf_export_config_service.clone()
@@ -1212,6 +1243,23 @@ impl RestStateImpl {
             },
         );
 
+        // Phase 55 (REB-MANUAL / HR-ALERT, 55-03): Business-Logic-Tier
+        // RebookingReconciliationService — konstruiert NACH extra_hours_service,
+        // rebooking_batch_service, reporting_service, voluntary_stats_service
+        // (alle bereits oben gebaut). Kein Zyklus, kein OnceLock.
+        let rebooking_reconciliation_service = Arc::new(
+            service_impl::rebooking_reconciliation::RebookingReconciliationServiceImpl::<
+                RebookingReconciliationServiceDependencies,
+            > {
+                extra_hours_service: extra_hours_service.clone(),
+                rebooking_batch_service: rebooking_batch_service.clone(),
+                reporting_service: reporting_service.clone(),
+                voluntary_stats_service: voluntary_stats_service.clone(),
+                permission_service: permission_service.clone(),
+                transaction_dao: transaction_dao.clone(),
+            },
+        );
+
         // Phase 52 (WOP-01, D-52-01): ShiftplanCatalogService wird VOR
         // BookingInformationService konstruiert, damit dieser den
         // `is_planning`-Filter für Bulk-Slot-Lookup in `get_weekly_summary`
@@ -1469,6 +1517,7 @@ impl RestStateImpl {
             vacation_entitlement_offset_service,
             rebooking_batch_service,
             voluntary_stats_service,
+            rebooking_reconciliation_service,
             pdf_export_config_service,
             pdf_export_scheduler,
             pdf_shiftplan_service,

@@ -74,6 +74,15 @@ pub struct RebookingSuggestRequestTO {
     pub iso_week: u8,
 }
 
+/// F5-Approve-Request-Body (HR-ALERT-03): die zu buchenden Stunden. Der Client
+/// uebergibt die im Suggest-Response gelieferten `proposed_hours` unveraendert
+/// zurueck; der Service transitioniert den pending-Batch und schreibt das
+/// -N/+N-Pair mit genau diesem Betrag.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
+pub struct RebookingApproveRequestTO {
+    pub hours: f32,
+}
+
 /// Backend-computed IST/DANN-Vorschau fuer den F5-HR-Alert (HR-ALERT-02).
 ///
 /// Alle DANN-Felder sind vom Backend berechnet (kein FE-Arithmetik-Vorgriff):

@@ -21,6 +21,10 @@ mod my_block;
 mod pdf_export_config;
 mod pdf_shiftplan;
 mod permission;
+// Phase 55 (55-03): pub-export analog `pub mod report;` — der shifty_bin
+// integration test kann `rebooking::generate_route` / `generate_suggestions_route`
+// via tower::oneshot erreichen.
+pub mod rebooking;
 // Phase 54 (Plan 04): pub-export so the shifty_bin integration test can reach
 // `report::generate_route` via tower::oneshot to exercise the
 // `/report/{id}/voluntary-stats` HR/Non-HR redaction end-to-end — same pattern
@@ -433,6 +437,13 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
+    // Phase 55 (REB-MANUAL / HR-ALERT, 55-03): Business-Logic-Tier HR-gated
+    // RebookingReconciliationService — konsumiert von den F3/F5-REST-Routes
+    // (`/rebooking` + `/rebooking-suggestions`).
+    type RebookingReconciliationService: service::rebooking_reconciliation::RebookingReconciliationService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
     // Phase 48 (EXP-02/EXP-03, D-48-ADMIN): Basic-Tier admin-gated Config-
     // Service für den `/pdf-export-config`-Endpoint (GET/PUT).
     type PdfExportConfigService: service::pdf_export_config::PdfExportConfigService<Context = Context>
@@ -493,6 +504,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn vacation_entitlement_offset_service(&self) -> Arc<Self::VacationEntitlementOffsetService>;
     fn rebooking_batch_service(&self) -> Arc<Self::RebookingBatchService>;
     fn voluntary_stats_service(&self) -> Arc<Self::VoluntaryStatsService>;
+    fn rebooking_reconciliation_service(&self) -> Arc<Self::RebookingReconciliationService>;
     fn pdf_export_config_service(&self) -> Arc<Self::PdfExportConfigService>;
     fn pdf_export_scheduler(&self) -> Arc<Self::PdfExportScheduler>;
     fn pdf_shiftplan_service(&self) -> Arc<Self::PdfShiftplanService>;
@@ -613,6 +625,11 @@ pub async fn auth_info<RestState: RestStateDef>(
         (path = "/shiftplan", api = pdf_shiftplan::PdfShiftplanApiDoc),
         (path = "/feature-flag", api = feature_flag::FeatureFlagApiDoc),
         (path = "/admin/impersonate", api = impersonate::ImpersonateApiDoc),
+        // Phase 55 (55-03): F3 manuelle Umbuchung unter `/rebooking`, der
+        // F5-Modell-B-Lifecycle unter `/rebooking-suggestions`. Beide Nests
+        // teilen sich denselben RebookingApiDoc (die utoipa-Pfade tragen die
+        // relativen Sub-Pfade `/manual`, `/`, `/{id}/approve`, `/{id}/reject`).
+        (path = "/rebooking", api = rebooking::RebookingApiDoc),
     )
 )]
 pub struct ApiDoc;
@@ -700,7 +717,15 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
             "/sales-person-shiftplan",
             sales_person_shiftplan::generate_route(),
         )
-        .nest("/feature-flag", feature_flag::generate_route());
+        .nest("/feature-flag", feature_flag::generate_route())
+        // Phase 55 (55-03): F3 one-shot unter `/rebooking`, F5-Modell-B-
+        // Lifecycle (Suggest/Claim + approve/reject) unter
+        // `/rebooking-suggestions`.
+        .nest("/rebooking", rebooking::generate_route())
+        .nest(
+            "/rebooking-suggestions",
+            rebooking::generate_suggestions_route(),
+        );
 
     #[cfg(feature = "mock_auth")]
     let app = app.nest("/dev", dev::generate_route());
