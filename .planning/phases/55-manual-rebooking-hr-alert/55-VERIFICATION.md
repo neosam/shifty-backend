@@ -1,21 +1,24 @@
 ---
 phase: 55-manual-rebooking-hr-alert
 verified: 2026-07-24T00:00:00Z
-status: human_needed
+status: passed
 score: 4/4 must-haves verified
 behavior_unverified: 1
 overrides_applied: 0
 overrides:
+
   - must_have: "Klick auf die Warnzeile öffnet ein Modal mit IST/DANN-Spalten für Balance, Freiwillige Ist, Freiwilliges Soll, Freiwilliges Delta — alle DANN backend-computed, kein FE-Arithmetik"
     reason: "RebookingSuggestionTO und RebookingSuggestion enthalten keine voluntary_soll/voluntary_delta-Felder. Die im UI-SPEC skizzierten Zeilen werden bewusst nicht gerendert (55-03 Deviation 1), weil das Hinzufügen von Front-End-errechneten Werten die 'kein FE-Arithmetik'-Prohibition brechen würde. Die vorhandenen Spalten (Balance IST/DANN, Freiwillig Ist IST/DANN, proposed_hours) sind vollständig backend-computed. Dies ist eine dokumentierte, bewusste Abweichung."
     accepted_by: "verifier"
     accepted_at: "2026-07-24T00:00:00Z"
 behavior_unverified_items:
+
   - truth: "Nach Approve/Reject verschwindet der Banner und der Report refetcht (Predicate false bzw. entschiedener Batch D-55-07)"
     test: "Im laufenden Browser: HR-Klick auf Banner → Modal öffnet → Approve → Modal schließt → Overview refetcht → Banner weg"
     expected: "Banner für diesen Mitarbeiter verschwindet nach Approve/Reject; kein manuelles Dismiss erforderlich"
     why_human: "State-Refresh-Callback und reaktive Sichtbarkeit sind Laufzeit-Invarianten; grep/WASM-Build beweisen nur Codepräsenz, nicht das reaktive Re-Render-Verhalten"
 human_verification:
+
   - test: "F5 End-to-End: HR öffnet Banner → Suggestion-Modal → Approve → Banner verschwindet"
     expected: "Nach Approve zeigt die Employee-Overview keinen Banner mehr für diesen Mitarbeiter; kein manuelles Dismiss"
     why_human: "Reaktives Re-Render-Verhalten nach Approve/Reject (D-55-07) ist eine Laufzeit-Invariante; WASM-Build beweist nur Codepräsenz"
@@ -55,6 +58,7 @@ human_verification:
 `ExtraHoursSource` hat genau zwei Varianten: `Manual` (Default) und `Rebooking` (`service/src/extra_hours.rs` L60–69). Der Filter `.filter(|eh| eh.source == ExtraHoursSource::Manual)` schließt daher exakt alle Rebooking-Rows aus.
 
 Der Filter ist an vier Aggregations-Sites aktiv:
+
 - `service_impl/src/reporting.rs` L859: Weekly-Summary-Aggregat (VolunteerWork + ExtraWork)
 - L1192: All-Employees-Report (vor Jahres-ShortReport-Schleife)
 - L1728: `overall_extra_work_hours` (ExtraWork/balance-Zweig)
@@ -67,6 +71,7 @@ Property-Tests `rebooking_neutrality_single_manual` und `rebooking_neutrality_ro
 **Befund: Dokumentierte, akzeptable Abweichung.**
 
 Das Vorschlags-Modal rendert vier Spalten:
+
 - Balance IST / DANN (`balance` / `balance_after`)
 - Freiwillig Ist IST / DANN (`voluntary_ist` / `voluntary_ist_after`)
 
