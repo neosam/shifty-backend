@@ -29,7 +29,29 @@ findings:
   warning: 5
   info: 4
   total: 11
-status: issues_found
+status: partially_resolved
+resolved:
+  - id: CR-01
+    commit: 4bc9b612
+    test_commit: 54e86d3a
+  - id: CR-02
+    commit: 4bc9b612
+    test_commit: 54e86d3a
+    approach: recompute (proposed_hours = min(|balance|, voluntary_ist), client value discarded)
+  - id: WR-02
+    commit: 4bc9b612
+    test_commit: 54e86d3a
+  - id: WR-04
+    commit: 4bc9b612
+    test_commit: 54e86d3a
+open:
+  - WR-01
+  - WR-03
+  - WR-05
+  - IN-01
+  - IN-02
+  - IN-03
+  - IN-04
 ---
 
 # Phase 55: Code-Review-Bericht (Manual Rebooking + HR-Alert)
@@ -67,6 +89,11 @@ Inkonsistenz zwischen Banner-Predicate und Suggest-Vorschau.
 ## Critical Issues
 
 ### CR-01: F5-Approve verliert den Audit-Trail — kein Batch-Entry mit den Pair-ids
+
+**Status:** ✅ RESOLVED (RED `54e86d3a`, GREEN `4bc9b612`) — `approve` haengt nach
+dem Pair-Write via neue DAO/Service-Methode `create_entries_for_batch` einen
+`rebooking_batch_entry` an den bestehenden pending-Batch (Pair-ids +
+Audit-Snapshots). DAO-Trait + SQLite-Impl + Basic-Service-Methode ergaenzt.
 
 **File:** `service_impl/src/rebooking_reconciliation.rs:291-339`
 **Issue:**
@@ -115,6 +142,12 @@ let entry = RebookingBatchEntryEntity {
 ```
 
 ### CR-02: `approve` bucht die vom Client geschickten `hours` ohne jede Validierung
+
+**Status:** ✅ RESOLVED (RED `54e86d3a`, GREEN `4bc9b612`) — Ansatz **recompute**
+(PREFERRED): `approve` verwirft den Client-`hours`-Wert und recomputet
+`proposed_hours = min(|balance|, voluntary_ist)` fuer die Batch-Woche mit
+derselben Berechnung wie `suggest`; bucht diesen Betrag. `proposed <= 0` →
+`ValidationError` (422). Der Client-Wert wird nicht mehr vertraut.
 
 **File:** `service_impl/src/rebooking_reconciliation.rs:291-335`, `rest/src/rebooking.rs:144-160`, `rest-types/src/rebooking.rs:81-84`
 **Issue:**
@@ -176,6 +209,9 @@ gewählte Semantik in einem Test festnageln.
 
 ### WR-02: `rebook_manual` validiert `hours` nicht serverseitig (nur FE-Guard)
 
+**Status:** ✅ RESOLVED (RED `54e86d3a`, GREEN `4bc9b612`) — `rebook_manual`
+validiert `hours <= 0 || !finite` frueh (vor Tx) → `ValidationError` (422).
+
 **File:** `service_impl/src/rebooking_reconciliation.rs:139-196`
 **Issue:**
 Analog CR-02, aber für F3: `rebook_manual` akzeptiert beliebige `hours`. Die
@@ -206,6 +242,10 @@ plausibles Jahr) mit Mapping auf `ValidationError` (422). `InternalError` nur
 für echte Invarianten reservieren.
 
 ### WR-04: `approve` schreibt `approved`-Zeitstempel, aber `approved_by = None` — Audit ohne Urheber
+
+**Status:** ✅ RESOLVED (RED `54e86d3a`, GREEN `4bc9b612`) — `approve` liest den
+Principal via `current_user_id` (vor dem HR-Gate) und reicht ihn als
+`approved_by: Some(...)` durch `update_state` durch.
 
 **File:** `service_impl/src/rebooking_reconciliation.rs:315-323`, `service_impl/src/rebooking_batch.rs:280-327`
 **Issue:**
