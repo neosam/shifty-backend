@@ -168,7 +168,7 @@ gepaarten `extra_hours`-Zeilen mit dem Batch-State konsistent sind.
 
 | Service | Tier | Zweck |
 | --- | --- | --- |
-| `RebookingBatchService` | Basic | HR-gated CRUD (find_by_id / find_by_sales_person_year_week / create) auf `rebooking_batch` + Entries, plus der Phase-55 F5-Modell-B-Lifecycle: `create_pending_suggestion` (Claim-on-Suggest-Producer — INSERTet einen `HrSuggestion`/`Pending`-Batch und claimt den UNIQUE-Wochen-Slot; belegter Slot → `EntityAlreadyExists`), `find_pending_for_sales_person` (Reader fuer `pending_rebooking_id`, liefert nur `Pending`) und `update_state` (race-sichere state-conditional Transition `Pending → Approved\|Rejected`; ein zweiter/bereits entschiedener Wechsel → `EntityAlreadyExists` via `rows_affected()==0`, kein version-Guard). Deps: `RebookingBatchDao`, `PermissionService`, `ClockService`, `UuidService`, `TransactionDao`. Kein Domain-Service-Dep. |
+| `RebookingBatchService` | Basic | HR-gated CRUD (find_by_id / find_by_sales_person_year_week / create) auf `rebooking_batch` + Entries, plus der Phase-55 F5-Modell-B-Lifecycle: `create_pending_suggestion` (Claim-on-Suggest-Producer — INSERTet einen `HrSuggestion`/`Pending`-Batch und claimt den UNIQUE-Wochen-Slot; belegter Slot → `EntityAlreadyExists`), `find_pending_for_sales_person` (Reader fuer `pending_rebooking_id`, liefert nur `Pending`), `update_state` (race-sichere state-conditional Transition `Pending → Approved\|Rejected`; ein zweiter/bereits entschiedener Wechsel → `EntityAlreadyExists` via `rows_affected()==0`, kein version-Guard; nimmt `approved_by` fuer den Approver-Audit) und `create_entries_for_batch` (haengt Entries an einen **bestehenden** Batch — genutzt von F5-`approve`, um nach dem Pair-Write die Audit-Kette zu schliessen, da `create` einen neuen Batch INSERTet). Deps: `RebookingBatchDao`, `PermissionService`, `ClockService`, `UuidService`, `TransactionDao`. Kein Domain-Service-Dep. |
 | `VoluntaryStatsService` | Business-Logic | Read-only F1/F2. Deps: `ExtraHoursService`, `EmployeeWorkDetailsService`, `SalesPersonService`, `PermissionService`, `TransactionDao`. HR-only per API-Level None-Redaktion (nicht 403). |
 | `RebookingReconciliationService` | Business-Logic | Phase 55. Der F3/F5-Write-Orchestrator. Besitzt den einzigen internen Pair-Write-Path, geteilt von F3 und F5-approve. Deps: `ExtraHoursService`, `RebookingBatchService`, `ReportingService`, `VoluntaryStatsService`, `PermissionService`, `TransactionDao`. Alle vier Methoden HR-gated (T-55-05). Siehe §8. |
 
@@ -382,11 +382,14 @@ fest `VolunteerToExtra`.
 ### 8.2 F3 — One-Shot-manuelle-Umbuchung (REB-MANUAL-01/02/03)
 
 `rebook_manual(sales_person_id, direction, hours, iso_year, iso_week,
-…)` HR-gatet zuerst, dann in **einer** Transaktion: schreibt das Paar
-(§8.1), legt einen `rebooking_batch` mit `kind = Manual`, `state =
-Approved` an und einen `rebooking_batch_entry` mit den beiden Pair-ids.
-Es gibt **keinen** suggest/pending-Zwischenschritt. Ein belegter
-UNIQUE-Wochen-Slot → `EntityAlreadyExists` → HTTP 409.
+…)` HR-gatet zuerst, **validiert dann den Betrag serverseitig** (`hours >
+0`, sonst `ValidationError` → HTTP 422 — der Client-seitige Modal-Guard
+ist nicht autoritativ; ein direkter API-Aufruf mit `0`/negativen Stunden
+wird abgelehnt, bevor eine Row entsteht), dann in **einer** Transaktion:
+schreibt das Paar (§8.1), legt einen `rebooking_batch` mit `kind =
+Manual`, `state = Approved` an und einen `rebooking_batch_entry` mit den
+beiden Pair-ids. Es gibt **keinen** suggest/pending-Zwischenschritt. Ein
+belegter UNIQUE-Wochen-Slot → `EntityAlreadyExists` → HTTP 409.
 
 ### 8.3 F5 — Claim-on-Suggest-Lifecycle (Modell B, D-55-B)
 
@@ -406,15 +409,29 @@ wird zum *suggest*-Zeitpunkt erzeugt, nicht erst beim approve.
   voluntary_ist)` (D-55-03). Die Suggestion-Struktur trägt **nur** diese
   backend-computed Felder — es gibt kein `voluntary_soll` /
   `voluntary_delta` darauf.
-- **`approve(rebooking_batch_id, hours, …)`** — HR-gated. Transitioniert
-  den State **zuerst** via `RebookingBatchService::update_state` — ein
-  state-conditional UPDATE `… WHERE id = ? AND state = 'pending' AND
-  deleted IS NULL` mit `rows_affected() == 1`-Guard (Pitfall 12) — und
-  schreibt nur bei Erfolg das Paar (§8.1, `VolunteerToExtra`) in
-  derselben Transaktion. Ein Double-Approve-Verlierer
-  (`rows_affected() == 0`) → `EntityAlreadyExists` → HTTP 409. `approve`
-  legt **keinen** zweiten Batch an; es transitioniert den bestehenden
-  pending-Batch.
+- **`approve(rebooking_batch_id, hours, …)`** — HR-gated. Der **Betrag
+  ist backend-autoritativ** (Fat-Backend / Modell B): der Client-Wert
+  `hours` wird **verworfen**; `approve` recomputet `proposed_hours =
+  min(|balance|, voluntary_ist)` fuer die Batch-Woche mit exakt derselben
+  Berechnung wie `suggest` (Report-Balance + VoluntaryStats ueber die
+  Mo..=So-Range). Ist der recomputete Betrag `<= 0` (nichts umzubuchen),
+  liefert es `ValidationError` → HTTP 422 — **keine** state-Transition,
+  **kein** Paar. Sonst transitioniert es den State **zuerst** via
+  `RebookingBatchService::update_state` — ein state-conditional UPDATE `…
+  WHERE id = ? AND state = 'pending' AND deleted IS NULL` mit
+  `rows_affected() == 1`-Guard (Pitfall 12), wobei der anfragende
+  HR-Principal als `approved_by` (Audit) durchgereicht wird — und
+  schreibt nur bei Erfolg das Paar (§8.1, `VolunteerToExtra`, der
+  backend-`proposed`-Betrag) in derselben Transaktion. Ein
+  Double-Approve-Verlierer (`rows_affected() == 0`) →
+  `EntityAlreadyExists` → HTTP 409. `approve` legt **keinen** zweiten
+  Batch an; es transitioniert den bestehenden pending-Batch und haengt
+  nach dem Pair-Write via
+  `RebookingBatchService::create_entries_for_batch` einen
+  `rebooking_batch_entry` an diesen **bestehenden** Batch — mit den
+  beiden Pair-ids + den Audit-Snapshots (`hours`, `balance_before`,
+  `voluntary_actual`, `voluntary_committed`) — und schliesst so die
+  Audit-Kette Batch → Entry → ExtraHours symmetrisch zu F3.
 - **`reject(rebooking_batch_id, …)`** — HR-gated; transitioniert den
   State `Pending → Rejected` via denselben conditional UPDATE. **Keine**
   Pair-Rows.

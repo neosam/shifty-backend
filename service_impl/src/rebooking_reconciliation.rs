@@ -151,6 +151,15 @@ impl<Deps: RebookingReconciliationServiceDeps> RebookingReconciliationService
             .check_permission(HR_PRIVILEGE, context)
             .await?;
 
+        // WR-02: serverseitige Validierung des Betrags (der FE-Modal-Guard ist
+        // nicht autoritativ). hours<=0 wuerde ein 0-/vorzeichen-invertiertes Pair
+        // erzeugen — hart ablehnen (inkl. NaN/Inf), bevor eine Tx/Row entsteht.
+        if hours <= 0.0 || !hours.is_finite() {
+            return Err(ServiceError::ValidationError(Arc::from([
+                service::ValidationFailureItem::InvalidValue("hours must be > 0".into()),
+            ])));
+        }
+
         let tx = self.transaction_dao.use_transaction(tx).await?;
 
         // ① + ② Pair-ExtraHours via single write-path.
@@ -291,10 +300,17 @@ impl<Deps: RebookingReconciliationServiceDeps> RebookingReconciliationService
     async fn approve(
         &self,
         rebooking_batch_id: Uuid,
-        hours: f32,
+        _hours: f32,
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError> {
+        // WR-04: Approver-Principal VOR dem HR-Gate lesen (check_permission
+        // konsumiert den Context). Full-Auth (kein Nutzer-Context) liefert None.
+        let approved_by = self
+            .permission_service
+            .current_user_id(context.clone())
+            .await?;
+
         // HR-Gate ZUERST (T-55-05).
         self.permission_service
             .check_permission(HR_PRIVILEGE, context)
@@ -309,30 +325,107 @@ impl<Deps: RebookingReconciliationServiceDeps> RebookingReconciliationService
             .await?
             .ok_or(ServiceError::EntityNotFound(rebooking_batch_id))?;
 
+        // CR-02 (Fat-Backend/Modell-B): der genehmigte Betrag ist backend-
+        // authoritativ. Der Client-Wert (`_hours`) wird VERWORFEN; stattdessen
+        // recomputet approve `proposed_hours = min(|balance|, voluntary_ist)` fuer
+        // die Batch-Woche mit exakt derselben Berechnung wie `suggest`
+        // (Wochen-Range Mo..=So). So kann HR weder mehr als die freiwilligen
+        // Ist-Stunden noch negative Stunden buchen.
+        let from_date = ShiftyDate::new(batch.iso_year, batch.iso_week, DayOfWeek::Monday)
+            .map_err(|_| ServiceError::InternalError)?;
+        let to_date = ShiftyDate::new(batch.iso_year, batch.iso_week, DayOfWeek::Sunday)
+            .map_err(|_| ServiceError::InternalError)?;
+
+        let report = self
+            .reporting_service
+            .get_report_for_employee_range(
+                &batch.sales_person_id,
+                from_date,
+                to_date,
+                false,
+                Authentication::Full,
+                Some(tx.clone()),
+            )
+            .await?;
+        let balance = report.balance_hours;
+
+        let stats = self
+            .voluntary_stats_service
+            .get_voluntary_stats(
+                batch.sales_person_id,
+                from_date,
+                to_date,
+                Authentication::Full,
+                Some(tx.clone()),
+            )
+            .await?;
+        let voluntary_ist = stats.ist_total.unwrap_or(0.0);
+        let voluntary_committed = stats.soll_total.unwrap_or(0.0);
+
+        let proposed = crate::reporting::proposed_hours(balance, voluntary_ist);
+        if proposed <= 0.0 || !proposed.is_finite() {
+            // Nichts umzubuchen (kein Defizit oder keine freiwilligen Ist-Stunden)
+            // → Validierungsfehler, kein state-Update, kein Pair.
+            return Err(ServiceError::ValidationError(Arc::from([
+                service::ValidationFailureItem::InvalidValue(
+                    "nothing to rebook (proposed hours <= 0)".into(),
+                ),
+            ])));
+        }
+
         // state-conditional UPDATE ZUERST (Pitfall 12): nur bei rows_affected==1
         // (kein EntityAlreadyExists) folgen die Pair-Writes. So entsteht das Pair
         // genau einmal; der Double-Approve-Verlierer bekommt Conflict (→ 409).
+        // WR-04: approved_by traegt den anfragenden HR-Principal (Audit).
         self.rebooking_batch_service
             .update_state(
                 rebooking_batch_id,
                 RebookingBatchState::Approved,
-                None,
+                approved_by,
                 Authentication::Full,
                 Some(tx.clone()),
             )
             .await?;
 
         // F5-Standard-Richtung: VolunteerToExtra (gedeckelter Mitarbeiter im
-        // Minus bucht freiwillige Stunden auf ExtraWork um). Single write-path.
-        self.rebook(
-            batch.sales_person_id,
-            RebookingDirection::VolunteerToExtra,
-            hours,
-            batch.iso_year,
-            batch.iso_week,
-            tx.clone(),
-        )
-        .await?;
+        // Minus bucht freiwillige Stunden auf ExtraWork um). Single write-path,
+        // backend-authoritativer Betrag `proposed`.
+        let (out_id, in_id) = self
+            .rebook(
+                batch.sales_person_id,
+                RebookingDirection::VolunteerToExtra,
+                proposed,
+                batch.iso_year,
+                batch.iso_week,
+                tx.clone(),
+            )
+            .await?;
+
+        // CR-01: Audit-Kette schliessen — Entry an den BESTEHENDEN pending-Batch
+        // haengen (nicht via create/neuen Batch), mit den Pair-ids + den
+        // Audit-Snapshots (symmetrisch zu rebook_manual, aber hier backend-befuellt).
+        let entry = RebookingBatchEntryEntity {
+            id: Uuid::nil(),
+            batch_id: rebooking_batch_id,
+            sales_person_id: batch.sales_person_id,
+            hours: proposed,
+            balance_before: balance,
+            voluntary_actual: voluntary_ist,
+            voluntary_committed,
+            extra_hours_out_id: Some(out_id),
+            extra_hours_in_id: Some(in_id),
+            created: time::PrimitiveDateTime::MIN,
+            deleted: None,
+            version: Uuid::nil(),
+        };
+        self.rebooking_batch_service
+            .create_entries_for_batch(
+                rebooking_batch_id,
+                &[entry],
+                Authentication::Full,
+                Some(tx.clone()),
+            )
+            .await?;
 
         self.transaction_dao.commit(tx).await?;
         Ok(())

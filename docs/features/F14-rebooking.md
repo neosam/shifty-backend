@@ -159,7 +159,7 @@ that flips `state = Approved` — that is how F5 guarantees the paired
 
 | Service | Tier | Purpose |
 | --- | --- | --- |
-| `RebookingBatchService` | Basic | HR-gated CRUD (find_by_id / find_by_sales_person_year_week / create) on `rebooking_batch` + entries, plus the Phase-55 F5-Model-B lifecycle: `create_pending_suggestion` (Claim-on-Suggest producer — INSERTs a `HrSuggestion`/`Pending` batch and claims the UNIQUE week-slot; a taken slot → `EntityAlreadyExists`), `find_pending_for_sales_person` (reader for `pending_rebooking_id`, returns only `Pending`), and `update_state` (race-safe state-conditional transition `Pending → Approved\|Rejected`; a second/already-decided transition → `EntityAlreadyExists` via `rows_affected()==0`, no version-guard). Deps: `RebookingBatchDao`, `PermissionService`, `ClockService`, `UuidService`, `TransactionDao`. No domain-service dep. |
+| `RebookingBatchService` | Basic | HR-gated CRUD (find_by_id / find_by_sales_person_year_week / create) on `rebooking_batch` + entries, plus the Phase-55 F5-Model-B lifecycle: `create_pending_suggestion` (Claim-on-Suggest producer — INSERTs a `HrSuggestion`/`Pending` batch and claims the UNIQUE week-slot; a taken slot → `EntityAlreadyExists`), `find_pending_for_sales_person` (reader for `pending_rebooking_id`, returns only `Pending`), `update_state` (race-safe state-conditional transition `Pending → Approved\|Rejected`; a second/already-decided transition → `EntityAlreadyExists` via `rows_affected()==0`, no version-guard; takes `approved_by` for the approver audit), and `create_entries_for_batch` (appends entries to an **existing** batch — used by F5-`approve` to close the audit chain after the pair-write, since `create` INSERTs a new batch). Deps: `RebookingBatchDao`, `PermissionService`, `ClockService`, `UuidService`, `TransactionDao`. No domain-service dep. |
 | `VoluntaryStatsService` | Business-Logic | Read-only F1/F2. Deps: `ExtraHoursService`, `EmployeeWorkDetailsService`, `SalesPersonService`, `PermissionService`, `TransactionDao`. HR-only via API-level None-redaction (not 403). |
 | `RebookingReconciliationService` | Business-Logic | Phase 55. The F3/F5 write orchestrator. Owns the single internal pair-write-path shared by F3 and F5-approve. Deps: `ExtraHoursService`, `RebookingBatchService`, `ReportingService`, `VoluntaryStatsService`, `PermissionService`, `TransactionDao`. All four methods HR-gated (T-55-05). See §8. |
 
@@ -365,11 +365,14 @@ over-committed pledges). F5-`approve` always uses `VolunteerToExtra`.
 ### 8.2 F3 — one-shot manual rebooking (REB-MANUAL-01/02/03)
 
 `rebook_manual(sales_person_id, direction, hours, iso_year, iso_week,
-…)` HR-gates first, then in **one** transaction: writes the pair (§8.1),
-creates a `rebooking_batch` with `kind = Manual`, `state = Approved`,
-and a `rebooking_batch_entry` carrying the two pair ids. There is **no**
-suggest/pending intermediate step. A taken UNIQUE week-slot →
-`EntityAlreadyExists` → HTTP 409.
+…)` HR-gates first, then **validates the amount server-side** (`hours >
+0`, else `ValidationError` → HTTP 422 — the client-side modal guard is
+not authoritative; a direct API call with `0`/negative hours is rejected
+before any row is written), then in **one** transaction: writes the pair
+(§8.1), creates a `rebooking_batch` with `kind = Manual`, `state =
+Approved`, and a `rebooking_batch_entry` carrying the two pair ids.
+There is **no** suggest/pending intermediate step. A taken UNIQUE
+week-slot → `EntityAlreadyExists` → HTTP 409.
 
 ### 8.3 F5 — Claim-on-Suggest lifecycle (Model B, D-55-B)
 
@@ -389,14 +392,27 @@ created at *suggest* time, not at approve time.
   voluntary_ist)` (D-55-03). The suggestion struct carries **only**
   these backend-computed fields — there is no `voluntary_soll` /
   `voluntary_delta` on it.
-- **`approve(rebooking_batch_id, hours, …)`** — HR-gated. Transitions
-  state **first** via `RebookingBatchService::update_state` — a
-  state-conditional UPDATE `… WHERE id = ? AND state = 'pending' AND
-  deleted IS NULL` with a `rows_affected() == 1` guard (Pitfall 12) —
-  and only on success writes the pair (§8.1, `VolunteerToExtra`) in the
+- **`approve(rebooking_batch_id, hours, …)`** — HR-gated. The **amount
+  is backend-authoritative** (Fat-Backend / Model B): the client-supplied
+  `hours` is **discarded**; `approve` recomputes `proposed_hours =
+  min(|balance|, voluntary_ist)` for the batch's ISO week with exactly
+  the same computation as `suggest` (report balance + voluntary stats
+  over the Mon..=Sun range). If the recomputed amount is `<= 0` (nothing
+  to rebook), it returns `ValidationError` → HTTP 422 — **no** state
+  transition, **no** pair. Otherwise it transitions state **first** via
+  `RebookingBatchService::update_state` — a state-conditional UPDATE `…
+  WHERE id = ? AND state = 'pending' AND deleted IS NULL` with a
+  `rows_affected() == 1` guard (Pitfall 12), passing the requesting HR
+  principal as `approved_by` (audit) — and only on success writes the
+  pair (§8.1, `VolunteerToExtra`, the backend `proposed` amount) in the
   same transaction. A double-approve loser (`rows_affected() == 0`) →
   `EntityAlreadyExists` → HTTP 409. `approve` does **not** create a
-  second batch; it transitions the existing pending one.
+  second batch; it transitions the existing pending one and, after the
+  pair-write, appends a `rebooking_batch_entry` to that **existing**
+  batch via `RebookingBatchService::create_entries_for_batch` carrying
+  the two pair ids + the audit snapshots (`hours`, `balance_before`,
+  `voluntary_actual`, `voluntary_committed`) — closing the audit chain
+  Batch → Entry → ExtraHours symmetrically to F3.
 - **`reject(rebooking_batch_id, …)`** — HR-gated; transitions state
   `Pending → Rejected` via the same conditional UPDATE. **No** pair
   rows are written.
