@@ -534,7 +534,7 @@ Dry-Run-Vorschau-Header).
 |-------|----------------|--------|-----------|
 | 54. Data-Model + Voluntary Statistics (F1 + F2) | 9/9 | Complete | 2026-07-10 |
 | 54.5. Voluntary-Soll Absence-Aware-Angleichung (Hotfix v2.6.1) | 2/2 | Complete | 2026-07-10 |
-| 55. Manuelle Umbuchung + HR-Alert-Modal (F3 + F5) | 6/6 | Complete   | 2026-07-24 |
+| 55. Manuelle Umbuchung + HR-Alert-Modal (F3 + F5) | 6/6 | Complete    | 2026-07-24 |
 | 56. Wochen-Cron + Rollout-Backfill (F4) | 0/? | Not started | - |
 
 Requirements-Coverage: 17/17 mapped (5 → P54, 7 → P55, 5 → P56).

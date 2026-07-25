@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v2.6
 milestone_name: — Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
-current_phase: 55
-current_phase_name: manual-rebooking-hr-alert
+current_phase: 56
+current_phase_name: F4
 status: executing
-stopped_at: Phase 55 neu geplant — 6 Pläne VERIFIED PASS, bereit zur Ausführung
-last_updated: "2026-07-23T22:29:04.811Z"
+stopped_at: Completed 54-02 Plan (Basic-Tier RebookingBatchService)
+last_updated: "2026-07-25T09:19:27.117Z"
 last_activity: 2026-07-25
-last_activity_desc: "Phase 55 Blocker-Fix nach Code-Review: CR-01/CR-02/WR-02/WR-04 behoben (RED 54e86d3a, GREEN 4bc9b612)"
+last_activity_desc: Phase 55 complete, transitioned to Phase 56
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 17
-  completed_plans: 16
-  percent: 50
+  completed_plans: 17
+  percent: 75
 ---
 
 # Project State: Shifty Backend
@@ -27,16 +27,16 @@ progress:
 - **Latest milestone archive**: `.planning/milestones/v2.5-ROADMAP.md`
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
 - **Last shipped/closed**: **v2.5 Weekly-Overview Performance & Freiwilligen-Abwesenheiten** (shipped + archiviert 2026-07-06, Phasen 52–53, 8 Pläne + 3 Follow-Ups, 9/9 Requirements WOP-01..05 + VAA-01..04, verified_closeout, Audit `passed`)
-- **Current milestone**: **v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter** (planning; Roadmap 2026-07-06 geschrieben)
-- **Current focus**: **Phase 55** — Manuelle Umbuchung + HR-Alert-Modal (F3 + F5). RebookingReconciliationService.rebook_manual + suggest/approve/reject-Flow + FE-Alert-Banner + Vorschlags-Modal. Phase 54.5 ist als v2.6.1 ge-shippt (Voluntary-Soll whole-week-out bei Absence-Wochen); Milestone v2.6 bleibt offen.
+- **Current milestone**: **v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter** (executing; Phasen 54 + 55 complete, Phase 56 F4 offen)
+- **Current focus**: **Phase 56** — Wochen-Cron + Rollout-Backfill (F4). Automatischer Wochen-Job verarbeitet die Vorwoche und bucht Überschüsse als Ausgleich (Rebooking-Batch kind=auto_cron); rückwirkender Backfill-Command beim Rollout. Phasen 54 (Datenmodell) + 55 (F3 manuelle Umbuchung + F5 HR-Alert/Vorschlags-Modal) sind abgeschlossen, UAT durchgewunken, reale Validierung auf INT ausstehend. Phase 54.5 ist als v2.6.1 ge-shippt.
 - **Snapshot-Schema-Version**: aktuell **12**. Potenzieller Bump 12→13 in **Phase 56** discuss-phase zu pinnen (REB-AUTO-05; Beweislast beim „Nein"-Zweig = Straddling-Golden-Snapshot).
 
 ## Current Position
 
-Phase: 55 (manual-rebooking-hr-alert) — EXECUTING
-Plan: 6 of 6
-Status: Ready to execute
-Last activity: 2026-07-23 — Phase 55 execution started
+Phase: 56 — Wochen-Cron + Rollout-Backfill (F4)
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-07-25 — Phase 55 complete (UAT 2/2 pass, INT-Validierung ausstehend), transitioned to Phase 56
 
 ## Quick Tasks Completed
 

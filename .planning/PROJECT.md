@@ -1,8 +1,8 @@
 ---
 type: project_charter
-last_updated: 2026-07-06
+last_updated: 2026-07-25
 last_milestone: v2.5 Weekly-Overview Performance & Freiwilligen-Abwesenheiten (shipped 2026-07-06, Phasen 52-53, 9/9 Requirements, Audit passed)
-current_milestone: v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter (planning)
+current_milestone: v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter (executing — Phasen 54+55 complete, Phase 56 F4 offen)
 ---
 
 # Shifty — Project Charter
