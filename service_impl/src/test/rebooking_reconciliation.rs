@@ -816,10 +816,13 @@ mod service_tests {
                 assert_eq!(state, RebookingBatchState::Approved);
                 Ok(())
             });
-        // Danach der Pair-Batch-Create (kind=HrSuggestion via rebook)? Nein —
-        // approve transitioniert den bestehenden Batch; der Pair-Write geht nur
-        // ueber ExtraHoursService (2x) + Entry-Update. Kein zweiter Batch-create.
-        // Wir erlauben create NICHT.
+        // approve transitioniert den bestehenden Batch; der Pair-Write geht ueber
+        // ExtraHoursService (2x) + create_entries_for_batch (Entry an bestehenden
+        // Batch, CR-01). Kein zweiter Batch-create.
+        rebooking_batch_service
+            .expect_create_entries_for_batch()
+            .times(1)
+            .returning(|_, _, _, _| Ok(()));
 
         let created: Arc<std::sync::Mutex<Vec<ExtraHours>>> =
             Arc::new(std::sync::Mutex::new(Vec::new()));
@@ -833,12 +836,13 @@ mod service_tests {
                 Ok(eh.clone())
             });
 
+        // balance=-8, ist=5 → proposed = 5 (backend-authoritativ, CR-02).
         let service = build_service(
             extra_hours_service,
             rebooking_batch_service,
-            MockReportingService::new(),
-            MockVoluntaryStatsService::new(),
-            perm_ok(),
+            reporting_with_balance(-8.0),
+            stats_with_ist(5.0),
+            perm_ok_with_user("hr-user"),
             tx_ok(),
         );
 
@@ -855,6 +859,298 @@ mod service_tests {
         assert_eq!(created.lock().unwrap().len(), 2, "approve must write exactly the pair");
         for row in created.lock().unwrap().iter() {
             assert_eq!(row.source, ExtraHoursSource::Rebooking);
+        }
+    }
+
+    // ─── CR-01/CR-02/WR-02/WR-04: Post-Review-Blocker-Fixes (TDD-RED-first) ──
+
+    /// Permission-Mock, das zusaetzlich `current_user_id` beantwortet (fuer den
+    /// approved_by-Audit, WR-04). HR-Gate passt jeden Context durch; der
+    /// Principal ist ein fixer Name.
+    fn perm_ok_with_user(user: &'static str) -> MockPermissionService {
+        let mut p = MockPermissionService::new();
+        p.expect_check_permission().returning(|_, _| Ok(()));
+        p.expect_current_user_id()
+            .returning(move |_| Ok(Some(Arc::from(user))));
+        p
+    }
+
+    /// Baut einen Reporting-Mock, der fuer die Wochen-Range eine feste Balance
+    /// liefert (fuer die approve-Recompute, CR-02).
+    fn reporting_with_balance(balance: f32) -> MockReportingService {
+        let mut r = MockReportingService::new();
+        r.expect_get_report_for_employee_range()
+            .returning(move |_, _, _, _, _, _| Ok(make_report(balance, 0.0)));
+        r
+    }
+
+    /// Baut einen VoluntaryStats-Mock, der ein festes ist_total liefert.
+    fn stats_with_ist(ist: f32) -> MockVoluntaryStatsService {
+        let mut v = MockVoluntaryStatsService::new();
+        v.expect_get_voluntary_stats()
+            .returning(move |_, _, _, _, _| Ok(make_voluntary_stats(ist)));
+        v
+    }
+
+    /// CR-01: approve schreibt nach dem Pair einen Batch-Entry an den BESTEHENDEN
+    /// Batch (nicht via create/neuen Batch, sondern via create_entries_for_batch)
+    /// mit den beiden Pair-ids gesetzt.
+    #[tokio::test]
+    async fn approve_persists_batch_entry_with_pair_ids() {
+        let batch_id = Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_00BB_0100);
+        let pending = make_batch(RebookingBatchKind::HrSuggestion, RebookingBatchState::Pending);
+
+        type CapturedEntries = (Uuid, Vec<dao::rebooking_batch::RebookingBatchEntryEntity>);
+        let captured: Arc<std::sync::Mutex<Vec<CapturedEntries>>> =
+            Arc::new(std::sync::Mutex::new(Vec::new()));
+        let captured_cap = captured.clone();
+
+        let mut rebooking_batch_service = MockRebookingBatchService::new();
+        rebooking_batch_service
+            .expect_find_by_id()
+            .returning(move |_, _, _| Ok(Some(pending.clone())));
+        rebooking_batch_service
+            .expect_update_state()
+            .times(1)
+            .returning(|_, state, approved_by, _, _| {
+                assert_eq!(state, RebookingBatchState::Approved);
+                assert!(approved_by.is_some(), "approved_by must be threaded (WR-04)");
+                Ok(())
+            });
+        // create darf NICHT aufgerufen werden — approve haengt an den bestehenden Batch.
+        rebooking_batch_service
+            .expect_create_entries_for_batch()
+            .times(1)
+            .returning(move |batch_id_arg, entries, _, _| {
+                captured_cap
+                    .lock()
+                    .unwrap()
+                    .push((batch_id_arg, entries.to_vec()));
+                Ok(())
+            });
+
+        let mut extra_hours_service = MockExtraHoursService::new();
+        extra_hours_service
+            .expect_create()
+            .times(2)
+            .returning(|eh, _, _| Ok(eh.clone()));
+
+        // balance=-8, ist=5 → proposed = min(8,5) = 5.
+        let service = build_service(
+            extra_hours_service,
+            rebooking_batch_service,
+            reporting_with_balance(-8.0),
+            stats_with_ist(5.0),
+            perm_ok_with_user("hr-user"),
+            tx_ok(),
+        );
+
+        service
+            .approve(batch_id, 5.0, Authentication::Context(()), None)
+            .await
+            .expect("approve must succeed");
+
+        let cap = captured.lock().unwrap();
+        assert_eq!(cap.len(), 1, "exactly one entry-append");
+        let (linked_batch_id, entries) = &cap[0];
+        assert_eq!(*linked_batch_id, batch_id, "entry must link to the existing batch");
+        assert_eq!(entries.len(), 1, "exactly one entry");
+        assert!(
+            entries[0].extra_hours_out_id.is_some() && entries[0].extra_hours_in_id.is_some(),
+            "entry must carry both pair ids"
+        );
+        assert!(
+            (entries[0].hours - 5.0).abs() < 1e-6,
+            "entry.hours must be the backend amount 5.0, got {}",
+            entries[0].hours
+        );
+    }
+
+    /// CR-02: approve verwirft den Client-Wert und bucht den backend-authoritativen
+    /// Betrag proposed = min(|balance|, voluntary_ist). Der Client schickt 999, das
+    /// Backend bucht 5.
+    #[tokio::test]
+    async fn approve_books_backend_amount_ignoring_client_hours() {
+        let batch_id = Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_00BB_0100);
+        let pending = make_batch(RebookingBatchKind::HrSuggestion, RebookingBatchState::Pending);
+
+        let created: Arc<std::sync::Mutex<Vec<ExtraHours>>> =
+            Arc::new(std::sync::Mutex::new(Vec::new()));
+        let created_cap = created.clone();
+
+        let mut rebooking_batch_service = MockRebookingBatchService::new();
+        rebooking_batch_service
+            .expect_find_by_id()
+            .returning(move |_, _, _| Ok(Some(pending.clone())));
+        rebooking_batch_service
+            .expect_update_state()
+            .returning(|_, _, _, _, _| Ok(()));
+        rebooking_batch_service
+            .expect_create_entries_for_batch()
+            .returning(|_, _, _, _| Ok(()));
+
+        let mut extra_hours_service = MockExtraHoursService::new();
+        extra_hours_service
+            .expect_create()
+            .times(2)
+            .returning(move |eh, _, _| {
+                created_cap.lock().unwrap().push(eh.clone());
+                Ok(eh.clone())
+            });
+
+        // balance=-8, ist=5 → proposed = 5. Client schickt 999.
+        let service = build_service(
+            extra_hours_service,
+            rebooking_batch_service,
+            reporting_with_balance(-8.0),
+            stats_with_ist(5.0),
+            perm_ok_with_user("hr-user"),
+            tx_ok(),
+        );
+
+        service
+            .approve(batch_id, 999.0, Authentication::Context(()), None)
+            .await
+            .expect("approve must succeed");
+
+        let rows = created.lock().unwrap();
+        let inn = rows
+            .iter()
+            .find(|r| r.category == ExtraHoursCategory::ExtraWork)
+            .expect("ExtraWork in-row");
+        assert!(
+            (inn.amount - 5.0).abs() < 1e-6,
+            "backend must book proposed=5.0, not the client 999, got {}",
+            inn.amount
+        );
+    }
+
+    /// CR-02: approve mit backend-recomputed proposed == 0 (nichts umzubuchen) →
+    /// ValidationError, KEIN Pair, KEIN state-Update.
+    #[tokio::test]
+    async fn approve_with_zero_proposed_is_validation_error() {
+        let batch_id = Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_00BB_0100);
+        let pending = make_batch(RebookingBatchKind::HrSuggestion, RebookingBatchState::Pending);
+
+        let mut rebooking_batch_service = MockRebookingBatchService::new();
+        rebooking_batch_service
+            .expect_find_by_id()
+            .returning(move |_, _, _| Ok(Some(pending.clone())));
+        // update_state / create_entries duerfen NICHT aufgerufen werden.
+
+        // ExtraHoursService::create darf NICHT aufgerufen werden.
+        let extra_hours_service = MockExtraHoursService::new();
+
+        // commit darf NICHT aufgerufen werden (Fehler-Pfad).
+        let mut transaction_dao = dao::MockTransactionDao::new();
+        transaction_dao
+            .expect_use_transaction()
+            .returning(|_| Ok(dao::MockTransaction));
+
+        // balance=0 → proposed = min(0, 5) = 0.
+        let service = build_service(
+            extra_hours_service,
+            rebooking_batch_service,
+            reporting_with_balance(0.0),
+            stats_with_ist(5.0),
+            perm_ok_with_user("hr-user"),
+            transaction_dao,
+        );
+
+        let result = service
+            .approve(batch_id, 999.0, Authentication::Context(()), None)
+            .await;
+        assert!(
+            matches!(result, Err(ServiceError::ValidationError(_))),
+            "zero proposed must be ValidationError, got {result:?}"
+        );
+    }
+
+    /// WR-04: approve reicht den anfragenden Principal als approved_by durch.
+    #[tokio::test]
+    async fn approve_threads_approver_principal() {
+        let batch_id = Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_00BB_0100);
+        let pending = make_batch(RebookingBatchKind::HrSuggestion, RebookingBatchState::Pending);
+
+        let seen_approver: Arc<std::sync::Mutex<Option<Arc<str>>>> =
+            Arc::new(std::sync::Mutex::new(None));
+        let seen_cap = seen_approver.clone();
+
+        let mut rebooking_batch_service = MockRebookingBatchService::new();
+        rebooking_batch_service
+            .expect_find_by_id()
+            .returning(move |_, _, _| Ok(Some(pending.clone())));
+        rebooking_batch_service
+            .expect_update_state()
+            .returning(move |_, _, approved_by, _, _| {
+                *seen_cap.lock().unwrap() = approved_by;
+                Ok(())
+            });
+        rebooking_batch_service
+            .expect_create_entries_for_batch()
+            .returning(|_, _, _, _| Ok(()));
+
+        let mut extra_hours_service = MockExtraHoursService::new();
+        extra_hours_service
+            .expect_create()
+            .returning(|eh, _, _| Ok(eh.clone()));
+
+        let service = build_service(
+            extra_hours_service,
+            rebooking_batch_service,
+            reporting_with_balance(-8.0),
+            stats_with_ist(5.0),
+            perm_ok_with_user("approver-hr"),
+            tx_ok(),
+        );
+
+        service
+            .approve(batch_id, 5.0, Authentication::Context(()), None)
+            .await
+            .expect("approve must succeed");
+
+        let approver = seen_approver.lock().unwrap().clone();
+        assert_eq!(
+            approver.as_deref(),
+            Some("approver-hr"),
+            "approved_by must carry the requesting principal"
+        );
+    }
+
+    /// WR-02: rebook_manual mit hours <= 0 → ValidationError, KEIN Pair, KEIN Batch.
+    #[tokio::test]
+    async fn rebook_manual_rejects_non_positive_hours() {
+        // Keine ExtraHours/Batch-Calls erwartet; commit darf nicht laufen.
+        let mut transaction_dao = dao::MockTransactionDao::new();
+        transaction_dao
+            .expect_use_transaction()
+            .returning(|_| Ok(dao::MockTransaction));
+
+        let service = build_service(
+            MockExtraHoursService::new(),
+            MockRebookingBatchService::new(),
+            MockReportingService::new(),
+            MockVoluntaryStatsService::new(),
+            perm_ok(),
+            transaction_dao,
+        );
+
+        for bad in [0.0_f32, -1.0_f32] {
+            let result = service
+                .rebook_manual(
+                    sp_id(),
+                    RebookingDirection::VolunteerToExtra,
+                    bad,
+                    2026,
+                    12,
+                    Authentication::Context(()),
+                    None,
+                )
+                .await;
+            assert!(
+                matches!(result, Err(ServiceError::ValidationError(_))),
+                "hours={bad} must be ValidationError, got {result:?}"
+            );
         }
     }
 

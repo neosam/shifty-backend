@@ -325,4 +325,70 @@ impl<Deps: RebookingBatchServiceDeps> RebookingBatchService for RebookingBatchSe
         self.transaction_dao.commit(tx).await?;
         Ok(())
     }
+
+    async fn create_entries_for_batch(
+        &self,
+        batch_id: Uuid,
+        entries: &[RebookingBatchEntryEntity],
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<(), ServiceError> {
+        // HR-Gate an erster Stelle (T-55-02), vor jedem Datenabruf.
+        self.permission_service
+            .check_permission(HR_PRIVILEGE, context)
+            .await?;
+
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+
+        let now = self.clock_service.date_time_now();
+
+        // Defensiv id/version/created/batch_id fuellen (analog `create`). Der
+        // batch_id-Parameter ist autoritativ und ueberschreibt jedes Entry-Feld
+        // (Entry haengt an den bestehenden Batch).
+        let normalized_entries: Vec<RebookingBatchEntryEntity> = entries
+            .iter()
+            .map(|entry| RebookingBatchEntryEntity {
+                id: if entry.id == Uuid::nil() {
+                    self.uuid_service.new_uuid(&format!(
+                        "{REBOOKING_BATCH_SERVICE_PROCESS}::create_entries_for_batch entry id"
+                    ))
+                } else {
+                    entry.id
+                },
+                batch_id,
+                sales_person_id: entry.sales_person_id,
+                hours: entry.hours,
+                balance_before: entry.balance_before,
+                voluntary_actual: entry.voluntary_actual,
+                voluntary_committed: entry.voluntary_committed,
+                extra_hours_out_id: entry.extra_hours_out_id,
+                extra_hours_in_id: entry.extra_hours_in_id,
+                created: if entry.created == time::PrimitiveDateTime::MIN {
+                    now
+                } else {
+                    entry.created
+                },
+                deleted: entry.deleted,
+                version: if entry.version == Uuid::nil() {
+                    self.uuid_service.new_uuid(&format!(
+                        "{REBOOKING_BATCH_SERVICE_PROCESS}::create_entries_for_batch entry version"
+                    ))
+                } else {
+                    entry.version
+                },
+            })
+            .collect();
+
+        self.rebooking_batch_dao
+            .create_entries_for_batch(
+                batch_id,
+                &normalized_entries,
+                REBOOKING_BATCH_SERVICE_PROCESS,
+                tx.clone(),
+            )
+            .await?;
+
+        self.transaction_dao.commit(tx).await?;
+        Ok(())
+    }
 }

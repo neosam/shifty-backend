@@ -419,3 +419,67 @@ async fn create_and_update_state_are_hr_gated() {
         "non-HR find_pending must be Forbidden, got {find_res:?}"
     );
 }
+
+/// CR-01 (Fix): `create_entries_for_batch` haengt einen Entry an einen
+/// BESTEHENDEN Batch (hier: pending, wie im F5-approve-Pfad) und persistiert die
+/// Pair-ids + Audit-Snapshots. Der Entry ist danach via DAO auffindbar und mit
+/// dem Batch verknuepft.
+#[tokio::test]
+async fn create_entries_for_batch_appends_entry_to_existing_batch() {
+    let pool = setup_pool().await;
+    let created = {
+        let service = build_service(pool.clone(), build_perm(true));
+        service
+            .create_pending_suggestion(sp_id(), 2063, 22, Authentication::Full, None)
+            .await
+            .expect("create pending")
+    };
+
+    let out_id = Uuid::new_v4();
+    let in_id = Uuid::new_v4();
+    let entry = RebookingBatchEntryEntity {
+        id: Uuid::nil(),
+        batch_id: Uuid::nil(), // wird auf created.id gesetzt
+        sales_person_id: sp_id(),
+        hours: 5.0,
+        balance_before: -8.0,
+        voluntary_actual: 5.0,
+        voluntary_committed: 10.0,
+        extra_hours_out_id: Some(out_id),
+        extra_hours_in_id: Some(in_id),
+        created: time::PrimitiveDateTime::MIN,
+        deleted: None,
+        version: Uuid::nil(),
+    };
+
+    let service = build_service(pool.clone(), build_perm(true));
+    service
+        .create_entries_for_batch(created.id, &[entry], Authentication::Full, None)
+        .await
+        .expect("create_entries_for_batch must succeed");
+
+    // Read-back ueber den DAO.
+    let dao = RebookingBatchDaoImpl::new(pool.clone());
+    let tx_dao = TransactionDaoImpl::new(pool.clone());
+    let tx = dao::TransactionDao::use_transaction(&tx_dao, None)
+        .await
+        .expect("tx");
+    let entries = dao::rebooking_batch::RebookingBatchDao::list_entries_for_batch(
+        &dao,
+        created.id,
+        tx.clone(),
+    )
+    .await
+    .expect("list_entries_for_batch");
+    dao::TransactionDao::commit(&tx_dao, tx).await.expect("commit");
+
+    assert_eq!(entries.len(), 1, "exactly one entry appended to the batch");
+    let e = &entries[0];
+    assert_eq!(e.batch_id, created.id, "entry linked to the existing batch");
+    assert_eq!(e.extra_hours_out_id, Some(out_id));
+    assert_eq!(e.extra_hours_in_id, Some(in_id));
+    assert!((e.hours - 5.0).abs() < 1e-6);
+    assert!((e.balance_before - (-8.0)).abs() < 1e-6);
+    assert!((e.voluntary_actual - 5.0).abs() < 1e-6);
+    assert!((e.voluntary_committed - 10.0).abs() < 1e-6);
+}

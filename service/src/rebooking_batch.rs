@@ -110,4 +110,16 @@ pub trait RebookingBatchService {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError>;
+
+    /// Phase 55 (CR-01-Fix): haengt Entries an einen BEREITS existierenden Batch
+    /// an (der pending-Batch aus `create_pending_suggestion`). Der `batch_id`
+    /// verlinkt jeden Entry. Genutzt vom F5-approve-Pfad, um nach dem Pair-Write
+    /// die Audit-Kette Batch → Entry → ExtraHours zu schliessen. HR-gated.
+    async fn create_entries_for_batch(
+        &self,
+        batch_id: Uuid,
+        entries: &[RebookingBatchEntryEntity],
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<(), ServiceError>;
 }

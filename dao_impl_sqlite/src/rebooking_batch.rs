@@ -482,6 +482,64 @@ impl RebookingBatchDao for RebookingBatchDaoImpl {
         .map(RebookingBatchEntryEntity::try_from)
         .collect::<Result<Arc<[_]>, _>>()?)
     }
+
+    async fn create_entries_for_batch(
+        &self,
+        batch_id: Uuid,
+        entries: &[RebookingBatchEntryEntity],
+        process: &str,
+        tx: Self::Transaction,
+    ) -> Result<(), DaoError> {
+        // CR-01-Fix: INSERT der Entries an einen bestehenden Batch. `batch_id`
+        // ueberschreibt das Feld jedes Entries (der Batch existiert bereits, wurde
+        // NICHT hier angelegt). Gleiches INSERT-Muster wie in
+        // `create_batch_with_entries`.
+        for entry in entries {
+            let e_id = entry.id.as_bytes().to_vec();
+            let e_batch = batch_id.as_bytes().to_vec();
+            let e_sp = entry.sales_person_id.as_bytes().to_vec();
+            let e_hours = entry.hours as f64;
+            let e_balance = entry.balance_before as f64;
+            let e_va = entry.voluntary_actual as f64;
+            let e_vc = entry.voluntary_committed as f64;
+            let e_out = entry.extra_hours_out_id.map(|u| u.as_bytes().to_vec());
+            let e_in = entry.extra_hours_in_id.map(|u| u.as_bytes().to_vec());
+            let e_created = entry.created.format(&Iso8601::DATE_TIME).map_db_error()?;
+            let e_deleted = entry
+                .deleted
+                .map(|d| d.format(&Iso8601::DATE_TIME))
+                .transpose()
+                .map_db_error()?;
+            let e_version = entry.version.as_bytes().to_vec();
+
+            query!(
+                r#"INSERT INTO rebooking_batch_entry
+                       (id, batch_id, sales_person_id, hours, balance_before,
+                        voluntary_actual, voluntary_committed,
+                        extra_hours_out_id, extra_hours_in_id,
+                        created, deleted, update_process, update_version)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
+                e_id,
+                e_batch,
+                e_sp,
+                e_hours,
+                e_balance,
+                e_va,
+                e_vc,
+                e_out,
+                e_in,
+                e_created,
+                e_deleted,
+                process,
+                e_version,
+            )
+            .execute(tx.tx.lock().await.as_mut())
+            .await
+            .map_db_error()?;
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]

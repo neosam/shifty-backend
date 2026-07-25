@@ -113,6 +113,19 @@ pub trait RebookingBatchDao {
         tx: Self::Transaction,
     ) -> Result<Arc<[RebookingBatchEntryEntity]>, DaoError>;
 
+    /// Phase 55 (CR-01-Fix): haengt Entries an einen BEREITS existierenden Batch
+    /// an (kein Batch-INSERT). Der `batch_id`-Parameter ueberschreibt das
+    /// `batch_id`-Feld jedes Entries. Wird vom F5-approve-Pfad genutzt, um nach
+    /// dem Pair-Write die Audit-Kette Batch → Entry → ExtraHours zu schliessen
+    /// (der pending-Batch existiert seit `create_pending_suggestion` bereits).
+    async fn create_entries_for_batch(
+        &self,
+        batch_id: Uuid,
+        entries: &[RebookingBatchEntryEntity],
+        process: &str,
+        tx: Self::Transaction,
+    ) -> Result<(), DaoError>;
+
     /// Race-sichere State-Transition (Phase 55, HR-ALERT-03): hebt einen
     /// `state='pending'`-Batch atomar auf `new_state` (`Approved`|`Rejected`).
     /// Der `WHERE state='pending'`-Guard ist der harte Diskriminator — KEIN
