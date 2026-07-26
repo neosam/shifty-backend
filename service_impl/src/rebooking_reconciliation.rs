@@ -25,14 +25,19 @@ use dao::rebooking_batch::{
 use dao::TransactionDao;
 use service::extra_hours::{ExtraHours, ExtraHoursCategory, ExtraHoursService, ExtraHoursSource};
 use service::permission::{Authentication, HR_PRIVILEGE};
+use service::clock::ClockService;
+use service::employee_work_details::EmployeeWorkDetailsService;
 use service::rebooking_batch::RebookingBatchService;
 use service::rebooking_reconciliation::{
-    RebookingDirection, RebookingReconciliationService, RebookingSuggestion,
+    BackfillPreviewItem, RebookingDirection, RebookingReconciliationService, RebookingSuggestion,
+    RunForWeekOutcome, SkipReason,
 };
 use service::reporting::ReportingService;
+use service::toggle::ToggleService;
 use service::voluntary_stats::VoluntaryStatsService;
+use service::week_status::{WeekStatus, WeekStatusService};
 use service::{PermissionService, ServiceError};
-use shifty_utils::{DayOfWeek, ShiftyDate};
+use shifty_utils::{DayOfWeek, ShiftyDate, ShiftyWeek};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -42,8 +47,28 @@ gen_service_impl! {
         RebookingBatchService: RebookingBatchService<Transaction = Self::Transaction, Context = Self::Context> = rebooking_batch_service,
         ReportingService: ReportingService<Transaction = Self::Transaction, Context = Self::Context> = reporting_service,
         VoluntaryStatsService: VoluntaryStatsService<Transaction = Self::Transaction, Context = Self::Context> = voluntary_stats_service,
+        WeekStatusService: WeekStatusService<Transaction = Self::Transaction, Context = Self::Context> = week_status_service,
+        EmployeeWorkDetailsService: EmployeeWorkDetailsService<Transaction = Self::Transaction, Context = Self::Context> = employee_work_details_service,
+        ToggleService: ToggleService<Transaction = Self::Transaction, Context = Self::Context> = toggle_service,
+        ClockService: ClockService = clock_service,
         PermissionService: PermissionService<Context = Self::Context> = permission_service,
         TransactionDao: TransactionDao<Transaction = Self::Transaction> = transaction_dao,
+    }
+}
+
+/// Reine, testbare Ueberschuss-Formel (F4 core, REB-AUTO-01): der buchbare
+/// Ausgleich einer Woche ist `Ist - (Soll + committed_voluntary)`, geklemmt auf
+/// `>= 0`. Nicht-endliche Eingaben (NaN/Inf) ergeben `0.0` (defensiver Skip statt
+/// Panik / Muell-Buchung).
+pub(crate) fn week_excess(ist: f32, soll: f32, committed_voluntary: f32) -> f32 {
+    if !ist.is_finite() || !soll.is_finite() || !committed_voluntary.is_finite() {
+        return 0.0;
+    }
+    let excess = ist - (soll + committed_voluntary);
+    if excess > 0.0 {
+        excess
+    } else {
+        0.0
     }
 }
 
@@ -126,6 +151,76 @@ impl<Deps: RebookingReconciliationServiceDeps> RebookingReconciliationServiceImp
             .await?;
 
         Ok((out.id, inn.id))
+    }
+
+    /// Baut eine `RebookingBatchEntity` fuer den F4-Auto-Cron/Backfill (kein
+    /// Entry — der Batch dient als Slot-Claim + Audit; das Pair haengt indirekt
+    /// via UNIQUE-Slot). `id`/`created`/`version` werden vom Basic-Service
+    /// defensiv gesetzt.
+    fn make_batch(
+        &self,
+        sales_person_id: Uuid,
+        iso_year: u32,
+        iso_week: u8,
+        kind: RebookingBatchKind,
+        state: RebookingBatchState,
+    ) -> RebookingBatchEntity {
+        RebookingBatchEntity {
+            id: Uuid::nil(),
+            sales_person_id,
+            iso_year,
+            iso_week,
+            kind,
+            state,
+            created: time::PrimitiveDateTime::MIN,
+            approved: None,
+            approved_by: None,
+            deleted: None,
+            version: Uuid::nil(),
+        }
+    }
+
+    /// Liest die Wochen-Freiwilligen-Kennzahlen `(ist, soll, committed)` fuer die
+    /// ISO-Woche (Range Mo..=So) aus `VoluntaryStats`. `committed == soll ==
+    /// soll_total` (committed-voluntary-target); `ist == ist_total`. `None`-Felder
+    /// (z. B. Nicht-HR / Nicht-Freiwilliger) werden defensiv auf `0.0` gemappt.
+    async fn week_voluntary_figures(
+        &self,
+        sales_person_id: Uuid,
+        iso_year: u32,
+        iso_week: u8,
+        tx: Deps::Transaction,
+    ) -> Result<(f32, f32, f32), ServiceError> {
+        let from_date = ShiftyDate::new(iso_year, iso_week, DayOfWeek::Monday)
+            .map_err(|_| ServiceError::InternalError)?;
+        let to_date = ShiftyDate::new(iso_year, iso_week, DayOfWeek::Sunday)
+            .map_err(|_| ServiceError::InternalError)?;
+
+        let stats = self
+            .voluntary_stats_service
+            .get_voluntary_stats(
+                sales_person_id,
+                from_date,
+                to_date,
+                Authentication::Full,
+                Some(tx),
+            )
+            .await?;
+        let ist = stats.ist_total.unwrap_or(0.0);
+        let soll = stats.soll_total.unwrap_or(0.0);
+        // committed == soll_total (der committed-voluntary-target der Woche).
+        Ok((ist, soll, soll))
+    }
+}
+
+/// Vorwoche einer `ShiftyWeek` mit korrektem ISO-Jahresgrenzfall (nie naives
+/// `week - 1`): in KW 1 springt sie auf die letzte Woche des Vorjahres.
+fn previous_week(week: ShiftyWeek) -> ShiftyWeek {
+    if week.week <= 1 {
+        let prev_year = week.year - 1;
+        ShiftyWeek::new(prev_year, time::util::weeks_in_year(prev_year as i32))
+    } else {
+        ShiftyWeek::new(week.year, week.week - 1)
     }
 }
 
@@ -457,5 +552,233 @@ impl<Deps: RebookingReconciliationServiceDeps> RebookingReconciliationService
 
         self.transaction_dao.commit(tx).await?;
         Ok(())
+    }
+
+    async fn run_for_week(
+        &self,
+        sales_person_id: Uuid,
+        iso_year: u32,
+        iso_week: u8,
+        kind: RebookingBatchKind,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<RunForWeekOutcome, ServiceError> {
+        // F4-Self-Guard (D-06 write side): Stichtag-Toggle EINMAL lesen und
+        // pruefen, ob die Woche >= active_from liegt. Toggle aus / vor Stichtag →
+        // ToggleOff, kein Datenabruf, kein Write. `read_active_from` toleriert
+        // Unauthorized (Cron-Kontext ohne User) als "Feature aus".
+        let active_from = crate::voluntary_rebooking_gate::read_active_from(
+            self.toggle_service.as_ref(),
+            context.clone(),
+        )
+        .await?;
+        if !crate::voluntary_rebooking_gate::should_run_for_week(iso_year, iso_week, active_from) {
+            return Ok(RunForWeekOutcome::Skipped {
+                reason: SkipReason::ToggleOff,
+            });
+        }
+
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+
+        // D-04: gesperrte Woche → SkippedLocked-Audit-Batch (idempotent) + Skip.
+        let week_status = self
+            .week_status_service
+            .get_week_status(iso_year, iso_week, Authentication::Full, Some(tx.clone()))
+            .await?;
+        if week_status == WeekStatus::Locked {
+            // Audit-Row: kind wie uebergeben, state=SkippedLocked, kein Entry.
+            // Ein UNIQUE-Konflikt (bereits ein Batch im Slot) wird ignoriert
+            // (`.ok()`), damit ein zweiter Locked-Lauf ein sauberes No-op bleibt.
+            let audit_batch = self.make_batch(
+                sales_person_id,
+                iso_year,
+                iso_week,
+                kind,
+                RebookingBatchState::SkippedLocked,
+            );
+            let _ = self
+                .rebooking_batch_service
+                .create(&audit_batch, &[], Authentication::Full, Some(tx.clone()))
+                .await
+                .ok();
+            self.transaction_dao.commit(tx).await?;
+            return Ok(RunForWeekOutcome::Skipped {
+                reason: SkipReason::WeekLocked,
+            });
+        }
+
+        // Ueberschuss = Ist - committed_voluntary (beide fuer die Wochen-Range
+        // Mo..=So). `committed` == VoluntaryStats::soll_total (committed-voluntary-
+        // target). Der Balance-Report wird nicht fuer die Excess-Formel benoetigt
+        // (Ist/Soll kommen aus VoluntaryStats), aber wir lesen ihn NICHT, um den
+        // Write-Pfad schlank zu halten.
+        let (ist, _soll, committed) = self
+            .week_voluntary_figures(sales_person_id, iso_year, iso_week, tx.clone())
+            .await?;
+        let excess = week_excess(ist, 0.0, committed);
+        if excess <= 0.0 {
+            self.transaction_dao.commit(tx).await?;
+            return Ok(RunForWeekOutcome::Skipped {
+                reason: SkipReason::NoExcess,
+            });
+        }
+
+        // Approved-Batch ZUERST (er claimt den UNIQUE-Slot). Konflikt (frueherer
+        // Cron / Manual / pending HR-Suggestion → Claim-on-Suggest, D-02) →
+        // AlreadyProcessed, KEIN Pair (REB-AUTO-03 Idempotenz).
+        let batch = self.make_batch(
+            sales_person_id,
+            iso_year,
+            iso_week,
+            kind,
+            RebookingBatchState::Approved,
+        );
+        match self
+            .rebooking_batch_service
+            .create(&batch, &[], Authentication::Full, Some(tx.clone()))
+            .await
+        {
+            Ok(_) => {}
+            Err(ServiceError::EntityAlreadyExists(_)) => {
+                self.transaction_dao.commit(tx).await?;
+                return Ok(RunForWeekOutcome::Skipped {
+                    reason: SkipReason::AlreadyProcessed,
+                });
+            }
+            Err(e) => return Err(e),
+        }
+
+        // Single Pair-Write-Path (Pitfall 15): VolunteerToExtra ueber den
+        // Ueberschuss.
+        self.rebook(
+            sales_person_id,
+            RebookingDirection::VolunteerToExtra,
+            excess,
+            iso_year,
+            iso_week,
+            tx.clone(),
+        )
+        .await?;
+
+        self.transaction_dao.commit(tx).await?;
+        Ok(RunForWeekOutcome::Booked { hours: excess })
+    }
+
+    async fn backfill_range(
+        &self,
+        from: ShiftyWeek,
+        dry_run: bool,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Vec<BackfillPreviewItem>, ServiceError> {
+        // HR-Admin-Gate ZUERST (T-56-04) — vor jedem Datenabruf.
+        self.permission_service
+            .check_permission(HR_PRIVILEGE, context.clone())
+            .await?;
+
+        // Obergrenze: die letzte abgeschlossene Vorwoche (nie die laufende Woche;
+        // T-56-05 DoS-Bound). Aufloesung ueber ShiftyDate::from_date (nie naives
+        // year()+week()), Vorwoche via ShiftyWeek-Arithmetik.
+        let today = ShiftyDate::from_date(self.clock_service.date_now());
+        let upper = previous_week(today.as_shifty_week());
+
+        let mut items: Vec<BackfillPreviewItem> = Vec::new();
+
+        // Toggle einmal lesen (F4-Self-Guard, D-06). Der Backfill teilt exakt die
+        // Cutoff-Semantik von run_for_week.
+        let active_from = crate::voluntary_rebooking_gate::read_active_from(
+            self.toggle_service.as_ref(),
+            context.clone(),
+        )
+        .await?;
+
+        // Fuer die reine Vorschau (dry_run) darf keine Write-Tx geoeffnet werden;
+        // wir nutzen ein Option<Transaction> nur fuer die Read-Aufrufe.
+        let read_tx = self.transaction_dao.use_transaction(tx).await?;
+
+        for week in from.iter_until(&upper) {
+            let (iso_year, iso_week) = (week.year, week.week);
+
+            // Kandidaten: alle gedeckelten SalesPersons mit gueltigem Vertrag in
+            // dieser Woche.
+            let contracts = self
+                .employee_work_details_service
+                .all_for_week(iso_week, iso_year, Authentication::Full, Some(read_tx.clone()))
+                .await?;
+
+            for wd in contracts.iter() {
+                if !wd.cap_planned_hours_to_expected {
+                    continue;
+                }
+                let sales_person_id = wd.sales_person_id;
+
+                let (ist, soll, committed) = self
+                    .week_voluntary_figures(sales_person_id, iso_year, iso_week, read_tx.clone())
+                    .await?;
+                let excess = week_excess(ist, 0.0, committed);
+
+                // Cutoff-Gate: vor Stichtag → ToggleOff-Skip (kein Write).
+                let toggle_on =
+                    crate::voluntary_rebooking_gate::should_run_for_week(iso_year, iso_week, active_from);
+
+                let mut item = BackfillPreviewItem {
+                    sales_person_id,
+                    iso_year,
+                    iso_week,
+                    voluntary_ist: ist,
+                    voluntary_soll: soll,
+                    committed_voluntary: committed,
+                    excess,
+                    would_book: excess > 0.0 && toggle_on,
+                    skipped: true,
+                    skip_reason: None,
+                };
+
+                if !toggle_on {
+                    item.skip_reason = Some(SkipReason::ToggleOff);
+                    items.push(item);
+                    continue;
+                }
+                if excess <= 0.0 {
+                    item.skip_reason = Some(SkipReason::NoExcess);
+                    items.push(item);
+                    continue;
+                }
+
+                if dry_run {
+                    // Vorschau: als buchbar markieren, aber NICHT schreiben.
+                    item.skipped = false;
+                    items.push(item);
+                    continue;
+                }
+
+                // Apply: Single-Write-Path via run_for_week (kind=AutoCronBackfill).
+                let outcome = self
+                    .run_for_week(
+                        sales_person_id,
+                        iso_year,
+                        iso_week,
+                        RebookingBatchKind::AutoCronBackfill,
+                        context.clone(),
+                        Some(read_tx.clone()),
+                    )
+                    .await?;
+                match outcome {
+                    RunForWeekOutcome::Booked { .. } => {
+                        item.skipped = false;
+                    }
+                    RunForWeekOutcome::Skipped { reason } => {
+                        item.skip_reason = Some(reason);
+                        item.would_book = false;
+                    }
+                }
+                items.push(item);
+            }
+        }
+
+        // dry_run committet nur die Read-Tx (kein Write erfolgt); apply committet
+        // die geschriebenen Batches. In beiden Faellen ein sauberer Commit.
+        self.transaction_dao.commit(read_tx).await?;
+        Ok(items)
     }
 }

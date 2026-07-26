@@ -330,6 +330,10 @@ mod service_tests {
         type RebookingBatchService = MockRebookingBatchService;
         type ReportingService = MockReportingService;
         type VoluntaryStatsService = MockVoluntaryStatsService;
+        type WeekStatusService = service::week_status::MockWeekStatusService;
+        type EmployeeWorkDetailsService = MockEmployeeWorkDetailsService;
+        type ToggleService = MockToggleService;
+        type ClockService = MockClockService;
         type PermissionService = MockPermissionService;
         type TransactionDao = dao::MockTransactionDao;
     }
@@ -426,6 +430,10 @@ mod service_tests {
             rebooking_batch_service: Arc::new(rebooking_batch_service),
             reporting_service: Arc::new(reporting_service),
             voluntary_stats_service: Arc::new(voluntary_stats_service),
+            week_status_service: Arc::new(service::week_status::MockWeekStatusService::new()),
+            employee_work_details_service: Arc::new(MockEmployeeWorkDetailsService::new()),
+            toggle_service: Arc::new(MockToggleService::new()),
+            clock_service: Arc::new(MockClockService::new()),
             permission_service: Arc::new(permission_service),
             transaction_dao: Arc::new(transaction_dao),
         }

@@ -86,10 +86,8 @@ pub fn should_run_for_week(iso_year: u32, iso_week: u8, active_from: Option<Date
 /// `current_user_id → Ok(None)` → `ToggleService` liefert
 /// `Err(Unauthorized)`). Für den Cron ist "kein Stichtag lesbar" semantisch
 /// identisch mit "kein Stichtag gesetzt" → `Ok(None)` → Feature aus.
-// Wird erst vom Scheduler-Write-Guard (Plan 02/03) konsumiert; in Plan 01
-// landet das Gate-Modul vorab (Wave-0-Validierungs-Backbone), daher hier noch
-// ungenutzt.
-#[allow(dead_code)]
+// Ab Plan 02 (F4-Auto-Cron) konsumiert vom `RebookingReconciliationService`
+// (run_for_week / backfill_range) als Write-Guard.
 pub(crate) async fn read_active_from<S: ToggleService + ?Sized>(
     toggle_service: &S,
     context: Authentication<S::Context>,

@@ -366,6 +366,10 @@ impl service_impl::rebooking_reconciliation::RebookingReconciliationServiceDeps
     type RebookingBatchService = RebookingBatchService;
     type ReportingService = ReportingService;
     type VoluntaryStatsService = VoluntaryStatsService;
+    type WeekStatusService = WeekStatusService;
+    type EmployeeWorkDetailsService = WorkingHoursService;
+    type ToggleService = ToggleService;
+    type ClockService = ClockService;
     type PermissionService = PermissionService;
     type TransactionDao = TransactionDao;
 }
@@ -1249,10 +1253,24 @@ impl RestStateImpl {
             },
         );
 
-        // Phase 55 (REB-MANUAL / HR-ALERT, 55-03): Business-Logic-Tier
+        // Phase 40 (D-40-01): WeekStatusService (Basic-Tier) — muss VOR den
+        // Business-Logic-Konsumenten (ShiftplanEditService, ab Phase 56 auch
+        // RebookingReconciliationService) konstruiert werden (Service-Tier-
+        // Konvention: erst Basic, dann Business-Logic). Deps sind alle bereits
+        // oben gebaut (dao/pool/permission/clock/uuid/transaction).
+        let week_status_service = Arc::new(WeekStatusService {
+            week_status_dao: Arc::new(WeekStatusDao::new(pool.clone())),
+            permission_service: permission_service.clone(),
+            clock_service: clock_service.clone(),
+            uuid_service: uuid_service.clone(),
+            transaction_dao: transaction_dao.clone(),
+        });
+
+        // Phase 55/56 (REB-MANUAL / HR-ALERT / F4-Auto-Cron): Business-Logic-Tier
         // RebookingReconciliationService — konstruiert NACH extra_hours_service,
-        // rebooking_batch_service, reporting_service, voluntary_stats_service
-        // (alle bereits oben gebaut). Kein Zyklus, kein OnceLock.
+        // rebooking_batch_service, reporting_service, voluntary_stats_service,
+        // week_status_service, working_hours_service, toggle_service,
+        // clock_service (alle bereits oben gebaut). Kein Zyklus, kein OnceLock.
         let rebooking_reconciliation_service = Arc::new(
             service_impl::rebooking_reconciliation::RebookingReconciliationServiceImpl::<
                 RebookingReconciliationServiceDependencies,
@@ -1261,6 +1279,10 @@ impl RestStateImpl {
                 rebooking_batch_service: rebooking_batch_service.clone(),
                 reporting_service: reporting_service.clone(),
                 voluntary_stats_service: voluntary_stats_service.clone(),
+                week_status_service: week_status_service.clone(),
+                employee_work_details_service: working_hours_service.clone(),
+                toggle_service: toggle_service.clone(),
+                clock_service: clock_service.clone(),
                 permission_service: permission_service.clone(),
                 transaction_dao: transaction_dao.clone(),
             },
@@ -1307,18 +1329,9 @@ impl RestStateImpl {
             },
         );
 
-        // Phase 40 (D-40-01): WeekStatusService (Basic-Tier) muss VOR dem
-        // ShiftplanEditService (Business-Logic-Tier) konstruiert werden, da
-        // Letzterer es als Dep für das Wochen-Sperre-Gate konsumiert
-        // (Service-Tier-Konvention: erst Basic, dann Business-Logic).
-        let week_status_service = Arc::new(WeekStatusService {
-            week_status_dao: Arc::new(WeekStatusDao::new(pool.clone())),
-            permission_service: permission_service.clone(),
-            clock_service: clock_service.clone(),
-            uuid_service: uuid_service.clone(),
-            transaction_dao: transaction_dao.clone(),
-        });
-
+        // Phase 40 (D-40-01): WeekStatusService (Basic-Tier) wird bereits weiter
+        // oben konstruiert (vor RebookingReconciliationService, Phase 56); der
+        // ShiftplanEditService (Business-Logic) konsumiert denselben Arc.
         let shiftplan_edit_service =
             Arc::new(service_impl::shiftplan_edit::ShiftplanEditServiceImpl {
                 permission_service: permission_service.clone(),
