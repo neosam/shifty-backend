@@ -6,14 +6,14 @@ current_phase: 56
 current_phase_name: wochen-cron-rollout-backfill-f4
 status: executing
 stopped_at: Phase 56 context gathered
-last_updated: "2026-07-26T06:46:21.963Z"
+last_updated: "2026-07-26T07:00:24.201Z"
 last_activity: 2026-07-26
 last_activity_desc: Phase 56 execution started
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 23
-  completed_plans: 21
+  completed_plans: 22
   percent: 75
 ---
 
@@ -34,7 +34,7 @@ progress:
 ## Current Position
 
 Phase: 56 (wochen-cron-rollout-backfill-f4) — EXECUTING
-Plan: 5 of 6
+Plan: 6 of 6
 Status: Ready to execute
 Last activity: 2026-07-26 — Phase 56 execution started
 
@@ -206,7 +206,7 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-07-26T06:45:47.008Z
+**Last session:** 2026-07-26T07:00:08.597Z
 **Stopped at:** Phase 56 context gathered
 **Resume file:** .planning/phases/56-wochen-cron-rollout-backfill-f4/56-CONTEXT.md
 
@@ -279,6 +279,8 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 - [Phase ?]: 56-03: Scheduler has no RestStateDef accessor (no REST surface until Plan 04); plain RestStateImpl field booted after pdf_export_scheduler.
 - [Phase ?]: 56-03: Weekly cron hardcoded 6-field 0 15 3 * * 1 (Monday 03:15), conflict-free vs pdf_export; no reload_from_db (toggle read fresh per run).
 - [Phase ?]: 56-04: F4 backfill REST endpoint POST /admin/rebooking/backfill is a thin delegate to backfill_range — from-week parsed/validated to 400 before the service; HR-Admin gate + dry-run/apply write-path stay in the service; REST coverage via in-crate parse unit tests + OpenAPI-surface contract test.
+- [Phase ?]: 56-05: F4 FE toggle name mirrored as a single const referencing voluntary_rebooking_gate::TOGGLE_NAME (rest-types does not re-export it)
+- [Phase ?]: 56-05: FE is_valid_iso_week_input is syntactic-only; authoritative range/53-week check stays server-side (Fat Backend, Thin Client)
 
 ## Performance Metrics
 
@@ -317,3 +319,4 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 | Phase 56 P02 | 15min | 2 tasks | 8 files |
 | Phase 56 P03 | 12min | 3 tasks | 7 files |
 | Phase 56 P04 | 11min | 2 tasks | 4 files |
+| Phase 56 P05 | 8min | 3 tasks | 9 files |
