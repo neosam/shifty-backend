@@ -4,17 +4,17 @@ milestone: v2.6
 milestone_name: — Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
 current_phase: 56
 current_phase_name: wochen-cron-rollout-backfill-f4
-status: executing
+status: verifying
 stopped_at: Phase 56 context gathered
-last_updated: "2026-07-26T07:00:24.201Z"
+last_updated: "2026-07-26T07:10:32.358Z"
 last_activity: 2026-07-26
 last_activity_desc: Phase 56 execution started
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 23
-  completed_plans: 22
-  percent: 75
+  completed_plans: 23
+  percent: 100
 ---
 
 # Project State: Shifty Backend
@@ -35,7 +35,7 @@ progress:
 
 Phase: 56 (wochen-cron-rollout-backfill-f4) — EXECUTING
 Plan: 6 of 6
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-26 — Phase 56 execution started
 
 ## Quick Tasks Completed
@@ -206,7 +206,7 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-07-26T07:00:08.597Z
+**Last session:** 2026-07-26T07:10:16.665Z
 **Stopped at:** Phase 56 context gathered
 **Resume file:** .planning/phases/56-wochen-cron-rollout-backfill-f4/56-CONTEXT.md
 
@@ -281,6 +281,7 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 - [Phase ?]: 56-04: F4 backfill REST endpoint POST /admin/rebooking/backfill is a thin delegate to backfill_range — from-week parsed/validated to 400 before the service; HR-Admin gate + dry-run/apply write-path stay in the service; REST coverage via in-crate parse unit tests + OpenAPI-surface contract test.
 - [Phase ?]: 56-05: F4 FE toggle name mirrored as a single const referencing voluntary_rebooking_gate::TOGGLE_NAME (rest-types does not re-export it)
 - [Phase ?]: 56-05: FE is_valid_iso_week_input is syntactic-only; authoritative range/53-week check stays server-side (Fat Backend, Thin Client)
+- [Phase ?]: [Phase 56]: 56-06 Docs-Freshness-Gate synced (EN+DE) for F4 cron+backfill; snapshot version STAYS AT 12 (D-01, no bump) — stale F14 12→13 corrected, F08 non-bump confirmed via straddling fixture.
 
 ## Performance Metrics
 
@@ -320,3 +321,4 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 | Phase 56 P03 | 12min | 3 tasks | 7 files |
 | Phase 56 P04 | 11min | 2 tasks | 4 files |
 | Phase 56 P05 | 8min | 3 tasks | 9 files |
+| Phase 56 P06 | 7min | 3 tasks | 8 files |
