@@ -261,10 +261,20 @@ balance (`reporting.rs:1097-1098, 1406-1414`, "dynamic-week guard").
   four metrics. Absence/Holiday aggregates are unaffected (rebooking
   rows never land there). No snapshot schema bump — the pair nets to
   zero inside the aggregate, so `CURRENT_SNAPSHOT_SCHEMA_VERSION` stays
-  at 12. Nailed by `rebooking_neutrality_single_manual` /
+  at 12. The same filter covers **every** `Rebooking`-source writer:
+  the F3 manual one-shot and F5-approve (Phase 55) **and** the F4
+  auto-cron scheduler + rollout backfill (Phase 56) — the read chains
+  do not distinguish the trigger, so auto-cron rebooking never
+  double-counts in balance / F1-Ist / F2-Soll. Nailed by
+  `rebooking_neutrality_single_manual` /
   `rebooking_neutrality_roundtrip`
-  (`service_impl/src/test/rebooking_reconciliation.rs`). See feature
-  [F14 §3 / §8](./F14-rebooking.md).
+  (`service_impl/src/test/rebooking_reconciliation.rs`) plus the three
+  Phase-56 D-06 property tests `test_neutrality_balance` /
+  `test_neutrality_f1_ist` / `test_neutrality_f2_soll`
+  (`service_impl/src/test/rebooking_neutrality.rs`), which assert
+  `balance_hours`, F1-Ist (`volunteer_hours`) and F2-Soll bit-identical
+  (`f32::to_bits()`) after a `source = Rebooking` pair — the standing
+  CI-guard. See feature [F14 §3 / §8 / §9](./F14-rebooking.md).
 
 ---
 

@@ -261,10 +261,21 @@ aufblasen (`reporting.rs:1097-1098, 1406-1414`, „Dynamic-week guard").
   keine der vier Kennzahlen. Absence/Holiday-Aggregate sind nicht
   betroffen (Rebooking-Zeilen landen dort nie). Kein Snapshot-Schema-
   Bump — das Paar netto-nullt im Aggregat, daher bleibt
-  `CURRENT_SNAPSHOT_SCHEMA_VERSION` bei 12. Festgenagelt durch
+  `CURRENT_SNAPSHOT_SCHEMA_VERSION` bei 12. Derselbe Filter deckt
+  **jeden** `Rebooking`-Source-Writer ab: den F3-One-Shot und
+  F5-approve (Phase 55) **und** den F4-Auto-Cron-Scheduler +
+  Rollout-Backfill (Phase 56) — die Read-Ketten unterscheiden den
+  Trigger nicht, daher zählt Auto-Cron-Rebooking nie doppelt in
+  balance / F1-Ist / F2-Soll. Festgenagelt durch
   `rebooking_neutrality_single_manual` / `rebooking_neutrality_roundtrip`
-  (`service_impl/src/test/rebooking_reconciliation.rs`). Siehe Feature
-  [F14 §3 / §8](./F14-rebooking.md).
+  (`service_impl/src/test/rebooking_reconciliation.rs`) plus die drei
+  Phase-56-D-06-Property-Tests `test_neutrality_balance` /
+  `test_neutrality_f1_ist` / `test_neutrality_f2_soll`
+  (`service_impl/src/test/rebooking_neutrality.rs`), die `balance_hours`,
+  F1-Ist (`volunteer_hours`) und F2-Soll nach einem
+  `source = Rebooking`-Paar bit-identisch (`f32::to_bits()`) asserten —
+  der stehende CI-Guard. Siehe Feature
+  [F14 §3 / §8 / §9](./F14-rebooking.md).
 
 ---
 

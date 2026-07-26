@@ -509,21 +509,38 @@ weil Achse-B-only, kein persistierter `value_type` betroffen
 Phase 17 (Personen-Set-Filter `is_paid`) wurde explizit **nicht** gebumpt
 (`billing_period_report.rs:365-370`).
 
-**Milestone v2.6 Phase 54 — Non-Bump-Bestätigung.**
-`CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt **12**. Rationale: Phase 54
-(Voluntary-Stats-Datenmodell, siehe Feature [F14](./F14-rebooking.md))
-ergänzt nur die Marker-Spalte `extra_hours.source` (Werte: `manual` \|
-`rebooking`) und zwei neue Tabellen `rebooking_batch` /
-`rebooking_batch_entry` — weder wird ein neuer persistierter
-`BillingPeriodValueType` eingeführt noch eine bestehende Berechnung
-verändert. Voluntary-Stats selbst ist eine **live berechnete HR-only-
-Read-View**, kein persistierter Snapshot: keine
-`billing_period_sales_person`-Zeile, kein Versioning, kein Writer
-fasst `billing_period_report.rs` an. Die Snapshot-Bump-Entscheidung
-**12 → 13** ist auf Phase 56 verschoben (`REB-AUTO-05`, F4-Cron),
-sobald der erste `Rebooking`-Source-Writer die Balance-Kette bespielt
-und Reader-Filter (`source = 'manual'`) semantisch tragend werden —
-siehe `REQUIREMENTS.md`.
+**Milestone v2.6 (Phasen 54–56) — Non-Bump-Bestätigung.**
+`CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt **12** über die gesamte
+Voluntary-Rebooking-Pipeline (siehe Feature [F14](./F14-rebooking.md)).
+
+- **Phase 54** (Voluntary-Stats-Datenmodell) ergänzt nur die
+  Marker-Spalte `extra_hours.source` (Werte: `manual` \| `rebooking`)
+  und zwei neue Tabellen `rebooking_batch` / `rebooking_batch_entry` —
+  weder wird ein neuer persistierter `BillingPeriodValueType` eingeführt
+  noch eine bestehende Berechnung verändert. Voluntary-Stats selbst ist
+  eine **live berechnete HR-only-Read-View**, kein persistierter
+  Snapshot.
+- **Phase 55** (F3 manuell + F5 approve) beginnt, `Rebooking`-Source-
+  `ExtraHours`-Paare zu schreiben, lässt den Snapshot aber unberührt:
+  der Read-Aggregations-Filter `source == Manual` (D-55-A1) schließt
+  jede Rebooking-Zeile aus, sodass das Paar im Aggregat netto-nullt.
+- **Phase 56** (F4 Auto-Cron + Rollout-Backfill) löst die offene
+  `REB-AUTO-05`-Bump-Frage — und pinnt den **„Nein"-Zweig (kein Bump)**.
+  Der F4-Cron-`Rebooking`-Source-Writer ist **kein** Snapshot-Input-Set-
+  Change im Sinne der CLAUDE.md-Versioning-Klausel, weil die
+  Billing-Period-Berechnung nie eine `Rebooking`-Source-Zeile liest
+  (derselbe `source == Manual`-Filter wie Phase 55). **Empirischer
+  Beweis:** die D-01-**Straddling-Golden-Snapshot-Fixture**
+  (`service_impl/src/test/billing_period_straddling.rs`) treibt den
+  echten `BillingPeriodReportServiceImpl` über eine Billing-Period, die
+  eine Rebooking-Woche (KW 16/2026) überspannt, und assertet, dass die
+  persistierten `BillingPeriodSalesPerson.values`-Rows über vier
+  `voluntary_rebooking_auto_active_from`-Toggle-Szenarien
+  **byte-identisch** sind (`f32::to_bits()`) — Cutoff nach / vor /
+  innerhalb der Period sowie unset. Keine Kette leakt eine Rebooking-
+  Zeile in den Snapshot. Daher **kein Version-Bump, keine Migration,
+  keine `billing_period_snapshot_locking.rs`-Assert-Änderung** — die
+  Konstante und der Pin-Test bleiben bei 12 (siehe §7.7).
 
 ### 7.5 Randfall — Validator liest v11-Snapshot mit v12-Code
 

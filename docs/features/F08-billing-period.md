@@ -515,20 +515,37 @@ because axis-B only, no persisted `value_type` affected
 Phase 17 (person-set filter `is_paid`) was explicitly **not** bumped
 (`billing_period_report.rs:365-370`).
 
-**Milestone v2.6 Phase 54 — non-bump confirmation.**
-`CURRENT_SNAPSHOT_SCHEMA_VERSION` remains **12**. Rationale: Phase 54
-(voluntary-stats data-model, see feature [F14](./F14-rebooking.md))
-adds only the `extra_hours.source` marker column (values: `manual` \|
-`rebooking`) and two new `rebooking_batch` / `rebooking_batch_entry`
-tables — neither introduces a new persisted `BillingPeriodValueType`,
-nor changes any existing computation. Voluntary-Stats itself is a
-**live-computed HR-only read view**, not a persisted snapshot: no
-`billing_period_sales_person` row, no versioning, no writer touches
-`billing_period_report.rs`. The snapshot-bump decision **12 → 13** is
-deferred to Phase 56 (`REB-AUTO-05`, F4-Cron) when the first
-`Rebooking`-source writer begins to feed the balance chain and reader
-filters (`source = 'manual'`) become semantically load-bearing — see
-`REQUIREMENTS.md`.
+**Milestone v2.6 (Phases 54–56) — non-bump confirmation.**
+`CURRENT_SNAPSHOT_SCHEMA_VERSION` remains **12** across the entire
+voluntary-rebooking pipeline (see feature [F14](./F14-rebooking.md)).
+
+- **Phase 54** (voluntary-stats data-model) adds only the
+  `extra_hours.source` marker column (values: `manual` \| `rebooking`)
+  and two new `rebooking_batch` / `rebooking_batch_entry` tables —
+  neither introduces a new persisted `BillingPeriodValueType`, nor
+  changes any existing computation. Voluntary-Stats itself is a
+  **live-computed HR-only read view**, not a persisted snapshot.
+- **Phase 55** (F3 manual + F5 approve) begins writing
+  `Rebooking`-source `ExtraHours` pairs but leaves the snapshot
+  untouched: the read-aggregation `source == Manual` filter (D-55-A1)
+  excludes every rebooking row, so the pair nets to zero inside the
+  aggregate.
+- **Phase 56** (F4 auto-cron + rollout backfill) resolves the open
+  `REB-AUTO-05` bump question — and pins the **"no bump" branch**. The
+  F4-cron `Rebooking`-source writer is **not** a snapshot input-set
+  change in the sense of the CLAUDE.md versioning clause, because the
+  billing-period computation never reads a `Rebooking`-source row (same
+  `source == Manual` filter as Phase 55). **Empirical proof:** the D-01
+  **straddling golden-snapshot fixture**
+  (`service_impl/src/test/billing_period_straddling.rs`) drives the real
+  `BillingPeriodReportServiceImpl` over a billing period spanning a
+  rebooking week (KW 16/2026) and asserts the persisted
+  `BillingPeriodSalesPerson.values` rows are **byte-identical**
+  (`f32::to_bits()`) across four `voluntary_rebooking_auto_active_from`
+  toggle scenarios (cutoff after / before / inside the period, and
+  unset). No chain leaks a rebooking row into the snapshot. Therefore
+  **no version bump, no migration, no `billing_period_snapshot_locking.rs`
+  assert change** — the constant and the pin test stay at 12 (see §7.7).
 
 ### 7.5 Edge case — validator reads a v11 snapshot with v12 code
 
