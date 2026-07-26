@@ -2062,4 +2062,34 @@ pub async fn post_rebooking_reject(
     Ok(())
 }
 
+// ─── F4 Backfill REST client (Phase 56-05, REB-AUTO-04) ──────────────────────
+//
+// POST /admin/rebooking/backfill?from=YYYY-Www&dry_run={true|false}. HR-Admin
+// gated (Service-Level, Plan 04). All params live in the query string; the body
+// is empty. The response is the backend-computed BackfillPreviewTO — Fat Backend,
+// Thin Client: the FE renders it verbatim, no arithmetic. A malformed `from`
+// answers 400 → surfaces via error_for_status as a reqwest::Error.
+
+/// POST `/admin/rebooking/backfill` (F4, REB-AUTO-04). Runs a dry-run (preview,
+/// no write) or an apply (persists AutoCronBackfill batches) depending on
+/// `dry_run`, returning the backend-computed `BackfillPreviewTO`. `from` is an
+/// ISO week `YYYY-Www` (e.g. `2026-W20`); the backend validates it (malformed →
+/// 400).
+pub async fn post_rebooking_backfill(
+    config: &Config,
+    from: &str,
+    dry_run: bool,
+) -> Result<rest_types::rebooking::BackfillPreviewTO, reqwest::Error> {
+    info!("Rebooking backfill from {from} (dry_run={dry_run})");
+    let url = format!(
+        "{}/admin/rebooking/backfill?from={}&dry_run={}",
+        config.backend, from, dry_run
+    );
+    let client = reqwest::Client::new();
+    let response = client.post(url).send().await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Rebooking backfill returned preview");
+    Ok(res)
+}
 

@@ -1076,6 +1076,59 @@ pub async fn reject_rebooking_suggestion(
     api::post_rebooking_reject(config, batch_id).await
 }
 
+// ─── F4 Automatische-Freiwilligen-Umbuchung: Stichtag + Backfill (Phase 56-05) ─
+//
+// Der Stichtag (`voluntary_rebooking_auto_active_from`) wird ueber den generischen
+// Toggle-Value-Endpunkt gepflegt — analog zu `shortday_slot_clipping_active_from`
+// (Card 2b). Der Toggle-Name MUSS byte-genau
+// `service_impl::voluntary_rebooking_gate::TOGGLE_NAME` entsprechen; er lebt hier
+// an genau einer Stelle.
+//
+// Der Backfill delegiert an `api::post_rebooking_backfill` und liefert die
+// backend-berechnete `BackfillPreviewTO` unveraendert zurueck (Fat Backend, Thin
+// Client — kein FE-Rechnen).
+
+/// Toggle-Name des F4-Stichtags. Spiegelt
+/// `service_impl::voluntary_rebooking_gate::TOGGLE_NAME`
+/// (`voluntary_rebooking_auto_active_from`).
+const VOLUNTARY_REBOOKING_ACTIVE_FROM_TOGGLE: &str = "voluntary_rebooking_auto_active_from";
+
+/// Fetch the current voluntary-rebooking auto-activation date (Stichtag).
+/// Returns Ok(None) when no date is set (Rollout-Default: feature off).
+pub async fn get_voluntary_rebooking_active_from(
+    config: Config,
+) -> Result<Option<String>, ShiftyError> {
+    Ok(api::get_toggle_value(config, VOLUNTARY_REBOOKING_ACTIVE_FROM_TOGGLE).await?)
+}
+
+/// Set (Some) or clear (None) the voluntary-rebooking auto-activation date.
+/// Passing None calls DELETE (feature off), passing Some calls PUT with the ISO
+/// date string (auto-rebooking active from that date onward, inclusive).
+pub async fn set_voluntary_rebooking_active_from(
+    config: Config,
+    value: Option<&str>,
+) -> Result<(), ShiftyError> {
+    match value {
+        Some(v) => {
+            api::set_toggle_value(config, VOLUNTARY_REBOOKING_ACTIVE_FROM_TOGGLE, v).await?
+        }
+        None => api::clear_toggle_value(config, VOLUNTARY_REBOOKING_ACTIVE_FROM_TOGGLE).await?,
+    }
+    Ok(())
+}
+
+/// F4-Backfill (REB-AUTO-04): fuehrt einen Dry-Run (`dry_run=true`, kein Write)
+/// oder Apply (`dry_run=false`, persistiert Batches) aus und liefert die
+/// backend-berechnete Vorschau. `from` ist eine ISO-Woche (`YYYY-Www`). Reines
+/// Durchreichen — kein FE-Rechnen (Fat Backend, Thin Client).
+pub async fn trigger_rebooking_backfill(
+    config: Config,
+    from: &str,
+    dry_run: bool,
+) -> Result<rest_types::rebooking::BackfillPreviewTO, ShiftyError> {
+    Ok(api::post_rebooking_backfill(&config, from, dry_run).await?)
+}
+
 #[cfg(test)]
 mod working_hours_mini_loader_tests {
     use super::*;
