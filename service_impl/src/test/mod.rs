@@ -45,6 +45,8 @@ pub mod rebooking_neutrality;
 #[cfg(test)]
 pub mod voluntary_rebooking;
 #[cfg(test)]
+pub mod voluntary_rebooking_scheduler;
+#[cfg(test)]
 pub mod rebooking_backfill;
 #[cfg(test)]
 pub mod pdf_export_scheduler;
