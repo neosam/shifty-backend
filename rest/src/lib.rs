@@ -625,6 +625,9 @@ pub async fn auth_info<RestState: RestStateDef>(
         (path = "/shiftplan", api = pdf_shiftplan::PdfShiftplanApiDoc),
         (path = "/feature-flag", api = feature_flag::FeatureFlagApiDoc),
         (path = "/admin/impersonate", api = impersonate::ImpersonateApiDoc),
+        // Phase 56 (56-04): F4 Backfill (HR-Admin) unter `/admin/rebooking`;
+        // teilt sich den RebookingApiDoc (utoipa-Pfad traegt `/backfill`).
+        (path = "/admin/rebooking", api = rebooking::RebookingApiDoc),
         // Phase 55 (55-03): F3 manuelle Umbuchung unter `/rebooking`, der
         // F5-Modell-B-Lifecycle unter `/rebooking-suggestions`. Beide Nests
         // teilen sich denselben RebookingApiDoc (die utoipa-Pfade tragen die
@@ -743,7 +746,11 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
     //   /admin/impersonate) still succeeds because it also reads the raw
     //   session.user_id for the admin check, not the impersonated Context.
     let app = app
-        .nest("/admin/impersonate", impersonate::generate_route());
+        .nest("/admin/impersonate", impersonate::generate_route())
+        // Phase 56 (56-04): F4 Backfill-Endpoint. HR-Admin-Gate liegt im Service
+        // (backfill_range, erster await); die REST-Schicht validiert nur die
+        // from-Woche + Pagination und delegiert.
+        .nest("/admin/rebooking", rebooking::generate_admin_route());
 
     let app = app
         .with_state(rest_state.clone())
