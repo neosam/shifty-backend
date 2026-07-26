@@ -84,7 +84,7 @@ im Backend.
       wird der Excess automatisch als Rebooking-Pair-ExtraHours geschrieben
       (`rebooking_batch(kind=auto_cron)`).
 
-- [ ] **REB-AUTO-02**: Ein admin-gesteuerter Stichtag-Toggle
+- [x] **REB-AUTO-02**: Ein admin-gesteuerter Stichtag-Toggle
       `voluntary_rebooking_auto_active_from` (analog HCFG-02 v1.7, SHC-04 v2.4)
       schützt historische Balance-Views. Bei `None` = deaktiviert (Default-
       Rollout, keine Regression); mit Datum = wirkt nur für ISO-Wochen ≥
@@ -102,7 +102,7 @@ im Backend.
       `dry_run=true` zeigt geplante Änderungen ohne DB-Write. Backfill schreibt
       `rebooking_batch(kind=auto_cron_backfill)`. HR-Admin-gated. Kein CLI-Tool.
 
-- [ ] **REB-AUTO-05**: Snapshot-Schema-Version-Bump-Entscheidung
+- [x] **REB-AUTO-05**: Snapshot-Schema-Version-Bump-Entscheidung
       (12 → 13 oder unverändert 12) wird in Phase-56-discuss-phase gefällt.
       Kriterium: gilt F4-schreibende Rebooking-ExtraHours-Rows als „Input-Set-
       Change" im Sinne CLAUDE.md-Klausel? Beweislast beim „Nein"-Zweig =

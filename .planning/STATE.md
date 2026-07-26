@@ -3,17 +3,17 @@ gsd_state_version: 1.0
 milestone: v2.6
 milestone_name: — Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
 current_phase: 56
-current_phase_name: F4
+current_phase_name: wochen-cron-rollout-backfill-f4
 status: executing
 stopped_at: Phase 56 context gathered
-last_updated: "2026-07-26T05:36:17.693Z"
-last_activity: 2026-07-25
-last_activity_desc: Phase 55 complete (UAT 2/2 pass, INT-Validierung ausstehend), transitioned to Phase 56
+last_updated: "2026-07-26T05:57:42.417Z"
+last_activity: 2026-07-26
+last_activity_desc: Phase 56 execution started
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 17
-  completed_plans: 17
+  total_plans: 23
+  completed_plans: 18
   percent: 75
 ---
 
@@ -33,10 +33,10 @@ progress:
 
 ## Current Position
 
-Phase: 56 — Wochen-Cron + Rollout-Backfill (F4)
-Plan: Not started
+Phase: 56 (wochen-cron-rollout-backfill-f4) — EXECUTING
+Plan: 2 of 6
 Status: Ready to execute
-Last activity: 2026-07-25 — Phase 55 complete (UAT 2/2 pass, INT-Validierung ausstehend), transitioned to Phase 56
+Last activity: 2026-07-26 — Phase 56 execution started
 
 ## Quick Tasks Completed
 
@@ -206,7 +206,7 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-07-25T12:23:18.832Z
+**Last session:** 2026-07-26T05:57:42.410Z
 **Stopped at:** Phase 56 context gathered
 **Resume file:** .planning/phases/56-wochen-cron-rollout-backfill-f4/56-CONTEXT.md
 
@@ -271,6 +271,8 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 - [Phase 55]: 55-03: HR-Alert-Banner nur ueber short-report get_reports_for_all_employees getrieben; assemble_weeks/get_week bleibt neutral (false/None)
 - [Phase ?]: 55-04: RebookingSuggestionModal rendert nur backend-gelieferte IST/DANN-Zeilen (Balance + Freiwillig-Ist + proposed_hours); voluntary_soll/delta existieren im Backend nicht (55-03 Deviation) und werden NICHT im FE gerechnet.
 - [Phase ?]: 55-04: Rebooking-Modals sind prop-driven (Callbacks); Async-Dispatch + 409/Refetch gehoert der Page (55-05).
+- [Phase ?]: [Phase 56]: 56-01 D-01 outcome STAYS AT snapshot version 12 — straddling golden-snapshot byte-identical across pre/post/straddling/None cutoff scenarios; no chain leaks rebooking rows. Plan 06 skips the 12->13 bump branch.
+- [Phase ?]: [Phase 56]: 56-01 voluntary_rebooking_gate::should_run_for_week is the single ISO-week cutoff predicate (Monday via Date::from_iso_week_date, inclusive lower boundary) reused by the Plan 02/03 scheduler write-guard.
 
 ## Performance Metrics
 
@@ -305,3 +307,4 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 | Phase 55 P03 | 55 min | 3 tasks | 10 files |
 | Phase 55 P04 | 45min | 3 tasks | 13 files |
 | Phase 55 P06 | 15min | 2 tasks | 7 files |
+| Phase 56 P01 | 9min | 3 tasks | 5 files |

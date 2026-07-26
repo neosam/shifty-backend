@@ -522,10 +522,10 @@ Vorschau; Präzedenz `pdf_export_config`-Card),
 `shifty-dioxus/i18n/{de,en,cs}/*.ftl` (Card-Labels, Backfill-Button,
 Dry-Run-Vorschau-Header).
 
-**Plans:** 6 plans
+**Plans:** 1/6 plans executed
 **Wave 1**
 
-- [ ] 56-01-PLAN.md — Wave-0 validation backbone: `voluntary_rebooking_gate` module + 3 D-06 neutrality property-tests + D-01 Straddling-Golden-Snapshot-Fixture (decides snapshot 12 vs 13)
+- [x] 56-01-PLAN.md — Wave-0 validation backbone: `voluntary_rebooking_gate` module + 3 D-06 neutrality property-tests + D-01 Straddling-Golden-Snapshot-Fixture (decides snapshot 12 vs 13)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -554,7 +554,7 @@ Dry-Run-Vorschau-Header).
 | 54. Data-Model + Voluntary Statistics (F1 + F2) | 9/9 | Complete | 2026-07-10 |
 | 54.5. Voluntary-Soll Absence-Aware-Angleichung (Hotfix v2.6.1) | 2/2 | Complete | 2026-07-10 |
 | 55. Manuelle Umbuchung + HR-Alert-Modal (F3 + F5) | 6/6 | Complete    | 2026-07-24 |
-| 56. Wochen-Cron + Rollout-Backfill (F4) | 0/6 | Not started | - |
+| 56. Wochen-Cron + Rollout-Backfill (F4) | 1/6 | In Progress|  |
 
 Requirements-Coverage: 17/17 mapped (5 → P54, 7 → P55, 5 → P56).
 
