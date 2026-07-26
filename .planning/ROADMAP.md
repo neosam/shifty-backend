@@ -523,11 +523,21 @@ Vorschau; Präzedenz `pdf_export_config`-Card),
 Dry-Run-Vorschau-Header).
 
 **Plans:** 6 plans
+**Wave 1**
 
 - [ ] 56-01-PLAN.md — Wave-0 validation backbone: `voluntary_rebooking_gate` module + 3 D-06 neutrality property-tests + D-01 Straddling-Golden-Snapshot-Fixture (decides snapshot 12 vs 13)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 56-02-PLAN.md — `run_for_week` + `backfill_range` in RebookingReconciliationService (excess→pair, idempotency, Claim-on-Suggest, Locked-audit, dry-run/apply)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 56-03-PLAN.md — `VoluntaryRebookingScheduler` (1:1 pdf_export mirror) + main.rs DI/boot + Vorwoche cron
 - [ ] 56-04-PLAN.md — REST `POST /admin/rebooking/backfill` + `BackfillRequestTO`/`BackfillPreviewTO` + HR-Admin gate + threat model
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 56-05-PLAN.md — FE Admin-Card (Stichtag editor + backfill dry-run/apply preview) + Dioxus.toml proxy + de/en/cs
 - [ ] 56-06-PLAN.md — Docs-Freshness: F14 (F4-cron+backfill) + F07/F08 + 02-service-tiers + service-graph diagram (EN+DE)
 
