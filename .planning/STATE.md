@@ -6,14 +6,14 @@ current_phase: 56
 current_phase_name: wochen-cron-rollout-backfill-f4
 status: executing
 stopped_at: Phase 56 context gathered
-last_updated: "2026-07-26T05:57:42.417Z"
+last_updated: "2026-07-26T06:17:14.377Z"
 last_activity: 2026-07-26
 last_activity_desc: Phase 56 execution started
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 23
-  completed_plans: 18
+  completed_plans: 19
   percent: 75
 ---
 
@@ -34,7 +34,7 @@ progress:
 ## Current Position
 
 Phase: 56 (wochen-cron-rollout-backfill-f4) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 Status: Ready to execute
 Last activity: 2026-07-26 — Phase 56 execution started
 
@@ -206,7 +206,7 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-07-26T05:57:42.410Z
+**Last session:** 2026-07-26T06:16:57.959Z
 **Stopped at:** Phase 56 context gathered
 **Resume file:** .planning/phases/56-wochen-cron-rollout-backfill-f4/56-CONTEXT.md
 
@@ -273,6 +273,8 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 - [Phase ?]: 55-04: Rebooking-Modals sind prop-driven (Callbacks); Async-Dispatch + 409/Refetch gehoert der Page (55-05).
 - [Phase ?]: [Phase 56]: 56-01 D-01 outcome STAYS AT snapshot version 12 — straddling golden-snapshot byte-identical across pre/post/straddling/None cutoff scenarios; no chain leaks rebooking rows. Plan 06 skips the 12->13 bump branch.
 - [Phase ?]: [Phase 56]: 56-01 voluntary_rebooking_gate::should_run_for_week is the single ISO-week cutoff predicate (Monday via Date::from_iso_week_date, inclusive lower boundary) reused by the Plan 02/03 scheduler write-guard.
+- [Phase ?]: 56-02: F4 excess = ist - committed (VoluntaryStats::soll_total is the committed-voluntary target; avoids double-subtraction)
+- [Phase ?]: 56-02: run_for_week is the single trigger-agnostic F4 engine; backfill_range delegates apply-writes to it (single write-path)
 
 ## Performance Metrics
 
@@ -308,3 +310,4 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 | Phase 55 P04 | 45min | 3 tasks | 13 files |
 | Phase 55 P06 | 15min | 2 tasks | 7 files |
 | Phase 56 P01 | 9min | 3 tasks | 5 files |
+| Phase 56 P02 | 15min | 2 tasks | 8 files |

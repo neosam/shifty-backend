@@ -76,7 +76,7 @@ im Backend.
 
 ### Automatische Wochen-Umbuchung (REB-AUTO — F4)
 
-- [ ] **REB-AUTO-01**: Ein Wochen-Cron-Job (`VoluntaryRebookingScheduler`
+- [x] **REB-AUTO-01**: Ein Wochen-Cron-Job (`VoluntaryRebookingScheduler`
       analog `PdfExportSchedulerImpl` v2.2) verarbeitet automatisch die
       Vorwoche (letzte abgeschlossene ISO-Woche via v2.5 `_iso_year`-Helper).
       Für jeden `cap_planned_hours_to_expected=true`-SalesPerson mit
@@ -91,12 +91,12 @@ im Backend.
       `active_from`. Legacy-Semantik pro Konsumkette rekonstruiert (Balance,
       F1-Ist, F2-Soll/Nutz, F4-Self-Guard).
 
-- [ ] **REB-AUTO-03**: Cron ist idempotent — UNIQUE-Constraint
+- [x] **REB-AUTO-03**: Cron ist idempotent — UNIQUE-Constraint
       `(sales_person_id, iso_year, iso_week)` auf `rebooking_batch` verhindert
       Doppelverarbeitung bei Neustart/Backfill; `INSERT ... ON CONFLICT DO
       NOTHING`-Semantik. Zweiter Lauf über bereits verarbeitete Woche = no-op.
 
-- [ ] **REB-AUTO-04**: HR-Admin kann via REST-Endpoint einen einmaligen
+- [x] **REB-AUTO-04**: HR-Admin kann via REST-Endpoint einen einmaligen
       Backfill-Lauf über historische Wochen starten:
       `POST /admin/rebooking/backfill?from=YYYY-Www&dry_run={true|false}`.
       `dry_run=true` zeigt geplante Änderungen ohne DB-Write. Backfill schreibt
