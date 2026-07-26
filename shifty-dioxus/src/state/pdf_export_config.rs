@@ -181,8 +181,10 @@ mod tests {
     /// D-48-UI-TOKEN-KEEP: nicht-leerer token_input → Some(new).
     #[test]
     fn pdf_export_form_to_put_body_nonempty_token_becomes_some() {
-        let mut form = PdfExportForm::default();
-        form.token_input = "secret".to_string();
+        let form = PdfExportForm {
+            token_input: "secret".to_string(),
+            ..Default::default()
+        };
         let body = pdf_export_form_to_put_body(&form);
         assert_eq!(
             body.webdav_app_token.as_deref().map(|s| s.to_string()),
@@ -264,13 +266,15 @@ mod tests {
     /// die einzige nicht-persistierte Änderung ist).
     #[test]
     fn pdf_export_form_save_reload_roundtrip_preserves_fields() {
-        let mut form = PdfExportForm::default();
-        form.enabled = true;
-        form.nextcloud_url = "https://x/dav".to_string();
-        form.webdav_user = "u".to_string();
-        form.target_folder = "folder".to_string();
-        form.weeks_horizon = 12;
-        form.cron_schedule = "0 5 * * 1".to_string();
+        let form = PdfExportForm {
+            enabled: true,
+            nextcloud_url: "https://x/dav".to_string(),
+            webdav_user: "u".to_string(),
+            target_folder: "folder".to_string(),
+            weeks_horizon: 12,
+            cron_schedule: "0 5 * * 1".to_string(),
+            ..Default::default()
+        };
         // token_input leer → Backend würde bestehenden Token behalten;
         // in der From<&PdfExportConfig> maskiert wird der Token wieder auf
         // None gesetzt → Response-Body hat webdav_app_token = None.
