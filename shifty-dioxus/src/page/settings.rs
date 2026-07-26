@@ -1011,6 +1011,173 @@ pub fn SettingsPage() -> Element {
         });
     };
 
+    // ── Card 5: Automatische Freiwilligen-Umbuchung (Phase 56-05, REB-AUTO-02/04) ─
+    // Admin-gated (innerhalb des äußeren is_admin-Blocks; der Backend-Endpunkt
+    // erzwingt HR-Admin unabhängig — Defense-in-Depth, T-56-14). Section 1
+    // spiegelt Card 2b (Stichtag via Toggle-Value); Section 2 treibt den
+    // Backfill-Endpunkt mit Dry-Run/Apply und rendert die BackfillPreviewTO
+    // verbatim (Fat Backend, Thin Client — kein FE-Rechnen, T-56-15).
+
+    // Section 1: Stichtag editor signals (mirror Card 2b sc_* set).
+    let mut vr_date_str: Signal<String> = use_signal(String::new);
+    let mut vr_date_str_loaded_empty = use_signal(|| false);
+    let mut vr_save_result: Signal<Option<bool>> = use_signal(|| None);
+    let mut vr_saving = use_signal(|| false);
+
+    let config_for_vr_load = config.clone();
+    let vr_resource = use_resource(move || {
+        loader::get_voluntary_rebooking_active_from(config_for_vr_load.clone())
+    });
+
+    use_effect(move || {
+        match &*vr_resource.read_unchecked() {
+            Some(Ok(Some(date))) => {
+                vr_date_str.set(date.clone());
+                vr_date_str_loaded_empty.set(false);
+            }
+            Some(Ok(None)) => {
+                vr_date_str.set(String::new());
+                vr_date_str_loaded_empty.set(true);
+            }
+            _ => {}
+        }
+    });
+
+    let config_for_vr_save = config.clone();
+    let on_save_vr_active_from = move |_| {
+        if *vr_saving.read() {
+            return;
+        }
+        let val = vr_date_str.read().clone();
+        if val.is_empty() {
+            return;
+        }
+        // Reuse the ISO-date validator (Card 2b) — defense in depth on <input type=date>.
+        if !is_valid_shortday_date_input(&val) {
+            vr_save_result.set(Some(false));
+            return;
+        }
+        vr_saving.set(true);
+        vr_save_result.set(None);
+        let cfg = config_for_vr_save.clone();
+        spawn(async move {
+            match loader::set_voluntary_rebooking_active_from(cfg, Some(&val)).await {
+                Ok(()) => {
+                    vr_save_result.set(Some(true));
+                    vr_date_str_loaded_empty.set(false);
+                }
+                Err(_) => {
+                    vr_save_result.set(Some(false));
+                }
+            }
+            vr_saving.set(false);
+        });
+    };
+
+    let config_for_vr_clear = config.clone();
+    let on_clear_vr_active_from = move |_| {
+        if *vr_saving.read() {
+            return;
+        }
+        vr_saving.set(true);
+        vr_save_result.set(None);
+        let cfg = config_for_vr_clear.clone();
+        spawn(async move {
+            match loader::set_voluntary_rebooking_active_from(cfg, None).await {
+                Ok(()) => {
+                    vr_date_str.set(String::new());
+                    vr_date_str_loaded_empty.set(true);
+                    vr_save_result.set(Some(true));
+                }
+                Err(_) => {
+                    vr_save_result.set(Some(false));
+                }
+            }
+            vr_saving.set(false);
+        });
+    };
+
+    // Section 2: Backfill signals.
+    let mut vr_from_week: Signal<String> = use_signal(String::new);
+    let mut vr_backfill_running = use_signal(|| false);
+    let mut vr_backfill_error = use_signal(|| false);
+    // Holds the backend-computed preview verbatim (dry-run OR apply).
+    let mut vr_preview: Signal<Option<rest_types::rebooking::BackfillPreviewTO>> =
+        use_signal(|| None);
+
+    let config_for_vr_dry = config.clone();
+    let on_vr_dry_run = move |_| {
+        if *vr_backfill_running.read() {
+            return;
+        }
+        let from = vr_from_week.read().clone();
+        if !crate::state::rebooking::is_valid_iso_week_input(&from) {
+            vr_backfill_error.set(true);
+            return;
+        }
+        vr_backfill_running.set(true);
+        vr_backfill_error.set(false);
+        let cfg = config_for_vr_dry.clone();
+        spawn(async move {
+            match loader::trigger_rebooking_backfill(cfg, &from, true).await {
+                Ok(preview) => vr_preview.set(Some(preview)),
+                Err(_) => vr_backfill_error.set(true),
+            }
+            vr_backfill_running.set(false);
+        });
+    };
+
+    let config_for_vr_apply = config.clone();
+    let on_vr_apply = move |_| {
+        if *vr_backfill_running.read() {
+            return;
+        }
+        let from = vr_from_week.read().clone();
+        if !crate::state::rebooking::is_valid_iso_week_input(&from) {
+            vr_backfill_error.set(true);
+            return;
+        }
+        vr_backfill_running.set(true);
+        vr_backfill_error.set(false);
+        let cfg = config_for_vr_apply.clone();
+        spawn(async move {
+            match loader::trigger_rebooking_backfill(cfg, &from, false).await {
+                Ok(preview) => vr_preview.set(Some(preview)),
+                Err(_) => vr_backfill_error.set(true),
+            }
+            vr_backfill_running.set(false);
+        });
+    };
+
+    // Read-only view helpers for Card 5.
+    let vr_is_saving = *vr_saving.read();
+    let vr_loaded_empty = *vr_date_str_loaded_empty.read();
+    let vr_date_string = vr_date_str.read().clone();
+    let vr_date_value = ImStr::from(vr_date_string.as_str());
+    let vr_date_empty = vr_date_string.is_empty();
+    let vr_save_disabled =
+        vr_is_saving || vr_date_empty || !is_valid_shortday_date_input(&vr_date_string);
+    let vr_from_week_string = vr_from_week.read().clone();
+    let vr_from_week_value = ImStr::from(vr_from_week_string.as_str());
+    let vr_backfill_is_running = *vr_backfill_running.read();
+    let vr_backfill_disabled =
+        vr_backfill_is_running || !crate::state::rebooking::is_valid_iso_week_input(&vr_from_week_string);
+    let vr_backfill_has_error = *vr_backfill_error.read();
+    // Snapshot the preview into render-mapper items (pure field copy, no arithmetic).
+    let vr_preview_snapshot = vr_preview.read().clone();
+    let vr_preview_items: Vec<crate::state::rebooking::BackfillPreviewItem> = vr_preview_snapshot
+        .as_ref()
+        .map(|p| {
+            p.items
+                .iter()
+                .map(crate::state::rebooking::BackfillPreviewItem::from)
+                .collect()
+        })
+        .unwrap_or_default();
+    let vr_preview_total = vr_preview_snapshot.as_ref().map(|p| p.total_candidates);
+    let vr_preview_already = vr_preview_snapshot.as_ref().map(|p| p.already_processed);
+    let vr_has_preview = vr_preview_snapshot.is_some();
+
     // Read-only view helpers.
     let pdf_form_snapshot = pdf_form.read().clone();
     let pdf_saving_now = *pdf_saving.read();
@@ -1632,6 +1799,170 @@ pub fn SettingsPage() -> Element {
                 if no_status {
                     div { class: "text-body text-ink-muted",
                         "{i18n.t(Key::SettingsPdfExportStatusEmpty)}"
+                    }
+                }
+            }
+
+            // Card 5 — Automatische Freiwilligen-Umbuchung (Phase 56-05, REB-AUTO-02/04).
+            // Admin-gated via the outer is_admin return; the backend endpoint
+            // independently enforces HR-Admin (defense-in-depth, T-56-14).
+            div { class: "bg-surface border border-border rounded-md p-4 flex flex-col gap-3 mt-4",
+
+                // Row A: Title + description
+                div { class: "flex flex-col gap-1",
+                    span { class: "text-body text-ink font-semibold",
+                        "{i18n.t(Key::SettingsVoluntaryRebookingTitle)}"
+                    }
+                    span { class: "text-small text-ink-soft",
+                        "{i18n.t(Key::SettingsVoluntaryRebookingHelp)}"
+                    }
+                }
+
+                // Section 1 — Stichtag (activation-date) editor (mirrors Card 2b)
+                div { class: "flex flex-col gap-2",
+                    label { class: "text-small text-ink-muted",
+                        "{i18n.t(Key::SettingsVoluntaryRebookingActiveFromLabel)}"
+                    }
+                    div { class: "max-w-[200px]",
+                        TextInput {
+                            input_type: ImStr::from("date"),
+                            value: vr_date_value,
+                            on_change: move |v: ImStr| vr_date_str.set(v.as_str().to_string()),
+                        }
+                    }
+                    div { class: "flex flex-row items-center gap-3",
+                        button {
+                            r#type: "button",
+                            class: "px-3 py-2 rounded-md border border-border text-ink text-body bg-surface hover:bg-surface-alt",
+                            disabled: vr_save_disabled,
+                            onclick: on_save_vr_active_from,
+                            "{i18n.t(Key::SettingsHolidayAutoCreditSave)}"
+                        }
+                        button {
+                            r#type: "button",
+                            class: "px-3 py-2 rounded-md border border-border text-ink-soft text-body bg-surface hover:bg-surface-alt",
+                            disabled: vr_is_saving || vr_date_empty,
+                            onclick: on_clear_vr_active_from,
+                            "{i18n.t(Key::SettingsHolidayAutoCreditClear)}"
+                        }
+                        {match *vr_save_result.read() {
+                            Some(true) => rsx! {
+                                span { class: "text-small text-ink-muted",
+                                    "{i18n.t(Key::SettingsSaved)}"
+                                }
+                            },
+                            Some(false) => rsx! {
+                                span { class: "text-bad text-small",
+                                    "{i18n.t(Key::SettingsSaveError)}"
+                                }
+                            },
+                            None => rsx! { },
+                        }}
+                    }
+                    if vr_loaded_empty {
+                        span { class: "text-small text-ink-muted",
+                            "{i18n.t(Key::SettingsVoluntaryRebookingActiveFromUnsetHint)}"
+                        }
+                    }
+                }
+
+                // Section 2 — One-time backfill (dry-run + apply + preview table)
+                div { class: "flex flex-col gap-2 border-t border-border pt-3",
+                    span { class: "text-body text-ink font-semibold",
+                        "{i18n.t(Key::SettingsVoluntaryRebookingBackfillTitle)}"
+                    }
+                    div { class: "flex flex-row items-end gap-2 flex-wrap",
+                        div { class: "flex flex-col gap-1",
+                            label { class: "text-small text-ink-muted",
+                                "{i18n.t(Key::SettingsVoluntaryRebookingFromWeekLabel)}"
+                            }
+                            div { class: "max-w-[160px]",
+                                TextInput {
+                                    input_type: ImStr::from("text"),
+                                    value: vr_from_week_value,
+                                    placeholder: Some(i18n.t(Key::SettingsVoluntaryRebookingFromWeekPlaceholder).as_ref().into()),
+                                    on_change: move |v: ImStr| {
+                                        vr_from_week.set(v.as_str().to_string());
+                                        vr_backfill_error.set(false);
+                                    },
+                                }
+                            }
+                        }
+                        button {
+                            r#type: "button",
+                            class: "px-3 py-2 rounded-md border border-border text-ink text-body bg-surface hover:bg-surface-alt",
+                            disabled: vr_backfill_disabled,
+                            onclick: on_vr_dry_run,
+                            "{i18n.t(Key::SettingsVoluntaryRebookingDryRun)}"
+                        }
+                        button {
+                            r#type: "button",
+                            class: "px-3 py-2 rounded-md border border-border text-ink text-body bg-surface hover:bg-surface-alt",
+                            disabled: vr_backfill_disabled,
+                            onclick: on_vr_apply,
+                            "{i18n.t(Key::SettingsVoluntaryRebookingApply)}"
+                        }
+                        if vr_backfill_is_running {
+                            span { class: "text-small text-ink-muted",
+                                "{i18n.t(Key::SettingsVoluntaryRebookingRunning)}"
+                            }
+                        }
+                        if vr_backfill_has_error {
+                            span { class: "text-small text-bad",
+                                "{i18n.t(Key::SettingsVoluntaryRebookingError)}"
+                            }
+                        }
+                    }
+
+                    // Preview result (rendered verbatim from BackfillPreviewTO)
+                    if vr_has_preview {
+                        if let (Some(total), Some(already)) = (vr_preview_total, vr_preview_already) {
+                            span { class: "text-small text-ink-soft",
+                                "{i18n.t(Key::SettingsVoluntaryRebookingPreviewSummary)} {total} / {already}"
+                            }
+                        }
+                        if vr_preview_items.is_empty() {
+                            span { class: "text-small text-ink-muted",
+                                "{i18n.t(Key::SettingsVoluntaryRebookingPreviewEmpty)}"
+                            }
+                        } else {
+                            div { class: "overflow-x-auto",
+                                table { class: "text-small border-collapse",
+                                    thead {
+                                        tr { class: "text-ink-muted text-left",
+                                            th { class: "px-2 py-1", "{i18n.t(Key::SettingsVoluntaryRebookingColPerson)}" }
+                                            th { class: "px-2 py-1", "{i18n.t(Key::SettingsVoluntaryRebookingColWeek)}" }
+                                            th { class: "px-2 py-1", "{i18n.t(Key::SettingsVoluntaryRebookingColIst)}" }
+                                            th { class: "px-2 py-1", "{i18n.t(Key::SettingsVoluntaryRebookingColSoll)}" }
+                                            th { class: "px-2 py-1", "{i18n.t(Key::SettingsVoluntaryRebookingColCommitted)}" }
+                                            th { class: "px-2 py-1", "{i18n.t(Key::SettingsVoluntaryRebookingColExcess)}" }
+                                            th { class: "px-2 py-1", "{i18n.t(Key::SettingsVoluntaryRebookingColWouldBook)}" }
+                                            th { class: "px-2 py-1", "{i18n.t(Key::SettingsVoluntaryRebookingColSkipped)}" }
+                                        }
+                                    }
+                                    tbody {
+                                        for item in vr_preview_items.iter() {
+                                            tr { key: "{item.sales_person_id}-{item.iso_year}-{item.iso_week}",
+                                                class: "border-t border-border",
+                                                td { class: "px-2 py-1 text-ink-soft", "{item.sales_person_id}" }
+                                                td { class: "px-2 py-1", "{item.iso_year}-W{item.iso_week}" }
+                                                td { class: "px-2 py-1", "{item.voluntary_ist}" }
+                                                td { class: "px-2 py-1", "{item.voluntary_soll}" }
+                                                td { class: "px-2 py-1", "{item.committed_voluntary}" }
+                                                td { class: "px-2 py-1", "{item.excess}" }
+                                                td { class: "px-2 py-1", "{item.would_book}" }
+                                                td { class: "px-2 py-1",
+                                                    {match item.skip_reason.as_deref() {
+                                                        Some(reason) => rsx! { "{reason}" },
+                                                        None => rsx! { "" },
+                                                    }}
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

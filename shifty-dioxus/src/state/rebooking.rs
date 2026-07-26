@@ -102,6 +102,84 @@ impl From<&RebookingBatchTO> for RebookingBatch {
     }
 }
 
+// ─── F4 Backfill (Phase 56-05, REB-AUTO-04) ──────────────────────────────────
+//
+// Der Backfill-Card sendet eine ISO-Woche `YYYY-Www` (z.B. `2026-W20`) und
+// rendert die backend-berechnete `BackfillPreviewTO` verbatim (Fat Backend, Thin
+// Client). Die einzige FE-Logik ist die Eingabe-Validitaet des `from`-Feldes —
+// bewusst als reine, testbare Funktion extrahiert (analog
+// `settings::is_valid_shortday_date_input`), damit die Button-Freigabe-Regel
+// unabhaengig vom Browser geprueft werden kann.
+
+/// Validiert eine ISO-Wochen-Eingabe im Format `YYYY-Www` (z.B. `2026-W20`).
+///
+/// Contract (rein syntaktisch — die endgueltige Bereichs-/53-Wochen-Pruefung
+/// macht das Backend, T-56-11):
+/// - Leerer String → `false` (der Backfill-Button bleibt gesperrt, bis eine
+///   Woche eingegeben ist; anders als beim optionalen Stichtag-Datum).
+/// - `YYYY-Www` mit 4-stelligem Jahr, Literal `-W` und 2-stelliger Woche
+///   `01..=53` → `true`.
+/// - Alles andere (deutsche Notation, Klartext, fehlendes `W`, Woche `00`/`>53`)
+///   → `false`.
+///
+/// Bewusst KEINE Arithmetik/Umrechnung — nur Format-Gate fuer die Button-Freigabe.
+pub fn is_valid_iso_week_input(s: &str) -> bool {
+    let bytes = s.as_bytes();
+    // Exact shape "YYYY-Www": 8 chars, digits + "-W" + 2 digits.
+    if bytes.len() != 8 {
+        return false;
+    }
+    if !bytes[0..4].iter().all(|b| b.is_ascii_digit()) {
+        return false;
+    }
+    if bytes[4] != b'-' || bytes[5] != b'W' {
+        return false;
+    }
+    if !bytes[6..8].iter().all(|b| b.is_ascii_digit()) {
+        return false;
+    }
+    // Week 01..=53 (upper bound stays permissive; the backend clamps to
+    // weeks_in_year, T-56-11).
+    let week: u8 = s[6..8].parse().unwrap_or(0);
+    (1..=53).contains(&week)
+}
+
+/// Frontend-Render-Spiegel eines `BackfillPreviewItemTO` (REB-AUTO-04). Reines
+/// Feld-Kopieren — KEINE Arithmetik (Fat Backend, Thin Client). Existiert, damit
+/// das Card-Rendering ueber einen stabilen Typ iteriert statt direkt ueber die
+/// Wire-TO; alle Werte kommen backend-fertig.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BackfillPreviewItem {
+    pub sales_person_id: Uuid,
+    pub iso_year: u32,
+    pub iso_week: u8,
+    pub voluntary_ist: f32,
+    pub voluntary_soll: f32,
+    pub committed_voluntary: f32,
+    pub excess: f32,
+    pub would_book: bool,
+    pub skipped: bool,
+    pub skip_reason: Option<String>,
+}
+
+impl From<&rest_types::rebooking::BackfillPreviewItemTO> for BackfillPreviewItem {
+    fn from(to: &rest_types::rebooking::BackfillPreviewItemTO) -> Self {
+        // Pure field copy — no arithmetic (Fat Backend, Thin Client).
+        Self {
+            sales_person_id: to.sales_person_id,
+            iso_year: to.iso_year,
+            iso_week: to.iso_week,
+            voluntary_ist: to.voluntary_ist,
+            voluntary_soll: to.voluntary_soll,
+            committed_voluntary: to.committed_voluntary,
+            excess: to.excess,
+            would_book: to.would_book,
+            skipped: to.skipped,
+            skip_reason: to.skip_reason.clone(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -163,5 +241,73 @@ mod tests {
         assert_eq!(b.sales_person_id, to.sales_person_id);
         assert_eq!(b.iso_year, 2026);
         assert_eq!(b.iso_week, 30);
+    }
+
+    #[test]
+    fn is_valid_iso_week_input_accepts_wellformed() {
+        assert!(is_valid_iso_week_input("2026-W20"));
+        assert!(is_valid_iso_week_input("2026-W01"));
+        // Permissive upper bound (backend clamps to weeks_in_year).
+        assert!(is_valid_iso_week_input("2026-W53"));
+    }
+
+    #[test]
+    fn is_valid_iso_week_input_rejects_malformed() {
+        assert!(!is_valid_iso_week_input(""));
+        assert!(!is_valid_iso_week_input("2026-20")); // missing W
+        assert!(!is_valid_iso_week_input("2026-W0")); // week not 2 digits
+        assert!(!is_valid_iso_week_input("2026-W00")); // week 0 out of range
+        assert!(!is_valid_iso_week_input("2026-W54")); // week > 53
+        assert!(!is_valid_iso_week_input("26-W20")); // year not 4 digits
+        assert!(!is_valid_iso_week_input("2026-W020")); // too long
+        assert!(!is_valid_iso_week_input("08.01.2026")); // German date notation
+        assert!(!is_valid_iso_week_input("next week")); // natural language
+    }
+
+    #[test]
+    fn backfill_item_mapper_is_pure_field_copy() {
+        let to = rest_types::rebooking::BackfillPreviewItemTO {
+            sales_person_id: Uuid::from_u128(9),
+            iso_year: 2026,
+            iso_week: 20,
+            voluntary_ist: 12.0,
+            voluntary_soll: 4.0,
+            committed_voluntary: 4.0,
+            excess: 8.0,
+            would_book: true,
+            skipped: false,
+            skip_reason: None,
+        };
+        let item = BackfillPreviewItem::from(&to);
+        // Every field copied 1:1 — no derivation/arithmetic.
+        assert_eq!(item.sales_person_id, to.sales_person_id);
+        assert_eq!(item.iso_year, to.iso_year);
+        assert_eq!(item.iso_week, to.iso_week);
+        assert_eq!(item.voluntary_ist, to.voluntary_ist);
+        assert_eq!(item.voluntary_soll, to.voluntary_soll);
+        assert_eq!(item.committed_voluntary, to.committed_voluntary);
+        assert_eq!(item.excess, to.excess);
+        assert_eq!(item.would_book, to.would_book);
+        assert_eq!(item.skipped, to.skipped);
+        assert_eq!(item.skip_reason, to.skip_reason);
+    }
+
+    #[test]
+    fn backfill_item_mapper_preserves_skip_reason() {
+        let to = rest_types::rebooking::BackfillPreviewItemTO {
+            sales_person_id: Uuid::from_u128(2),
+            iso_year: 2026,
+            iso_week: 21,
+            voluntary_ist: 5.0,
+            voluntary_soll: 2.0,
+            committed_voluntary: 2.0,
+            excess: 0.0,
+            would_book: false,
+            skipped: true,
+            skip_reason: Some("already_processed".to_string()),
+        };
+        let item = BackfillPreviewItem::from(&to);
+        assert!(item.skipped);
+        assert_eq!(item.skip_reason.as_deref(), Some("already_processed"));
     }
 }
