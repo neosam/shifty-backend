@@ -1,5 +1,13 @@
 # Deferred Items — Phase 56
 
+## ✅ RESOLVED (commit `d63c73aa`) — Pre-existing clippy warnings (out of scope, Plan 05)
+
+**Resolution:** Fixed opportunistically at phase-close because these two errors
+blocked the `nix build` clippy gate (`cargo clippy -p shifty-dioxus -- -D warnings`)
+and Phase 56 closes the v2.6 milestone. Both test helpers converted to
+struct-update syntax; `cargo clippy --all-targets -- -D warnings` on shifty-dioxus
+is now clean (exit 0). Details of the original deferral below.
+
 ## Pre-existing clippy warnings (out of scope, Plan 05)
 
 **File:** `shifty-dioxus/src/state/pdf_export_config.rs` (test module, lines ~184, ~267-268)
