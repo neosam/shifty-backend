@@ -16,9 +16,13 @@ use dao_impl_sqlite::{
 };
 use service::pdf_export::PdfExportScheduler as _;
 use service::scheduler::SchedulerService;
+use service::voluntary_rebooking_scheduler::VoluntaryRebookingScheduler as _;
 use service_impl::pdf_export_scheduler::{
     PdfExportSchedulerDeps, PdfExportSchedulerImpl, ProductionWebDavUploadFactory,
     WebDavUploadFactory,
+};
+use service_impl::voluntary_rebooking_scheduler::{
+    VoluntaryRebookingSchedulerDeps, VoluntaryRebookingSchedulerImpl,
 };
 use service_impl::{
     carryover::CarryoverServiceDeps,
@@ -418,6 +422,24 @@ impl PdfExportSchedulerDeps for PdfExportSchedulerDependencies {
 }
 type PdfExportSchedulerService = PdfExportSchedulerImpl<PdfExportSchedulerDependencies>;
 
+// Phase 56 Plan 03 (REB-AUTO-01): VoluntaryRebookingSchedulerImpl ist BL-Tier —
+// duennes Cron-Orchestrierungs-Aggregat, das den RebookingReconciliationService
+// (BL) pro gedeckelter SalesPerson der Vorwoche aufruft. Konstruktions-
+// Reihenfolge: NACH RebookingReconciliationService + WorkingHoursService
+// (EmployeeWorkDetails) — beide bereits im Scope (Service-Tier-Konvention).
+pub struct VoluntaryRebookingSchedulerDependencies;
+impl VoluntaryRebookingSchedulerDeps for VoluntaryRebookingSchedulerDependencies {
+    type Context = Context;
+    type Transaction = Transaction;
+    type RebookingReconciliationService = RebookingReconciliationService;
+    type EmployeeWorkDetailsService = WorkingHoursService;
+    type PermissionService = PermissionService;
+    type ClockService = ClockService;
+    type TransactionDao = TransactionDao;
+}
+type VoluntaryRebookingSchedulerService =
+    VoluntaryRebookingSchedulerImpl<VoluntaryRebookingSchedulerDependencies>;
+
 // Phase 49 (PDF-03/PDF-04/PDF-05): PdfShiftplanServiceImpl ist BL-Tier —
 // konsumiert ShiftplanViewService (Read-Aggregat) + SalesPersonService
 // (Basic) + WeekStatusService (Basic) + PermissionService + TransactionDao.
@@ -798,6 +820,10 @@ pub struct RestStateImpl {
     pdf_export_config_service: Arc<PdfExportConfigService>,
     // Phase 48 Plan 04 (EXP-01/EXP-03): Cron-getriebener Nextcloud-Push.
     pdf_export_scheduler: Arc<PdfExportSchedulerService>,
+    // Phase 56 Plan 03 (REB-AUTO-01): woechentlicher F4-Auto-Cron, der
+    // Ueberschuss-Freiwilligenstunden gedeckelter Mitarbeiter der Vorwoche
+    // umbucht. Boot nach pdf_export_scheduler.
+    voluntary_rebooking_scheduler: Arc<VoluntaryRebookingSchedulerService>,
     // Phase 49 (PDF-03/PDF-04/PDF-05): BL-Tier PDF-Shiftplan-Assembler;
     // konsumiert vom On-Demand-Download-Endpoint (Wave 2) und vom
     // Scheduler-Refactor (Plan 03).
@@ -1483,6 +1509,19 @@ impl RestStateImpl {
             Arc::new(ProductionWebDavUploadFactory) as Arc<dyn WebDavUploadFactory>,
         ));
 
+        // Phase 56 Plan 03 (REB-AUTO-01): F4-Auto-Cron-Scheduler (BL-Tier).
+        // Konsumiert rebooking_reconciliation_service (BL) + working_hours_service
+        // (EmployeeWorkDetails, capped-person-Quelle) + permission + clock +
+        // transaction_dao — alle bereits konstruiert (Service-Tier-Konvention:
+        // BL nach BL, kein OnceLock).
+        let voluntary_rebooking_scheduler = Arc::new(VoluntaryRebookingSchedulerService::new(
+            rebooking_reconciliation_service.clone(),
+            working_hours_service.clone(),
+            permission_service.clone(),
+            clock_service.clone(),
+            transaction_dao.clone(),
+        ));
+
         // Phase 8.5 (Plan 03) — AbsenceConversionService (BL-Tier nach Basic-Services).
         // Konsumiert: extra_hours_dao (Basic-DAO), absence_dao (Basic-DAO),
         // migration_source_dao (Basic-DAO), extra_hours_service (Basic),
@@ -1539,6 +1578,7 @@ impl RestStateImpl {
             rebooking_reconciliation_service,
             pdf_export_config_service,
             pdf_export_scheduler,
+            voluntary_rebooking_scheduler,
             pdf_shiftplan_service,
             basic_dao: Arc::new(BasicDaoImpl::new(pool)),
         }
@@ -1632,6 +1672,15 @@ async fn main() {
         .start()
         .await
         .expect("Expected the pdf-export scheduler to start");
+
+    // Phase 56 Plan 03 (REB-AUTO-01): F4-Auto-Cron starten (Montag 03:15,
+    // konfliktfrei vs. PDF-Export Montag 06:00). Ob der Cron tatsaechlich
+    // bucht, entscheidet der Stichtag-Toggle bei jedem Lauf (F4-Self-Guard).
+    rest_state
+        .voluntary_rebooking_scheduler
+        .start()
+        .await
+        .expect("Expected the voluntary rebooking scheduler to start");
 
     rest::start_server(rest_state).await
 }
