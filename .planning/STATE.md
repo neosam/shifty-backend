@@ -6,14 +6,14 @@ current_phase: 56
 current_phase_name: wochen-cron-rollout-backfill-f4
 status: executing
 stopped_at: Phase 56 context gathered
-last_updated: "2026-07-26T06:17:14.377Z"
+last_updated: "2026-07-26T06:32:05.672Z"
 last_activity: 2026-07-26
 last_activity_desc: Phase 56 execution started
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 23
-  completed_plans: 19
+  completed_plans: 20
   percent: 75
 ---
 
@@ -34,7 +34,7 @@ progress:
 ## Current Position
 
 Phase: 56 (wochen-cron-rollout-backfill-f4) — EXECUTING
-Plan: 3 of 6
+Plan: 4 of 6
 Status: Ready to execute
 Last activity: 2026-07-26 — Phase 56 execution started
 
@@ -206,7 +206,7 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-07-26T06:16:57.959Z
+**Last session:** 2026-07-26T06:31:42.352Z
 **Stopped at:** Phase 56 context gathered
 **Resume file:** .planning/phases/56-wochen-cron-rollout-backfill-f4/56-CONTEXT.md
 
@@ -275,6 +275,9 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 - [Phase ?]: [Phase 56]: 56-01 voluntary_rebooking_gate::should_run_for_week is the single ISO-week cutoff predicate (Monday via Date::from_iso_week_date, inclusive lower boundary) reused by the Plan 02/03 scheduler write-guard.
 - [Phase ?]: 56-02: F4 excess = ist - committed (VoluntaryStats::soll_total is the committed-voluntary target; avoids double-subtraction)
 - [Phase ?]: 56-02: run_for_week is the single trigger-agnostic F4 engine; backfill_range delegates apply-writes to it (single write-path)
+- [Phase ?]: 56-03: VoluntaryRebookingScheduler consumes the minimal dep set (RebookingReconciliation + EmployeeWorkDetails + Permission + Clock + TransactionDao); toggle-gate/week-lock stay inside run_for_week.
+- [Phase ?]: 56-03: Scheduler has no RestStateDef accessor (no REST surface until Plan 04); plain RestStateImpl field booted after pdf_export_scheduler.
+- [Phase ?]: 56-03: Weekly cron hardcoded 6-field 0 15 3 * * 1 (Monday 03:15), conflict-free vs pdf_export; no reload_from_db (toggle read fresh per run).
 
 ## Performance Metrics
 
@@ -311,3 +314,4 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 | Phase 55 P06 | 15min | 2 tasks | 7 files |
 | Phase 56 P01 | 9min | 3 tasks | 5 files |
 | Phase 56 P02 | 15min | 2 tasks | 8 files |
+| Phase 56 P03 | 12min | 3 tasks | 7 files |
