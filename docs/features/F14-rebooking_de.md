@@ -9,20 +9,22 @@
 > Phasen 54..56.
 
 **Cluster ID:** F14
-**Status:** teilweise shipped (Phase 54 = F1/F2-Baseline; Phase 55 = F3
-manuelle Umbuchung + F5 HR-Alert approve/reject); F4 (Auto-Cron) noch
-geplant für Phase 56.
+**Status:** shipped (Phase 54 = F1/F2-Baseline; Phase 55 = F3 manuelle
+Umbuchung + F5 HR-Alert approve/reject; Phase 56 = F4 Auto-Cron-Scheduler
++ Rollout-Backfill-Endpoint).
 **Zuerst eingeführt:** Milestone v2.6, Phase 54 (2026-07-07). F3
 (manuelle One-Shot-Umbuchung) und F5 (Claim-on-Suggest-Lifecycle:
 suggest / approve / reject) shipped in Phase 55 (2026-07-23). F4
-(Auto-Cron) folgt in Phase 56.
+(Auto-Cron-Scheduler + Backfill) shipped in Phase 56 (2026-07-26).
 **Zuständige Crates:** `service::{rebooking_batch, voluntary_stats,
-rebooking_reconciliation}`,
-`service_impl::{rebooking_batch, voluntary_stats, rebooking_reconciliation}`,
+rebooking_reconciliation, voluntary_rebooking_scheduler}`,
+`service_impl::{rebooking_batch, voluntary_stats, rebooking_reconciliation,
+voluntary_rebooking_scheduler, voluntary_rebooking_gate}`,
 `dao::rebooking_batch`, `dao_impl_sqlite::rebooking_batch`,
 `service_impl::reporting` (vier neue pure fns + der `source ==
 Manual`-Neutralitäts-Filter + das `has_pending_rebooking`-Alert-Flag),
-`rest::{report, rebooking}` (voluntary-stats + F3/F5-Routes),
+`rest::{report, rebooking}` (voluntary-stats + F3/F5-Routes + die F4
+`/admin/rebooking/backfill`-Route),
 `rest-types::{VoluntaryStatsTO, rebooking}`,
 `shifty-dioxus::component::voluntary_stats_row`.
 
@@ -65,12 +67,12 @@ faktisch ihren Vertrag plus Freiwillig-Extra geleistet hat.
 | F1 (Ø Freiwillig pro Vertragswoche) | v2.6 Phase 54 | shipped | HR-only Ø — Σ Volunteer / Vertragswochen im ISO-Jahr. |
 | F2 (Freiwillig-Soll + Delta) | v2.6 Phase 54 | shipped | HR-only Sicht auf `committed_voluntary`-pro-rata-Soll vs. Ist + Delta. |
 | F3 (manuelle One-Shot-Umbuchung) | v2.6 Phase 55 | shipped | HR bucht eine gewählte Stundenzahl in einem Schuss um; Batch landet als `kind = Manual`, `state = Approved`, gepaarte `extra_hours` atomar geschrieben. |
-| F4 (Auto-Cron-Scheduler) | v2.6 Phase 56 | planned | Toggle-gesteuerter Cron erzeugt `AutoCron`-Vorschläge; bumpt Snapshot 12 → 13. |
+| F4 (Auto-Cron-Scheduler + Backfill) | v2.6 Phase 56 | shipped | `VoluntaryRebookingScheduler` (Montag-03:15-Cron) verarbeitet die Vorwoche für jede gedeckelte Person via `run_for_week` (`kind = AutoCron`), plus der Rollout-Endpoint `POST /admin/rebooking/backfill` (`kind = AutoCronBackfill`). Stichtag-Toggle-gesteuert (`voluntary_rebooking_auto_active_from`); **kein Snapshot-Schema-Bump — bleibt bei 12** (D-01). Siehe §9. |
 | F5 (HR-Alert suggest / approve / reject) | v2.6 Phase 55 | shipped | Claim-on-Suggest (Modell B): `suggest` claimt einen `Pending`-`HrSuggestion`-Batch; `approve` schreibt die gepaarten Zeilen, `reject` transitioniert nur den State. |
 
 **Faustregel:** F3 (manuell) und F5 (HR-Alert) shippen in Phase 55
-(siehe §8 unten). Nur der F4-Auto-Cron-Writer ist noch auf Phase 56
-verschoben.
+(siehe §8 unten); F4 (Auto-Cron + Backfill) shippt in Phase 56 (siehe
+§9 unten).
 
 ## 3. Marker-Filter-Regel ([D-54-DM-02])
 
@@ -348,12 +350,16 @@ bestehende `[[web.proxy]]`-Eintrag in `shifty-dioxus/Dioxus.toml` für
   `source == Manual` (behalte `Manual`, schließe `Rebooking` aus) an
   vier Eingangs-Sites, sodass ein Rebooking-Paar balance / ist / soll /
   delta-neutral ist (VOL-ACCT-03). Siehe F07 §2.6.
-- **F08 Billing Period Snapshot** — **kein Version-Bump in Phase 55.**
-  `CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt bei 12: Phase 55 fügt weder
-  einen persistierten `value_type` hinzu noch eine Berechnung, die einen
-  bestehenden ändern würde (das Rebooking-Paar netto-nullt im Aggregat).
-  Der Bump 12 → 13 liegt in Phase 56 (REB-AUTO-05, F4-Cron) — siehe
-  `REQUIREMENTS.md`.
+- **F08 Billing Period Snapshot** — **kein Version-Bump — bleibt bei 12
+  über Phase 55 UND Phase 56.** `CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt
+  bei 12: keine der beiden Phasen fügt einen persistierten `value_type`
+  hinzu noch eine Berechnung, die einen bestehenden ändern würde (das
+  Rebooking-Paar netto-nullt im Aggregat). REB-AUTO-05 hat dies als den
+  **„Nein"-Zweig (kein Bump)** gepinnt — die D-01-Straddling-Golden-
+  Snapshot-Fixture beweist, dass die Snapshot-Value-Rows byte-identisch
+  sind, egal ob der F4-Cron-Toggle aktiv ist oder nicht, weil jede
+  Billing-Period-Input-Kette `source == Manual` filtert und damit nie
+  eine `Rebooking`-Source-Zeile liest (siehe §9 und F08 §7.4).
 - **F13 System-Infrastruktur** — der Toggle
   `voluntary_rebooking_auto_active_from` (in Phase 54 mit
   `enabled = 0`, `value = NULL` geseedet) gattet in Phase 56 den
@@ -476,6 +482,127 @@ Die optionale read-only `GET /rebooking-suggestions`-Liste wurde
 **nicht** implementiert (kein list-pending-Service/DAO existiert in
 55-01/02; einen hinzuzufügen wäre eine Rule-4-Architektur-Änderung).
 
+## 9. F4 Auto-Cron + Rollout-Backfill (Phase 56)
+
+Phase 56 setzt die **Automatisierungs-Fläche** auf den Phase-55-Write-Path
+obendrauf. Der One-Shot-F3-Write und der F5-approve-Lifecycle brauchen
+einen Menschen; F4 bucht dieselben balance-neutralen Rebooking-Paare
+automatisch, Woche für Woche, für jede gedeckelte Person — plus ein
+einmaliges Backfill-Kommando, das beim Rollout historische Wochen
+nachzieht.
+
+### 9.1 Die trigger-agnostische Engine — `run_for_week`
+
+`RebookingReconciliationService::run_for_week(sales_person_id, iso_year,
+iso_week, kind, …)` ist der **einzige Write-Path**, geteilt von Cron und
+Backfill (Plan 02). Er ist trigger-agnostisch: der Aufrufer übergibt den
+`RebookingBatchKind` (`AutoCron` für den Wochen-Cron, `AutoCronBackfill`
+für den Backfill), und die Engine macht das gesamte Gating intern, sodass
+die beiden Trigger niemals driften können:
+
+- **Excess** = `max(ist − (soll + committed), 0)` — die freiwilligen
+  Stunden über dem Committed-Soll, die umgebucht werden
+  (`RunForWeekOutcome::Booked { hours }`). Nichts umzubuchen → `Skipped`.
+- **Idempotenz (REB-AUTO-03):** eine Woche, die bereits einen aktiven
+  `rebooking_batch` trägt (früherer Cron-Lauf, manueller F3-Batch oder
+  offener pending-HR-Vorschlag), wird geskippt — `Skipped { AlreadyProcessed }`.
+  Der partielle UNIQUE-Index `(sales_person, iso_year, iso_week)` (§4)
+  ist die Enforcement-Stelle; Claim-on-Suggest (§8.3) bedeutet, dass ein
+  offener pending-Batch den Cron-Slot blockiert.
+- **Wochen-Sperre (D-04):** eine `WeekStatus::Locked`-ISO-Woche schreibt
+  einen `state = SkippedLocked`-**Audit-Batch** (kein Paar) und liefert
+  `Skipped { WeekLocked }` — die Balance einer geschlossenen Woche wird
+  nie mutiert, aber der Skip bleibt im Audit-Trail sichtbar.
+- **Stichtag-Toggle (write-seitiger Self-Guard, D-06):** die Engine liest
+  `voluntary_rebooking_auto_active_from` frisch bei jedem Lauf
+  (`voluntary_rebooking_gate::should_run_for_week`, der ISO-Wochen-Montag
+  ≥ `active_from`-Cutoff, analog zu `shortday_gate`). Toggle nicht gesetzt
+  oder Montag der Woche strikt vor `active_from` → `Skipped { ToggleOff }`
+  — ein voller No-Op, kein Batch geschrieben.
+
+### 9.2 Der Wochen-Scheduler — `VoluntaryRebookingScheduler`
+
+`VoluntaryRebookingScheduler` (Business-Logic-Tier,
+`service::voluntary_rebooking_scheduler` /
+`service_impl::voluntary_rebooking_scheduler`) ist ein dünner
+`tokio-cron-scheduler`-Job, der `PdfExportSchedulerImpl` minus
+`reload_from_db` spiegelt:
+
+- **Hardcoded 6-Feld-Cron `0 15 3 * * 1`** — Montag 03:15
+  (`VOLUNTARY_REBOOKING_CRON`), konfliktfrei gegen den
+  pdf-export-Montag-06:00-Job (D-03). Sechs Felder sind unter
+  `tokio-cron-scheduler` Pflicht (ein 5-Feld-Ausdruck erzeugt still einen
+  schlafenden Job — T-56-09).
+- **`run_once_now`** berechnet die **vorherige** abgeschlossene ISO-Woche
+  (jahresgrenzsicher: `ShiftyDate::from_date(clock.date_now()).as_shifty_week()`
+  + ein `previous_week`-Step-Back — nie ein naives `year()`/`week()`),
+  iteriert dann jede gedeckelte Person aus
+  `EmployeeWorkDetailsService::all_for_week` und delegiert jede an
+  `run_for_week(…, AutoCron, …)`. Ein Per-Person-Fehler wird geloggt und
+  die Schleife läuft weiter (T-56-07 — keine Panic-Propagation aus der
+  Cron-Closure); es loggt eine `{booked} booked, {skipped} skipped,
+  {failed} failed`-Zusammenfassung.
+- **Kein Cron-String aus dem Toggle kompiliert:** anders als ein
+  Stichtag-im-Cron-Ansatz wird der Toggle bei jedem Lauf frisch innerhalb
+  `run_for_week` gelesen, sodass ein Flippen von `active_from` am nächsten
+  Montag ohne Reload greift. Deshalb hat der Scheduler kein
+  `reload_from_db`.
+- **DI-Wiring:** minimaler Dep-Set — `RebookingReconciliationService`
+  (die Engine), `EmployeeWorkDetailsService` (die Gedeckelte-Personen-
+  Quelle), `PermissionService`, `ClockService`, `TransactionDao`. Gebootet
+  in `shifty_bin/src/main.rs` am Ende von `main()` **direkt nach**
+  `pdf_export_scheduler.start()`. Er hat **keine** REST-Fläche (der
+  Backfill-Endpoint ist eine separate Route auf
+  `RebookingReconciliationService`), daher ist er ein reines
+  `RestStateImpl`-Feld, kein `RestStateDef`-Accessor.
+
+### 9.3 Der Rollout-Backfill-Endpoint
+
+`POST /admin/rebooking/backfill` (`rest/src/rebooking.rs::trigger_backfill`,
+genestet unter `/admin/rebooking`) ist ein dünner Delegat an
+`RebookingReconciliationService::backfill_range`:
+
+| Query-Param | Bedeutung |
+| --- | --- |
+| `from` | ISO-Woche `YYYY-Www` (z.B. `2026-W20`); malformed / Woche `0` / Woche > `weeks_in_year` → **HTTP 400** *bevor* der Service läuft (T-56-11 DoS-Bound — keine teure Iteration auf Müll-Input). |
+| `dry_run` | `true` = nur Vorschau (kein Write); `false` (oder fehlend) = Apply. Jeder andere Wert → HTTP 400. |
+| `page`, `per_page` | Optionale 1-basierte Pagination der Kandidatenliste (Multi-Year-Backfills werden nicht in einer Response abgeladen, D-05). |
+
+- **HR-gated:** `backfill_range` prüft zuerst `HR_PRIVILEGE`
+  (`service_impl/src/rebooking_reconciliation.rs`); ein Nicht-HR-Aufrufer
+  bekommt **HTTP 403**. Die Route liegt im `/admin/rebooking`-Nest.
+- **Single Write-Path:** der Apply-Zweig delegiert jede Kandidaten-Woche
+  an dieselbe `run_for_week`-Engine mit `kind = AutoCronBackfill`, sodass
+  eine backfillte Woche exakt wie eine Cron-Woche gegated wird
+  (Idempotenz, Wochen-Sperre, Toggle) — der einzige Unterschied ist der
+  Batch-`kind`, der Audit-Queries erlaubt, einen Rollout-Sweep vom
+  laufenden Wochen-Cron zu unterscheiden.
+- **Response** ist ein `BackfillPreviewTO` (Kandidaten-Items mit den
+  berechneten `voluntary_ist` / `voluntary_soll` / `committed_voluntary` /
+  `excess` / `would_book` / `skipped`), identische Shape für dry-run und
+  Apply, sodass der HR-Admin vor dem Commit eine Vorschau bekommt.
+
+### 9.4 Snapshot-Schema-Entscheidung (REB-AUTO-05, D-01)
+
+**`CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt bei 12 — F4 bumpt NICHT.**
+Die offene Discuss-Decision war, ob der F4-Cron-`Rebooking`-Source-
+`ExtraHours`-Writer ein „Input-Set-Change" im Sinne der
+CLAUDE.md-Snapshot-Versioning-Klausel ist. Die Antwort ist **nein**, und
+der Beweis ist empirisch: die Plan-01-**Straddling-Golden-Snapshot-
+Fixture** (`service_impl/src/test/billing_period_straddling.rs`) treibt
+den echten `BillingPeriodReportServiceImpl` über eine Billing-Period, die
+eine Rebooking-Woche (KW 16/2026) überspannt, und assertet, dass die
+persistierten `BillingPeriodSalesPerson.values`-Rows über vier
+Toggle-Szenarien **byte-identisch** sind (`f32::to_bits()`) — Cutoff nach
+/ vor / innerhalb der Period gesetzt sowie unset. Keine Kette leakt eine
+Rebooking-Zeile in den Snapshot, weil jeder Billing-Period-Input-Pfad
+`source == Manual` filtert (der Phase-55-D-55-A1-Read-Aggregations-Filter
+ist unbedingt und toggle-unabhängig). Rebooking ist balance-neutral (§3,
+VOL-ACCT-03), sodass das gepaarte `(−h, +h)` nie einen persistierten
+`value_type` ändert. Daher nimmt F4 den **„kein Bump"**-Zweig: keine
+Migration, keine `billing_period_snapshot_locking.rs`-Assert-Änderung,
+F08 §7.4 verzeichnet den Non-Bump. Siehe F08 §7.4 und F07 §2.6.
+
 ---
 
 **Fazit.** Phase 54 lieferte die Lese-Seite von F14 (F1/F2,
@@ -483,8 +610,11 @@ Audit-Tabellen, Marker-Spalte). Phase 55 hängt die Write-Seite an: F3
 manuelle One-Shot-Umbuchung und der F5-Claim-on-Suggest-HR-Alert-
 Lifecycle (suggest / approve / reject), den `source ==
 Manual`-Neutralitäts-Filter (VOL-ACCT-03) und das
-`has_pending_rebooking`-Alert-Flag — **ohne Snapshot-Schema-Bump**
-(bleibt 12). Phase 56 setzt den F4-Auto-Cron obendrauf (dann der Bump
-12 → 13).
+`has_pending_rebooking`-Alert-Flag. Phase 56 setzt den F4-Auto-Cron-
+Scheduler (wöchentlich Montag 03:15) und den Rollout-Backfill-Endpoint
+obendrauf (§9). Die gesamte Pipeline landet **ohne Snapshot-Schema-Bump —
+`CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt durchgehend 12**, weil Rebooking
+balance-neutral ist und jede Snapshot-Input-Kette `source == Manual`
+filtert (D-01, bewiesen durch die Straddling-Golden-Snapshot-Fixture).
 
 *Letzte Verifikation gegen Code:* siehe git blame dieser Datei.
