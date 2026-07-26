@@ -522,7 +522,16 @@ Vorschau; Präzedenz `pdf_export_config`-Card),
 `shifty-dioxus/i18n/{de,en,cs}/*.ftl` (Card-Labels, Backfill-Button,
 Dry-Run-Vorschau-Header).
 
-**Plans:** TBD
+**Plans:** 6 plans
+
+- [ ] 56-01-PLAN.md — Wave-0 validation backbone: `voluntary_rebooking_gate` module + 3 D-06 neutrality property-tests + D-01 Straddling-Golden-Snapshot-Fixture (decides snapshot 12 vs 13)
+- [ ] 56-02-PLAN.md — `run_for_week` + `backfill_range` in RebookingReconciliationService (excess→pair, idempotency, Claim-on-Suggest, Locked-audit, dry-run/apply)
+- [ ] 56-03-PLAN.md — `VoluntaryRebookingScheduler` (1:1 pdf_export mirror) + main.rs DI/boot + Vorwoche cron
+- [ ] 56-04-PLAN.md — REST `POST /admin/rebooking/backfill` + `BackfillRequestTO`/`BackfillPreviewTO` + HR-Admin gate + threat model
+- [ ] 56-05-PLAN.md — FE Admin-Card (Stichtag editor + backfill dry-run/apply preview) + Dioxus.toml proxy + de/en/cs
+- [ ] 56-06-PLAN.md — Docs-Freshness: F14 (F4-cron+backfill) + F07/F08 + 02-service-tiers + service-graph diagram (EN+DE)
+
+**Wave structure:** W1 = 01 · W2 = 02 · W3 = 03 + 04 (parallel) · W4 = 05 + 06 (parallel)
 
 **UI hint**: yes
 
@@ -535,7 +544,7 @@ Dry-Run-Vorschau-Header).
 | 54. Data-Model + Voluntary Statistics (F1 + F2) | 9/9 | Complete | 2026-07-10 |
 | 54.5. Voluntary-Soll Absence-Aware-Angleichung (Hotfix v2.6.1) | 2/2 | Complete | 2026-07-10 |
 | 55. Manuelle Umbuchung + HR-Alert-Modal (F3 + F5) | 6/6 | Complete    | 2026-07-24 |
-| 56. Wochen-Cron + Rollout-Backfill (F4) | 0/? | Not started | - |
+| 56. Wochen-Cron + Rollout-Backfill (F4) | 0/6 | Not started | - |
 
 Requirements-Coverage: 17/17 mapped (5 → P54, 7 → P55, 5 → P56).
 
