@@ -64,6 +64,7 @@ graph TD
         Scheduler[Scheduler Service]
         VoluntaryStats[Voluntary Stats Service<br/>Phase 54, v2.6]
         RebookingReconciliation[Rebooking Reconciliation Service<br/>Phase 55, v2.6]
+        VoluntaryRebookingScheduler[Voluntary Rebooking Scheduler<br/>Phase 56, v2.6]
     end
 
     %% Infrastructure edges (session)
@@ -198,3 +199,12 @@ graph TD
     RebookingReconciliation --> RebookingBatch
     RebookingReconciliation --> Reporting
     RebookingReconciliation --> VoluntaryStats
+
+    %% Voluntary Rebooking Scheduler (Phase 56 — BL-Tier, F4 auto-cron).
+    %% Thin tokio-cron-scheduler job (Monday 03:15) booted after
+    %% pdf_export_scheduler in main(); minimal dep set — the engine
+    %% (RebookingReconciliation) + the capped-person source
+    %% (WorkingHours a.k.a. EmployeeWorkDetails). Toggle-gate/week-lock
+    %% live inside run_for_week, so no extra Toggle/WeekStatus edges.
+    VoluntaryRebookingScheduler --> RebookingReconciliation
+    VoluntaryRebookingScheduler --> WorkingHours

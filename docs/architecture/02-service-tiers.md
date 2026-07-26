@@ -67,6 +67,21 @@ cross-entity invariants:
   (order: `extra_hours` → `rebooking_batch` → `reporting` →
   `voluntary_stats` → `rebooking_reconciliation`, last). See feature
   [F14 §8](../features/F14-rebooking.md).
+- `VoluntaryRebookingScheduler` — F4 auto-cron scheduler (v2.6
+  Phase 56). A thin `tokio-cron-scheduler` job (Monday 03:15, 6-field
+  cron `0 15 3 * * 1`) that computes the previous ISO week and delegates
+  every capped person to `RebookingReconciliationService::run_for_week`.
+  Consumes `RebookingReconciliationService` (the engine) +
+  `EmployeeWorkDetailsService` (the capped-person source) (+
+  `PermissionService`, `ClockService`, `TransactionDao`) — a
+  Business-Logic service (two domain-service deps). Mirrors
+  `PdfExportScheduler` minus `reload_from_db` (the stichtag toggle is
+  read fresh each run inside `run_for_week`). Booted in
+  `shifty_bin/src/main.rs` **after** `pdf_export_scheduler.start()` at
+  the end of `main()` — the DI-wiring trigger for this doc. No REST
+  surface (the `/admin/rebooking/backfill` endpoint hangs on
+  `RebookingReconciliationService`). See feature
+  [F14 §9](../features/F14-rebooking.md).
 
 ## Rules
 
