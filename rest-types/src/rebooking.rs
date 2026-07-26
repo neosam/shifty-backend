@@ -176,6 +176,123 @@ impl From<&dao::rebooking_batch::RebookingBatchEntity> for RebookingBatchTO {
     }
 }
 
+/// F4 (REB-AUTO-04): Backfill-Request. `from` ist eine ISO-Woche im Format
+/// `YYYY-Www` (z.B. `2026-W20`); `dry_run` steuert Vorschau (true, kein Write)
+/// vs. Apply (false, persistiert `AutoCronBackfill`-Batches). Wird aus den
+/// Query-Parametern deserialisiert; der Handler validiert `from` zusaetzlich
+/// gegen ein gueltiges ISO-Wochen-Muster (malformed → 400) BEVOR der Service
+/// laeuft.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
+pub struct BackfillRequestTO {
+    /// ISO-Woche im Format `YYYY-Www` (z.B. `2026-W20`).
+    pub from: String,
+    /// `true` = Vorschau (kein Write); `false` = Apply (persistiert Batches).
+    pub dry_run: bool,
+}
+
+/// F4 (REB-AUTO-04): Ein Kandidaten-Item der Backfill-Vorschau. Spiegelt
+/// `service::rebooking_reconciliation::BackfillPreviewItem`. Jedes Feld ist
+/// backend-berechnet (Fat-Backend); `skip_reason` ist ein stabiler
+/// lowercase-String (`no_excess` | `already_processed` | `week_locked` |
+/// `toggle_off`) statt der Domain-Enum-Variante.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
+pub struct BackfillPreviewItemTO {
+    pub sales_person_id: Uuid,
+    pub iso_year: u32,
+    pub iso_week: u8,
+    /// F1-Ist der Woche (`voluntary_ist`).
+    pub voluntary_ist: f32,
+    /// F2-Soll der Woche (`voluntary_soll`).
+    pub voluntary_soll: f32,
+    /// Committed-voluntary-Beitrag der Woche (= `voluntary_soll` fuer die
+    /// Single-Week-Range).
+    pub committed_voluntary: f32,
+    /// Der Ueberschuss, der gebucht wuerde (`max(ist - (soll + committed), 0)`).
+    pub excess: f32,
+    /// `true`, wenn `excess > 0` und die Woche nicht geskippt wuerde.
+    pub would_book: bool,
+    /// `true`, wenn diese Woche NICHT gebucht wurde/wuerde.
+    pub skipped: bool,
+    /// Grund fuer `skipped` als stabiler String; `None`, wenn gebucht.
+    pub skip_reason: Option<String>,
+}
+
+/// F4 (REB-AUTO-04): Backfill-Vorschau-Antwort. `items` ist die (ggf.
+/// paginierte) Liste der Kandidaten; `total_candidates` = Gesamtzahl der
+/// Kandidaten vor Pagination; `already_processed` = Anzahl der Kandidaten, die
+/// wegen eines bereits belegten Slots geskippt wurden (Idempotenz-Diagnose).
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
+pub struct BackfillPreviewTO {
+    /// Spiegelt den Request: `true` = kein Write erfolgt.
+    pub dry_run: bool,
+    /// Die (ggf. paginierte) Kandidatenliste.
+    pub items: Vec<BackfillPreviewItemTO>,
+    /// Gesamtzahl der Kandidaten VOR Pagination.
+    pub total_candidates: usize,
+    /// Anzahl der Kandidaten mit `skip_reason == already_processed`.
+    pub already_processed: usize,
+}
+
+#[cfg(feature = "service-impl")]
+impl BackfillPreviewItemTO {
+    /// Mappt ein Domain-`BackfillPreviewItem` auf die TO; die `SkipReason`-Enum
+    /// wird auf einen stabilen lowercase-String projiziert.
+    pub fn from_domain(item: &service::rebooking_reconciliation::BackfillPreviewItem) -> Self {
+        Self {
+            sales_person_id: item.sales_person_id,
+            iso_year: item.iso_year,
+            iso_week: item.iso_week,
+            voluntary_ist: item.voluntary_ist,
+            voluntary_soll: item.voluntary_soll,
+            committed_voluntary: item.committed_voluntary,
+            excess: item.excess,
+            would_book: item.would_book,
+            skipped: item.skipped,
+            skip_reason: item.skip_reason.map(skip_reason_to_string),
+        }
+    }
+}
+
+/// Stabile lowercase-String-Projektion der Domain-`SkipReason`. Bewusst
+/// ausserhalb von `From`, damit sowohl `BackfillPreviewItemTO::from_domain` als
+/// auch die `already_processed`-Zaehlung denselben Namen teilen.
+#[cfg(feature = "service-impl")]
+fn skip_reason_to_string(reason: service::rebooking_reconciliation::SkipReason) -> String {
+    use service::rebooking_reconciliation::SkipReason;
+    match reason {
+        SkipReason::NoExcess => "no_excess",
+        SkipReason::AlreadyProcessed => "already_processed",
+        SkipReason::WeekLocked => "week_locked",
+        SkipReason::ToggleOff => "toggle_off",
+    }
+    .to_string()
+}
+
+#[cfg(feature = "service-impl")]
+impl BackfillPreviewTO {
+    /// Baut die Vorschau-TO aus dem Domain-`Vec<BackfillPreviewItem>`.
+    /// `total_candidates` = `items.len()` (vor Pagination), `already_processed`
+    /// = Anzahl der `SkipReason::AlreadyProcessed`. Die Pagination-Slicing der
+    /// `items` erfolgt im Handler NACH diesem Mapping; `total_candidates` bleibt
+    /// die ungeschnittene Gesamtzahl.
+    pub fn from_domain(
+        items: &[service::rebooking_reconciliation::BackfillPreviewItem],
+        dry_run: bool,
+    ) -> Self {
+        use service::rebooking_reconciliation::SkipReason;
+        let already_processed = items
+            .iter()
+            .filter(|i| i.skip_reason == Some(SkipReason::AlreadyProcessed))
+            .count();
+        Self {
+            dry_run,
+            items: items.iter().map(BackfillPreviewItemTO::from_domain).collect(),
+            total_candidates: items.len(),
+            already_processed,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -207,5 +324,93 @@ mod tests {
         let json = serde_json::to_string(&suggestion).unwrap();
         let back: RebookingSuggestionTO = serde_json::from_str(&json).unwrap();
         assert_eq!(suggestion, back);
+    }
+
+    #[test]
+    fn backfill_request_serde_roundtrip() {
+        let req = BackfillRequestTO {
+            from: "2026-W20".to_string(),
+            dry_run: true,
+        };
+        let json = serde_json::to_string(&req).unwrap();
+        let back: BackfillRequestTO = serde_json::from_str(&json).unwrap();
+        assert_eq!(req, back);
+
+        // Preview-TO serialisiert mit stabiler Feld-Reihenfolge und
+        // skip_reason als lowercase-String.
+        let preview = BackfillPreviewTO {
+            dry_run: false,
+            items: vec![BackfillPreviewItemTO {
+                sales_person_id: Uuid::from_u128(7),
+                iso_year: 2026,
+                iso_week: 20,
+                voluntary_ist: 10.0,
+                voluntary_soll: 4.0,
+                committed_voluntary: 4.0,
+                excess: 6.0,
+                would_book: true,
+                skipped: false,
+                skip_reason: None,
+            }],
+            total_candidates: 1,
+            already_processed: 0,
+        };
+        let json = serde_json::to_string(&preview).unwrap();
+        let back: BackfillPreviewTO = serde_json::from_str(&json).unwrap();
+        assert_eq!(preview, back);
+    }
+
+    #[cfg(feature = "service-impl")]
+    #[test]
+    fn backfill_preview_from_domain_maps_and_counts() {
+        use service::rebooking_reconciliation::{BackfillPreviewItem, SkipReason};
+
+        let items = vec![
+            // Booked candidate (excess, no skip).
+            BackfillPreviewItem {
+                sales_person_id: Uuid::from_u128(1),
+                iso_year: 2026,
+                iso_week: 20,
+                voluntary_ist: 12.0,
+                voluntary_soll: 4.0,
+                committed_voluntary: 4.0,
+                excess: 8.0,
+                would_book: true,
+                skipped: false,
+                skip_reason: None,
+            },
+            // Already-processed candidate (idempotency skip).
+            BackfillPreviewItem {
+                sales_person_id: Uuid::from_u128(2),
+                iso_year: 2026,
+                iso_week: 21,
+                voluntary_ist: 5.0,
+                voluntary_soll: 2.0,
+                committed_voluntary: 2.0,
+                excess: 3.0,
+                would_book: false,
+                skipped: true,
+                skip_reason: Some(SkipReason::AlreadyProcessed),
+            },
+        ];
+
+        let to = BackfillPreviewTO::from_domain(&items, true);
+
+        assert!(to.dry_run);
+        assert_eq!(to.total_candidates, 2);
+        assert_eq!(to.already_processed, 1);
+        assert_eq!(to.items.len(), 2);
+
+        // Booked item: no skip_reason.
+        assert_eq!(to.items[0].sales_person_id, Uuid::from_u128(1));
+        assert!(to.items[0].would_book);
+        assert_eq!(to.items[0].skip_reason, None);
+
+        // Skipped item: skip_reason projected to the stable lowercase string.
+        assert!(to.items[1].skipped);
+        assert_eq!(
+            to.items[1].skip_reason.as_deref(),
+            Some("already_processed")
+        );
     }
 }
