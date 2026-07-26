@@ -47,6 +47,7 @@ pub mod user_invitation;
 pub mod uuid_service;
 pub mod vacation_balance;
 pub mod vacation_entitlement_offset;
+pub mod voluntary_rebooking_gate;
 pub mod voluntary_stats;
 pub mod webdav_client;
 pub mod week_message;
