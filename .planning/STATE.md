@@ -6,14 +6,14 @@ current_phase: 56
 current_phase_name: wochen-cron-rollout-backfill-f4
 status: executing
 stopped_at: Phase 56 context gathered
-last_updated: "2026-07-26T06:32:05.672Z"
+last_updated: "2026-07-26T06:46:21.963Z"
 last_activity: 2026-07-26
 last_activity_desc: Phase 56 execution started
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 23
-  completed_plans: 20
+  completed_plans: 21
   percent: 75
 ---
 
@@ -34,7 +34,7 @@ progress:
 ## Current Position
 
 Phase: 56 (wochen-cron-rollout-backfill-f4) — EXECUTING
-Plan: 4 of 6
+Plan: 5 of 6
 Status: Ready to execute
 Last activity: 2026-07-26 — Phase 56 execution started
 
@@ -206,7 +206,7 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-07-26T06:31:42.352Z
+**Last session:** 2026-07-26T06:45:47.008Z
 **Stopped at:** Phase 56 context gathered
 **Resume file:** .planning/phases/56-wochen-cron-rollout-backfill-f4/56-CONTEXT.md
 
@@ -278,6 +278,7 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 - [Phase ?]: 56-03: VoluntaryRebookingScheduler consumes the minimal dep set (RebookingReconciliation + EmployeeWorkDetails + Permission + Clock + TransactionDao); toggle-gate/week-lock stay inside run_for_week.
 - [Phase ?]: 56-03: Scheduler has no RestStateDef accessor (no REST surface until Plan 04); plain RestStateImpl field booted after pdf_export_scheduler.
 - [Phase ?]: 56-03: Weekly cron hardcoded 6-field 0 15 3 * * 1 (Monday 03:15), conflict-free vs pdf_export; no reload_from_db (toggle read fresh per run).
+- [Phase ?]: 56-04: F4 backfill REST endpoint POST /admin/rebooking/backfill is a thin delegate to backfill_range — from-week parsed/validated to 400 before the service; HR-Admin gate + dry-run/apply write-path stay in the service; REST coverage via in-crate parse unit tests + OpenAPI-surface contract test.
 
 ## Performance Metrics
 
@@ -315,3 +316,4 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 | Phase 56 P01 | 9min | 3 tasks | 5 files |
 | Phase 56 P02 | 15min | 2 tasks | 8 files |
 | Phase 56 P03 | 12min | 3 tasks | 7 files |
+| Phase 56 P04 | 11min | 2 tasks | 4 files |
