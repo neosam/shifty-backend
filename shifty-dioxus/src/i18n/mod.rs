@@ -787,6 +787,50 @@ pub enum Key {
     /// Shown when neither `last_success_at` nor `last_error_at` is set.
     SettingsPdfExportStatusEmpty,
 
+    // ─── Phase 56-05: F4 Automatische-Freiwilligen-Umbuchung admin card ──────
+    /// Card title ("Automatic voluntary rebooking").
+    SettingsVoluntaryRebookingTitle,
+    /// Short description below the title.
+    SettingsVoluntaryRebookingHelp,
+    /// Stichtag (activation-date) field label.
+    SettingsVoluntaryRebookingActiveFromLabel,
+    /// Hint shown when no Stichtag is set after load (feature off).
+    SettingsVoluntaryRebookingActiveFromUnsetHint,
+    /// Backfill sub-section title.
+    SettingsVoluntaryRebookingBackfillTitle,
+    /// Backfill "from week" input label.
+    SettingsVoluntaryRebookingFromWeekLabel,
+    /// Placeholder for the from-week input (format hint `YYYY-Www`).
+    SettingsVoluntaryRebookingFromWeekPlaceholder,
+    /// Dry-run button label.
+    SettingsVoluntaryRebookingDryRun,
+    /// Apply button label.
+    SettingsVoluntaryRebookingApply,
+    /// Preview-table column header: person.
+    SettingsVoluntaryRebookingColPerson,
+    /// Preview-table column header: week.
+    SettingsVoluntaryRebookingColWeek,
+    /// Preview-table column header: voluntary Ist.
+    SettingsVoluntaryRebookingColIst,
+    /// Preview-table column header: voluntary Soll.
+    SettingsVoluntaryRebookingColSoll,
+    /// Preview-table column header: committed voluntary.
+    SettingsVoluntaryRebookingColCommitted,
+    /// Preview-table column header: excess.
+    SettingsVoluntaryRebookingColExcess,
+    /// Preview-table column header: would-book flag.
+    SettingsVoluntaryRebookingColWouldBook,
+    /// Preview-table column header: skipped / reason.
+    SettingsVoluntaryRebookingColSkipped,
+    /// Preview summary line ("N candidates, M already processed").
+    SettingsVoluntaryRebookingPreviewSummary,
+    /// Empty-state when the preview has no candidates.
+    SettingsVoluntaryRebookingPreviewEmpty,
+    /// Banner shown while a dry-run/apply request is in flight.
+    SettingsVoluntaryRebookingRunning,
+    /// Banner shown when a backfill request fails.
+    SettingsVoluntaryRebookingError,
+
     // ─── Phase 54: HR-only Freiwillig-Stunden-Konto (VOL-STAT-01/02) ────────
     /// Label fuer den Ist-Wert pro Vertragswoche ("Freiwillig Ø / Woche").
     VoluntaryHoursIstPerWeek,
@@ -1114,6 +1158,63 @@ mod tests {
 
     /// Pitfall-2 guard: ensures the de.rs block routes German copy (not English)
     /// through `generate(Locale::De)` for the four status labels.
+    /// Phase 56-05: every F4 voluntary-rebooking admin-card key has a
+    /// non-empty, non-"??" translation in all three locales (guards against a
+    /// missing add_text in any locale + the Locale::En/De swap bug).
+    #[test]
+    fn i18n_voluntary_rebooking_keys_present_in_all_locales() {
+        for locale in [Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(locale);
+            for key in [
+                Key::SettingsVoluntaryRebookingTitle,
+                Key::SettingsVoluntaryRebookingHelp,
+                Key::SettingsVoluntaryRebookingActiveFromLabel,
+                Key::SettingsVoluntaryRebookingActiveFromUnsetHint,
+                Key::SettingsVoluntaryRebookingBackfillTitle,
+                Key::SettingsVoluntaryRebookingFromWeekLabel,
+                Key::SettingsVoluntaryRebookingFromWeekPlaceholder,
+                Key::SettingsVoluntaryRebookingDryRun,
+                Key::SettingsVoluntaryRebookingApply,
+                Key::SettingsVoluntaryRebookingColPerson,
+                Key::SettingsVoluntaryRebookingColWeek,
+                Key::SettingsVoluntaryRebookingColIst,
+                Key::SettingsVoluntaryRebookingColSoll,
+                Key::SettingsVoluntaryRebookingColCommitted,
+                Key::SettingsVoluntaryRebookingColExcess,
+                Key::SettingsVoluntaryRebookingColWouldBook,
+                Key::SettingsVoluntaryRebookingColSkipped,
+                Key::SettingsVoluntaryRebookingPreviewSummary,
+                Key::SettingsVoluntaryRebookingPreviewEmpty,
+                Key::SettingsVoluntaryRebookingRunning,
+                Key::SettingsVoluntaryRebookingError,
+            ] {
+                let value = i18n.t(key);
+                assert!(
+                    !value.is_empty() && value.as_ref() != "??",
+                    "missing translation for {:?} in {:?}: got `{}`",
+                    key,
+                    locale,
+                    value
+                );
+            }
+        }
+    }
+
+    /// Pitfall-2 guard: the de.rs block routes German copy (not English) for the
+    /// F4 card title + activation-date label.
+    #[test]
+    fn i18n_voluntary_rebooking_keys_match_german_reference() {
+        let de = generate(Locale::De);
+        assert_eq!(
+            de.t(Key::SettingsVoluntaryRebookingTitle).as_ref(),
+            "Automatische Freiwilligen-Umbuchung"
+        );
+        assert_eq!(
+            de.t(Key::SettingsVoluntaryRebookingApply).as_ref(),
+            "Anwenden"
+        );
+    }
+
     #[test]
     fn i18n_week_status_labels_match_german_reference() {
         let de = generate(Locale::De);

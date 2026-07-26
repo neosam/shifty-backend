@@ -1329,6 +1329,97 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         "Kein Lauf bisher",
     );
 
+    // Phase 56-05 (REB-AUTO-02/04) — F4 Automatische-Freiwilligen-Umbuchung admin card.
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsVoluntaryRebookingTitle,
+        "Automatische Freiwilligen-Umbuchung",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsVoluntaryRebookingHelp,
+        "Bucht wöchentlich überschüssige Ehrenamt-Stunden gedeckelter Mitarbeiter automatisch um. Der Stichtag legt fest, ab welcher Woche die Automatik läuft.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsVoluntaryRebookingActiveFromLabel,
+        "Stichtag (aktiv ab)",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsVoluntaryRebookingActiveFromUnsetHint,
+        "Kein Stichtag gesetzt — die Automatik ist deaktiviert.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsVoluntaryRebookingBackfillTitle,
+        "Einmaliger Backfill (historischer Rollout)",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsVoluntaryRebookingFromWeekLabel,
+        "Ab Woche",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsVoluntaryRebookingFromWeekPlaceholder,
+        "2026-W20",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsVoluntaryRebookingDryRun,
+        "Vorschau (Dry-Run)",
+    );
+    i18n.add_text(Locale::De, Key::SettingsVoluntaryRebookingApply, "Anwenden");
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsVoluntaryRebookingColPerson,
+        "Person",
+    );
+    i18n.add_text(Locale::De, Key::SettingsVoluntaryRebookingColWeek, "Woche");
+    i18n.add_text(Locale::De, Key::SettingsVoluntaryRebookingColIst, "Ist");
+    i18n.add_text(Locale::De, Key::SettingsVoluntaryRebookingColSoll, "Soll");
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsVoluntaryRebookingColCommitted,
+        "Zugesagt",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsVoluntaryRebookingColExcess,
+        "Überschuss",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsVoluntaryRebookingColWouldBook,
+        "Bucht",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsVoluntaryRebookingColSkipped,
+        "Übersprungen",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsVoluntaryRebookingPreviewSummary,
+        "Kandidaten gesamt / bereits verarbeitet:",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsVoluntaryRebookingPreviewEmpty,
+        "Keine Kandidaten in diesem Zeitraum.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsVoluntaryRebookingRunning,
+        "Backfill läuft …",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::SettingsVoluntaryRebookingError,
+        "Backfill fehlgeschlagen",
+    );
+
     // Phase 54: HR-only Freiwillig-Stunden-Konto (VOL-STAT-01/02)
     i18n.add_text(
         Locale::De,

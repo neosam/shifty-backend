@@ -1218,6 +1218,93 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
     i18n.add_text(Locale::En, Key::SettingsPdfExportLastError, "Last error:");
     i18n.add_text(Locale::En, Key::SettingsPdfExportStatusEmpty, "No runs yet");
 
+    // Phase 56-05 (REB-AUTO-02/04) — F4 automatic voluntary rebooking admin card.
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsVoluntaryRebookingTitle,
+        "Automatic voluntary rebooking",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsVoluntaryRebookingHelp,
+        "Automatically rebooks excess voluntary hours of capped employees every week. The activation date controls from which week the automation runs.",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsVoluntaryRebookingActiveFromLabel,
+        "Activation date (active from)",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsVoluntaryRebookingActiveFromUnsetHint,
+        "No activation date set — the automation is disabled.",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsVoluntaryRebookingBackfillTitle,
+        "One-time backfill (historical rollout)",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsVoluntaryRebookingFromWeekLabel,
+        "From week",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsVoluntaryRebookingFromWeekPlaceholder,
+        "2026-W20",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsVoluntaryRebookingDryRun,
+        "Preview (dry run)",
+    );
+    i18n.add_text(Locale::En, Key::SettingsVoluntaryRebookingApply, "Apply");
+    i18n.add_text(Locale::En, Key::SettingsVoluntaryRebookingColPerson, "Person");
+    i18n.add_text(Locale::En, Key::SettingsVoluntaryRebookingColWeek, "Week");
+    i18n.add_text(Locale::En, Key::SettingsVoluntaryRebookingColIst, "Actual");
+    i18n.add_text(Locale::En, Key::SettingsVoluntaryRebookingColSoll, "Target");
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsVoluntaryRebookingColCommitted,
+        "Committed",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsVoluntaryRebookingColExcess,
+        "Excess",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsVoluntaryRebookingColWouldBook,
+        "Books",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsVoluntaryRebookingColSkipped,
+        "Skipped",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsVoluntaryRebookingPreviewSummary,
+        "Total candidates / already processed:",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsVoluntaryRebookingPreviewEmpty,
+        "No candidates in this range.",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsVoluntaryRebookingRunning,
+        "Backfill running …",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::SettingsVoluntaryRebookingError,
+        "Backfill failed",
+    );
+
     // Phase 54: HR-only voluntary-hours account (VOL-STAT-01/02)
     i18n.add_text(
         Locale::En,

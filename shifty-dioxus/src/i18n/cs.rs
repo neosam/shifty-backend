@@ -1315,6 +1315,98 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         "Zatím žádné spuštění",
     );
 
+    // Phase 56-05 (REB-AUTO-02/04) — F4 automatické dobrovolné přeúčtování.
+    // [ASSUMED] cs-Übersetzung analog EN/DE-Konvention — native-check als Manual-Verify.
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsVoluntaryRebookingTitle,
+        "Automatické dobrovolné přeúčtování",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsVoluntaryRebookingHelp,
+        "Automaticky přeúčtuje přebytečné dobrovolné hodiny limitovaných zaměstnanců každý týden. Datum aktivace určuje, od kterého týdne automatika běží.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsVoluntaryRebookingActiveFromLabel,
+        "Datum aktivace (aktivní od)",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsVoluntaryRebookingActiveFromUnsetHint,
+        "Datum aktivace není nastaveno — automatika je vypnutá.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsVoluntaryRebookingBackfillTitle,
+        "Jednorázový backfill (historické zavedení)",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsVoluntaryRebookingFromWeekLabel,
+        "Od týdne",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsVoluntaryRebookingFromWeekPlaceholder,
+        "2026-W20",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsVoluntaryRebookingDryRun,
+        "Náhled (dry run)",
+    );
+    i18n.add_text(Locale::Cs, Key::SettingsVoluntaryRebookingApply, "Použít");
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsVoluntaryRebookingColPerson,
+        "Osoba",
+    );
+    i18n.add_text(Locale::Cs, Key::SettingsVoluntaryRebookingColWeek, "Týden");
+    i18n.add_text(Locale::Cs, Key::SettingsVoluntaryRebookingColIst, "Skutečnost");
+    i18n.add_text(Locale::Cs, Key::SettingsVoluntaryRebookingColSoll, "Plán");
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsVoluntaryRebookingColCommitted,
+        "Přislíbeno",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsVoluntaryRebookingColExcess,
+        "Přebytek",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsVoluntaryRebookingColWouldBook,
+        "Účtuje",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsVoluntaryRebookingColSkipped,
+        "Přeskočeno",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsVoluntaryRebookingPreviewSummary,
+        "Celkem kandidátů / již zpracováno:",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsVoluntaryRebookingPreviewEmpty,
+        "V tomto rozsahu nejsou žádní kandidáti.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsVoluntaryRebookingRunning,
+        "Backfill probíhá …",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::SettingsVoluntaryRebookingError,
+        "Backfill selhal",
+    );
+
     // Phase 54: HR-only Dobrovolne-hodiny-konto (VOL-STAT-01/02).
     // [ASSUMED] cs-Uebersetzung analog EN/DE-Konvention — native-check
     // als Manual-Verify (RESEARCH §D.4).
