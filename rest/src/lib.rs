@@ -82,6 +82,7 @@ use time::Duration;
 #[cfg(feature = "oidc")]
 use tower::ServiceBuilder;
 use tower_cookies::CookieManagerLayer;
+use tower_http::catch_panic::CatchPanicLayer;
 #[cfg(feature = "oidc")]
 use tower_sessions::MemoryStore;
 #[cfg(feature = "oidc")]
@@ -793,7 +794,12 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
                     oidc_config.issuer,
                     oidc_config.client_id,
                     oidc_config.client_secret,
-                    vec![],
+                    // `offline_access` is required to receive refresh tokens
+                    // (OpenID Connect Core 1.0 §11).  The Nextcloud OIDC
+                    // Identity Provider app enforces this since 2.0.0; without
+                    // it the provider issues no refresh token unless the admin
+                    // enables the `provide_refresh_token_always` legacy mode.
+                    vec!["offline_access".to_string()],
                 )
                 .await
                 .unwrap(),
@@ -808,7 +814,12 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
             get(user_invitation::authenticate_with_invitation::<RestState>),
         )
         .with_state(rest_state.clone())
-        .layer(CookieManagerLayer::new());
+        .layer(CookieManagerLayer::new())
+        // Outermost layer, so it also covers the auth middleware below it.
+        // Without it a panicking handler drops the connection without ever
+        // sending response headers, and nginx reports `upstream prematurely
+        // closed connection` -> 502, hiding the actual error from the client.
+        .layer(CatchPanicLayer::new());
 
     info!("Running server at {}", bind_address());
 

@@ -412,6 +412,22 @@ For the central edge case reference see
   a consistency break (no `ON DELETE CASCADE`). **[To verify]** whether
   `permission_service.delete_user` cleans up this user's Sessions —
   neither the trait nor the SQLite impl seems to do so.
+- **OIDC login for an identity with no `user` row:** `register_session`
+  resolves the identity from the ID token via `resolve_oidc_user_id`
+  (`rest/src/session.rs`) and inserts a `session` row. If that identity
+  has no row in `user`, the FK rejects the insert and the login is
+  answered with **401** plus an error log naming the rejected `user_id`.
+  Before 07/2026 this path called `.unwrap()` and panicked; the aborted
+  connection reached the client as an opaque **502** from the reverse
+  proxy, with no usable trace.
+- **Identity provider stops sending `preferred_username`:** the Nextcloud
+  OIDC Identity Provider app removed `profile` claims from
+  authorization-code-flow ID tokens in version 2.0.0 — they now require
+  the `claims.id_token` parameter or the userinfo endpoint. A Nextcloud
+  31 → 32+ upgrade pulls that app from 1.17 to 2.0.x and drops the claim
+  silently. `resolve_oidc_user_id` therefore falls back to `sub`, which
+  is REQUIRED per OpenID Connect Core 1.0 §2 and is present regardless
+  of scopes, claims parameter or provider legacy settings.
 - **`impersonate_user_id` references deleted user:**
   `start_impersonate` checks existence via `user_exists` with
   `Authentication::Full` (`rest/src/impersonate.rs:75-84`), but a later
@@ -470,6 +486,14 @@ For the central edge case reference see
   the `session` table. Context see D-32-01 (audit log for writes) and
   D-32-02 (two-path admin gate). Frontend part D-32-07/IMP-01
   (`user_management.rs:42`).
+- **07/2026 (Nextcloud OIDC 2.0 login breakage)** — the provider stopped
+  shipping `preferred_username` in ID tokens, Shifty substituted the
+  literal `"NoUsername"`, the FK insert panicked and every fresh login
+  answered 502. Identity now resolves via `resolve_oidc_user_id`
+  (`preferred_username` → `sub`), session-creation failures return 401
+  instead of panicking, a `CatchPanicLayer` wraps the router, and
+  `offline_access` is requested so refresh tokens survive OIDC-compliant
+  mode without the provider's legacy switch.
 - **References:** `.planning/phases/32-impersonation/` for context
   reads; cluster **F13 (User Invitation)** for the token-based invite
   login flow that exists alongside regular OIDC auth and is

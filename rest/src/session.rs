@@ -33,6 +33,36 @@ pub fn real_user_extension(session: &service::session::Session) -> Option<RealUs
     }
 }
 
+/// Resolves the Shifty `user_id` from the identity claims of an OIDC ID token.
+///
+/// **Why not `preferred_username` alone:** the Nextcloud OIDC Identity Provider
+/// app stopped putting `profile` claims (including `preferred_username`) into
+/// authorization-code-flow ID tokens in version 2.0.0 — they are now only
+/// delivered when explicitly requested via the `claims.id_token` parameter, or
+/// from the userinfo endpoint.  A Nextcloud major upgrade (31 → 32+) pulls that
+/// app from 1.17 to 2.0.x and silently removes the claim.
+///
+/// `sub` is a REQUIRED claim per OpenID Connect Core 1.0 §2 and is therefore
+/// always present, regardless of scopes, claims parameter or provider legacy
+/// settings.  It is used as the fallback so authentication keeps working across
+/// provider upgrades.
+///
+/// `preferred_username` still takes precedence when present: existing `user`
+/// rows were created from it, and preferring it keeps installations that do
+/// deliver the claim on their current identities without a data migration.
+///
+/// Returns `None` when `sub` is empty — the caller must reject the login rather
+/// than inventing a placeholder identity (the previous `"NoUsername"` fallback
+/// produced a value that violates the `session.user_id → user.name` foreign key
+/// and crashed the request).
+pub fn resolve_oidc_user_id(subject: &str, preferred_username: Option<&str>) -> Option<Arc<str>> {
+    preferred_username
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .or_else(|| Some(subject.trim()).filter(|sub| !sub.is_empty()))
+        .map(Arc::from)
+}
+
 /// Returns `true` when a request should emit an audit log line:
 /// `real_user_present` is `true` (session is impersonating) AND `method` is
 /// a mutating HTTP method (POST, PUT, PATCH, DELETE).
@@ -99,30 +129,71 @@ pub async fn register_session<RestState: RestStateDef>(
     let cookies = request
         .extensions()
         .get::<Cookies>()
-        .expect("Cookies extension not set");
+        .expect("Cookies extension not set")
+        .clone();
 
     if let Some(oidc_claims) = claims {
-        let username = oidc_claims
+        let subject = oidc_claims.subject().as_str().to_string();
+        let preferred_username = oidc_claims
             .preferred_username()
-            .map(|s| s.as_str().to_string())
-            .unwrap_or_else(|| "NoUsername".to_string());
-        let session = rest_state
+            .map(|name| name.as_str().to_string());
+
+        // Diagnostics: a provider-side claim change (see `resolve_oidc_user_id`)
+        // is otherwise invisible and shows up only as a failing login.
+        tracing::info!(
+            sub = %subject,
+            preferred_username = ?preferred_username,
+            "OIDC login: identity claims received"
+        );
+
+        let Some(user_id) = resolve_oidc_user_id(&subject, preferred_username.as_deref()) else {
+            tracing::error!(
+                "OIDC login rejected: ID token carries neither preferred_username nor a usable sub"
+            );
+            return unauthorized_response("Login failed: no usable user identifier in ID token");
+        };
+
+        match rest_state
             .session_service()
-            .new_session_for_user(&username)
+            .new_session_for_user(user_id.as_ref())
             .await
-            .unwrap();
-        let session_id = session.id.to_string();
-        let now = OffsetDateTime::now_utc();
-        let expires = now + time::Duration::days(365);
-        let cookie = Cookie::build(Cookie::new("app_session", session_id))
-            .path("/")
-            .expires(expires)
-            .http_only(true)
-            .same_site(tower_cookies::cookie::SameSite::Strict)
-            .secure(true);
-        cookies.add(cookie.into());
+        {
+            Ok(session) => {
+                let now = OffsetDateTime::now_utc();
+                let expires = now + time::Duration::days(365);
+                let cookie = Cookie::build(Cookie::new("app_session", session.id.to_string()))
+                    .path("/")
+                    .expires(expires)
+                    .http_only(true)
+                    .same_site(tower_cookies::cookie::SameSite::Strict)
+                    .secure(true);
+                cookies.add(cookie.into());
+            }
+            Err(error) => {
+                // Most likely cause: `user_id` has no row in `user`, so the
+                // `session.user_id -> user.name` foreign key rejects the insert.
+                // Previously this `.unwrap()`ed, panicked, and the reverse proxy
+                // turned the aborted connection into an opaque 502.
+                tracing::error!(
+                    user_id = %user_id,
+                    error = ?error,
+                    "OIDC login rejected: could not create session - is this user provisioned in Shifty?"
+                );
+                return unauthorized_response("Login failed: user is not provisioned in Shifty");
+            }
+        }
     }
     next.run(request).await
+}
+
+/// Builds a 401 response body for a rejected login.  Kept separate so the
+/// failure paths in [`register_session`] stay readable.
+#[cfg(feature = "oidc")]
+fn unauthorized_response(message: &'static str) -> Response {
+    Response::builder()
+        .status(401)
+        .body(message.into())
+        .unwrap()
 }
 
 fn resolve_session_user_id(session: &service::session::Session) -> Option<Arc<str>> {
@@ -150,12 +221,20 @@ pub async fn context_extractor<RestState: RestStateDef>(
         tracing::info!("app_session cookie found: {:?}", cookie);
         let session_id = cookie.value();
         tracing::info!("Session ID: {:?}", session_id);
-        if let Some(session) = rest_state
+        // A failing lookup must degrade to "not authenticated" (401 downstream),
+        // never panic: an aborted connection reaches the client as an opaque 502.
+        let session = match rest_state
             .session_service()
             .verify_user_session(session_id)
             .await
-            .unwrap()
         {
+            Ok(session) => session,
+            Err(error) => {
+                tracing::error!(error = ?error, "Session lookup failed, treating request as unauthenticated");
+                None
+            }
+        };
+        if let Some(session) = session {
             tracing::info!("Session found: {:?}", session);
             request
                 .extensions_mut()
@@ -373,5 +452,86 @@ mod tests {
     #[test]
     fn no_audit_for_delete_when_not_impersonating() {
         assert!(!should_audit_impersonated_write(&http::Method::DELETE, false));
+    }
+
+    // --- resolve_oidc_user_id ---
+
+    #[test]
+    fn prefers_preferred_username_when_present() {
+        let result = resolve_oidc_user_id("sub-abc-123", Some("maria.mueller"));
+        assert_eq!(
+            result.as_deref(),
+            Some("maria.mueller"),
+            "preferred_username must win so existing user rows keep matching"
+        );
+    }
+
+    /// Regression for the Nextcloud OIDC Identity Provider 2.0.0 change: the
+    /// app stopped putting `preferred_username` into authorization-code-flow ID
+    /// tokens.  Login must fall back to `sub` instead of failing.
+    #[test]
+    fn falls_back_to_sub_when_preferred_username_absent() {
+        let result = resolve_oidc_user_id("maria.mueller", None);
+        assert_eq!(
+            result.as_deref(),
+            Some("maria.mueller"),
+            "sub must be used when the provider omits preferred_username"
+        );
+    }
+
+    #[test]
+    fn falls_back_to_sub_when_preferred_username_empty() {
+        let result = resolve_oidc_user_id("sub-abc-123", Some(""));
+        assert_eq!(result.as_deref(), Some("sub-abc-123"));
+    }
+
+    #[test]
+    fn falls_back_to_sub_when_preferred_username_is_whitespace() {
+        let result = resolve_oidc_user_id("sub-abc-123", Some("   "));
+        assert_eq!(result.as_deref(), Some("sub-abc-123"));
+    }
+
+    #[test]
+    fn trims_surrounding_whitespace() {
+        assert_eq!(
+            resolve_oidc_user_id("sub-abc-123", Some("  maria.mueller  ")).as_deref(),
+            Some("maria.mueller")
+        );
+        assert_eq!(
+            resolve_oidc_user_id("  sub-abc-123  ", None).as_deref(),
+            Some("sub-abc-123")
+        );
+    }
+
+    #[test]
+    fn returns_none_when_no_usable_identifier() {
+        assert_eq!(
+            resolve_oidc_user_id("", None),
+            None,
+            "an empty sub with no username must reject the login"
+        );
+        assert_eq!(resolve_oidc_user_id("   ", Some("  ")), None);
+    }
+
+    /// The previous implementation substituted the literal `"NoUsername"` when
+    /// `preferred_username` was missing.  That value has no row in `user`, so
+    /// the insert hit the `session.user_id -> user.name` foreign key, panicked
+    /// on `.unwrap()`, and surfaced as a 502.  No input may produce it again.
+    #[test]
+    fn never_invents_a_placeholder_identity() {
+        for (subject, username) in [
+            ("", None),
+            ("", Some("")),
+            ("   ", None),
+            ("sub-abc-123", None),
+            ("sub-abc-123", Some("")),
+        ] {
+            let result = resolve_oidc_user_id(subject, username);
+            assert_ne!(
+                result.as_deref(),
+                Some("NoUsername"),
+                "placeholder identity leaked for sub={subject:?} username={username:?}"
+            );
+        }
     }
 }

@@ -396,6 +396,23 @@ Für die zentrale Randfall-Referenz siehe
   Konsistenz-Bruch (kein `ON DELETE CASCADE`). **[Zu prüfen]** ob
   `permission_service.delete_user` die Sessions dieses Users räumt — im
   Trait und in der SQLite-Impl scheint das nicht der Fall zu sein.
+- **OIDC-Login für eine Identität ohne `user`-Zeile:** `register_session`
+  ermittelt die Identität aus dem ID-Token über `resolve_oidc_user_id`
+  (`rest/src/session.rs`) und legt eine `session`-Zeile an. Hat diese
+  Identität keine Zeile in `user`, weist der FK das Insert zurück und der
+  Login wird mit **401** plus Error-Log samt abgelehnter `user_id`
+  beantwortet. Vor 07/2026 rief dieser Pfad `.unwrap()` auf und panickte;
+  die abgebrochene Verbindung erreichte den Client als undurchsichtiger
+  **502** vom Reverse-Proxy, ohne verwertbare Spur.
+- **Identity Provider sendet `preferred_username` nicht mehr:** Die
+  Nextcloud-OIDC-Identity-Provider-App hat in Version 2.0.0 die
+  `profile`-Claims aus Authorization-Code-Flow-ID-Tokens entfernt — sie
+  erfordern jetzt den `claims.id_token`-Parameter oder den
+  Userinfo-Endpoint. Ein Nextcloud-Upgrade 31 → 32+ zieht diese App von
+  1.17 auf 2.0.x und lässt den Claim stillschweigend wegfallen.
+  `resolve_oidc_user_id` fällt deshalb auf `sub` zurück, das nach OpenID
+  Connect Core 1.0 §2 PFLICHT ist und unabhängig von Scopes,
+  Claims-Parameter oder Legacy-Einstellungen des Providers vorliegt.
 - **`impersonate_user_id` verweist auf gelöschten User:** `start_impersonate`
   prüft Existenz per `user_exists` mit `Authentication::Full`
   (`rest/src/impersonate.rs:75-84`), aber späteres Löschen des Ziel-Users
@@ -449,6 +466,15 @@ Für die zentrale Randfall-Referenz siehe
   `session`-Tabelle. Kontext siehe D-32-01 (Audit-Log für Writes) und
   D-32-02 (Two-Path Admin-Gate). Frontend-Anteil D-32-07/IMP-01
   (`user_management.rs:42`).
+- **07/2026 (Nextcloud-OIDC-2.0-Login-Bruch)** — Der Provider lieferte
+  `preferred_username` nicht mehr im ID-Token, Shifty setzte ersatzweise
+  das Literal `"NoUsername"` ein, das FK-Insert panickte und jeder frische
+  Login antwortete mit 502. Die Identität wird jetzt über
+  `resolve_oidc_user_id` aufgelöst (`preferred_username` → `sub`),
+  fehlgeschlagene Session-Erzeugung liefert 401 statt Panic, ein
+  `CatchPanicLayer` umschließt den Router, und `offline_access` wird
+  angefordert, damit Refresh-Tokens im OIDC-konformen Modus ohne den
+  Legacy-Schalter des Providers weiterlaufen.
 - **Verweise:** `.planning/phases/32-impersonation/` für Kontext-Reads;
   Cluster **F13 (User Invitation)** für den Token-basierten Invite-Login-
   Fluss, der parallel zur regulären OIDC-Auth existiert und im Route-Mount
