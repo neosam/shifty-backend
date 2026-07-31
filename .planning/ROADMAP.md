@@ -121,6 +121,12 @@ Kein Follow-up — MEMORY `feedback_docs_always_current_no_followup.md`.
       VoluntaryRebookingScheduler (Wochen-Cron) + Stichtag-Toggle-Wirkung +
       HR-gated Backfill-REST-Endpoint + Admin-Card (FE)
 
+- [ ] **Phase 57: F14-Rebooking-Wirksamkeit — Requirements-Korrektur + Balance-Ausgleich**
+      Der in 54–56 gebaute Übertrag ist wirkungslos: der `source == Manual`-Filter
+      verwirft beide Beine des Paars, die Balance bleibt unverändert. Ursache ist
+      VOL-ACCT-03 (fordert wörtlich das Gegenteil des Milestone-Goals). Korrigiert
+      erst die Requirements, dann Filter, Cron-Formel, Tests und Snapshot-Version.
+
 ### Phase Details
 
 #### Phase 54: Data-Model + Voluntary Statistics (F1 + F2)
@@ -547,6 +553,110 @@ Dry-Run-Vorschau-Header).
 
 ---
 
+#### Phase 57: F14-Rebooking-Wirksamkeit — Requirements-Korrektur + Balance-Ausgleich
+
+**Goal:** Der Übertrag freiwillig→bezahlt wirkt tatsächlich auf das Stundenkonto:
+nach einer Umbuchung ist die Balance um den umgebuchten Betrag höher und das
+Ehrenamt-Ist um denselben Betrag niedriger. Damit erreicht v2.6 sein
+Milestone-Goal, das die Phasen 54–56 zwar gebaut, aber nicht eingelöst haben.
+
+**Requirements:** VOL-ACCT-03 (Neufassung) + ein neues REQ für den Ausgleich
+(ID in discuss-phase zu vergeben). Alle übrigen 16 v2.6-REQs bleiben unberührt.
+
+**Depends on:** Phase 56 (vollständige F3/F4/F5-Pipeline existiert und schreibt
+korrekte Paare — es fehlt ausschließlich die Lesewirkung).
+
+**Befund (Analyse 2026-07-31, gegen Code verifiziert):**
+
+Der Übertrag ist auf der Leseseite ein vollständiger No-Op. Das Paar
+`(−h VolunteerWork, +h ExtraWork)` trägt `source = 'rebooking'`, und alle vier
+Report-Aggregate filtern `source == Manual` (`reporting.rs:859/1192/1728/2161`)
+— dadurch fliegen **beide** Beine raus, auch das `+h`-Bein, das die Balance
+anheben soll. Empirisch mit dem echten `ReportingServiceImpl` gemessen:
+Balance `−53 → −53`, Ehrenamt `3 → 3`. `suggest()` verspricht dem HR-User
+`balance_after` und `voluntary_ist_after` — beides tritt nie ein. Das nicht
+ausgeglichene Minus wandert über `shiftplan_edit.rs:384`
+(`new_carryover_hours = balance_hours`) als Carryover ins Folgejahr.
+
+**Ursache liegt in der Planung, nicht in der Implementierung.** Das
+Milestone-Goal fordert den Ausgleich, aber keines der 17 Requirements
+operationalisiert ihn; VOL-ACCT-03 fordert wörtlich das Gegenteil
+(„beeinflussen weder Ist noch Soll … balance-neutral"). Der Widerspruch war
+sichtbar: `55-CONTEXT.md:175` (D-55-07) begründet das Bannerverhalten mit
+„`balance` wird neu berechnet", während `55-CONTEXT.md:204` genau das verbietet.
+`55-RESEARCH.md:443` markierte die Frage als „Muss vom User/Planner bestätigt
+werden" — aufgelöst wurde sie planintern zugunsten von VOL-ACCT-03.
+
+**Warum die Gates es durchließen:** `55-VERIFICATION.md:152` hakt VOL-ACCT-03
+korrekt als SATISFIED ab (der Filter erfüllt das Requirement genau). Das
+`55-UAT.md` hat zwei Tests — „Banner verschwindet" und „Batch ist sichtbar";
+keiner prüft die Balance. Test 1 prüft dabei genau den Mechanismus, der den
+Fehler kaschiert: Nach Approve erlischt der Banner nicht wegen ausgeglichener
+Balance, sondern weil D-55-07 den belegten UNIQUE-Slot als zweiten
+Erlöschungsgrund definiert.
+
+**Scope (Reihenfolge ist bindend — Spec vor Code):**
+
+1. **VOL-ACCT-03 umformulieren** auf Schutz der *Freiwilligen-Statistik* statt
+   Einfrieren der Balance, plus neues REQ für den tatsächlichen Ausgleich. Ohne
+   diesen Schritt reproduziert die nächste Phase den Fehler aus der Spec heraus.
+2. **D-55-07 entkoppeln**, sodass der Banner nicht mehr allein durch den
+   belegten Slot erlischt — sonst bleibt jedes künftige Versagen unsichtbar.
+3. **`source`-Filter kategorie-spezifisch machen:** das `+h ExtraWork`-Bein
+   zählt in die Balance, das `−h VolunteerWork`-Bein senkt das Ehrenamt-Ist.
+4. **Balance-Deckel im Auto-Cron:** `min(max(ist − committed, 0), max(−balance, 0))`
+   statt `max(ist − committed, 0)` (`rebooking_reconciliation.rs:618`). `run_for_week`
+   liest die Balance bisher bewusst nicht. Belegt: bei 23 h gearbeitet / 20 h
+   zugesagt überträgt die heutige Formel 5 h statt 2 h und hebt die Balance auf
+   +3 statt 0. Die HR-Formel `min(|balance|, ist)` bleibt **unverändert** — dass
+   sie die Zusage unterschreiten kann, ist der Sinn des HR-Vorschlags.
+5. **Neutralitäts-Tests invertieren** — von „bit-identisch" zu „Balance +h,
+   Ehrenamt −h". Die fünf grünen Tests zementieren derzeit den Fehler und weisen
+   ein Fehlschlagen im Kommentar ausdrücklich als „echte Entdeckung" zurück.
+6. **Snapshot-Schema-Bump 12→13.** D-01 („bleibt bei 12") stützt sich
+   ausdrücklich darauf, dass keine Rebooking-Zeile in eine Billing-Period-Kette
+   leakt; mit wirksamem Paar fällt diese Entscheidung.
+
+**Fachliches Sollverhalten (User-bestätigt):** Auto-Cron überträgt nur den
+unstrittigen Teil — Überschuss über die Freiwilligen-Zusage, gedeckelt bei
+`|balance|`, die Balance steigt nie über 0. Alles darüber hinaus (Unterschreiten
+der Zusage) geht als Vorschlag an HR, das zustimmen oder ablehnen kann.
+
+**Referenz-Szenario für Tests:** Vertrag 5 h bezahlt + 5 h freiwillig/Woche.
+Woche 1: 3 h, Woche 2: 17 h → 20 h gearbeitet bei 20 h zugesagt. Shifty rechnet
+8 h bezahlt / 12 h freiwillig, Balance −2. Nach korrektem Übertrag von 2 h:
+10 h / 10 h, Balance 0. Gegenprobe Übererfüllung: Woche 2 mit 20 h → 23 h
+gearbeitet, Überschuss 5, Übertrag trotzdem nur 2 (Deckel), Balance 0.
+
+**Betroffene Pfade:** `.planning/REQUIREMENTS.md` (VOL-ACCT-03 + neues REQ),
+`service_impl/src/reporting.rs` (4 Filter-Sites + `alert_predicate`),
+`service_impl/src/rebooking_reconciliation.rs` (`week_excess`, `run_for_week`),
+`service_impl/src/billing_period_report.rs` (`CURRENT_SNAPSHOT_SCHEMA_VERSION`),
+`service_impl/src/test/rebooking_neutrality.rs` +
+`service_impl/src/test/rebooking_reconciliation.rs` (Tests invertieren),
+`docs/features/F14-rebooking.{md,_de.md}` + F07 + F08 (Docs-Freshness-Gate).
+
+**Plans:** 6 plans
+
+**Wave structure:** W1 = 01 · W2 = 02 · W3 = 03 · W4 = 04 + 05 (parallel) · W5 = 06
+
+Plans:
+
+- [ ] 57-01-PLAN.md — Spec-Korrektur: VOL-ACCT-03 neu fassen, VOL-ACCT-04 + REB-AUTO-06 anlegen, Traceability 19/19 + Bestandsdaten-Pre-Flight (D-57-05)
+- [ ] 57-02-PLAN.md — Filter-Fix Leseseite: 3 Neutralitäts-Tests invertieren (RED), Site-1-Wächter-Test, vier Filter-Sites in `reporting.rs` site-spezifisch korrigieren (GREEN)
+- [ ] 57-03-PLAN.md — Balance-Deckel im Auto-Cron: `week_excess` um `balance` erweitern, beide Call-Sites (`run_for_week` + `backfill_range`) mit year-to-date-Balance versorgen
+- [ ] 57-04-PLAN.md — Referenz-Szenario D-57-02 als Ende-zu-Ende-Test (Basis 3 h/17 h + Gegenprobe Übererfüllung 3 h/20 h)
+- [ ] 57-05-PLAN.md — Snapshot-Bump 12→13, drei Locking-Tests nachziehen, Straddling-Golden-Fixture auf ±h-Nachweis invertieren
+- [ ] 57-06-PLAN.md — Docs-Freshness-Gate: F14, F07, F08 + `docs/domain/time-accounting`, `docs/domain/billing-period` — je `.md` und `_de.md`
+
+**Anmerkung zu Scope-Punkt 2 (D-55-07 entkoppeln):** bewusst nicht geplant. In
+`/gsd-discuss-phase` verworfen (D-57-04) — der Banner erlischt weiterhin bei
+Approve, bei Reject und beim belegten UNIQUE-Slot. Die Wächter-Rolle gegen ein
+erneutes Wirkungslos-Werden übernehmen die invertierten Tests aus Plan 02 und das
+Referenz-Szenario aus Plan 04.
+
+---
+
 ### Progress Table
 
 | Phase | Plans Complete | Status | Completed |
@@ -555,8 +665,10 @@ Dry-Run-Vorschau-Header).
 | 54.5. Voluntary-Soll Absence-Aware-Angleichung (Hotfix v2.6.1) | 2/2 | Complete | 2026-07-10 |
 | 55. Manuelle Umbuchung + HR-Alert-Modal (F3 + F5) | 6/6 | Complete    | 2026-07-24 |
 | 56. Wochen-Cron + Rollout-Backfill (F4) | 6/6 | Complete   | 2026-07-26 |
+| 57. F14-Rebooking-Wirksamkeit — Requirements-Korrektur + Balance-Ausgleich | 0/6 | Planned | — |
 
-Requirements-Coverage: 17/17 mapped (5 → P54, 7 → P55, 5 → P56).
+Requirements-Coverage: 17/17 mapped (5 → P54, 7 → P55, 5 → P56); VOL-ACCT-03
+wird in P57 neu gefasst + 1 neues REQ ergänzt.
 
 ## Backlog
 
@@ -584,6 +696,4 @@ in einen Milestone promoten oder per `/gsd-plan-phase 999.1` direkt planen.
   **Depends on:** Quick-Task `260627-vgo` (compatible baseline) ✅
   **Plans:** 1/1 plans complete
 
----
-
-*Last updated: 2026-07-06 — v2.6 Roadmap frisch geschrieben (Phasen 54–56, 17/17 Requirements gemappt, ARCHITECTURE-C 3-Phasen-Baseline). Backlog 999.1 unverändert erhalten.*
+*Last updated: 2026-07-31 — Phase 57 ergänzt (F14-Rebooking-Wirksamkeit: der v2.6-Übertrag ist wirkungslos, Ursache in VOL-ACCT-03). v2.6 bleibt aktiv bis das Milestone-Goal erreicht ist.*
