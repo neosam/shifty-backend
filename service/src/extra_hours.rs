@@ -50,21 +50,41 @@ pub enum ExtraHoursCategory {
 }
 
 /// Phase 54 (D-54-DM-02): Rebooking-Marker auf jeder `ExtraHours`-Row.
-/// F1-Ist- + F2-Soll-Aggregatoren MUESSEN `Rebooking`-Rows herausfiltern
-/// (Pitfall 1: Doppel-Zaehlung), sonst zaehlen +N/-N-Paare bei Rebooking
-/// die freiwilligen Stunden doppelt in Reports / Balance.
+///
+/// **Phase 57 (VOL-ACCT-04, D-57-06): `source` ist ein reines
+/// PROVENIENZ-Feld.** Die Read-Aggregate filtern NICHT mehr pauschal ueber
+/// `source`; die Balance-Relevanz haengt allein an
+/// [`ExtraHoursCategory::as_report_type`] bzw.
+/// [`ExtraHoursCategory::availability`]. Ein Pair ueber `h` hebt die Balance um
+/// `h` und senkt das Ehrenamt-Ist um `h` — genau das ist die Wirkung des
+/// Uebertrags freiwillig→bezahlt.
+///
+/// **Warnung an Nachfolger:** ein pauschaler `source == Manual`-Vorfilter in
+/// einem Ist-/Soll-Aggregat macht den Uebertrag wirkungslos. Genau das war die
+/// Phase-55-Regression (D-55-A1): der Filter verwarf BEIDE Beine des Pairs,
+/// auch das `+h`-ExtraWork-Bein, das die Balance anheben soll. Der frueher hier
+/// dokumentierte Doppel-Zaehlungs-Verdacht (Pitfall 1) trifft nicht zu — das
+/// VOL-ACCT-01-Soll stammt aus `committed_voluntary` und liest ueberhaupt keine
+/// `ExtraHours` (VOL-ACCT-03 Neufassung).
+///
+/// **Einzige verbliebene Ausnahme:** `assemble_weeks` nimmt die Kombination
+/// (`VolunteerWork`, `Rebooking`) aus seiner `availability()`-basierten
+/// `extra_working_hours`-Summe aus. Sie gilt NICHT fuer gewoehnliche
+/// `VolunteerWork`-Rows. Die ausfuehrliche Begruendung steht im Kopf von
+/// `service_impl/src/reporting.rs`.
 ///
 /// Bestandsrows landen per SQL-DEFAULT auf `Manual`; Rebooking-Schreiber
 /// folgen ab Phase 55.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ExtraHoursSource {
     /// Row wurde manuell (UI-Add-Extra-Hours, HR-CRUD, Absence-Convert)
-    /// erzeugt und zaehlt normal in Balance / F1-Ist / F2-Nutz.
+    /// erzeugt.
     #[default]
     Manual,
-    /// Row wurde durch Rebooking (F3/F4/F5, ab Phase 55) erzeugt und
-    /// MUSS von F1-Ist- + F2-Soll-Aggregatoren gefiltert werden
-    /// (D-54-DM-02, Pitfall 1).
+    /// Row wurde durch Rebooking (F3/F4/F5, ab Phase 55) erzeugt. Sie zaehlt in
+    /// den Read-Aggregaten wie jede andere Row ihrer Kategorie (Phase 57,
+    /// VOL-ACCT-04) — der Marker dient der UI-Kennzeichnung, dem Audit und
+    /// einer spaeteren Undo-Faehigkeit, NICHT der Filterung.
     Rebooking,
 }
 
@@ -179,10 +199,11 @@ pub struct ExtraHours {
     pub created: Option<time::PrimitiveDateTime>,
     pub deleted: Option<time::PrimitiveDateTime>,
     pub version: Uuid,
-    /// Phase 54 (D-54-DM-02): Rebooking-Marker. F1/F2-Aggregatoren filtern
-    /// `Rebooking`-Rows raus. Neue Rows (manuell, HR-CRUD, Absence-Convert)
-    /// muessen `Manual` setzen; Rebooking-Schreiber (F3/F4/F5 ab Phase 55)
-    /// setzen `Rebooking`.
+    /// Phase 54 (D-54-DM-02): Rebooking-Marker; seit Phase 57 (VOL-ACCT-04)
+    /// reines Provenienz-Feld — die Read-Aggregate filtern NICHT darueber
+    /// (Details und die einzige Ausnahme: [`ExtraHoursSource`]). Neue Rows
+    /// (manuell, HR-CRUD, Absence-Convert) muessen `Manual` setzen;
+    /// Rebooking-Schreiber (F3/F4/F5 ab Phase 55) setzen `Rebooking`.
     pub source: ExtraHoursSource,
 }
 impl From<&dao::extra_hours::ExtraHoursEntity> for ExtraHours {
