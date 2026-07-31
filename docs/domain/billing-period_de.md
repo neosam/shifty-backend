@@ -35,7 +35,7 @@ war", die andere "was heute ist".
 ### Regel 2: Versionierung (`snapshot_schema_version`)
 
 Jede Billing-Period-Zeile trägt eine Versions-Nummer:
-`snapshot_schema_version: u32`, aktuell **12**.
+`snapshot_schema_version: u32`, aktuell **13**.
 
 Diese Zahl sagt: "Zum Zeitpunkt, als dieser Snapshot geschrieben
 wurde, galten diese Rechenregeln."
@@ -66,6 +66,17 @@ Wenn gleich → aktuelle Regeln, Diff ist ein Bug.
 3. Die Berechnung eines existierenden `value_type` änderst.
 4. Den Input-Set änderst (z.B. eine neue Extra-Hours-Kategorie mit-
    aggregierst).
+
+**Musterfall für Punkt 4 — Phase 57 (v12 → v13).** Bis dahin verwarfen
+die Read-Aggregate jede Extra-Hours-Zeile, die den
+`rebooking`-Provenienz-Marker trug. Phase 57 hat diesen Filter entfernt,
+sodass die gepaarten Zeilen eines Übertrags freiwillig→bezahlt jetzt die
+Berechnung erreichen. Bemerkenswert ist, was sich **nicht** geändert hat:
+keine Formel wurde angefasst, kein `value_type` kam hinzu oder fiel weg —
+nur die *Menge der gelesenen Zeilen* ist größer geworden. Genau das
+reicht, damit eine frische Neuberechnung einer alten Periode von ihrem
+Snapshot abweicht, und es ist das anschaulichste Beispiel für Punkt 4 in
+der bisherigen Historie.
 
 **Bumpe NICHT wenn du:**
 

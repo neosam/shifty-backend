@@ -34,7 +34,7 @@ other is "what it is today".
 ### Rule 2: Versioning (`snapshot_schema_version`)
 
 Every Billing Period row carries a version number:
-`snapshot_schema_version: u32`, currently **12**.
+`snapshot_schema_version: u32`, currently **13**.
 
 This number says: "At the time this Snapshot was written, these
 calculation rules were in effect."
@@ -63,6 +63,16 @@ current rules, diff is a bug.
 2. Remove or rename an existing `value_type`.
 3. Change the computation of an existing `value_type`.
 4. Change the input set (e.g. co-aggregate a new Extra Hours category).
+
+**Worked example for case 4 — Phase 57 (v12 → v13).** Until then, the
+read aggregates discarded every Extra-Hours row that carried the
+`rebooking` provenance marker. Phase 57 removed that filter, so the
+paired rows of a voluntary→paid transfer now reach the computation. Note
+what did **not** change: no formula was touched, no `value_type` was
+added or removed — only the *set of rows* the computation reads got
+larger. That alone makes a fresh re-computation of an old period differ
+from its snapshot, and it is the clearest example of case 4 in the
+history so far.
 
 **Do NOT bump when you:**
 

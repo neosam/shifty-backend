@@ -7,7 +7,7 @@
 > snapshots.
 
 **Cluster ID:** F08
-**Status:** production (active Snapshot schema version **12**, as of 2026-07)
+**Status:** production (active Snapshot schema version **13**, as of 2026-07)
 **First introduced:** 2025-08 (migration `20250813051848_add-table-billing-period.sql`);
 versioning column 2026-04 (`20260426000000_add-snapshot-schema-version-to-billing-period.sql`)
 **Responsible crates:**
@@ -432,8 +432,8 @@ Round-trips as `u32` through `BillingPeriodEntity.snapshot_schema_version`
 **Constant (single source of truth):**
 
 ```rust
-// service_impl/src/billing_period_report.rs:117
-pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 12;
+// service_impl/src/billing_period_report.rs:140
+pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 13;
 ```
 
 **Writer:** `build_new_billing_period` stamps the version onto every
@@ -507,6 +507,7 @@ From the large doc comment `billing_period_report.rs:38-117`:
 | **v10** | UV-05 / D-18-07 — converted hours-based absences flow into per-week category fields | `VacationDays` (+ Sick/Unpaid days) |
 | **v11** | Phase 25 (HOL-01/02, HCFG-01) — derive-on-read holiday auto credit via toggle | `Holiday`, transitively `Balance`/`ExpectedHours` |
 | **v12** | Phase 28 (VAC-OFFSET-01 / D-28-05) — off-by-one fix in `vacation_days_for_year`; Jan-1st start subtracts 0 days instead of ~1/365 | `VacationEntitlement` (**not** `VacationDays`) |
+| **v13** | Phase 57 (VOL-ACCT-04 / D-57-10) — the blanket `source == ExtraHoursSource::Manual` pre-filter that discarded every `source = Rebooking` extra-hours row from the read aggregates since Phase 55 (D-55-A1) is removed (D-57-06); rebooking pairs now flow into the persisted values | `Overall`, `Balance`, `ExtraWork`, `Volunteer` (**not** `ExpectedHours`, **not** `VacationEntitlement`, **not** `VacationDays`, **not** the absence categories) |
 
 Phase 15 (committed_voluntary two-band) was explicitly **not** bumped
 because axis-B only, no persisted `value_type` affected
@@ -515,37 +516,72 @@ because axis-B only, no persisted `value_type` affected
 Phase 17 (person-set filter `is_paid`) was explicitly **not** bumped
 (`billing_period_report.rs:365-370`).
 
-**Milestone v2.6 (Phases 54–56) — non-bump confirmation.**
-`CURRENT_SNAPSHOT_SCHEMA_VERSION` remains **12** across the entire
-voluntary-rebooking pipeline (see feature [F14](./F14-rebooking.md)).
+**Milestone v2.6 (Phases 54–56) — non-bump confirmation, HISTORICAL:
+superseded by the v13 bump in Phase 57.**
+
+> **Read this before the paragraph below.** Up to Phase 56 this section
+> confirmed that the whole voluntary-rebooking pipeline needed **no**
+> bump and that `CURRENT_SNAPSHOT_SCHEMA_VERSION` would stay at **12**.
+> That confirmation held **only** under the assumption that the
+> `source == Manual` read filter kept every rebooking row out of the
+> snapshot chain. **Phase 57 lifted that assumption, because the
+> assumption was itself the bug:** the original wording of VOL-ACCT-03
+> demanded balance neutrality and thereby made the entire rebooking
+> transfer ineffective — a pair changed nothing anywhere (see F14 §3 and
+> F07 §2.6). The `REB-AUTO-05` branch therefore flipped from "no bump"
+> to **"bump"**, and it was carried out in Phase 57 (v13 row above,
+> D-57-10). The reasoning below is kept for the record, not as current
+> guidance.
 
 - **Phase 54** (voluntary-stats data-model) adds only the
   `extra_hours.source` marker column (values: `manual` \| `rebooking`)
   and two new `rebooking_batch` / `rebooking_batch_entry` tables —
   neither introduces a new persisted `BillingPeriodValueType`, nor
   changes any existing computation. Voluntary-Stats itself is a
-  **live-computed HR-only read view**, not a persisted snapshot.
+  **live-computed HR-only read view**, not a persisted snapshot. *(Still
+  accurate.)*
 - **Phase 55** (F3 manual + F5 approve) begins writing
-  `Rebooking`-source `ExtraHours` pairs but leaves the snapshot
-  untouched: the read-aggregation `source == Manual` filter (D-55-A1)
-  excludes every rebooking row, so the pair nets to zero inside the
-  aggregate.
-- **Phase 56** (F4 auto-cron + rollout backfill) resolves the open
-  `REB-AUTO-05` bump question — and pins the **"no bump" branch**. The
-  F4-cron `Rebooking`-source writer is **not** a snapshot input-set
-  change in the sense of the CLAUDE.md versioning clause, because the
-  billing-period computation never reads a `Rebooking`-source row (same
-  `source == Manual` filter as Phase 55). **Empirical proof:** the D-01
-  **straddling golden-snapshot fixture**
-  (`service_impl/src/test/billing_period_straddling.rs`) drives the real
-  `BillingPeriodReportServiceImpl` over a billing period spanning a
-  rebooking week (KW 16/2026) and asserts the persisted
-  `BillingPeriodSalesPerson.values` rows are **byte-identical**
-  (`f32::to_bits()`) across four `voluntary_rebooking_auto_active_from`
-  toggle scenarios (cutoff after / before / inside the period, and
-  unset). No chain leaks a rebooking row into the snapshot. Therefore
-  **no version bump, no migration, no `billing_period_snapshot_locking.rs`
-  assert change** — the constant and the pin test stay at 12 (see §7.7).
+  `Rebooking`-source `ExtraHours` pairs and left the snapshot untouched
+  at the time, because the read-aggregation `source == Manual` filter
+  (D-55-A1) excluded every rebooking row. *(No longer accurate since
+  Phase 57 — the filter is gone.)*
+- **Phase 56** (F4 auto-cron + rollout backfill) resolved the open
+  `REB-AUTO-05` bump question by pinning the **"no bump" branch**, on
+  the grounds that the billing-period computation never reads a
+  `Rebooking`-source row. *(Void since Phase 57.)*
+
+**Phase 57 (VOL-ACCT-04 / D-57-10) — the bump that was carried out.**
+With the marker filter re-drafted, a rebooking pair `(−h VolunteerWork,
++h ExtraWork)` shifts the persisted values: the `+h` leg lifts `Overall`,
+`Balance` and `ExtraWork`, the `−h` leg lowers `Volunteer`. `Overall`
+moves along because `report_delta.overall_hours = shiftplan_hours_by_week
++ overall_extra_work_hours`. Under the CLAUDE.md clause "Change the input
+set the computation reads from" this is mandatory bump territory — a
+fresh re-computation yields different values for the same period than a
+v12 snapshot does.
+
+**Empirical proof, now running the other way round.** The straddling
+golden-snapshot fixture
+(`service_impl/src/test/billing_period_straddling.rs`) carries two
+separate burdens of proof:
+
+1. The three original toggle scenarios still assert **byte-identity**
+   (`f32::to_bits()`) across the four
+   `voluntary_rebooking_auto_active_from` settings (cutoff after /
+   before / inside the period, and unset) — the Stichtag steers the
+   write side only, and that is unchanged.
+2. `test_straddling_snapshot_rebooking_shifts_values` compares the same
+   period **with and without** a rebooking pair at the same toggle value
+   and asserts a shift of exactly `±h` on the four value types above,
+   byte-identity on everything else. A shift of `0` is the alarm: it
+   would mean some chain filters the pair out again and the Phase-57 fix
+   has become ineffective.
+
+**No migration, no recompute (D-57-12).** Existing v12 rows stay
+untouched; validators compare only within the same
+`snapshot_schema_version` — that is exactly what the version field is
+for. The `billing_period_snapshot_locking.rs` assert and four further
+pin tests were pulled to 13 with updated reasoning texts (see §7.7).
 
 ### 7.5 Edge case — validator reads a v11 snapshot with v12 code
 
@@ -570,6 +606,17 @@ Concrete case from the v12 doc comment
 Analogously: v10 → v11 skips Holiday hours
 (`billing_period_report.rs:101-107`); v9 → v10 skips Vacation/Sick/Unpaid
 days (`billing_period_report.rs:93-100`); and so on.
+
+**The same case for v12 against v13 (Phase 57).** A validator reading a
+`snapshot_schema_version = 12` snapshot with v13 code **MUST** exclude
+`Overall`, `Balance`, `ExtraWork` and `Volunteer` from re-validation for
+that entry: the v12 rows were written while the marker filter still
+discarded every rebooking row, so a fresh computation legitimately
+differs for any period containing a rebooking week. All remaining
+`value_type`s (`ExpectedHours`, `VacationEntitlement`, `VacationDays`,
+the absence categories) **may** still be re-validated — `rebook()` only
+ever writes the `VolunteerWork` and `ExtraWork` categories, and the Soll
+comes from the contract rather than from `extra_hours`.
 
 **[To verify]** In which file the validator logic actually lives.
 The doc comment references it, but the current cluster does not yet
@@ -600,14 +647,23 @@ against silent drift:
 #[test]
 fn test_snapshot_schema_version_pinned() {
     assert_eq!(
-        CURRENT_SNAPSHOT_SCHEMA_VERSION, 12,
-        "CURRENT_SNAPSHOT_SCHEMA_VERSION muss 12 sein nach Phase 28 …"
+        CURRENT_SNAPSHOT_SCHEMA_VERSION, 13,
+        "CURRENT_SNAPSHOT_SCHEMA_VERSION muss 13 sein nach Phase 57 \
+         (VOL-ACCT-04 / D-57-10) …"
     );
 }
 ```
 
 Whoever bumps the constant **must** also lift this assert and rewrite
-the message to reflect the new reason. The second test
+the message to reflect the new reason. Phase 57 broke **five** such
+pins, not one: besides this test also
+`booking_information_vfa.rs::phase26_vfa_no_snapshot_bump`,
+`booking_information.rs::snapshot_schema_version_pinned_at_10` (the
+function name is historical), `pdf_export_config.rs::snapshot_version_unchanged_grep_gate`
+(a grep gate on the literal `… u32 = 13;`) and
+`shiftplan_report.rs::test_snapshot_schema_version_unchanged`. All five
+got a rewritten justification, not just a swapped number — the purpose of
+each gate ("phase X must not bump") stays intact. The second test
 `test_billing_period_value_type_surface_locked` (`:44-70`) is a
 `match`-locking on `BillingPeriodValueType`: a new enum variant
 produces `non-exhaustive patterns` and forces the author to
@@ -691,5 +747,5 @@ validator can ever distinguish schema drift from real data bugs.
 
 ---
 
-*Last verification against code:* 2026-07-05 against
-`CURRENT_SNAPSHOT_SCHEMA_VERSION = 12` (see git blame of this file).
+*Last verification against code:* 2026-07-31 against
+`CURRENT_SNAPSHOT_SCHEMA_VERSION = 13` (see git blame of this file).

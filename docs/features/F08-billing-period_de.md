@@ -7,7 +7,7 @@
 > stillschweigend "brechen".
 
 **Cluster-ID:** F08
-**Status:** produktiv (aktive Snapshot-Schema-Version **12**, Stand 2026-07)
+**Status:** produktiv (aktive Snapshot-Schema-Version **13**, Stand 2026-07)
 **Erstmalig eingeführt:** 2025-08 (Migration `20250813051848_add-table-billing-period.sql`);
 Versionierungs-Kolumne 2026-04 (`20260426000000_add-snapshot-schema-version-to-billing-period.sql`)
 **Zuständige Crates:**
@@ -426,8 +426,8 @@ Round-trip als `u32` durch `BillingPeriodEntity.snapshot_schema_version`
 **Konstante (Single Source of Truth):**
 
 ```rust
-// service_impl/src/billing_period_report.rs:117
-pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 12;
+// service_impl/src/billing_period_report.rs:140
+pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 13;
 ```
 
 **Writer:** `build_new_billing_period` stempelt die Version auf jeden
@@ -501,6 +501,7 @@ Aus dem großen Doc-Comment `billing_period_report.rs:38-117`:
 | **v10** | UV-05 / D-18-07 — konvertierte hours-based Absenzen fließen in per-week Category-Felder | `VacationDays` (+ Sick/Unpaid days) |
 | **v11** | Phase 25 (HOL-01/02, HCFG-01) — derive-on-read Feiertags-Auto-Credit via Toggle | `Holiday`, transitiv `Balance`/`ExpectedHours` |
 | **v12** | Phase 28 (VAC-OFFSET-01 / D-28-05) — off-by-one Fix in `vacation_days_for_year`; 1.1.-Start zieht 0 Tage ab statt ~1/365 | `VacationEntitlement` (**nicht** `VacationDays`) |
+| **v13** | Phase 57 (VOL-ACCT-04 / D-57-10) — der pauschale `source == ExtraHoursSource::Manual`-Vorfilter, der seit Phase 55 (D-55-A1) jede `source = Rebooking`-ExtraHours-Zeile aus den Read-Aggregaten verwarf, ist entfernt (D-57-06); Rebooking-Paare fließen jetzt in die persistierten Werte ein | `Overall`, `Balance`, `ExtraWork`, `Volunteer` (**nicht** `ExpectedHours`, **nicht** `VacationEntitlement`, **nicht** `VacationDays`, **nicht** die Absence-Kategorien) |
 
 Phase 15 (committed_voluntary Zwei-Band) wurde explizit **nicht** gebumpt,
 weil Achse-B-only, kein persistierter `value_type` betroffen
@@ -509,9 +510,23 @@ weil Achse-B-only, kein persistierter `value_type` betroffen
 Phase 17 (Personen-Set-Filter `is_paid`) wurde explizit **nicht** gebumpt
 (`billing_period_report.rs:365-370`).
 
-**Milestone v2.6 (Phasen 54–56) — Non-Bump-Bestätigung.**
-`CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt **12** über die gesamte
-Voluntary-Rebooking-Pipeline (siehe Feature [F14](./F14-rebooking.md)).
+**Milestone v2.6 (Phasen 54–56) — Non-Bump-Bestätigung, HISTORISCH:
+abgelöst durch den v13-Bump in Phase 57.**
+
+> **Erst das hier lesen, dann den Absatz darunter.** Bis Phase 56
+> bestätigte dieser Abschnitt, dass die gesamte
+> Voluntary-Rebooking-Pipeline **keinen** Bump braucht und
+> `CURRENT_SNAPSHOT_SCHEMA_VERSION` bei **12** bleibt. Diese Bestätigung
+> galt **ausschließlich** unter der Annahme, dass der
+> `source == Manual`-Read-Filter jede Rebooking-Zeile aus der
+> Snapshot-Kette hält. **Phase 57 hat diese Annahme aufgehoben, weil die
+> Annahme selbst der Fehler war:** die ursprüngliche Fassung von
+> VOL-ACCT-03 forderte Balance-Neutralität und machte damit den gesamten
+> Übertrag wirkungslos — ein Paar änderte nirgends etwas (siehe F14 §3
+> und F07 §2.6). Der `REB-AUTO-05`-Zweig ist damit von „kein Bump" auf
+> **„Bump"** umgeschlagen und wurde in Phase 57 vollzogen (v13-Zeile
+> oben, D-57-10). Die Begründung unten bleibt als Beleg stehen, nicht als
+> gültige Handlungsanweisung.
 
 - **Phase 54** (Voluntary-Stats-Datenmodell) ergänzt nur die
   Marker-Spalte `extra_hours.source` (Werte: `manual` \| `rebooking`)
@@ -519,28 +534,52 @@ Voluntary-Rebooking-Pipeline (siehe Feature [F14](./F14-rebooking.md)).
   weder wird ein neuer persistierter `BillingPeriodValueType` eingeführt
   noch eine bestehende Berechnung verändert. Voluntary-Stats selbst ist
   eine **live berechnete HR-only-Read-View**, kein persistierter
-  Snapshot.
+  Snapshot. *(Weiterhin korrekt.)*
 - **Phase 55** (F3 manuell + F5 approve) beginnt, `Rebooking`-Source-
-  `ExtraHours`-Paare zu schreiben, lässt den Snapshot aber unberührt:
-  der Read-Aggregations-Filter `source == Manual` (D-55-A1) schließt
-  jede Rebooking-Zeile aus, sodass das Paar im Aggregat netto-nullt.
-- **Phase 56** (F4 Auto-Cron + Rollout-Backfill) löst die offene
-  `REB-AUTO-05`-Bump-Frage — und pinnt den **„Nein"-Zweig (kein Bump)**.
-  Der F4-Cron-`Rebooking`-Source-Writer ist **kein** Snapshot-Input-Set-
-  Change im Sinne der CLAUDE.md-Versioning-Klausel, weil die
-  Billing-Period-Berechnung nie eine `Rebooking`-Source-Zeile liest
-  (derselbe `source == Manual`-Filter wie Phase 55). **Empirischer
-  Beweis:** die D-01-**Straddling-Golden-Snapshot-Fixture**
-  (`service_impl/src/test/billing_period_straddling.rs`) treibt den
-  echten `BillingPeriodReportServiceImpl` über eine Billing-Period, die
-  eine Rebooking-Woche (KW 16/2026) überspannt, und assertet, dass die
-  persistierten `BillingPeriodSalesPerson.values`-Rows über vier
-  `voluntary_rebooking_auto_active_from`-Toggle-Szenarien
-  **byte-identisch** sind (`f32::to_bits()`) — Cutoff nach / vor /
-  innerhalb der Period sowie unset. Keine Kette leakt eine Rebooking-
-  Zeile in den Snapshot. Daher **kein Version-Bump, keine Migration,
-  keine `billing_period_snapshot_locking.rs`-Assert-Änderung** — die
-  Konstante und der Pin-Test bleiben bei 12 (siehe §7.7).
+  `ExtraHours`-Paare zu schreiben, und ließ den Snapshot damals
+  unberührt, weil der Read-Aggregations-Filter `source == Manual`
+  (D-55-A1) jede Rebooking-Zeile ausschloss. *(Seit Phase 57 nicht mehr
+  korrekt — den Filter gibt es nicht mehr.)*
+- **Phase 56** (F4 Auto-Cron + Rollout-Backfill) löste die offene
+  `REB-AUTO-05`-Bump-Frage, indem sie den **„Nein"-Zweig (kein Bump)**
+  pinnte — begründet damit, dass die Billing-Period-Berechnung nie eine
+  `Rebooking`-Source-Zeile liest. *(Seit Phase 57 hinfällig.)*
+
+**Phase 57 (VOL-ACCT-04 / D-57-10) — der vollzogene Bump.** Mit der neu
+gefassten Marker-Regel verschiebt ein Rebooking-Paar
+`(−h VolunteerWork, +h ExtraWork)` die persistierten Werte: das
+`+h`-Bein hebt `Overall`, `Balance` und `ExtraWork`, das `−h`-Bein senkt
+`Volunteer`. `Overall` verschiebt sich mit, weil
+`report_delta.overall_hours = shiftplan_hours_by_week +
+overall_extra_work_hours` gilt. Nach der CLAUDE.md-Klausel „Change the
+input set the computation reads from" ist das bump-pflichtig — eine
+frische Neuberechnung liefert für dieselbe Periode andere Werte als ein
+v12-Snapshot.
+
+**Empirischer Beleg, jetzt andersherum.** Die
+Straddling-Golden-Snapshot-Fixture
+(`service_impl/src/test/billing_period_straddling.rs`) trägt zwei
+getrennte Beweislasten:
+
+1. Die drei ursprünglichen Toggle-Szenarien assertieren weiterhin
+   **Byte-Identität** (`f32::to_bits()`) über die vier
+   `voluntary_rebooking_auto_active_from`-Einstellungen (Cutoff nach /
+   vor / innerhalb der Period sowie unset) — der Stichtag steuert nur
+   die Schreibseite, und das ist unverändert.
+2. `test_straddling_snapshot_rebooking_shifts_values` vergleicht
+   dieselbe Periode **mit und ohne** Rebooking-Paar beim selben
+   Toggle-Wert und assertiert eine Verschiebung von genau `±h` auf den
+   vier obigen value_types, Byte-Identität auf allem übrigen. Eine
+   Verschiebung von `0` ist der Alarm: sie hieße, dass eine Kette das
+   Paar wieder herausfiltert und der Phase-57-Fix wirkungslos geworden
+   ist.
+
+**Keine Migration, kein Recompute (D-57-12).** Bestehende v12-Rows
+bleiben unangetastet; Validatoren vergleichen nur innerhalb derselben
+`snapshot_schema_version` — genau dafür existiert das Versionsfeld. Der
+`billing_period_snapshot_locking.rs`-Assert und vier weitere Pin-Tests
+wurden auf 13 nachgezogen, jeweils mit aktualisiertem Begründungstext
+(siehe §7.7).
 
 ### 7.5 Randfall — Validator liest v11-Snapshot mit v12-Code
 
@@ -565,6 +604,18 @@ Konkreter Fall aus dem v12-Doc-Comment (`billing_period_report.rs:108-116`):
 Analog gilt: v10 → v11 skippt Holiday-Hours (`billing_period_report.rs:101-107`);
 v9 → v10 skippt Vacation/Sick/Unpaid Days
 (`billing_period_report.rs:93-100`); usw.
+
+**Derselbe Fall für v12 gegen v13 (Phase 57).** Ein Validator, der einen
+Snapshot mit `snapshot_schema_version = 12` mit v13-Code liest, MUSS für
+diesen Eintrag `Overall`, `Balance`, `ExtraWork` und `Volunteer` von der
+Re-Validierung ausnehmen: die v12-Zeilen wurden geschrieben, als der
+Marker-Filter noch jede Rebooking-Zeile verwarf, eine frische Berechnung
+weicht für jede Periode mit Rebooking-Woche also berechtigt ab. Alle
+übrigen `value_type`s (`ExpectedHours`, `VacationEntitlement`,
+`VacationDays`, die Absence-Kategorien) **dürfen** weiterhin re-validiert
+werden — `rebook()` schreibt ausschließlich die Kategorien
+`VolunteerWork` und `ExtraWork`, und das Soll stammt aus dem Vertrag
+statt aus `extra_hours`.
 
 **[Zu prüfen]** In welcher Datei die Validator-Logik tatsächlich lebt.
 Der Doc-Comment referenziert sie, aber der aktuelle Cluster enthält
@@ -594,14 +645,25 @@ stiller Drift:
 #[test]
 fn test_snapshot_schema_version_pinned() {
     assert_eq!(
-        CURRENT_SNAPSHOT_SCHEMA_VERSION, 12,
-        "CURRENT_SNAPSHOT_SCHEMA_VERSION muss 12 sein nach Phase 28 …"
+        CURRENT_SNAPSHOT_SCHEMA_VERSION, 13,
+        "CURRENT_SNAPSHOT_SCHEMA_VERSION muss 13 sein nach Phase 57 \
+         (VOL-ACCT-04 / D-57-10) …"
     );
 }
 ```
 
 Wer die Konstante bumpt, **muss** auch diesen Assert mitheben und die
-Message auf den neuen Grund umschreiben. Der zweite Test
+Message auf den neuen Grund umschreiben. Phase 57 hat **fünf** solcher
+Pins gebrochen, nicht einen: neben diesem Test auch
+`booking_information_vfa.rs::phase26_vfa_no_snapshot_bump`,
+`booking_information.rs::snapshot_schema_version_pinned_at_10` (der
+Funktionsname ist historisch),
+`pdf_export_config.rs::snapshot_version_unchanged_grep_gate` (ein
+Grep-Gate auf das Literal `… u32 = 13;`) und
+`shiftplan_report.rs::test_snapshot_schema_version_unchanged`. Alle fünf
+haben einen neu formulierten Begründungstext bekommen, keinen reinen
+Zahlentausch — der Zweck jedes Gates („Phase X darf nicht bumpen")
+bleibt unverändert. Der zweite Test
 `test_billing_period_value_type_surface_locked` (`:44-70`) ist ein
 `match`-Locking auf `BillingPeriodValueType`: eine neue Enum-Variante
 gibt `non-exhaustive patterns` und zwingt den Autor, bewusst zu
@@ -684,5 +746,5 @@ kann kein Validator jemals Schema-Drift von echten Datenbugs unterscheiden.
 
 ---
 
-*Letzte Verifikation gegen Code:* 2026-07-05 gegen
-`CURRENT_SNAPSHOT_SCHEMA_VERSION = 12` (siehe git blame dieser Datei).
+*Letzte Verifikation gegen Code:* 2026-07-31 gegen
+`CURRENT_SNAPSHOT_SCHEMA_VERSION = 13` (siehe git blame dieser Datei).
