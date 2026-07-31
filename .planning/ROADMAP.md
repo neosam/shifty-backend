@@ -121,7 +121,7 @@ Kein Follow-up — MEMORY `feedback_docs_always_current_no_followup.md`.
       VoluntaryRebookingScheduler (Wochen-Cron) + Stichtag-Toggle-Wirkung +
       HR-gated Backfill-REST-Endpoint + Admin-Card (FE)
 
-- [ ] **Phase 57: F14-Rebooking-Wirksamkeit — Requirements-Korrektur + Balance-Ausgleich**
+- [x] **Phase 57: F14-Rebooking-Wirksamkeit — Requirements-Korrektur + Balance-Ausgleich** (completed 2026-07-31)
       Der in 54–56 gebaute Übertrag ist wirkungslos: der `source == Manual`-Filter
       verwirft beide Beine des Paars, die Balance bleibt unverändert. Ursache ist
       VOL-ACCT-03 (fordert wörtlich das Gegenteil des Milestone-Goals). Korrigiert
@@ -647,7 +647,7 @@ gearbeitet, Überschuss 5, Übertrag trotzdem nur 2 (Deckel), Balance 0.
 `service_impl/src/test/rebooking_reconciliation.rs` (Tests invertieren),
 `docs/features/F14-rebooking.{md,_de.md}` + F07 + F08 (Docs-Freshness-Gate).
 
-**Plans:** 5/6 plans executed
+**Plans:** 6/6 plans complete
 
 **Wave structure:** W1 = 01 · W2 = 02 · W3 = 03 · W4 = 04 + 05 (parallel) · W5 = 06
 
@@ -671,7 +671,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 57-06-PLAN.md — Docs-Freshness-Gate: F14, F07, F08 + `docs/domain/time-accounting`, `docs/domain/billing-period` — je `.md` und `_de.md`
+- [x] 57-06-PLAN.md — Docs-Freshness-Gate: F14, F07, F08 + `docs/domain/time-accounting`, `docs/domain/billing-period` — je `.md` und `_de.md`
 
 **Anmerkung zu Scope-Punkt 2 (D-55-07 entkoppeln):** bewusst nicht geplant. In
 `/gsd-discuss-phase` verworfen (D-57-04) — der Banner erlischt weiterhin bei
@@ -689,7 +689,7 @@ Referenz-Szenario aus Plan 04.
 | 54.5. Voluntary-Soll Absence-Aware-Angleichung (Hotfix v2.6.1) | 2/2 | Complete | 2026-07-10 |
 | 55. Manuelle Umbuchung + HR-Alert-Modal (F3 + F5) | 6/6 | Complete    | 2026-07-24 |
 | 56. Wochen-Cron + Rollout-Backfill (F4) | 6/6 | Complete   | 2026-07-26 |
-| 57. F14-Rebooking-Wirksamkeit — Requirements-Korrektur + Balance-Ausgleich | 5/6 | In Progress|  |
+| 57. F14-Rebooking-Wirksamkeit — Requirements-Korrektur + Balance-Ausgleich | 6/6 | Complete   | 2026-07-31 |
 
 Requirements-Coverage: 17/17 mapped (5 → P54, 7 → P55, 5 → P56); VOL-ACCT-03
 wird in P57 neu gefasst + 1 neues REQ ergänzt.

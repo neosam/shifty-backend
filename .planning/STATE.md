@@ -6,15 +6,15 @@ current_phase: 57
 current_phase_name: f14-rebooking-wirksamkeit-requirements-korrektur-balance-aus
 status: executing
 stopped_at: Completed 57-03-PLAN.md
-last_updated: "2026-07-31T14:28:05.281Z"
+last_updated: "2026-07-31T14:45:14.707Z"
 last_activity: 2026-07-31
 last_activity_desc: Phase 57 Plan 03 abgeschlossen (Balance-Deckel REB-AUTO-06)
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 29
-  completed_plans: 28
-  percent: 80
+  completed_plans: 29
+  percent: 100
 ---
 
 # Project State: Shifty Backend
@@ -214,7 +214,7 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-07-31T14:27:49.096Z
+**Last session:** 2026-07-31T14:45:04.548Z
 **Stopped at:** Completed 57-03-PLAN.md
 **Resume file:** None
 
@@ -302,6 +302,9 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 - [Phase ?]: D-57-10 umgesetzt: CURRENT_SNAPSHOT_SCHEMA_VERSION 12 -> 13 (Filter-Fix ist ein 'Change the input set the computation reads from')
 - [Phase ?]: Der v13-Bump betrifft VIER value_types (Overall, Balance, ExtraWork, Volunteer) - Overall war im Plan uebersehen und wurde per Messung ergaenzt
 - [Phase ?]: Fuenf statt drei Snapshot-Locking-Gates nachgezogen; pdf_export_config und shiftplan_report pinnen die Konstante ebenfalls absolut
+- [Phase ?]: D-57-06 dokumentiert: F14 §3 / F07 §2.6 beschreiben die Kategorie-Semantik statt des Marker-Filters, mit der einen assemble_weeks-Ausnahme
+- [Phase ?]: Widerrufene Entscheidungen werden als HISTORISCH markiert und mit Umschlagpunkt versehen statt geloescht (F08 §7.4, T-57-18)
+- [Phase ?]: Die F08-Bump-Historie nennt VIER betroffene value_types (Overall, Balance, ExtraWork, Volunteer) — Messbefund aus Plan 05
 
 ## Performance Metrics
 
@@ -347,3 +350,4 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 | Phase 57 P03 | 20min | 2 tasks | 4 files |
 | Phase 57 P04 | 15min | 2 tasks | 2 files |
 | Phase 57 P05 | 25min | 2 tasks | 7 files |
+| Phase 57 P06 | ~35min | 3 tasks | 10 files |
