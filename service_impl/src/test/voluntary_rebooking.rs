@@ -730,6 +730,119 @@ async fn run_for_week_idempotent_on_conflict() {
     );
 }
 
+/// WR-13 (Code-Review Phase 57): ein zweiter Lauf ueber dieselbe, bereits vom
+/// Cron verarbeitete Woche meldet `NoExcess` — nicht `AlreadyProcessed`.
+///
+/// `week_voluntary_figures` liest `ist` aus `VoluntaryStats`, und
+/// `VoluntaryStatsServiceImpl` bezieht `ist_total` aus
+/// `EmployeeReport::volunteer_hours`. Seit der Filter-Entfernung (VOL-ACCT-04)
+/// senkt das `-h`-VolunteerWork-Bein diesen Wert. Der zweite Lauf berechnet
+/// deshalb `excess == 0` und kehrt am Excess-Guard zurueck — er erreicht die
+/// Slot-Claim-Pruefung gar nicht mehr, die bisher `AlreadyProcessed` lieferte.
+///
+/// Kein Doppel-Write (der UNIQUE-Slot bleibt die Absicherung), aber die
+/// Skip-Reason-Statistik von Scheduler und Backfill-Preview verschiebt sich:
+/// HR sieht „kein Ueberschuss" statt „bereits verarbeitet". Der Test nagelt die
+/// Erwartung fest, statt sie lautlos driften zu lassen.
+/// `run_for_week_idempotent_on_conflict` deckt das nicht ab, weil er den
+/// Stats-Mock konstant haelt — das entspricht dem Fall eines FREMD belegten
+/// Slots (manuelle Umbuchung / pending HR-Suggestion), der weiterhin
+/// `AlreadyProcessed` liefert.
+#[tokio::test]
+async fn run_for_week_second_run_reports_no_excess() {
+    // Zustand: was das Pair bereits umgebucht hat. Beide Mocks lesen ihn —
+    // `ist` sinkt um den Betrag, die Balance steigt um ihn (genau die Wirkung
+    // des Paars auf der Leseseite, VOL-ACCT-04).
+    let booked = Arc::new(std::sync::Mutex::new(0.0f32));
+
+    let booked_for_eh = booked.clone();
+    let mut extra_hours_service = MockExtraHoursService::new();
+    extra_hours_service
+        .expect_create()
+        .times(2) // genau EIN Pair ueber beide Laeufe
+        .returning(move |eh, _, _| {
+            if eh.category == ExtraHoursCategory::ExtraWork {
+                *booked_for_eh.lock().unwrap() += eh.amount;
+            }
+            Ok(eh.clone())
+        });
+
+    let claims = Arc::new(std::sync::Mutex::new(0usize));
+    let claims_cap = claims.clone();
+    let mut rebooking_batch_service = MockRebookingBatchService::new();
+    rebooking_batch_service
+        .expect_create()
+        .returning(move |batch, _, _, _| {
+            let mut n = claims_cap.lock().unwrap();
+            *n += 1;
+            if *n == 1 {
+                Ok(batch.clone())
+            } else {
+                // Der UNIQUE-Slot ist jetzt belegt — wird der zweite Lauf hier
+                // ueberhaupt ankommen?
+                Err(ServiceError::EntityAlreadyExists(batch.id))
+            }
+        });
+
+    let booked_for_stats = booked.clone();
+    let mut voluntary_stats_service = MockVoluntaryStatsService::new();
+    voluntary_stats_service
+        .expect_get_voluntary_stats()
+        .returning(move |_, _, _, _, _| {
+            let ist = 8.0 - *booked_for_stats.lock().unwrap();
+            Ok(make_voluntary_stats(ist, 5.0))
+        });
+
+    let booked_for_report = booked.clone();
+    let mut reporting_service = MockReportingService::new();
+    reporting_service
+        .expect_get_report_for_employee_range()
+        .returning(move |_, _, _, _, _, _| {
+            Ok(make_report(-8.0 + *booked_for_report.lock().unwrap()))
+        });
+
+    let service = build_service(
+        extra_hours_service,
+        rebooking_batch_service,
+        reporting_service,
+        voluntary_stats_service,
+        week_unset(),
+        MockEmployeeWorkDetailsService::new(),
+        toggle_on(),
+        MockClockService::new(),
+        perm_ok(),
+        tx_ok(),
+    );
+
+    let first = service
+        .run_for_week(sp_id(), 2026, 12, RebookingBatchKind::AutoCron, Authentication::Full, None)
+        .await
+        .expect("first run must succeed");
+    assert_eq!(
+        first,
+        RunForWeekOutcome::Booked { hours: 3.0 },
+        "first run books 8 - 5 = 3"
+    );
+
+    let second = service
+        .run_for_week(sp_id(), 2026, 12, RebookingBatchKind::AutoCron, Authentication::Full, None)
+        .await
+        .expect("second run must succeed");
+    assert_eq!(
+        second,
+        RunForWeekOutcome::Skipped {
+            reason: SkipReason::NoExcess
+        },
+        "seit VOL-ACCT-04 senkt das -h-Bein den Ist-Wert: der zweite Lauf sieht \
+         keinen Ueberschuss mehr und kehrt VOR dem Slot-Claim zurueck"
+    );
+    assert_eq!(
+        *claims.lock().unwrap(),
+        1,
+        "der zweite Lauf darf den Batch-Claim gar nicht erst versuchen"
+    );
+}
+
 /// Case 4: pending HR-Suggestion belegt den Slot (Claim-on-Suggest, D-02). Der
 /// UNIQUE-Slot ist belegt → Batch-create liefert EntityAlreadyExists → gleicher
 /// AlreadyProcessed-Skip wie Case 3 (der Cron respektiert den HR-Claim).

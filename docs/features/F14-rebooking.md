@@ -597,6 +597,19 @@ the two triggers can never drift:
   The UNIQUE `(sales_person, iso_year, iso_week)` partial index (§4) is
   the enforcement point; Claim-on-Suggest (§8.3) means an open pending
   batch blocks the cron slot.
+
+  **Which skip reason a second run reports (WR-13).** Since VOL-ACCT-04
+  the `−h` VolunteerWork leg lowers `EmployeeReport::volunteer_hours`,
+  which is where `VoluntaryStats::ist_total` — and therefore the `ist`
+  in `week_excess` — comes from. A second run over a week the **cron
+  itself** already booked consequently computes `excess == 0` and
+  returns `Skipped { NoExcess }` at the excess guard; it never reaches
+  the slot claim. `AlreadyProcessed` remains the reason when the slot is
+  held by a **foreign** source (manual rebooking, pending HR
+  suggestion). No double write either way — the UNIQUE slot is the
+  safeguard; only the skip-reason statistics of the scheduler and the
+  backfill preview shift. Pinned by
+  `voluntary_rebooking.rs::run_for_week_second_run_reports_no_excess`.
 - **Week-lock (D-04):** a `WeekStatus::Locked` ISO week writes a
   `state = SkippedLocked` **audit batch** (no pair) and returns
   `Skipped { WeekLocked }` — the balance of a closed week is never

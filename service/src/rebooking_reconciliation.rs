@@ -81,6 +81,16 @@ pub enum SkipReason {
     /// UNIQUE-Slot `(sales_person_id, iso_year, iso_week)` bereits belegt
     /// (frueherer Cron-Lauf, manuelle Umbuchung oder pending HR-Suggestion —
     /// Claim-on-Suggest, D-02). Idempotenz-Skip (REB-AUTO-03).
+    ///
+    /// **Achtung (WR-13):** ein zweiter Lauf ueber eine bereits vom Cron
+    /// verarbeitete Woche meldet in der Regel [`SkipReason::NoExcess`], nicht
+    /// diese Variante. Seit VOL-ACCT-04 senkt das `-h`-VolunteerWork-Bein den
+    /// Ist-Wert, aus dem der Ueberschuss berechnet wird; der Excess-Guard steht
+    /// vor dem Slot-Claim und greift zuerst. `AlreadyProcessed` bleibt der Grund,
+    /// wenn der Slot von einer FREMDEN Quelle belegt ist (manuelle Umbuchung,
+    /// pending HR-Suggestion) oder der Ueberschuss aus anderen Gruenden erneut
+    /// positiv ist. Der UNIQUE-Slot ist in beiden Faellen die Absicherung gegen
+    /// Doppel-Writes; betroffen ist nur die Skip-Reason-Statistik.
     AlreadyProcessed,
     /// Die ISO-Woche ist `WeekStatus::Locked` (D-04). Es wird ein
     /// `SkippedLocked`-Audit-Batch persistiert, aber kein Pair.

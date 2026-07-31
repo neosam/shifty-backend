@@ -717,6 +717,20 @@ impl<Deps: RebookingReconciliationServiceDeps> RebookingReconciliationService
         // WR-02: Mindest-Buchungsgroesse statt `<= 0.0`. Ein f32-Residuum wie
         // `1.2e-6` wuerde sonst ein Micro-Pair schreiben UND den UNIQUE-Slot
         // der Woche verbrennen (siehe MIN_BOOKABLE_HOURS).
+        //
+        // WR-13 — bewusste Reihenfolge, mit einer Nebenwirkung auf die
+        // Skip-Reason-Statistik: dieser Guard steht VOR dem Slot-Claim. Seit der
+        // Filter-Entfernung (VOL-ACCT-04) senkt das `-h`-VolunteerWork-Bein den
+        // `ist`-Wert, den `VoluntaryStats` aus `EmployeeReport::volunteer_hours`
+        // bezieht. Ein zweiter Lauf ueber dieselbe Woche findet deshalb
+        // `excess == 0` und kehrt hier mit `NoExcess` zurueck — er erreicht die
+        // Slot-Claim-Pruefung gar nicht mehr, die frueher `AlreadyProcessed`
+        // lieferte. Kein Doppel-Write (der UNIQUE-Slot bleibt die Absicherung),
+        // aber HR sieht im Backfill-Preview „kein Ueberschuss" statt „bereits
+        // verarbeitet". Den Slot-Check vorzuziehen waere die Alternative,
+        // kostete aber fuer JEDE Woche einen zusaetzlichen Batch-Lookup —
+        // gerade im Backfill der teurere Weg (vgl. WR-06). Festgenagelt von
+        // `voluntary_rebooking.rs::run_for_week_second_run_reports_no_excess`.
         if excess < MIN_BOOKABLE_HOURS {
             self.transaction_dao.commit(tx).await?;
             return Ok(RunForWeekOutcome::Skipped {

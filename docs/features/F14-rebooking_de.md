@@ -624,6 +624,20 @@ die beiden Trigger niemals driften können:
   Der partielle UNIQUE-Index `(sales_person, iso_year, iso_week)` (§4)
   ist die Enforcement-Stelle; Claim-on-Suggest (§8.3) bedeutet, dass ein
   offener pending-Batch den Cron-Slot blockiert.
+
+  **Welchen Skip-Grund ein zweiter Lauf meldet (WR-13).** Seit
+  VOL-ACCT-04 senkt das `−h`-VolunteerWork-Bein
+  `EmployeeReport::volunteer_hours` — und daraus stammt
+  `VoluntaryStats::ist_total`, also der `ist` in `week_excess`. Ein
+  zweiter Lauf über eine Woche, die der **Cron selbst** bereits gebucht
+  hat, berechnet deshalb `excess == 0` und kehrt am Excess-Guard mit
+  `Skipped { NoExcess }` zurück; er erreicht den Slot-Claim gar nicht.
+  `AlreadyProcessed` bleibt der Grund, wenn der Slot von einer
+  **fremden** Quelle belegt ist (manuelle Umbuchung, pending
+  HR-Vorschlag). Kein Doppel-Write in beiden Fällen — der UNIQUE-Slot
+  ist die Absicherung; es verschiebt sich nur die Skip-Reason-Statistik
+  von Scheduler und Backfill-Preview. Festgenagelt von
+  `voluntary_rebooking.rs::run_for_week_second_run_reports_no_excess`.
 - **Wochen-Sperre (D-04):** eine `WeekStatus::Locked`-ISO-Woche schreibt
   einen `state = SkippedLocked`-**Audit-Batch** (kein Paar) und liefert
   `Skipped { WeekLocked }` — die Balance einer geschlossenen Woche wird
