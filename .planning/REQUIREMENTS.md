@@ -2,7 +2,7 @@
 type: requirements
 milestone: v2.6
 milestone_name: Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
-last_updated: 2026-07-06
+last_updated: 2026-07-31
 ---
 
 # v2.6 Requirements — Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
@@ -18,8 +18,10 @@ informiert, und die Software erledigt die Doppelbuchung (heute manuell:
 Researcher-Outputs mit 2 explizit offenen Discuss-Decisions: Snapshot-Bump
 12→13 + Phase-Dekomposition-Wahl).
 
-**Snapshot-Schema-Version:** aktuell 12. Bump 12→13 offen — in F4-discuss-phase
-(Phase 56) entscheiden (siehe Research SUMMARY.md Divergenz 2).
+**Snapshot-Schema-Version:** aktuell 12. Der Bump 12→13 ist in **Phase 57** per
+D-57-10 entschieden — Phase 56 hatte den „Nein"-Zweig gepinnt, dessen Beweislast
+(byte-identischer Straddling-Snapshot) mit dem Filter-Fix entfallen ist
+(Nachtrag an REB-AUTO-05).
 
 **Scope:** Backend + Frontend voll enthalten. Fat Backend, Thin Client
 durchgängig — alle Berechnungen (F1-Ist, F2-Soll, F4-Excess, F5-DANN-Werte)
@@ -54,9 +56,35 @@ im Backend.
       für Non-HR-DTOs, analog VOL-STAT-02). Der bestehende „Freiwillige Stunden"-
       Ist-Wert bleibt für alle Rollen sichtbar wie heute.
 
-- [x] **VOL-ACCT-03**: Rebooking-Pair-ExtraHours (F3/F4/F5) beeinflussen weder
-      VOL-STAT-01-Ist noch VOL-ACCT-01-Soll noch VOL-ACCT-01-Ist. Property-Test:
-      Rebooking über eine Woche → Ist/Soll/Delta unverändert (balance-neutral).
+- [x] **VOL-ACCT-03**: Rebooking-Pair-ExtraHours (F3/F4/F5) verändern das
+      **VOL-ACCT-01-Soll nicht**. Das Soll stammt aus `committed_voluntary` im
+      Arbeitsvertrag und liest überhaupt keine `extra_hours` — eine Umbuchung darf
+      die Freiwilligen-*Statistik* also nicht doppelt zählen. Property-Test:
+      Rebooking über eine Woche → `VoluntaryStats::soll_total` unverändert.
+      **Ausdrücklich NICHT Teil dieses Requirements sind die Balance und das
+      VOL-STAT-01-Ist:** deren Veränderung durch eine Umbuchung ist gewollt und
+      wird in VOL-ACCT-04 zugesagt.
+
+      > **Historie:** Die Fassung bis Phase 56 forderte zusätzlich die Neutralität
+      > von Ist und Balance. Wörtlich umgesetzt in Phase 55 (D-55-A1,
+      > `source == Manual`-Filter an 4 Aggregations-Sites) machte das den gesamten
+      > Übertrag wirkungslos: die Balance blieb nach einer Umbuchung unverändert
+      > (empirisch `−53 → −53`), das Minus wanderte per Carryover ins Folgejahr.
+      > Gemeint war der Schutz der **Freiwilligen-Statistik** gegen Doppelzählung,
+      > nicht das Einfrieren der Balance. Neu gefasst in Phase 57 (D-57-09); die
+      > Ausgleichswirkung liefert VOL-ACCT-04, den Deckel im Auto-Cron
+      > REB-AUTO-06. Analyse: ROADMAP.md §Phase 57.
+
+- [x] **VOL-ACCT-04**: Eine Umbuchung über `h` Stunden wirkt auf der Leseseite
+      tatsächlich: nach dem Übertrag ist die Balance (bezahltes Stundenkonto) um
+      `h` **höher** und das Ehrenamt-Ist (VOL-STAT-01) um `h` **niedriger**. Gilt
+      für alle drei Schreib-Trigger (F3 manuell, F4 Auto-Cron, F5 HR-Approve) und
+      rückwirkend für bereits bestehende Rebooking-Rows — es gibt keinen
+      read-seitigen Stichtag-Guard (D-57-03). Akzeptanzbedingung ist das
+      Referenz-Szenario D-57-02: Vertrag 5 h bezahlt + 5 h freiwillig pro Woche,
+      Woche 1 = 3 h, Woche 2 = 17 h. Vor dem Übertrag verbucht Shifty 8 h bezahlt
+      / 12 h freiwillig bei Balance −2; nach dem Übertrag von 2 h sind es
+      10 h / 10 h bei Balance 0.
 
 ### Manuelle Umbuchung (REB-MANUAL — F3)
 
@@ -108,6 +136,32 @@ im Backend.
       Change" im Sinne CLAUDE.md-Klausel? Beweislast beim „Nein"-Zweig =
       Straddling-Golden-Snapshot über pre-/post-/traversierende `active_from`-
       Periode, byte-identisch.
+
+      > **Nachtrag (Phase 57, D-57-10):** Die in Phase 56 gefällte Entscheidung
+      > lautete „kein Bump, Version bleibt 12" und stützte sich als Beweislast auf
+      > einen byte-identischen Straddling-Golden-Snapshot (D-01-BEWEISLAST). Diese
+      > Beweislage ist mit dem Filter-Fix aus Phase 57 entfallen: ein
+      > Rebooking-Paar ist nicht mehr snapshot-neutral, es verschiebt Balance,
+      > ExtraWork und Volunteer um `±h`. Nach der CLAUDE.md-Klausel „Change the
+      > input set the computation reads from" ist der Bump damit Pflicht — Phase 57
+      > revidiert den Ausgang auf 13 (D-57-10) und invertiert die Golden-Fixture
+      > entsprechend (D-57-11). Dies ist ausschließlich eine Historien-Notiz:
+      > REB-AUTO-05 bleibt inhaltlich und in der Traceability bei Phase 56.
+
+- [x] **REB-AUTO-06**: Der Auto-Cron (F4) überträgt höchstens so viel, wie das
+      bezahlte Stundenkonto aufnehmen kann. Formel:
+      `min( max(ist − committed_voluntary, 0), max(−balance, 0) )`. Die Balance
+      steigt durch die Automatik **nie über 0**; bei Balance ≥ 0 wird trotz
+      Freiwilligen-Überschuss nichts gebucht. Balance-Quelle ist die kumulierte
+      Jahres-Balance bis einschließlich der verarbeiteten Woche inklusive
+      Vorjahres-Carryover (D-57-07), nicht die Balance zum Laufzeitpunkt. Der
+      Deckel gilt für den Schreib-Pfad `run_for_week` **und** für den
+      Dry-Run-Preview-Wert `BackfillPreviewItem.excess`. Die HR-Vorschlagsformel
+      `proposed_hours = min(|balance|, ist)` (F5) ist ausdrücklich ausgenommen und
+      bleibt **unverändert** — dass sie die Freiwilligen-Zusage unterschreiten
+      darf, ist der Sinn des HR-Vorschlags (D-57-01). Gegenprobe: Woche 2 mit 20 h
+      statt 17 h ergibt einen Wochen-Überschuss von 10; der Übertrag bleibt
+      trotzdem 2 und die Balance landet auf 0.
 
 ### HR-Alert + Vorschlags-Modal (HR-ALERT — F5)
 
@@ -183,8 +237,9 @@ Explizit ausgeschlossen mit Begründung:
 
 ## Traceability
 
-17 v1-Requirements → 3 Phasen (ARCHITECTURE-C 3-Phasen-Baseline aus Research
-SUMMARY, dokumentiert in ROADMAP.md). Coverage: 17/17.
+19 v1-Requirements → 4 Phasen (ARCHITECTURE-C 3-Phasen-Baseline aus Research
+SUMMARY, dokumentiert in ROADMAP.md; Phase 57 als Korrektur-Phase ergänzt).
+Coverage: 19/19.
 
 | Requirement    | Kategorie   | Phase    | Status  |
 |----------------|-------------|----------|---------|
@@ -192,7 +247,8 @@ SUMMARY, dokumentiert in ROADMAP.md). Coverage: 17/17.
 | VOL-STAT-02    | F1 Statistik | Phase 54 | Pending |
 | VOL-ACCT-01    | F2 Konto    | Phase 54 | Pending |
 | VOL-ACCT-02    | F2 Konto    | Phase 54 | Pending |
-| VOL-ACCT-03    | F2 Konto    | Phase 54 | Pending |
+| VOL-ACCT-03    | F2 Konto    | Phase 57 | Pending |
+| VOL-ACCT-04    | F2 Konto    | Phase 57 | Pending |
 | REB-MANUAL-01  | F3 Manuell  | Phase 55 | Pending |
 | REB-MANUAL-02  | F3 Manuell  | Phase 55 | Pending |
 | REB-MANUAL-03  | F3 Manuell  | Phase 55 | Pending |
@@ -205,11 +261,12 @@ SUMMARY, dokumentiert in ROADMAP.md). Coverage: 17/17.
 | REB-AUTO-03    | F4 Cron     | Phase 56 | Pending |
 | REB-AUTO-04    | F4 Cron     | Phase 56 | Pending |
 | REB-AUTO-05    | F4 Cron     | Phase 56 | Pending |
+| REB-AUTO-06    | F4 Cron     | Phase 57 | Pending |
 
 **Per-Phase Coverage:**
 
-- Phase 54 (Data-Model + F1 + F2): 5 Requirements
-  (VOL-STAT-01, VOL-STAT-02, VOL-ACCT-01, VOL-ACCT-02, VOL-ACCT-03)
+- Phase 54 (Data-Model + F1 + F2): 4 Requirements
+  (VOL-STAT-01, VOL-STAT-02, VOL-ACCT-01, VOL-ACCT-02)
 
 - Phase 55 (F3 + F5 Manuelle Umbuchung + HR-Alert-Modal): 7 Requirements
   (REB-MANUAL-01/02/03, HR-ALERT-01/02/03/04)
@@ -217,4 +274,7 @@ SUMMARY, dokumentiert in ROADMAP.md). Coverage: 17/17.
 - Phase 56 (F4 Wochen-Cron + Backfill): 5 Requirements
   (REB-AUTO-01/02/03/04/05)
 
-**Total:** 17/17 mapped, no orphans, no duplicates.
+- Phase 57 (Rebooking-Wirksamkeit): 3 Requirements
+  (VOL-ACCT-03, VOL-ACCT-04, REB-AUTO-06)
+
+**Total:** 19/19 mapped, no orphans, no duplicates.
