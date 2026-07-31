@@ -20,6 +20,13 @@
 //! Statt abstrakter Deltas assertiert dieser Test die konkreten Kontostände:
 //! 8 h bezahlt / 12 h Ehrenamt / Balance −2 vor dem Übertrag, 10 h / 10 h /
 //! Balance 0 danach.
+//!
+//! **Wo die andere Hälfte liegt.** Diese Datei prüft ausschließlich die
+//! **Leseseite** — was der Report nach dem Übertrag zeigt. Die **Schreibseite**
+//! desselben Szenarios (wieviel der gedeckelte Auto-Cron überhaupt bucht) steht
+//! in `service_impl/src/test/voluntary_rebooking.rs` als
+//! `run_for_week_balance_cap_binds` (Plan 03, REB-AUTO-06) — mit denselben
+//! Zahlen: `ist` 15, `committed` 5, Balance −2, gebucht 2.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -312,4 +319,72 @@ async fn rebooking_reference_scenario_balances_account() {
     assert_close(after.overall_hours, 10.0, "bezahlte Stunden nach dem Übertrag");
     assert_close(after.volunteer_hours, 10.0, "volunteer_hours nach dem Übertrag");
     assert_close(after.balance_hours, 0.0, "balance_hours nach dem Übertrag");
+}
+
+/// **VOL-ACCT-04 / REB-AUTO-06, Gegenprobe Übererfüllung (D-57-02).** Dieselbe
+/// Woche 2, aber mit 20 h statt 17 h gearbeitet.
+///
+/// | Woche | `raw_shiftplan` | `expected` | Cap? | bezahlt | Ehrenamt |
+/// |---|---|---|---|---|---|
+/// | KW 10 | 3 | 5 | nein | 3 | 0 |
+/// | KW 11 | 20 | 5 | ja | 5 | 15 |
+/// | Summe | 23 | 10 | | **8** | **15** |
+///
+/// Die Balance bleibt trotz drei zusätzlicher Arbeitsstunden **unverändert bei
+/// −2**: der Cap deckelt die bezahlten Stunden der KW 11 weiterhin bei 5 h, der
+/// gesamte Mehraufwand landet im Ehrenamt-Ist. Der gedeckelte Auto-Cron bucht
+/// deshalb auch hier nur 2 h (REB-AUTO-06, `min(unconstrained, headroom)`) und
+/// hebt die Balance auf genau 0 — nicht darüber.
+///
+/// **Zwei leicht zu verwechselnde Zahlen, sauber getrennt** (die ROADMAP-Prosa
+/// ist an dieser Stelle irreführend):
+///
+/// - Der Wochen-Input des Auto-Cron für KW 11 ist ein **unbeschränkter
+///   Überschuss von 10** (`ist` 15 − `committed` 5, für diese eine Woche).
+/// - Die in der ROADMAP genannte „Überschuss 5" ist das **Perioden-Delta**
+///   `Ist − Soll` über beide Wochen (15 − 10).
+///
+/// Beide Zahlen sind korrekt, beziehen sich aber auf verschiedene Ranges.
+/// Gebucht werden in beiden Lesarten 2 h — begrenzt durch den Headroom aus
+/// Balance −2, nicht durch den Überschuss.
+///
+/// Dieser Test assertiert bewusst NICHT auf `week_excess`: das ist die
+/// Schreibseite, und sie ist mit denselben Zahlen in
+/// `service_impl/src/test/voluntary_rebooking.rs::run_for_week_balance_cap_binds`
+/// (Plan 03) abgedeckt. Hier zählt ausschließlich, was der Report nach dem
+/// Übertrag zeigt.
+#[tokio::test]
+async fn rebooking_reference_scenario_overachievement_keeps_cap() {
+    // ── Ausgangslage: 3 h mehr gearbeitet, Balance trotzdem unverändert ─────
+    let before = report(Vec::new(), 3.0, 20.0).await;
+    assert_close(before.expected_hours, 10.0, "expected_hours (2 Wochen à 5 h)");
+    assert_close(
+        before.overall_hours,
+        8.0,
+        "bezahlte Stunden vor dem Übertrag (Cap hält sie bei 5 h/Woche)",
+    );
+    assert_close(before.volunteer_hours, 15.0, "volunteer_hours vor dem Übertrag");
+    assert_close(
+        before.balance_hours,
+        -2.0,
+        "balance_hours bleibt trotz Übererfüllung bei −2",
+    );
+
+    // ── Nach dem gedeckelten Übertrag von 2 h ───────────────────────────────
+    let after = report(rebooking_pair(2.0), 3.0, 20.0).await;
+    assert_close(after.expected_hours, 10.0, "expected_hours bleibt unberührt");
+    assert_close(after.overall_hours, 10.0, "bezahlte Stunden nach dem Übertrag");
+    assert_close(after.volunteer_hours, 13.0, "volunteer_hours nach dem Übertrag");
+    assert_close(after.balance_hours, 0.0, "balance_hours nach dem Übertrag");
+
+    // Fachaussage: die Freiwilligen-Zusage wurde nicht unterschritten — über die
+    // Range sind 2 × committed_voluntary = 10.0 h zugesagt, und nach dem Übertrag
+    // stehen immer noch 3 h darüber hinaus freiwillig zu Buche.
+    let committed_over_range = 2.0 * work_details().committed_voluntary;
+    assert_close(committed_over_range, 10.0, "Freiwilligen-Zusage über 2 Wochen");
+    assert_close(
+        after.volunteer_hours - committed_over_range,
+        3.0,
+        "Ehrenamt-Stunden über der Zusage nach dem Übertrag",
+    );
 }
