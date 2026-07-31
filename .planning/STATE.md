@@ -5,16 +5,16 @@ milestone_name: — Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
 current_phase: 57
 current_phase_name: f14-rebooking-wirksamkeit-requirements-korrektur-balance-aus
 status: executing
-stopped_at: Phase 57 geplant — bereit zur Ausführung
-last_updated: "2026-07-31T13:49:16.170Z"
+stopped_at: Completed 57-03-PLAN.md
+last_updated: "2026-07-31T14:02:36.139Z"
 last_activity: 2026-07-31
-last_activity_desc: Phase 57 Plan 01 abgeschlossen (Requirements-Korrektur 19/19)
+last_activity_desc: Phase 57 Plan 03 abgeschlossen (Balance-Deckel REB-AUTO-06)
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 29
-  completed_plans: 25
-  percent: 80
+  completed_plans: 26
+  percent: 90
 ---
 
 # Project State: Shifty Backend
@@ -34,13 +34,16 @@ progress:
 ## Current Position
 
 Phase: 57 (f14-rebooking-wirksamkeit-requirements-korrektur-balance-aus) — EXECUTING
-Plan: 3 of 6 — Plan 01 COMPLETE (2/2 Tasks, Human-Verify-Gate beantwortet)
-Status: Ready to execute — Wave 2 (Plan 02 Filter-Fix, Plan 03 Balance-Deckel) ist freigegeben.
-Der Bestandsdaten-Pre-Flight ist gemessen: `localdb.sqlite3` ist laut Nutzer die Ziel-DB,
-`rebooking_batch` ist leer (keine `kind`-Zeilen, `NULL|NULL|0`). Kein Blocker-Befund —
-D-57-05 (Auto-Cron nie aktiv) und D-57-03 (keine Rows ≤2025) sind nicht widerlegt, die
-rückwirkende Leseänderung aus Wave 2 ist abgesichert.
-Last activity: 2026-07-31 — Phase 57 Plan 01 abgeschlossen (Requirements-Korrektur 19/19)
+Plan: 4 of 6 — Pläne 01, 02 und 03 COMPLETE
+Status: Ready to execute — Wave 4 (Plan 04, Ende-zu-Ende-Referenz-Szenario D-57-02) ist
+freigegeben. Wave 2 hat den Übertrag auf der Leseseite wirksam gemacht (Plan 02,
+VOL-ACCT-04-Invarianten I-1/I-2), Wave 3 den Balance-Deckel im Auto-Cron gesetzt
+(Plan 03, REB-AUTO-06): `week_excess` deckelt auf den Headroom der year-to-date-Balance,
+im Schreib-Pfad `run_for_week` und im Dry-Run-Preview `backfill_range` mit demselben Wert.
+Die HR-Vorschlagsformel `proposed_hours` bleibt bewusst ungedeckelt (D-57-01).
+Offen für Plan 04: VOL-ACCT-04 und REB-AUTO-06 abhaken — beide Requirements verlangen
+das Ende-zu-Ende-Szenario als Akzeptanzbedingung.
+Last activity: 2026-07-31 — Phase 57 Plan 03 abgeschlossen (Balance-Deckel REB-AUTO-06)
 
 ## Quick Tasks Completed
 
@@ -211,9 +214,9 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-07-31T13:49:09.667Z
-**Stopped at:** Completed 57-01-PLAN.md — Requirements 19/19 korrigiert, Bestandsdaten-Pre-Flight gemessen (kein Blocker), Wave 2 freigegeben
-**Resume file:** .planning/phases/57-f14-rebooking-wirksamkeit-requirements-korrektur-balance-aus/57-01-SUMMARY.md
+**Last session:** 2026-07-31T14:02:28.162Z
+**Stopped at:** Completed 57-03-PLAN.md
+**Resume file:** None
 
 **To resume work in a new session:**
 
@@ -292,6 +295,9 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 - [Phase 57]: 57-01 REB-AUTO-05 erhaelt Nachtragsnotiz (D-57-10/D-57-11) statt Ummapping — Phase-56-Ausgang 'bleibt bei 12' auf 13 revidiert, Owner bleibt Phase 56
 - [Phase ?]: D-57-06 umgesetzt (57-02): Sites 2/3/4 verlieren das source-Prädikat ersatzlos, Site 1 bekommt stattdessen eine konjunktive VolunteerWork-UND-Rebooking-Ausnahme an der availability()-basierten extra_working_hours-Summe
 - [Phase ?]: ExtraHoursSource bleibt reines Provenienz-Feld, für die Aggregation nur noch an einer Stelle wirksam (assemble_weeks); RISK-01 bleibt bewusst unverändert (57-02)
+- [Phase ?]: D-57-07 umgesetzt: Balance-Deckel liest year-to-date ab first_day_in_year(iso_year) bis Sonntag der ISO-Woche mit include_carryover=true — nicht die isolierte Wochen-Range von suggest()/approve()
+- [Phase ?]: Balance-Deckel gilt an beiden Call-Sites: run_for_week (Schreib-Pfad) und backfill_range (Dry-Run-Preview) — der Preview zeigt exakt den Betrag, den der Apply-Lauf bucht (I-7)
+- [Phase ?]: REB-AUTO-06 bleibt offen bis Plan 04: die im Requirement geforderte Gegenprobe (Woche 2 mit 20h) ist ein Ende-zu-Ende-Szenario
 
 ## Performance Metrics
 
@@ -334,3 +340,4 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 | Phase 56 P06 | 7min | 3 tasks | 8 files |
 | Phase 57 P01 | 25min | 2 tasks | 2 files |
 | Phase 57 P02 | ~35min | 3 tasks | 3 files |
+| Phase 57 P03 | 20min | 2 tasks | 4 files |
