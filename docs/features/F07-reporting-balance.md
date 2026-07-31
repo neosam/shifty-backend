@@ -225,7 +225,15 @@ balance (`reporting.rs:1097-1098, 1406-1414`, "dynamic-week guard").
   Shiftplan hours go as volunteer work (`volunteer_hours`), not into
   `overall_hours`. Distinguished from the dynamic contract: there the
   row *exists* but has `expected_hours == 0` → then `expected = actual`,
-  no volunteer redirect. See the three-case distinction in
+  no volunteer redirect. **Exception since phase 57 (CR-03):**
+  rebooking-tagged WorkingHours rows (`source == Rebooking`) are removed
+  from this branch's expected — otherwise the `+h` ExtraWork leg of a
+  rebooking pair raises `overall` and `expected` at the same time (balance
+  stays neutral) while the `−h` VolunteerWork leg does lower
+  `volunteer_hours`: `h` hours would vanish. The adjustment affects
+  **only** expected — `overall_hours` and `balance` count the row
+  normally (VOL-ACCT-04). Symmetric to the `availability()` exception in
+  `assemble_weeks`. See the three-case distinction in
   `hours_per_week` (`reporting.rs:1444-1454`) and the parallel logic in
   `get_reports_for_all_employees` (`reporting.rs:388-500`) and
   `get_week` (`reporting.rs:1006-1156`).
@@ -704,6 +712,15 @@ and the memory note "Dioxus.toml proxy for new backend endpoints".
   even with Vacation extras. The reason lies in the doubled
   `if working_hours_for_week <= 0.0`-guard chain (lines 1378-1414,
   1097-1122).
+  **The only exception since phase 57 (CR-03):** a rebooking pair
+  (`source == Rebooking`) raises the balance by `h` and lowers
+  `volunteer_hours` by `h` in a dynamic week too — the `+h` leg is
+  removed from the expected-equals-actual expected. Otherwise the
+  rebooked hours would leave the volunteer account without ever arriving
+  in the paid one. Pinned by
+  `rebooking_neutrality.rs::rebooking_conserves_hours_on_dynamic_contract`,
+  which additionally checks that `hours_per_week` and `assemble_weeks`
+  report the same effect.
 
 - **Cap + holiday auto credit at the same time (HSP-03 band guard).**
   If Cap is active and a derived holiday falls into the same week, the

@@ -2244,6 +2244,19 @@ fn hours_per_week(
             .filter(|eh| eh.category.as_report_type() == ReportType::WorkingHours)
             .map(|eh| eh.amount)
             .sum::<f32>();
+        // Phase 57 (CR-03): Anteil von `extra_work_hours`, der aus einem
+        // Rebooking-Paar stammt. Gebraucht ausschliesslich fuer den
+        // Soll=Ist-Zweig des dynamischen Vertrags (siehe expected_hours unten) —
+        // in der Balance und in `overall_hours` zaehlen diese Rows regulaer mit
+        // (VOL-ACCT-04: genau das ist die Wirkung des Uebertrags).
+        let rebooked_extra_work_hours = filtered_extra_hours_list
+            .iter()
+            .filter(|eh| {
+                eh.source == ExtraHoursSource::Rebooking
+                    && eh.category.as_report_type() == ReportType::WorkingHours
+            })
+            .map(|eh| eh.amount)
+            .sum::<f32>();
         let absence_hours = if working_hours_for_week <= 0.0 {
             0.0f32
         } else {
@@ -2314,10 +2327,26 @@ fn hours_per_week(
         // 1. !has_contract_row: Ehrenamt-Pfad — expected=0, shiftplan NICHT in overall.
         // 2. has_contract_row && working_hours_for_week == 0 (dynamisch): Soll=Ist — expected = shiftplan + extra.
         // 3. has_contract_row && working_hours_for_week > 0: Normal — expected = Vertragsstunden.
+        //
+        // Phase 57 (CR-03): Im Soll=Ist-Zweig werden Rebooking-getaggte
+        // WorkingHours-Rows aus dem SOLL herausgerechnet — symmetrisch zur
+        // Ausnahme in `assemble_weeks` (dort wird das `-h`-VolunteerWork-Bein aus
+        // der `availability()`-Summe genommen). Ohne diese Bereinigung hebt das
+        // `+h`-ExtraWork-Bein zugleich `overall` UND `expected`, die Balance
+        // bleibt also neutral — waehrend das `-h`-VolunteerWork-Bein
+        // `volunteer_hours` sehr wohl senkt. Netto verlassen `h` Stunden das
+        // Ehrenamt-Konto, ohne im bezahlten Konto anzukommen (Stunden
+        // verschwinden). Vor Phase 57 war das Paar hier durch den pauschalen
+        // Marker-Filter ein harmloses No-op; die Filter-Entfernung (VOL-ACCT-04,
+        // D-57-06) hat den Fehler freigelegt.
+        //
+        // Die Bereinigung betrifft AUSSCHLIESSLICH das Soll dieses Zweigs —
+        // `overall_hours` und `balance` zaehlen die Row unveraendert, sonst waere
+        // der Uebertrag hier wieder wirkungslos.
         let expected_hours = if !has_contract_row {
             0.0
         } else if working_hours_for_week == 0.0 {
-            shiftplan_hours + extra_work_hours
+            shiftplan_hours + extra_work_hours - rebooked_extra_work_hours
         } else {
             working_hours_for_week
         };

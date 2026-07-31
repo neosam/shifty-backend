@@ -226,6 +226,15 @@ aufblasen (`reporting.rs:1097-1098, 1406-1414`, „Dynamic-week guard").
   gehen als Ehrenamt (`volunteer_hours`), nicht in `overall_hours`.
   Abgrenzung zum dynamischen Vertrag: dort *existiert* die Zeile, hat aber
   `expected_hours == 0` → dann gilt `Soll = Ist`, kein Ehrenamt-Umleiten.
+  **Ausnahme seit Phase 57 (CR-03):** Rebooking-getaggte WorkingHours-Rows
+  (`source == Rebooking`) werden aus dem Soll dieses Zweigs
+  herausgerechnet — sonst hebt das `+h`-ExtraWork-Bein eines
+  Umbuchungs-Paars zugleich `overall` und `expected` (Balance bleibt
+  neutral), während das `−h`-VolunteerWork-Bein `volunteer_hours` sehr
+  wohl senkt: `h` Stunden würden verschwinden. Die Bereinigung betrifft
+  **nur** das Soll — in `overall_hours` und `balance` zählt die Row
+  regulär mit (VOL-ACCT-04). Symmetrisch zur `availability()`-Ausnahme in
+  `assemble_weeks`.
   Siehe die Drei-Fälle-Unterscheidung in `hours_per_week`
   (`reporting.rs:1444-1454`) und die parallele Logik in `get_reports_for_all_employees`
   (`reporting.rs:388-500`) sowie `get_week` (`reporting.rs:1006-1156`).
@@ -704,6 +713,15 @@ und den Memory-Hinweis „Dioxus.toml Proxy für neue Backend-Endpoints".
   `is_dynamic == true` bleibt die Balance immer 0 (Soll = Ist), auch mit
   Vacation-Extras. Der Grund liegt in der doppelten `if working_hours_for_week <= 0.0`-
   Guard-Kette (Zeilen 1378-1414, 1097-1122).
+  **Einzige Ausnahme seit Phase 57 (CR-03):** ein Rebooking-Paar
+  (`source == Rebooking`) hebt die Balance auch in der dynamischen Woche um
+  `h` und senkt `volunteer_hours` um `h` — das `+h`-Bein wird aus dem
+  Soll=Ist-Soll herausgerechnet. Andernfalls würden die umgebuchten
+  Stunden das Ehrenamt-Konto verlassen, ohne im bezahlten anzukommen.
+  Festgenagelt von
+  `rebooking_neutrality.rs::rebooking_conserves_hours_on_dynamic_contract`,
+  das zusätzlich prüft, dass `hours_per_week` und `assemble_weeks`
+  dieselbe Wirkung ausweisen.
 
 - **Cap + Feiertag-Auto-Credit gleichzeitig (HSP-03 Band-Guard).**
   Wenn Cap aktiv ist und ein derived-Holiday in dieselbe Woche fällt,

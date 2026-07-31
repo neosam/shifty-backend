@@ -142,6 +142,19 @@ fn work_details() -> EmployeeWorkDetails {
     }
 }
 
+/// Dynamischer Vertrag: Vertragszeile vorhanden, aber `is_dynamic = true` /
+/// `expected_hours = 0.0` → `weight_for_week` liefert
+/// `working_hours_for_week == 0.0`, und `hours_per_week` faellt in den
+/// Soll=Ist-Zweig (Fall 2 der Drei-Faelle-Unterscheidung `quick-260624-ujk`).
+/// Das ist der Zweig, in dem vor dem CR-03-Fix Stunden verschwanden.
+fn dynamic_work_details() -> EmployeeWorkDetails {
+    EmployeeWorkDetails {
+        expected_hours: 0.0,
+        is_dynamic: true,
+        ..work_details()
+    }
+}
+
 fn make_sales_person() -> service::sales_person::SalesPerson {
     service::sales_person::SalesPerson {
         id: sp_id(),
@@ -210,6 +223,15 @@ impl ReportingServiceDeps for ReportingDeps {
 }
 
 fn build_reporting_service(extra_hours: Vec<ExtraHours>) -> ReportingServiceImpl<ReportingDeps> {
+    build_reporting_service_with(extra_hours, work_details())
+}
+
+/// Wie [`build_reporting_service`], aber mit frei waehlbarer Vertragszeile —
+/// gebraucht fuer den dynamischen Vertrag (CR-03).
+fn build_reporting_service_with(
+    extra_hours: Vec<ExtraHours>,
+    wd: EmployeeWorkDetails,
+) -> ReportingServiceImpl<ReportingDeps> {
     let mut permission_service = MockPermissionService::new();
     permission_service
         .expect_check_permission()
@@ -223,10 +245,11 @@ fn build_reporting_service(extra_hours: Vec<ExtraHours>) -> ReportingServiceImpl
         .expect_get()
         .returning(|_, _, _| Ok(make_sales_person()));
 
+    let wd_arc: Arc<[EmployeeWorkDetails]> = Arc::from(vec![wd]);
     let mut employee_work_details_service = MockEmployeeWorkDetailsService::new();
     employee_work_details_service
         .expect_find_by_sales_person_id()
-        .returning(|_, _, _| Ok(Arc::from(vec![work_details()])));
+        .returning(move |_, _, _| Ok(wd_arc.clone()));
 
     let mut shiftplan_report_service = MockShiftplanReportService::new();
     shiftplan_report_service
@@ -290,8 +313,13 @@ fn range() -> (ShiftyDate, ShiftyDate) {
 /// Liefert (balance_hours, volunteer_hours) aus dem Range-Report für die
 /// gegebene ExtraHours-Liste.
 async fn balance_and_ist(extra_hours: Vec<ExtraHours>) -> (f32, f32) {
+    balance_and_ist_with(extra_hours, work_details()).await
+}
+
+/// Wie [`balance_and_ist`], aber mit frei waehlbarer Vertragszeile (CR-03).
+async fn balance_and_ist_with(extra_hours: Vec<ExtraHours>, wd: EmployeeWorkDetails) -> (f32, f32) {
     let (from, to) = range();
-    let service = build_reporting_service(extra_hours);
+    let service = build_reporting_service_with(extra_hours, wd);
     let report = service
         .get_report_for_employee_range(&sp_id(), from, to, false, Authentication::Full, None)
         .await
@@ -404,13 +432,17 @@ async fn test_neutrality_f2_soll() {
 
 // ─── Site-1-Wächter: Wochenübersicht über get_week → assemble_weeks ────────────
 
-/// Wie [`build_reporting_service`], aber mit den Mock-Erwartungen, die der
+/// Wie [`build_reporting_service_with`], aber mit den Mock-Erwartungen, die der
 /// `get_week`-Pfad zusätzlich braucht (`all_for_week`,
 /// `extract_shiftplan_report_for_week`, `find_by_week`, `get_all`, `find_all`).
 /// Die Wirkung soll ausschließlich aus den ExtraHours kommen: kein Shiftplan,
 /// keine Absence, kein Carryover, kein Holiday-Toggle.
-fn build_reporting_service_for_week(
+///
+/// Die Vertragszeile ist frei wählbar — gebraucht für den dynamischen Vertrag
+/// (CR-03).
+fn build_reporting_service_for_week_with(
     extra_hours: Vec<ExtraHours>,
+    wd: EmployeeWorkDetails,
 ) -> ReportingServiceImpl<ReportingDeps> {
     let mut permission_service = MockPermissionService::new();
     permission_service
@@ -428,13 +460,15 @@ fn build_reporting_service_for_week(
         .expect_get_all()
         .returning(|_, _| Ok(Arc::from(vec![make_sales_person()])));
 
+    let wd_arc: Arc<[EmployeeWorkDetails]> = Arc::from(vec![wd]);
+    let wd_arc_week = wd_arc.clone();
     let mut employee_work_details_service = MockEmployeeWorkDetailsService::new();
     employee_work_details_service
         .expect_find_by_sales_person_id()
-        .returning(|_, _, _| Ok(Arc::from(vec![work_details()])));
+        .returning(move |_, _, _| Ok(wd_arc.clone()));
     employee_work_details_service
         .expect_all_for_week()
-        .returning(|_, _, _, _| Ok(Arc::from(vec![work_details()])));
+        .returning(move |_, _, _, _| Ok(wd_arc_week.clone()));
 
     let mut shiftplan_report_service = MockShiftplanReportService::new();
     shiftplan_report_service
@@ -502,7 +536,15 @@ fn build_reporting_service_for_week(
 /// alle Rows auf Mi 2026-03-18 (KW 12/2026), `work_details()` deckt KW 10..=20
 /// ab.
 async fn weekly_balance_and_ist(extra_hours: Vec<ExtraHours>) -> (f32, f32) {
-    let service = build_reporting_service_for_week(extra_hours);
+    weekly_balance_and_ist_with(extra_hours, work_details()).await
+}
+
+/// Wie [`weekly_balance_and_ist`], aber mit frei waehlbarer Vertragszeile (CR-03).
+async fn weekly_balance_and_ist_with(
+    extra_hours: Vec<ExtraHours>,
+    wd: EmployeeWorkDetails,
+) -> (f32, f32) {
+    let service = build_reporting_service_for_week_with(extra_hours, wd);
     let reports = service
         .get_week(2026, 12, Authentication::Full, None)
         .await
@@ -533,4 +575,87 @@ async fn rebooking_effective_in_weekly_summary() {
 
     assert_delta(bal_before, bal_after, 2.0, "weekly balance_hours");
     assert_delta(ist_before, ist_after, -2.0, "weekly volunteer_hours");
+}
+
+// ─── CR-03: dynamischer Vertrag (Soll=Ist-Zweig) ──────────────────────────────
+
+/// CR-03 (Code-Review Phase 57): beim **dynamischen** Vertrag (Vertragszeile
+/// vorhanden, `working_hours_for_week == 0.0`) darf das Rebooking-Paar keine
+/// Stunden verschwinden lassen.
+///
+/// `hours_per_week` behandelt diese Woche als Soll=Ist:
+/// `expected_hours = shiftplan_hours + extra_work_hours`. Das `+h`-ExtraWork-Bein
+/// des Paars hob damit **zugleich** `overall` und `expected` — die Balance blieb
+/// unverändert. Das `−h`-VolunteerWork-Bein wird in `volunteer_hours` dagegen
+/// sehr wohl gezählt (reiner Kategorie-Filter). Netto verließen `h` Stunden das
+/// Ehrenamt-Konto und kamen im bezahlten Konto nie an. Vor Phase 57 war das Paar
+/// hier durch den pauschalen Marker-Filter ein harmloses No-op — die
+/// Filter-Entfernung hat den Fehler erst freigelegt.
+///
+/// Erreichbar über den HR-Pfad: weder `rebook_manual` noch `approve` prüfen, ob
+/// die Zielperson in der Zielwoche einen nicht-dynamischen Vertrag hat.
+///
+/// Der Test pinnt drei Dinge:
+/// 1. Die Bilanz-Erhaltung `Δbalance + Δvolunteer == 0` — die Formulierung von
+///    „keine Stunden verschwinden". Vor dem Fix: `0 + (−2) == −2`.
+/// 2. Die Wirkungsrichtung (`+h` Balance, `−h` Ehrenamt), identisch zum
+///    nicht-dynamischen Fall.
+/// 3. Dass Jahres-Report (`hours_per_week`) und Wochenübersicht
+///    (`assemble_weeks`) für dasselbe Paar **dieselbe** Wirkung ausweisen. Die
+///    absoluten Balancen dürfen weiterhin auseinanderliegen (RISK-01 +
+///    die Soll=Ist-Regel existiert nur in `hours_per_week`) — die Wirkung des
+///    Paars darf es nicht.
+#[tokio::test]
+async fn rebooking_conserves_hours_on_dynamic_contract() {
+    let (range_bal_before, range_ist_before) =
+        balance_and_ist_with(baseline_extra_hours(), dynamic_work_details()).await;
+    let (range_bal_after, range_ist_after) =
+        balance_and_ist_with(with_rebooking_pair(), dynamic_work_details()).await;
+
+    let (week_bal_before, week_ist_before) =
+        weekly_balance_and_ist_with(baseline_extra_hours(), dynamic_work_details()).await;
+    let (week_bal_after, week_ist_after) =
+        weekly_balance_and_ist_with(with_rebooking_pair(), dynamic_work_details()).await;
+
+    let range_bal_delta = range_bal_after - range_bal_before;
+    let range_ist_delta = range_ist_after - range_ist_before;
+    let week_bal_delta = week_bal_after - week_bal_before;
+    let week_ist_delta = week_ist_after - week_ist_before;
+
+    // (1) Bilanz-Erhaltung: was das Ehrenamt-Konto verlässt, kommt im bezahlten an.
+    assert!(
+        (range_bal_delta + range_ist_delta).abs() < 1e-3,
+        "dynamischer Vertrag: das Rebooking-Paar darf keine Stunden vernichten — \
+         Δbalance={range_bal_delta}, Δvolunteer={range_ist_delta}, Summe={} \
+         (erwartet 0). Das +h-ExtraWork-Bein leakt ins Soll der Soll=Ist-Formel.",
+        range_bal_delta + range_ist_delta
+    );
+
+    // (2) Wirkungsrichtung wie im nicht-dynamischen Fall (I-1 / I-2).
+    assert_delta(
+        range_bal_before,
+        range_bal_after,
+        2.0,
+        "dynamic range balance_hours",
+    );
+    assert_delta(
+        range_ist_before,
+        range_ist_after,
+        -2.0,
+        "dynamic range volunteer_hours",
+    );
+
+    // (3) Wochenübersicht und Jahres-Report weisen dieselbe Wirkung aus.
+    assert!(
+        (range_bal_delta - week_bal_delta).abs() < 1e-3,
+        "hours_per_week und assemble_weeks muessen fuer dasselbe Paar dieselbe \
+         Balance-Wirkung ausweisen: Jahres-Report {range_bal_delta}, \
+         Wochenuebersicht {week_bal_delta}"
+    );
+    assert!(
+        (range_ist_delta - week_ist_delta).abs() < 1e-3,
+        "hours_per_week und assemble_weeks muessen fuer dasselbe Paar dieselbe \
+         Ehrenamt-Wirkung ausweisen: Jahres-Report {range_ist_delta}, \
+         Wochenuebersicht {week_ist_delta}"
+    );
 }
