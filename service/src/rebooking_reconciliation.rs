@@ -71,8 +71,12 @@ pub struct RebookingSuggestion {
 /// bedeutet "kein -N/+N-Pair geschrieben".
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SkipReason {
-    /// `Ist_vorwoche <= Soll_vorwoche + committed_voluntary_vorwoche` — kein
-    /// Ueberschuss, nichts umzubuchen.
+    /// Kein buchbarer Ueberschuss. Zwei Ursachen fallen hier zusammen: der
+    /// Wochen-Ist erreicht die Freiwilligen-Zusage nicht
+    /// (`Ist <= committed_voluntary`), ODER das bezahlte Stundenkonto hat keinen
+    /// Headroom mehr (`balance >= 0`, Invariante I-4, REB-AUTO-06). Auch ein
+    /// Rest unterhalb der Mindest-Buchungsgroesse von 0.01 h faellt hierunter
+    /// (f32-Rauschen, WR-02).
     NoExcess,
     /// UNIQUE-Slot `(sales_person_id, iso_year, iso_week)` bereits belegt
     /// (frueherer Cron-Lauf, manuelle Umbuchung oder pending HR-Suggestion —
@@ -120,9 +124,22 @@ pub struct BackfillPreviewItem {
     /// Committed-voluntary-Beitrag der Woche (= `voluntary_soll` fuer die
     /// Single-Week-Range).
     pub committed_voluntary: f32,
-    /// `max(ist - (soll + committed), 0)` — der Ueberschuss, der gebucht wuerde.
+    /// `min( max(ist - committed, 0), max(-balance, 0) )` — der Ueberschuss, der
+    /// gebucht wuerde, **gedeckelt auf den Headroom des bezahlten
+    /// Stundenkontos** (REB-AUTO-06, Phase 57). Die `balance` ist die
+    /// year-to-date-Balance inklusive Vorjahres-Carryover bis einschliesslich
+    /// dieser Woche (D-57-07) — nicht die isolierte Wochen-Balance.
+    ///
+    /// Im Apply-Modus traegt das Feld nach dem Lauf den Betrag, den
+    /// `run_for_week` tatsaechlich gebucht hat (WR-07).
+    ///
+    /// Im Dry-Run fuehrt `backfill_range` den ueber frueheren Wochen bereits
+    /// vorgemerkten Uebertrag pro Person mit, damit die Summe der Preview-Werte
+    /// dem entspricht, was ein Apply-Lauf bucht (Invariante I-7, CR-02) — ohne
+    /// diese Buchfuehrung saehe jede Woche denselben unverbrauchten Headroom.
     pub excess: f32,
-    /// `true`, wenn `excess > 0` und die Woche nicht geskippt wuerde.
+    /// `true`, wenn `excess >= MIN_BOOKABLE_HOURS` (0.01 h — darunter ist der
+    /// Rest f32-Rauschen, WR-02) und die Woche nicht geskippt wuerde.
     pub would_book: bool,
     /// `true`, wenn diese Woche NICHT gebucht wurde/wuerde.
     pub skipped: bool,
@@ -201,9 +218,21 @@ pub trait RebookingReconciliationService {
     ///    should_run_for_week` — vor Stichtag / Toggle aus → `Skipped{ToggleOff}`.
     /// 2. `WeekStatus::Locked` → `SkippedLocked`-Audit-Batch + `Skipped{WeekLocked}`
     ///    (D-04); der Audit-Write ist idempotent (UNIQUE-Konflikt ignoriert).
-    /// 3. Ueberschuss = `Ist - (Soll + committed_voluntary)` fuer die Wochen-Range
-    ///    (Mo..=So); `<= 0` → `Skipped{NoExcess}`.
-    /// 4. Sonst `rebooking_batch_service.create(kind, state=Approved)` +
+    /// 3. **Balance-Read (REB-AUTO-06, D-57-07):** die kumulierte
+    ///    year-to-date-Balance vom Montag der ISO-Woche 1 des `iso_year` bis
+    ///    Sonntag der verarbeiteten Woche, `include_carryover = true`. Der Read
+    ///    steht bewusst NACH den beiden Gates (kein Report-Roundtrip fuer einen
+    ///    ausgeschalteten Cron / eine gesperrte Woche) und ist an ISO-Koordinaten
+    ///    verankert, nicht am Kalender-Neujahr (`first_day_in_year` faellt in
+    ///    Jahren mit Fr/Sa/So-Neujahr ins vorherige ISO-Jahr).
+    /// 4. Ueberschuss = `min( max(Ist - committed_voluntary, 0),
+    ///    max(-balance, 0) )` — der freiwillige Wochen-Ueberschuss (Range Mo..=So),
+    ///    gedeckelt auf den Headroom des bezahlten Stundenkontos: die Automatik
+    ///    gleicht das Konto aus, hebt es aber nie ueber 0 (Invariante I-4).
+    ///    Unterhalb der Mindest-Buchungsgroesse von 0.01 h → `Skipped{NoExcess}`
+    ///    (ein f32-Residuum darf kein Micro-Pair erzeugen und keinen UNIQUE-Slot
+    ///    belegen, WR-02).
+    /// 5. Sonst `rebooking_batch_service.create(kind, state=Approved)` +
     ///    `rebook(VolunteerToExtra, hours=excess)` in EINER Tx. UNIQUE-Konflikt
     ///    (frueherer Cron / Manual / pending HR-Suggestion) → `Skipped{AlreadyProcessed}`
     ///    (REB-AUTO-03 Idempotenz + Claim-on-Suggest D-02).
