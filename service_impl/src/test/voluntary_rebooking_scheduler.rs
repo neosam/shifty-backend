@@ -29,7 +29,7 @@ use service::employee_work_details::{EmployeeWorkDetails, MockEmployeeWorkDetail
 use service::extra_hours::{ExtraHours, ExtraHoursCategory, MockExtraHoursService};
 use service::permission::Authentication;
 use service::rebooking_batch::MockRebookingBatchService;
-use service::reporting::MockReportingService;
+use service::reporting::{EmployeeReport, MockReportingService};
 use service::toggle::MockToggleService;
 use service::voluntary_stats::{MockVoluntaryStatsService, VoluntaryStats};
 use service::week_status::{MockWeekStatusService, WeekStatus};
@@ -123,6 +123,53 @@ fn make_voluntary_stats(ist: f32, soll: f32) -> VoluntaryStats {
     }
 }
 
+fn make_report(balance: f32) -> EmployeeReport {
+    EmployeeReport {
+        sales_person: Arc::new(service::sales_person::SalesPerson {
+            id: sp_id(),
+            name: Arc::from("Scheduler 56"),
+            background_color: Arc::from("#123456"),
+            is_paid: Some(true),
+            inactive: false,
+            deleted: None,
+            version: Uuid::nil(),
+        }),
+        balance_hours: balance,
+        overall_hours: 0.0,
+        expected_hours: 0.0,
+        dynamic_hours: 0.0,
+        shiftplan_hours: 0.0,
+        extra_work_hours: 0.0,
+        vacation_hours: 0.0,
+        sick_leave_hours: 0.0,
+        holiday_hours: 0.0,
+        unpaid_leave_hours: 0.0,
+        volunteer_hours: 0.0,
+        vacation_carryover: 0,
+        vacation_days: 0.0,
+        vacation_entitlement: 0.0,
+        sick_leave_days: 0.0,
+        holiday_days: 0.0,
+        absence_days: 0.0,
+        carryover_hours: 0.0,
+        custom_extra_hours: Arc::from(Vec::new()),
+        by_week: Arc::from(Vec::new()),
+        by_month: Arc::from(Vec::new()),
+    }
+}
+
+/// Balance-Mock fuer den Deckel (REB-AUTO-06, Phase 57): `run_for_week` liest
+/// seit Plan 57-03 die year-to-date-Balance, um den Uebertrag auf den Headroom
+/// des bezahlten Stundenkontos zu deckeln. `-8.0` laesst genug Spielraum, sodass
+/// der Deckel in diesen Scheduler-Tests nicht bindet und die Delegations-Achse
+/// unveraendert nachweisbar bleibt.
+fn reporting_service(balance: f32) -> MockReportingService {
+    let mut r = MockReportingService::new();
+    r.expect_get_report_for_employee_range()
+        .returning(move |_, _, _, _, _, _| Ok(make_report(balance)));
+    r
+}
+
 fn perm_full_ok() -> MockPermissionService {
     let mut p = MockPermissionService::new();
     p.expect_check_only_full_authentication()
@@ -183,6 +230,7 @@ fn clock_2026_03_16() -> MockClockService {
 fn build_recon(
     extra_hours_service: MockExtraHoursService,
     rebooking_batch_service: MockRebookingBatchService,
+    reporting_service: MockReportingService,
     voluntary_stats_service: MockVoluntaryStatsService,
     week_status_service: MockWeekStatusService,
     toggle_service: MockToggleService,
@@ -190,7 +238,7 @@ fn build_recon(
     RebookingReconciliationServiceImpl {
         extra_hours_service: Arc::new(extra_hours_service),
         rebooking_batch_service: Arc::new(rebooking_batch_service),
-        reporting_service: Arc::new(MockReportingService::new()),
+        reporting_service: Arc::new(reporting_service),
         voluntary_stats_service: Arc::new(voluntary_stats_service),
         week_status_service: Arc::new(week_status_service),
         employee_work_details_service: Arc::new(MockEmployeeWorkDetailsService::new()),
@@ -256,6 +304,9 @@ async fn run_once_now_books_excess_for_vorwoche() {
     let recon = build_recon(
         extra_hours_service,
         rebooking_batch_service,
+        // Balance -8 → Headroom 8 > Ueberschuss 3: der Phase-57-Deckel bindet
+        // hier nicht, die erwarteten 3.0 bleiben unveraendert.
+        reporting_service(-8.0),
         {
             let mut v = MockVoluntaryStatsService::new();
             v.expect_get_voluntary_stats()

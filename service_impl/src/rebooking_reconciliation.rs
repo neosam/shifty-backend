@@ -56,20 +56,41 @@ gen_service_impl! {
     }
 }
 
-/// Reine, testbare Ueberschuss-Formel (F4 core, REB-AUTO-01): der buchbare
-/// Ausgleich einer Woche ist `Ist - (Soll + committed_voluntary)`, geklemmt auf
-/// `>= 0`. Nicht-endliche Eingaben (NaN/Inf) ergeben `0.0` (defensiver Skip statt
-/// Panik / Muell-Buchung).
-pub(crate) fn week_excess(ist: f32, soll: f32, committed_voluntary: f32) -> f32 {
-    if !ist.is_finite() || !soll.is_finite() || !committed_voluntary.is_finite() {
+/// Reine, testbare Ueberschuss-Formel (F4 core, REB-AUTO-01 + REB-AUTO-06):
+///
+/// ```text
+/// week_excess = min( max(ist - (soll + committed_voluntary), 0), max(-balance, 0) )
+/// ```
+///
+/// Der erste Term ist der freiwillige Wochen-Ueberschuss (REB-AUTO-01): was ueber
+/// die Freiwilligen-Zusage hinaus gearbeitet wurde, geklemmt auf `>= 0`.
+///
+/// Der zweite Term ist der **Deckel** (REB-AUTO-06, Phase 57): der Headroom des
+/// bezahlten Stundenkontos. In Kontobegriffen — die Automatik gleicht das
+/// bezahlte Stundenkonto aus, hebt es aber **nie ueber 0**. Steht die Balance
+/// bereits auf 0 oder im Plus, gibt es nichts auszugleichen und es wird nichts
+/// uebertragen (Invariante I-4), auch wenn ein freiwilliger Ueberschuss vorliegt.
+///
+/// **Abgrenzung zum HR-Pfad (D-57-01, Invariante I-5):**
+/// `crate::reporting::proposed_hours(balance, voluntary_ist) = min(|balance|, ist)`
+/// bekommt bewusst KEINEN solchen Deckel — der HR-Vorschlag darf die
+/// Freiwilligen-Zusage unterschreiten, weil ein Mensch die Entscheidung traegt.
+/// Die Automatik darf das nicht und gleicht nur den unstrittigen Teil aus.
+///
+/// Nicht-endliche Eingaben (NaN/Inf) ergeben in allen vier Parametern `0.0`
+/// (defensiver Skip statt Panik / Muell-Buchung, T-57-07).
+pub(crate) fn week_excess(ist: f32, soll: f32, committed_voluntary: f32, balance: f32) -> f32 {
+    if !ist.is_finite()
+        || !soll.is_finite()
+        || !committed_voluntary.is_finite()
+        || !balance.is_finite()
+    {
         return 0.0;
     }
-    let excess = ist - (soll + committed_voluntary);
-    if excess > 0.0 {
-        excess
-    } else {
-        0.0
-    }
+    let unconstrained = ist - (soll + committed_voluntary);
+    let unconstrained = if unconstrained > 0.0 { unconstrained } else { 0.0 };
+    let headroom = if -balance > 0.0 { -balance } else { 0.0 };
+    unconstrained.min(headroom)
 }
 
 /// Reine Helper-fn (testbar, keine Deps): leitet aus der Richtung die
@@ -607,15 +628,43 @@ impl<Deps: RebookingReconciliationServiceDeps> RebookingReconciliationService
             });
         }
 
+        // Balance-Deckel (REB-AUTO-06, D-57-07): der Uebertrag darf das bezahlte
+        // Stundenkonto nie ueber 0 heben. Gebraucht wird dafuer die KUMULIERTE
+        // Jahres-Balance bis einschliesslich der verarbeiteten Woche INKLUSIVE
+        // Vorjahres-Carryover — nicht die Balance zum Laufzeitpunkt, sonst wuerde
+        // ein Backfill ueber mehrere historische Wochen denselben Spielraum
+        // mehrfach vergeben.
+        //
+        // ACHTUNG (Pitfall 3): das ist ein strukturell ANDERER Range als in
+        // `suggest`/`approve` (isolierte ISO-Woche Mo..=So, include_carryover =
+        // false). Dieses Muster darf hier NICHT kopiert werden.
+        //
+        // Der Read steht bewusst NACH dem Toggle- und dem Locked-Gate, damit ein
+        // ausgeschalteter Cron / eine gesperrte Woche ohne Report-Roundtrip
+        // zurueckkehrt.
+        let year_start = ShiftyDate::first_day_in_year(iso_year);
+        let week_end = ShiftyDate::new(iso_year, iso_week, DayOfWeek::Sunday)
+            .map_err(|_| ServiceError::InternalError)?;
+        let report = self
+            .reporting_service
+            .get_report_for_employee_range(
+                &sales_person_id,
+                year_start,
+                week_end,
+                true, // include_carryover — D-57-07
+                Authentication::Full,
+                Some(tx.clone()),
+            )
+            .await?;
+        let balance = report.balance_hours;
+
         // Ueberschuss = Ist - committed_voluntary (beide fuer die Wochen-Range
-        // Mo..=So). `committed` == VoluntaryStats::soll_total (committed-voluntary-
-        // target). Der Balance-Report wird nicht fuer die Excess-Formel benoetigt
-        // (Ist/Soll kommen aus VoluntaryStats), aber wir lesen ihn NICHT, um den
-        // Write-Pfad schlank zu halten.
+        // Mo..=So), gedeckelt auf den Headroom der Balance. `committed` ==
+        // VoluntaryStats::soll_total (committed-voluntary-target).
         let (ist, _soll, committed) = self
             .week_voluntary_figures(sales_person_id, iso_year, iso_week, tx.clone())
             .await?;
-        let excess = week_excess(ist, 0.0, committed);
+        let excess = week_excess(ist, 0.0, committed, balance);
         if excess <= 0.0 {
             self.transaction_dao.commit(tx).await?;
             return Ok(RunForWeekOutcome::Skipped {
@@ -712,10 +761,38 @@ impl<Deps: RebookingReconciliationServiceDeps> RebookingReconciliationService
                 }
                 let sales_person_id = wd.sales_person_id;
 
+                // Derselbe Balance-Deckel wie in `run_for_week` (REB-AUTO-06),
+                // nur mit der bereits offenen `read_tx`. Ein Platzhalter (0.0
+                // oder ein ungeprueftes Feld) ist hier VERBOTEN: er kompiliert
+                // klaglos und deckelt jeden Ueberschuss auf 0, wodurch der
+                // Dry-Run-Preview von dem abwiche, was der spaetere Apply-Lauf
+                // ueber `run_for_week` tatsaechlich bucht. Der Doc-Kommentar auf
+                // `BackfillPreviewItem.excess` verspricht „der Ueberschuss, der
+                // gebucht wuerde" — das ist die Invariante I-7.
+                //
+                // Chronologische Korrektheit ohne eigene Buchfuehrung: der
+                // Wochen-Loop teilt EINE `read_tx`, und SQLite sieht innerhalb
+                // derselben Transaktion die in Woche N-1 geschriebenen Rows.
+                let year_start = ShiftyDate::first_day_in_year(iso_year);
+                let week_end = ShiftyDate::new(iso_year, iso_week, DayOfWeek::Sunday)
+                    .map_err(|_| ServiceError::InternalError)?;
+                let report = self
+                    .reporting_service
+                    .get_report_for_employee_range(
+                        &sales_person_id,
+                        year_start,
+                        week_end,
+                        true, // include_carryover — D-57-07
+                        Authentication::Full,
+                        Some(read_tx.clone()),
+                    )
+                    .await?;
+                let balance = report.balance_hours;
+
                 let (ist, soll, committed) = self
                     .week_voluntary_figures(sales_person_id, iso_year, iso_week, read_tx.clone())
                     .await?;
-                let excess = week_excess(ist, 0.0, committed);
+                let excess = week_excess(ist, 0.0, committed, balance);
 
                 // Cutoff-Gate: vor Stichtag → ToggleOff-Skip (kein Write).
                 let toggle_on =
