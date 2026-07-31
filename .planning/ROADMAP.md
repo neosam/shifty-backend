@@ -600,19 +600,24 @@ Erlöschungsgrund definiert.
 1. **VOL-ACCT-03 umformulieren** auf Schutz der *Freiwilligen-Statistik* statt
    Einfrieren der Balance, plus neues REQ für den tatsächlichen Ausgleich. Ohne
    diesen Schritt reproduziert die nächste Phase den Fehler aus der Spec heraus.
+
 2. **D-55-07 entkoppeln**, sodass der Banner nicht mehr allein durch den
    belegten Slot erlischt — sonst bleibt jedes künftige Versagen unsichtbar.
+
 3. **`source`-Filter kategorie-spezifisch machen:** das `+h ExtraWork`-Bein
    zählt in die Balance, das `−h VolunteerWork`-Bein senkt das Ehrenamt-Ist.
+
 4. **Balance-Deckel im Auto-Cron:** `min(max(ist − committed, 0), max(−balance, 0))`
    statt `max(ist − committed, 0)` (`rebooking_reconciliation.rs:618`). `run_for_week`
    liest die Balance bisher bewusst nicht. Belegt: bei 23 h gearbeitet / 20 h
    zugesagt überträgt die heutige Formel 5 h statt 2 h und hebt die Balance auf
    +3 statt 0. Die HR-Formel `min(|balance|, ist)` bleibt **unverändert** — dass
    sie die Zusage unterschreiten kann, ist der Sinn des HR-Vorschlags.
+
 5. **Neutralitäts-Tests invertieren** — von „bit-identisch" zu „Balance +h,
    Ehrenamt −h". Die fünf grünen Tests zementieren derzeit den Fehler und weisen
    ein Fehlschlagen im Kommentar ausdrücklich als „echte Entdeckung" zurück.
+
 6. **Snapshot-Schema-Bump 12→13.** D-01 („bleibt bei 12") stützt sich
    ausdrücklich darauf, dass keine Rebooking-Zeile in eine Billing-Period-Kette
    leakt; mit wirksamem Paar fällt diese Entscheidung.
@@ -641,12 +646,25 @@ gearbeitet, Überschuss 5, Übertrag trotzdem nur 2 (Deckel), Balance 0.
 **Wave structure:** W1 = 01 · W2 = 02 · W3 = 03 · W4 = 04 + 05 (parallel) · W5 = 06
 
 Plans:
+**Wave 1**
 
 - [ ] 57-01-PLAN.md — Spec-Korrektur: VOL-ACCT-03 neu fassen, VOL-ACCT-04 + REB-AUTO-06 anlegen, Traceability 19/19 + Bestandsdaten-Pre-Flight (D-57-05)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 57-02-PLAN.md — Filter-Fix Leseseite: 3 Neutralitäts-Tests invertieren (RED), Site-1-Wächter-Test, vier Filter-Sites in `reporting.rs` site-spezifisch korrigieren (GREEN)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 57-03-PLAN.md — Balance-Deckel im Auto-Cron: `week_excess` um `balance` erweitern, beide Call-Sites (`run_for_week` + `backfill_range`) mit year-to-date-Balance versorgen
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 57-04-PLAN.md — Referenz-Szenario D-57-02 als Ende-zu-Ende-Test (Basis 3 h/17 h + Gegenprobe Übererfüllung 3 h/20 h)
 - [ ] 57-05-PLAN.md — Snapshot-Bump 12→13, drei Locking-Tests nachziehen, Straddling-Golden-Fixture auf ±h-Nachweis invertieren
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 57-06-PLAN.md — Docs-Freshness-Gate: F14, F07, F08 + `docs/domain/time-accounting`, `docs/domain/billing-period` — je `.md` und `_de.md`
 
 **Anmerkung zu Scope-Punkt 2 (D-55-07 entkoppeln):** bewusst nicht geplant. In
