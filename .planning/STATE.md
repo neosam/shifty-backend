@@ -3,18 +3,18 @@ gsd_state_version: 1.0
 milestone: v2.6
 milestone_name: — Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
 current_phase: 57
-current_phase_name: f14-rebooking-wirksamkeit-requirements-korrektur-balance-aus
 status: executing
 stopped_at: Completed 57-03-PLAN.md
-last_updated: "2026-07-31T14:45:14.707Z"
+last_updated: "2026-07-31T16:14:50.850Z"
 last_activity: 2026-07-31
-last_activity_desc: Phase 57 Plan 03 abgeschlossen (Balance-Deckel REB-AUTO-06)
+last_activity_desc: Phase 57 complete
 progress:
   total_phases: 5
   completed_phases: 5
   total_plans: 29
   completed_plans: 29
   percent: 100
+current_phase_name: f14-rebooking-wirksamkeit-requirements-korrektur-balance-aus
 ---
 
 # Project State: Shifty Backend
@@ -33,8 +33,8 @@ progress:
 
 ## Current Position
 
-Phase: 57 (f14-rebooking-wirksamkeit-requirements-korrektur-balance-aus) — EXECUTING
-Plan: 6 of 6 — Pläne 01, 02 und 03 COMPLETE
+Phase: 57
+Plan: Not started
 Status: Ready to execute — Wave 4 (Plan 04, Ende-zu-Ende-Referenz-Szenario D-57-02) ist
 freigegeben. Wave 2 hat den Übertrag auf der Leseseite wirksam gemacht (Plan 02,
 VOL-ACCT-04-Invarianten I-1/I-2), Wave 3 den Balance-Deckel im Auto-Cron gesetzt
@@ -43,7 +43,7 @@ im Schreib-Pfad `run_for_week` und im Dry-Run-Preview `backfill_range` mit demse
 Die HR-Vorschlagsformel `proposed_hours` bleibt bewusst ungedeckelt (D-57-01).
 Offen für Plan 04: VOL-ACCT-04 und REB-AUTO-06 abhaken — beide Requirements verlangen
 das Ende-zu-Ende-Szenario als Akzeptanzbedingung.
-Last activity: 2026-07-31 — Phase 57 Plan 03 abgeschlossen (Balance-Deckel REB-AUTO-06)
+Last activity: 2026-07-31 — Phase 57 complete
 
 ## Quick Tasks Completed
 
