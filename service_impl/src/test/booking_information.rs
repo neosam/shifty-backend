@@ -6,7 +6,7 @@
 //!   Band 2 = Σ_person max(actual_p − committed_p, 0)
 //!   No-double-count invariant: committed + surplus(actual, committed) = max(committed, actual)
 //!
-//! Also contains a regression test pinning CURRENT_SNAPSHOT_SCHEMA_VERSION (currently 12)
+//! Also contains a regression test pinning CURRENT_SNAPSHOT_SCHEMA_VERSION (currently 13)
 //! (D-01 / CVC-05: Phase 15/17 touch no persisted BillingPeriodValueType; the v8 bump
 //! comes from the separate report-ehrenamt-gesamtstunden cap-leak bugfix).
 
@@ -447,6 +447,12 @@ fn d05_uncapped_nonzero_excluded() {
 
 #[test]
 fn snapshot_schema_version_pinned_at_10() {
+    // HINWEIS zum Funktionsnamen: er ist historisch (Stand v10) und laengst irrefuehrend.
+    // Er bleibt bewusst unveraendert, weil er aus test/booking_information_vfa.rs
+    // (phase26_vfa_no_snapshot_bump) namentlich zitiert wird — ein Rename wuerde diesen
+    // Querverweis brechen. Der tatsaechlich gepinnte Wert steht ausschliesslich in der
+    // Assertion unten.
+    //
     // D-01 / CVC-05: Phase 15 touches NO persisted value_type — committed_voluntary_hours
     // (Band 1) and the reduced volunteer_hours (Band 2) are Achse-B (year-view) only and
     // are never read by billing_period_report.rs. Therefore the Phase-15 work did NOT
@@ -478,9 +484,16 @@ fn snapshot_schema_version_pinned_at_10() {
     // v12 bump (Phase 28 VAC-OFFSET-01 / D-28-05): off-by-one fix in
     // EmployeeWorkDetails::vacation_days_for_year changes the persisted
     // BillingPeriodValueType::VacationEntitlement (VacationDays is unaffected).
+    //
+    // v13 bump (Phase 57 VOL-ACCT-04 / D-57-10): der pauschale source==Manual-Vorfilter
+    // ist aus den Read-Aggregaten von get_report_for_employee_range entfernt (D-57-06).
+    // Rebooking-ExtraHours fliessen dadurch in die persistierten value_types Overall,
+    // Balance, ExtraWork (+h ExtraWork-Bein) und Volunteer (-h VolunteerWork-Bein) ein.
+    // Bump-Trigger laut CLAUDE.md: "Change the input set the computation reads from".
+    // Beleg: test/billing_period_straddling.rs::test_straddling_snapshot_rebooking_shifts_values.
     assert_eq!(
         crate::billing_period_report::CURRENT_SNAPSHOT_SCHEMA_VERSION,
-        12
+        13
     );
 }
 

@@ -374,11 +374,13 @@ async fn vfa02_holiday_vs_absence_asymmetry() {
 ///
 /// VFA-01/VFA-02 themselves MUST NOT bump `CURRENT_SNAPSHOT_SCHEMA_VERSION`.
 ///
-/// The absolute value pinned here is the CURRENT constant (12 since Phase 28
-/// VAC-OFFSET-01 bumped it 11→12 for the unrelated vacation-entitlement off-by-one
-/// fix). The guard's purpose is unchanged: it fails if a *Phase-26 VFA* change
-/// accidentally moves the constant. When a later phase legitimately bumps the
-/// constant, update this literal to the new value (as Phase 28 did 11→12).
+/// The absolute value pinned here is the CURRENT constant (13 since Phase 57
+/// VOL-ACCT-04 / D-57-10 bumped it 12→13 for the unrelated rebooking read-filter
+/// removal — Rebooking ExtraHours now feed the persisted Overall/Balance/ExtraWork/
+/// Volunteer value_types). The guard's purpose is unchanged: it fails if a *Phase-26
+/// VFA* change accidentally moves the constant. When a later phase legitimately bumps
+/// the constant, update this literal to the new value (as Phase 28 did 11→12 and
+/// Phase 57 did 12→13).
 ///
 /// Rationale (CLAUDE.md bump rule): a bump is required when a new persisted
 /// `BillingPeriodValueType` is added, removed, or renamed, OR when the computation that
@@ -393,11 +395,12 @@ async fn vfa02_holiday_vs_absence_asymmetry() {
 fn phase26_vfa_no_snapshot_bump() {
     assert_eq!(
         crate::billing_period_report::CURRENT_SNAPSHOT_SCHEMA_VERSION,
-        12,
+        13,
         "D-26-02: VFA (Phase 26) must NOT bump CURRENT_SNAPSHOT_SCHEMA_VERSION. \
          get_weekly_summary changes are live-view-only (Achse-B, not persisted). \
-         The pinned value is 12 since Phase 28 (VAC-OFFSET-01) bumped it for the \
-         unrelated vacation-entitlement off-by-one fix. \
+         The pinned value is 13 since Phase 57 (VOL-ACCT-04 / D-57-10) bumped it for the \
+         unrelated removal of the source==Manual read-filter, which lets Rebooking \
+         ExtraHours flow into the persisted Overall/Balance/ExtraWork/Volunteer value_types. \
          If this fails after a Phase-26 change, that change accidentally added/changed a \
          persisted BillingPeriodValueType and the version must be justified and bumped intentionally."
     );

@@ -114,7 +114,30 @@ const BILLING_PERIOD_REPORT_SERVICE: &str = "BillingPeriodReportService";
 ///   full-year contracts. Validators MUST treat v11 snapshots as "older schema" and skip
 ///   vacation-entitlement re-validation for those entries. NOTE: `VacationDays` (taken
 ///   vacation) is UNAFFECTED — only `VacationEntitlement` (contract aliquot) changes.
-pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 12;
+/// - v13: Phase 57 (VOL-ACCT-04 / D-57-10) — der pauschale
+///   `source == ExtraHoursSource::Manual`-Vorfilter, mit dem seit Phase 55 (D-55-A1) ALLE
+///   `source = Rebooking`-ExtraHours aus den Read-Aggregaten von
+///   `ReportingService::get_report_for_employee_range` verworfen wurden, ist entfernt
+///   (D-57-06). Damit fliessen Rebooking-Paare jetzt in die persistierten value_types ein:
+///   das `+h ExtraWork`-Bein hebt `Overall`, `Balance` und `ExtraWork`, das
+///   `−h VolunteerWork`-Bein senkt `Volunteer`. Nach CLAUDE.md ("Change the input set the
+///   computation reads from") ist das bump-pflichtig — eine frische Neuberechnung liefert
+///   fuer dieselbe Periode andere Werte als ein v12-Snapshot. Validatoren MUESSEN
+///   v12-Snapshots als "older schema" behandeln und Overall/Balance/ExtraWork/Volunteer
+///   fuer solche Eintraege NICHT gegen die aktuelle Berechnung revalidieren.
+///   NICHT betroffen sind alle uebrigen persistierten value_types (u. a. `ExpectedHours`,
+///   `VacationEntitlement`, `VacationDays`, die Absence-Kategorien): `rebook()` schreibt
+///   ausschliesslich die Kategorien `VolunteerWork` und `ExtraWork`, und das Soll stammt
+///   aus dem Vertrag statt aus `extra_hours`.
+///   HINWEIS zur Vorgaengerentscheidung: D-01 aus Phase 56 (REB-AUTO-05) hatte den Bump
+///   ausdruecklich abgelehnt — begruendet mit der Snapshot-Neutralitaet des Rebookings
+///   unter dem damaligen Marker-Filter. Diese Grundlage ist mit dem Filter-Fix entfallen.
+///   Empirischer Beleg: `service_impl/src/test/billing_period_straddling.rs`
+///   `test_straddling_snapshot_rebooking_shifts_values` misst die Verschiebung an einer
+///   Periode, die eine Rebooking-Woche enthaelt.
+///   Bestehende v12-Rows bleiben unangetastet — kein Recompute, keine Datenmigration
+///   (D-57-12); genau dafuer existiert das Versionsfeld.
+pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 13;
 
 gen_service_impl! {
     struct BillingPeriodReportServiceImpl: BillingPeriodReportService = BillingPeriodReportServiceDeps {

@@ -552,13 +552,19 @@ mod integration {
 // ─── Snapshot-Version-Gate ──────────────────────────────────────────────────
 
 /// Grep-Gate: die aktuelle `CURRENT_SNAPSHOT_SCHEMA_VERSION` in
-/// `service_impl/src/billing_period_report.rs` MUSS 12 sein. Phase 48 fügt
+/// `service_impl/src/billing_period_report.rs` MUSS 13 sein. Phase 48 fügt
 /// keine `BillingPeriodValueType`-Zeile hinzu und darf den Snapshot-Constant
 /// deswegen nicht bumpen (D-48-NO-SNAPSHOT).
+///
+/// Der gepinnte Absolutwert ist der jeweils aktuelle Konstantenwert — 13 seit
+/// Phase 57 (VOL-ACCT-04 / D-57-10), wo die Entfernung des source==Manual-
+/// Read-Filters Rebooking-ExtraHours in die persistierten value_types Overall/
+/// Balance/ExtraWork/Volunteer fließen lässt. Der Zweck des Gates ist unverändert:
+/// es schlägt an, wenn eine *Phase-48-Änderung* die Konstante versehentlich bewegt.
 #[test]
 fn snapshot_version_unchanged_grep_gate() {
     const SRC: &str = include_str!("../billing_period_report.rs");
-    let needle = "pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 12;";
+    let needle = "pub const CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 13;";
     assert!(
         SRC.contains(needle),
         "Phase 48 must NOT bump snapshot version — EXP is not a persisted \

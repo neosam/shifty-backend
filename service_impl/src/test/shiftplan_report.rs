@@ -456,12 +456,18 @@ async fn test_extract_range_multi_week_gate_mix() {
 /// D-03 / Chain D:
 /// Chain-D-Refactor darf `CURRENT_SNAPSHOT_SCHEMA_VERSION` NICHT bumpen.
 /// Der Snapshot-Reader liest persistierte Rows unverändert weiter.
+///
+/// Der gepinnte Absolutwert ist der jeweils aktuelle Konstantenwert — 13 seit
+/// Phase 57 (VOL-ACCT-04 / D-57-10, Entfernung des source==Manual-Read-Filters).
+/// Der Zweck des Gates ist unverändert: es schlägt an, wenn eine *Chain-D-Änderung*
+/// die Konstante versehentlich bewegt.
 #[test]
 fn test_snapshot_schema_version_unchanged() {
     use crate::billing_period_report::CURRENT_SNAPSHOT_SCHEMA_VERSION;
     assert_eq!(
-        CURRENT_SNAPSHOT_SCHEMA_VERSION, 12,
-        "Phase 51 Chain D darf die Snapshot-Version NICHT bumpen (D-03 Snapshot-Immunität)"
+        CURRENT_SNAPSHOT_SCHEMA_VERSION, 13,
+        "Phase 51 Chain D darf die Snapshot-Version NICHT bumpen (D-03 Snapshot-Immunität). \
+         Der Wert 13 stammt aus Phase 57 (VOL-ACCT-04 / D-57-10), nicht aus Chain D."
     );
 }
 

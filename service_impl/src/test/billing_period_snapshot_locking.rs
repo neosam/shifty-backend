@@ -4,9 +4,11 @@
 //! `CURRENT_SNAPSHOT_SCHEMA_VERSION`. Siehe CLAUDE.md § "Billing Period Snapshot
 //! Schema Versioning" fuer die Bump-Trigger-Regeln.
 //!
-//! - `test_snapshot_schema_version_pinned`: erwartet 12 (Phase 28 VAC-OFFSET-01 /
-//!   D-28-05 — off-by-one fix in `vacation_days_for_year` changes the persisted
-//!   `BillingPeriodValueType::VacationEntitlement`; `VacationDays` is unaffected).
+//! - `test_snapshot_schema_version_pinned`: erwartet 13 (Phase 57 VOL-ACCT-04 /
+//!   D-57-10 — der Marker-Filter ist aus den Read-Aggregaten entfernt, Rebooking-
+//!   ExtraHours fliessen jetzt in die persistierten value_types Overall/Balance/
+//!   ExtraWork/Volunteer ein; Bump-Trigger "Change the input set the computation
+//!   reads from").
 //! - `test_billing_period_value_type_surface_locked`: Compile-Error wenn
 //!   Enum-Variante hinzu/weg ohne Test-Update.
 
@@ -25,15 +27,19 @@ use crate::billing_period_report::CURRENT_SNAPSHOT_SCHEMA_VERSION;
 #[test]
 fn test_snapshot_schema_version_pinned() {
     assert_eq!(
-        CURRENT_SNAPSHOT_SCHEMA_VERSION, 12,
-        "CURRENT_SNAPSHOT_SCHEMA_VERSION muss 12 sein nach Phase 28 (VAC-OFFSET-01 / D-28-05): \
-         off-by-one fix in EmployeeWorkDetails::vacation_days_for_year — die Jahres-START- \
-         Proration zieht jetzt nur die Tage STRIKT vor dem Vertragsstart ab (ein 1.1.-Start \
-         zieht 0 ab statt ~1/365 des Jahresanspruchs). Das aendert den persistierten \
-         BillingPeriodValueType::VacationEntitlement (reporting.rs:853 <- :803). \
-         Laut CLAUDE.md (Snapshot Schema Versioning: 'Change the computation that produces \
-         an existing value_type') ist ein Bump Pflicht. \
-         HINWEIS: VacationDays (genommener Urlaub) ist NICHT betroffen — nur VacationEntitlement. \
+        CURRENT_SNAPSHOT_SCHEMA_VERSION, 13,
+        "CURRENT_SNAPSHOT_SCHEMA_VERSION muss 13 sein nach Phase 57 (VOL-ACCT-04 / D-57-10): \
+         der pauschale source==Manual-Vorfilter ist aus den Read-Aggregaten von \
+         ReportingService::get_report_for_employee_range entfernt (D-57-06). Rebooking-Paare \
+         fliessen dadurch in die persistierten value_types ein — das +h ExtraWork-Bein hebt \
+         Overall, Balance und ExtraWork, das -h VolunteerWork-Bein senkt Volunteer. \
+         Laut CLAUDE.md (Snapshot Schema Versioning: 'Change the input set the computation \
+         reads from') ist ein Bump Pflicht: eine frische Neuberechnung derselben Periode \
+         weicht von einem v12-Snapshot ab, und ohne Bump waere diese Drift von einem echten \
+         Datenfehler nicht unterscheidbar. \
+         HINWEIS: ExpectedHours, VacationEntitlement und VacationDays sind NICHT betroffen — \
+         rebook() schreibt nur die Kategorien VolunteerWork und ExtraWork. \
+         Beleg: test/billing_period_straddling.rs::test_straddling_snapshot_rebooking_shifts_values. \
          Siehe service_impl/src/billing_period_report.rs § CURRENT_SNAPSHOT_SCHEMA_VERSION."
     );
 }
