@@ -6,14 +6,14 @@ current_phase: 57
 current_phase_name: f14-rebooking-wirksamkeit-requirements-korrektur-balance-aus
 status: executing
 stopped_at: Completed 57-03-PLAN.md
-last_updated: "2026-07-31T14:13:43.942Z"
+last_updated: "2026-07-31T14:28:05.281Z"
 last_activity: 2026-07-31
 last_activity_desc: Phase 57 Plan 03 abgeschlossen (Balance-Deckel REB-AUTO-06)
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 29
-  completed_plans: 26
+  completed_plans: 28
   percent: 80
 ---
 
@@ -34,7 +34,7 @@ progress:
 ## Current Position
 
 Phase: 57 (f14-rebooking-wirksamkeit-requirements-korrektur-balance-aus) — EXECUTING
-Plan: 5 of 6 — Pläne 01, 02 und 03 COMPLETE
+Plan: 6 of 6 — Pläne 01, 02 und 03 COMPLETE
 Status: Ready to execute — Wave 4 (Plan 04, Ende-zu-Ende-Referenz-Szenario D-57-02) ist
 freigegeben. Wave 2 hat den Übertrag auf der Leseseite wirksam gemacht (Plan 02,
 VOL-ACCT-04-Invarianten I-1/I-2), Wave 3 den Balance-Deckel im Auto-Cron gesetzt
@@ -214,7 +214,7 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-07-31T14:13:38.813Z
+**Last session:** 2026-07-31T14:27:49.096Z
 **Stopped at:** Completed 57-03-PLAN.md
 **Resume file:** None
 
@@ -299,6 +299,9 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 - [Phase ?]: Balance-Deckel gilt an beiden Call-Sites: run_for_week (Schreib-Pfad) und backfill_range (Dry-Run-Preview) — der Preview zeigt exakt den Betrag, den der Apply-Lauf bucht (I-7)
 - [Phase ?]: REB-AUTO-06 bleibt offen bis Plan 04: die im Requirement geforderte Gegenprobe (Woche 2 mit 20h) ist ein Ende-zu-Ende-Szenario
 - [Phase ?]: Plan 04: VOL-ACCT-04 und REB-AUTO-06 sind mit dem Ende-zu-Ende-Referenz-Szenario D-57-02 belegt (8/12/-2 vor, 10/10/0 nach dem Uebertrag); die Ehrenamt-Stunden entstehen ausschliesslich aus dem Shiftplan-Cap-Ueberlauf
+- [Phase ?]: D-57-10 umgesetzt: CURRENT_SNAPSHOT_SCHEMA_VERSION 12 -> 13 (Filter-Fix ist ein 'Change the input set the computation reads from')
+- [Phase ?]: Der v13-Bump betrifft VIER value_types (Overall, Balance, ExtraWork, Volunteer) - Overall war im Plan uebersehen und wurde per Messung ergaenzt
+- [Phase ?]: Fuenf statt drei Snapshot-Locking-Gates nachgezogen; pdf_export_config und shiftplan_report pinnen die Konstante ebenfalls absolut
 
 ## Performance Metrics
 
@@ -343,3 +346,4 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 | Phase 57 P02 | ~35min | 3 tasks | 3 files |
 | Phase 57 P03 | 20min | 2 tasks | 4 files |
 | Phase 57 P04 | 15min | 2 tasks | 2 files |
+| Phase 57 P05 | 25min | 2 tasks | 7 files |

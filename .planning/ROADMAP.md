@@ -647,7 +647,7 @@ gearbeitet, Überschuss 5, Übertrag trotzdem nur 2 (Deckel), Balance 0.
 `service_impl/src/test/rebooking_reconciliation.rs` (Tests invertieren),
 `docs/features/F14-rebooking.{md,_de.md}` + F07 + F08 (Docs-Freshness-Gate).
 
-**Plans:** 4/6 plans executed
+**Plans:** 5/6 plans executed
 
 **Wave structure:** W1 = 01 · W2 = 02 · W3 = 03 · W4 = 04 + 05 (parallel) · W5 = 06
 
@@ -667,7 +667,7 @@ Plans:
 **Wave 4** *(blocked on Wave 3 completion)*
 
 - [x] 57-04-PLAN.md — Referenz-Szenario D-57-02 als Ende-zu-Ende-Test (Basis 3 h/17 h + Gegenprobe Übererfüllung 3 h/20 h)
-- [ ] 57-05-PLAN.md — Snapshot-Bump 12→13, drei Locking-Tests nachziehen, Straddling-Golden-Fixture auf ±h-Nachweis invertieren
+- [x] 57-05-PLAN.md — Snapshot-Bump 12→13, drei Locking-Tests nachziehen, Straddling-Golden-Fixture auf ±h-Nachweis invertieren
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
@@ -689,7 +689,7 @@ Referenz-Szenario aus Plan 04.
 | 54.5. Voluntary-Soll Absence-Aware-Angleichung (Hotfix v2.6.1) | 2/2 | Complete | 2026-07-10 |
 | 55. Manuelle Umbuchung + HR-Alert-Modal (F3 + F5) | 6/6 | Complete    | 2026-07-24 |
 | 56. Wochen-Cron + Rollout-Backfill (F4) | 6/6 | Complete   | 2026-07-26 |
-| 57. F14-Rebooking-Wirksamkeit — Requirements-Korrektur + Balance-Ausgleich | 4/6 | In Progress|  |
+| 57. F14-Rebooking-Wirksamkeit — Requirements-Korrektur + Balance-Ausgleich | 5/6 | In Progress|  |
 
 Requirements-Coverage: 17/17 mapped (5 → P54, 7 → P55, 5 → P56); VOL-ACCT-03
 wird in P57 neu gefasst + 1 neues REQ ergänzt.
