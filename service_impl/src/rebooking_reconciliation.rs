@@ -757,6 +757,18 @@ impl<Deps: RebookingReconciliationServiceDeps> RebookingReconciliationService
         // wir nutzen ein Option<Transaction> nur fuer die Read-Aufrufe.
         let read_tx = self.transaction_dao.use_transaction(tx).await?;
 
+        // CR-02 / Invariante I-7: im Dry-Run muss der bereits *vorgemerkte*
+        // Headroom pro Person ueber die Wochen mitgefuehrt werden. Der Apply-Pfad
+        // verbraucht ihn implizit — jedes geschriebene Paar hebt die Balance, und
+        // SQLite sieht die Rows innerhalb der geteilten `read_tx`. Der Dry-Run
+        // schreibt nichts, saehe also in JEDER Woche denselben unverbrauchten
+        // Headroom und meldete eine Summe, die ueber dem liegt, was ein
+        // Apply-Lauf tatsaechlich bucht (Balance −10, je 4 h Ueberschuss in drei
+        // Wochen: Preview 12 statt 10). Der Fehler waechst linear mit der Anzahl
+        // der Backfill-Wochen. Die Map bleibt im Apply-Modus leer.
+        let mut dry_run_consumed: std::collections::HashMap<Uuid, f32> =
+            std::collections::HashMap::new();
+
         for week in from.iter_until(&upper) {
             let (iso_year, iso_week) = (week.year, week.week);
 
@@ -804,7 +816,16 @@ impl<Deps: RebookingReconciliationServiceDeps> RebookingReconciliationService
                         Some(read_tx.clone()),
                     )
                     .await?;
-                let balance = report.balance_hours;
+                // Im Dry-Run schlaegt sich der in frueheren Wochen vorgemerkte
+                // Uebertrag noch nicht in `report.balance_hours` nieder (es gibt
+                // keine Rows) — deshalb hier explizit anrechnen. Ein gebuchtes
+                // Paar ueber `h` hebt die Balance um `h`, also addiert sich der
+                // verbrauchte Headroom auf die gelesene Balance (CR-02).
+                let balance = report.balance_hours
+                    + dry_run_consumed
+                        .get(&sales_person_id)
+                        .copied()
+                        .unwrap_or(0.0);
 
                 let (ist, soll, committed) = self
                     .week_voluntary_figures(sales_person_id, iso_year, iso_week, read_tx.clone())
@@ -841,6 +862,10 @@ impl<Deps: RebookingReconciliationServiceDeps> RebookingReconciliationService
 
                 if dry_run {
                     // Vorschau: als buchbar markieren, aber NICHT schreiben.
+                    // Der Headroom gilt trotzdem als vergeben — sonst wuerde die
+                    // naechste Woche derselben Person ihn erneut ausschoepfen
+                    // (CR-02, Invariante I-7).
+                    *dry_run_consumed.entry(sales_person_id).or_insert(0.0) += excess;
                     item.skipped = false;
                     items.push(item);
                     continue;

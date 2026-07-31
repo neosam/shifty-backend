@@ -26,7 +26,7 @@ use uuid::Uuid;
 use dao::rebooking_batch::{RebookingBatchKind, RebookingBatchState};
 use service::clock::MockClockService;
 use service::employee_work_details::{EmployeeWorkDetails, MockEmployeeWorkDetailsService};
-use service::extra_hours::MockExtraHoursService;
+use service::extra_hours::{ExtraHoursCategory, MockExtraHoursService};
 use service::permission::Authentication;
 use service::rebooking_batch::MockRebookingBatchService;
 use service::reporting::{EmployeeReport, MockReportingService};
@@ -177,6 +177,15 @@ fn clock_2026_w12() -> MockClockService {
     c
 }
 
+/// Clock fixiert auf 2026-03-23 (Mo KW 13/2026) → upper bound = KW 12/2026.
+/// Damit deckt ein from=KW 10 drei Wochen ab (KW 10, 11, 12).
+fn clock_2026_w13() -> MockClockService {
+    let mut c = MockClockService::new();
+    c.expect_date_now()
+        .returning(|| time::macros::date!(2026 - 03 - 23));
+    c
+}
+
 /// Clock fixiert auf 2027-01-11 (Mo KW 02/2027) → upper bound = KW 01/2027.
 /// Damit deckt ein from=2026-W52 den Jahresgrenz-Walk 2026-W52 → 2027-W01 ab.
 fn clock_2027_w02() -> MockClockService {
@@ -215,6 +224,24 @@ fn reporting_service(balance: f32) -> MockReportingService {
     let mut r = MockReportingService::new();
     r.expect_get_report_for_employee_range()
         .returning(move |_, _, _, _, _, _| Ok(make_report(balance)));
+    r
+}
+
+/// Balance-Mock, der die Wirkung bereits geschriebener Paare abbildet: die
+/// gelieferte Balance ist `start_balance + booked`, wobei `booked` die Summe der
+/// bisher ueber `ExtraHoursService::create` geschriebenen `+h`-ExtraWork-Beine
+/// ist. Das ist genau die Sichtbarkeit, die SQLite innerhalb der geteilten
+/// `read_tx` liefert — ein konstanter Mock koennte die Divergenz zwischen
+/// Preview und Apply gar nicht sichtbar machen (CR-02).
+fn reporting_service_tracking(
+    start_balance: f32,
+    booked: Arc<std::sync::Mutex<f32>>,
+) -> MockReportingService {
+    let mut r = MockReportingService::new();
+    r.expect_get_report_for_employee_range()
+        .returning(move |_, _, _, _, _, _| {
+            Ok(make_report(start_balance + *booked.lock().unwrap()))
+        });
     r
 }
 
@@ -374,6 +401,125 @@ async fn backfill_dry_run_preview_respects_balance_cap() {
         items[0].excess
     );
     assert!(items[0].would_book, "would_book in dry-run preview");
+}
+
+/// CR-02 (Code-Review Phase 57): Preview-Summe == Apply-Summe ueber MEHRERE
+/// Wochen (Invariante I-7).
+///
+/// `backfill_dry_run_preview_respects_balance_cap` iteriert genau eine Woche und
+/// ist deshalb gegen den eigentlichen Fehler blind: der Apply-Pfad verbraucht den
+/// Headroom pro geschriebenem Paar (die Writes sind in der geteilten `read_tx`
+/// sichtbar), der Dry-Run schreibt nichts und sah damit in JEDER Woche denselben,
+/// unverbrauchten Headroom. Der Fehler waechst linear mit der Anzahl der
+/// Backfill-Wochen — also genau im Mehrjahres-Szenario, fuer das der Backfill
+/// existiert.
+///
+/// Szenario: Balance −10 zu Beginn, je 4 h freiwilliger Ueberschuss (Ist 9,
+/// committed 5) in KW 10/11/12. Erwartet in beiden Modi: 4 + 4 + 2 = 10 (der
+/// Deckel bindet in der dritten Woche). Ohne den Fix meldet der Preview
+/// 4 + 4 + 4 = 12.
+#[tokio::test]
+async fn backfill_dry_run_preview_matches_apply_over_multiple_weeks() {
+    // ── Lauf 1: Dry-Run ──────────────────────────────────────────────────────
+    // `booked` bleibt hier 0.0 (dry_run schreibt nichts) — der Balance-Mock
+    // liefert also konstant −10, genau wie SQLite es ohne Writes taete.
+    let dry_run_booked = Arc::new(std::sync::Mutex::new(0.0f32));
+    let dry_run_service = build_service(
+        MockExtraHoursService::new(),
+        MockRebookingBatchService::new(),
+        reporting_service_tracking(-10.0, dry_run_booked.clone()),
+        stats_service(9.0, 5.0),
+        week_unset(),
+        contracts(vec![capped_work_details()]),
+        toggle_from("2026-01-01"),
+        clock_2026_w13(), // upper = KW 12
+        perm_ok(),
+        tx_ok(),
+    );
+
+    let items = dry_run_service
+        .backfill_range(
+            ShiftyWeek::new(2026, 10),
+            true,
+            Authentication::Context(()),
+            None,
+        )
+        .await
+        .expect("dry-run backfill must succeed");
+
+    assert_eq!(items.len(), 3, "KW 10, 11, 12");
+    assert_eq!(
+        (*dry_run_booked.lock().unwrap()),
+        0.0,
+        "dry_run must not write anything"
+    );
+    let preview: Vec<f32> = items.iter().map(|i| i.excess).collect();
+    let preview_sum: f32 = preview.iter().sum();
+
+    // ── Lauf 2: Apply ────────────────────────────────────────────────────────
+    let apply_booked = Arc::new(std::sync::Mutex::new(0.0f32));
+    let booked_rows: Arc<std::sync::Mutex<Vec<f32>>> =
+        Arc::new(std::sync::Mutex::new(Vec::new()));
+    let booked_for_eh = apply_booked.clone();
+    let rows_for_eh = booked_rows.clone();
+    let mut extra_hours_service = MockExtraHoursService::new();
+    extra_hours_service.expect_create().returning(move |eh, _, _| {
+        if eh.category == ExtraHoursCategory::ExtraWork {
+            *booked_for_eh.lock().unwrap() += eh.amount;
+            rows_for_eh.lock().unwrap().push(eh.amount);
+        }
+        Ok(eh.clone())
+    });
+
+    let mut rebooking_batch_service = MockRebookingBatchService::new();
+    rebooking_batch_service
+        .expect_create()
+        .returning(|batch, _, _, _| Ok(batch.clone()));
+
+    let apply_service = build_service(
+        extra_hours_service,
+        rebooking_batch_service,
+        reporting_service_tracking(-10.0, apply_booked.clone()),
+        stats_service(9.0, 5.0),
+        week_unset(),
+        contracts(vec![capped_work_details()]),
+        toggle_from("2026-01-01"),
+        clock_2026_w13(),
+        perm_ok(),
+        tx_ok(),
+    );
+
+    apply_service
+        .backfill_range(
+            ShiftyWeek::new(2026, 10),
+            false,
+            Authentication::Context(()),
+            None,
+        )
+        .await
+        .expect("apply backfill must succeed");
+
+    let applied: Vec<f32> = booked_rows.lock().unwrap().clone();
+    let applied_sum: f32 = applied.iter().sum();
+
+    // ── Vergleich ────────────────────────────────────────────────────────────
+    assert!(
+        (applied_sum - 10.0).abs() < 1e-3,
+        "apply consumes the headroom: 4 + 4 + 2 = 10, got {applied_sum} ({applied:?})"
+    );
+    assert!(
+        (preview_sum - applied_sum).abs() < 1e-3,
+        "Invariante I-7: der Preview verspricht den Betrag, den ein Apply-Lauf \
+         bucht — preview={preview:?} (sum {preview_sum}), apply={applied:?} \
+         (sum {applied_sum}). Der Dry-Run fuehrt den bereits vergebenen Headroom \
+         nicht mit."
+    );
+    for (week_index, (p, a)) in preview.iter().zip(applied.iter()).enumerate() {
+        assert!(
+            (p - a).abs() < 1e-3,
+            "week #{week_index}: preview {p} != apply {a}"
+        );
+    }
 }
 
 /// CR-01 (Code-Review Phase 57): der Backfill-Balance-Read hat dieselbe

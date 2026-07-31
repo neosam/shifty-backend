@@ -661,6 +661,21 @@ nested under `/admin/rebooking`) is a thin delegate to
   (`backfill_dry_run_writes_nothing` at balance −8 → 3.0,
   `backfill_dry_run_preview_respects_balance_cap` at balance −2 → 2.0).
 
+  **Headroom accounting across weeks (CR-02).** The apply path consumes
+  the headroom implicitly: every written pair raises the balance, and
+  SQLite sees those rows within the week loop's shared `read_tx`. The
+  dry run writes nothing and would therefore see the same unconsumed
+  headroom in **every** week. `backfill_range` consequently carries a
+  `HashMap<sales_person_id, f32>` in dry-run mode that credits the
+  already-previewed transfer against the balance it reads
+  (`balance = report.balance_hours + consumed`). Without that accounting
+  preview and apply diverge linearly with the number of weeks — at
+  balance −10 with 4 h of excess each in weeks 10/11/12 the preview
+  reports 12 h while 10 h get booked. Pinned by
+  `backfill_dry_run_preview_matches_apply_over_multiple_weeks`, which
+  puts the preview sum and the apply sum of the same scenario against
+  each other.
+
 ### 9.4 Snapshot-schema decision (REB-AUTO-05 — flipped in Phase 57, D-57-10)
 
 **`CURRENT_SNAPSHOT_SCHEMA_VERSION` was bumped 12 → 13 in Phase 57.**
