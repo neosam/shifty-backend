@@ -563,12 +563,27 @@ die beiden Trigger niemals driften können:
   `Skipped { NoExcess }`.
 
   **Balance-Quelle (D-57-07):** die kumulierte **year-to-date**-Balance
-  ab `first_day_in_year(iso_year)` bis einschließlich Sonntag der
-  verarbeiteten Woche, **inklusive** Vorjahres-Carryover
+  ab dem **Montag der ISO-Woche 1** des `iso_year`
+  (`ShiftyDate::new(iso_year, 1, DayOfWeek::Monday)`) bis einschließlich
+  Sonntag der verarbeiteten Woche, **inklusive** Vorjahres-Carryover
   (`include_carryover = true`) — *nicht* die Balance zum Laufzeitpunkt
   und *nicht* die isolierte Wochen-Range, die `suggest()`/`approve()`
   benutzen. Begründung: ein Backfill über mehrere historische Wochen
   würde sonst denselben Spielraum mehrfach vergeben.
+
+  **Warum ISO-Anker und nicht der 1. Januar (CR-01):**
+  `ShiftyDate::first_day_in_year(y)` geht über `from_ymd(y, 1, 1)` und
+  speichert das Ergebnis als ISO-Tripel. Fällt der 1. Januar auf Fr/Sa/So
+  (2027, 2028, 2021, 2022, 2023), gehört er zum **vorherigen** ISO-Jahr —
+  `first_day_in_year(2027)` ist ISO-Woche 53/2026.
+  `get_report_for_employee_range` liest `from_date.year() - 1` für den
+  Carryover-Lookup und iteriert `hours_per_week` ab
+  `from_date.as_shifty_week()`; ein Kalender-Anker lädt damit das falsche
+  Carryover-Jahr und zieht eine volle Vorjahres-Woche in die Balance. Da
+  der Wert `max(-balance, 0)` und damit den geschriebenen Betrag steuert,
+  ist das ein Write-Fehler. Getestet in
+  `voluntary_rebooking.rs::run_for_week_balance_range_is_iso_anchored_in_2027`
+  und `rebooking_backfill.rs::backfill_balance_range_is_iso_anchored_in_2027`.
 
   **Abgrenzung zum HR-Vorschlag (D-57-01, Invariante I-5):** der
   HR-Alert-Vorschlag aus §8.3 bleibt bei `proposed_hours =

@@ -381,14 +381,18 @@ async fn run_for_week_balance_cap_binds() {
             Ok(batch.clone())
         });
 
-    // D-57-07: year-to-date ab dem 1. Januar bis Sonntag der verarbeiteten
-    // ISO-Woche, include_carryover = true. NICHT die isolierte Wochen-Range.
+    // D-57-07: year-to-date ab dem Montag der ISO-Woche 1 bis Sonntag der
+    // verarbeiteten ISO-Woche, include_carryover = true. NICHT die isolierte
+    // Wochen-Range — und NICHT der Kalender-Anker `first_day_in_year` (CR-01,
+    // siehe run_for_week_balance_range_is_iso_anchored_in_2027).
     let mut reporting_service = MockReportingService::new();
     reporting_service
         .expect_get_report_for_employee_range()
         .withf(|sales_person_id, from, to, include_carryover, _ctx, _tx| {
             *sales_person_id == sp_id()
-                && *from == ShiftyDate::first_day_in_year(2026)
+                && *from
+                    == ShiftyDate::new(2026, 1, DayOfWeek::Monday)
+                        .expect("ISO week 1/2026 has a Monday")
                 && *to
                     == ShiftyDate::new(2026, 12, DayOfWeek::Sunday)
                         .expect("KW 12/2026 has a Sunday")
@@ -483,6 +487,92 @@ async fn run_for_week_non_negative_balance_skips() {
         },
         "balance >= 0 leaves no headroom (I-4)"
     );
+}
+
+/// CR-01 (Code-Review Phase 57): die Balance-Range MUSS an ISO-Koordinaten
+/// verankert sein, nicht am Kalender-Neujahr.
+///
+/// `ShiftyDate::first_day_in_year(year)` geht ueber `from_ymd(year, 1, 1)` und
+/// speichert das Ergebnis als ISO-Tripel. Faellt der 1. Januar auf Fr/Sa/So,
+/// gehoert er zum VORHERIGEN ISO-Jahr — fuer 2027 (1. Jan = Freitag) also auf
+/// ISO-Woche 53/2026. `get_report_for_employee_range` liest daraus
+/// `from_date.year() - 1` fuer den Carryover (→ 2025 statt 2026) und iteriert
+/// `hours_per_week` ab KW 53/2026, zieht also eine volle Vorjahres-Woche in die
+/// als „year-to-date 2027" gedachte Balance.
+///
+/// Der Wert steuert `max(-balance, 0)` und damit direkt den geschriebenen
+/// `hours`-Betrag — ein Off-by-one ist hier ein Write-Fehler, kein Anzeigefehler.
+/// `run_for_week_balance_cap_binds` pinnt nur 2026, und 2026 ist eines der Jahre,
+/// in denen Kalender- und ISO-Jahresanfang zusammenfallen (1. Jan = Donnerstag =
+/// W01) — dieser Test ist der Waechter fuer die uebrigen Jahre.
+///
+/// `stats_service(5.0, 5.0)` haelt den Excess bei 0, damit der Test allein die
+/// Range prueft und kein Write ausloest (beide Write-Mocks ohne Expect).
+#[tokio::test]
+async fn run_for_week_balance_range_is_iso_anchored_in_2027() {
+    let captured: Arc<std::sync::Mutex<Option<(ShiftyDate, ShiftyDate, bool)>>> =
+        Arc::new(std::sync::Mutex::new(None));
+    let captured_cap = captured.clone();
+    let mut reporting_service = MockReportingService::new();
+    reporting_service
+        .expect_get_report_for_employee_range()
+        .returning(move |_, from, to, include_carryover, _, _| {
+            *captured_cap.lock().unwrap() = Some((from, to, include_carryover));
+            Ok(make_report(-8.0))
+        });
+
+    let service = build_service(
+        MockExtraHoursService::new(),
+        MockRebookingBatchService::new(),
+        reporting_service,
+        stats_service(5.0, 5.0),
+        week_unset(),
+        MockEmployeeWorkDetailsService::new(),
+        toggle_on(),
+        MockClockService::new(),
+        perm_ok(),
+        tx_ok(),
+    );
+
+    let outcome = service
+        .run_for_week(
+            sp_id(),
+            2027,
+            3,
+            RebookingBatchKind::AutoCron,
+            Authentication::Full,
+            None,
+        )
+        .await
+        .expect("run_for_week must succeed");
+    assert_eq!(
+        outcome,
+        RunForWeekOutcome::Skipped {
+            reason: SkipReason::NoExcess
+        }
+    );
+
+    let (from, to, include_carryover) = captured
+        .lock()
+        .unwrap()
+        .expect("the balance read must happen before week_voluntary_figures");
+    assert_eq!(
+        from,
+        ShiftyDate::new(2027, 1, DayOfWeek::Monday).expect("ISO week 1/2027 has a Monday"),
+        "range start must be the Monday of ISO week 1/2027 (2027-01-04), not \
+         first_day_in_year(2027) which resolves to ISO week 53/2026"
+    );
+    assert_eq!(
+        from.year(),
+        2027,
+        "from.year() drives the carryover lookup (from.year() - 1) in \
+         get_report_for_employee_range — it MUST be the processed ISO year"
+    );
+    assert_eq!(
+        to,
+        ShiftyDate::new(2027, 3, DayOfWeek::Sunday).expect("ISO week 3/2027 has a Sunday"),
+    );
+    assert!(include_carryover, "D-57-07: include_carryover = true");
 }
 
 /// Case 3: zweiter Lauf → UNIQUE-Konflikt beim Batch-create → Skipped{AlreadyProcessed},

@@ -642,7 +642,19 @@ impl<Deps: RebookingReconciliationServiceDeps> RebookingReconciliationService
         // Der Read steht bewusst NACH dem Toggle- und dem Locked-Gate, damit ein
         // ausgeschalteter Cron / eine gesperrte Woche ohne Report-Roundtrip
         // zurueckkehrt.
-        let year_start = ShiftyDate::first_day_in_year(iso_year);
+        //
+        // ACHTUNG (CR-01): der Range-Start ist an ISO-Koordinaten verankert, NICHT
+        // an `ShiftyDate::first_day_in_year(iso_year)`. Letzteres geht ueber
+        // `from_ymd(iso_year, 1, 1)` und speichert ein ISO-Tripel — faellt der
+        // 1. Januar auf Fr/Sa/So (2027, 2028, 2021, 2022, 2023), liegt er im
+        // VORHERIGEN ISO-Jahr. `get_report_for_employee_range` liest daraus
+        // `from_date.year() - 1` fuer den Carryover und iteriert `hours_per_week`
+        // ab `from_date.as_shifty_week()`; ein Kalender-Anker wuerde also das
+        // falsche Carryover-Jahr laden und eine volle Vorjahres-Woche in die
+        // „year-to-date"-Balance ziehen. Der Wert steuert `max(-balance, 0)` und
+        // damit direkt den geschriebenen Betrag.
+        let year_start = ShiftyDate::new(iso_year, 1, DayOfWeek::Monday)
+            .map_err(|_| ServiceError::InternalError)?;
         let week_end = ShiftyDate::new(iso_year, iso_week, DayOfWeek::Sunday)
             .map_err(|_| ServiceError::InternalError)?;
         let report = self
@@ -773,7 +785,12 @@ impl<Deps: RebookingReconciliationServiceDeps> RebookingReconciliationService
                 // Chronologische Korrektheit ohne eigene Buchfuehrung: der
                 // Wochen-Loop teilt EINE `read_tx`, und SQLite sieht innerhalb
                 // derselben Transaktion die in Woche N-1 geschriebenen Rows.
-                let year_start = ShiftyDate::first_day_in_year(iso_year);
+                //
+                // Der Range-Start ist wie in `run_for_week` an ISO-Koordinaten
+                // verankert (CR-01) — `first_day_in_year` waere ein Kalender-Anker
+                // und faellt in Jahren mit Fr/Sa/So-Neujahr ins vorherige ISO-Jahr.
+                let year_start = ShiftyDate::new(iso_year, 1, DayOfWeek::Monday)
+                    .map_err(|_| ServiceError::InternalError)?;
                 let week_end = ShiftyDate::new(iso_year, iso_week, DayOfWeek::Sunday)
                     .map_err(|_| ServiceError::InternalError)?;
                 let report = self

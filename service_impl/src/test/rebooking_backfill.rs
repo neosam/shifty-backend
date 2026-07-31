@@ -35,7 +35,7 @@ use service::voluntary_stats::{MockVoluntaryStatsService, VoluntaryStats};
 use service::week_status::{MockWeekStatusService, WeekStatus};
 use service::MockPermissionService;
 use service::ServiceError;
-use shifty_utils::{DayOfWeek, ShiftyWeek};
+use shifty_utils::{DayOfWeek, ShiftyDate, ShiftyWeek};
 
 use service::rebooking_reconciliation::{RebookingReconciliationService, SkipReason};
 
@@ -374,6 +374,68 @@ async fn backfill_dry_run_preview_respects_balance_cap() {
         items[0].excess
     );
     assert!(items[0].would_book, "would_book in dry-run preview");
+}
+
+/// CR-01 (Code-Review Phase 57): der Backfill-Balance-Read hat dieselbe
+/// ISO-Verankerung wie `run_for_week`.
+///
+/// `ShiftyDate::first_day_in_year(2027)` liefert ISO-Woche 53/2026 (1. Jan 2027
+/// ist ein Freitag) — als Range-Start waere das ein anderes Carryover-Jahr plus
+/// eine zusaetzliche Vorjahres-Woche im „year-to-date"-Aggregat. Da der Preview
+/// die HR-facing Entscheidungsgrundlage der `/backfill?dry_run=true`-Antwort ist,
+/// muss der Wert exakt der Range aus dem Schreib-Pfad entsprechen (Invariante
+/// I-7). Gegenstueck zu
+/// `voluntary_rebooking.rs::run_for_week_balance_range_is_iso_anchored_in_2027`.
+#[tokio::test]
+async fn backfill_balance_range_is_iso_anchored_in_2027() {
+    let captured: Arc<std::sync::Mutex<Vec<(ShiftyDate, ShiftyDate)>>> =
+        Arc::new(std::sync::Mutex::new(Vec::new()));
+    let captured_cap = captured.clone();
+    let mut reporting_service = MockReportingService::new();
+    reporting_service
+        .expect_get_report_for_employee_range()
+        .returning(move |_, from, to, _, _, _| {
+            captured_cap.lock().unwrap().push((from, to));
+            Ok(make_report(-8.0))
+        });
+
+    let service = build_service(
+        MockExtraHoursService::new(),
+        MockRebookingBatchService::new(),
+        reporting_service,
+        stats_service(5.0, 5.0), // kein Excess → kein Write, nur der Range-Read zaehlt
+        week_unset(),
+        contracts(vec![capped_work_details()]),
+        toggle_from("2026-01-01"),
+        clock_2027_w02(), // upper = KW 01/2027
+        perm_ok(),
+        tx_ok(),
+    );
+
+    let items = service
+        .backfill_range(
+            ShiftyWeek::new(2027, 1),
+            true,
+            Authentication::Context(()),
+            None,
+        )
+        .await
+        .expect("backfill must succeed");
+    assert_eq!(items.len(), 1, "one week (KW 01/2027) x one capped person");
+
+    let ranges = captured.lock().unwrap();
+    assert_eq!(ranges.len(), 1, "exactly one balance read");
+    assert_eq!(
+        ranges[0].0,
+        ShiftyDate::new(2027, 1, DayOfWeek::Monday).expect("ISO week 1/2027 has a Monday"),
+        "range start must be the Monday of ISO week 1/2027 (2027-01-04), not \
+         first_day_in_year(2027) which resolves to ISO week 53/2026"
+    );
+    assert_eq!(ranges[0].0.year(), 2027, "carryover lookup uses from.year() - 1");
+    assert_eq!(
+        ranges[0].1,
+        ShiftyDate::new(2027, 1, DayOfWeek::Sunday).expect("ISO week 1/2027 has a Sunday"),
+    );
 }
 
 /// Ungedeckelte Personen werden ignoriert (nur cap_planned_hours_to_expected=true).
