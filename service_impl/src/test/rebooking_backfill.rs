@@ -12,6 +12,12 @@
 //!
 //! Zusaetzlich: HR-Admin-Gate (T-56-04) und der ISO-Jahresgrenzfall (from=2026-W52
 //! bis upper=2027-W01) walk-Korrektheit.
+//!
+//! Phase 57 Plan 03 (REB-AUTO-06) ergaenzt eine Deckel-Achse:
+//! 5. Der Preview-Excess ist GEDECKELT — `BackfillPreviewItem.excess` zeigt exakt
+//!    den Betrag, den ein spaeterer Apply-Lauf ueber `run_for_week` buchen wuerde
+//!    (Invariante I-7). Deshalb ist `reporting_service` parametrisiert: `-8.0`
+//!    (Deckel bindet nicht, Bestandsfaelle) vs. `-2.0` (Deckel bindet).
 
 use std::sync::Arc;
 
@@ -202,10 +208,13 @@ fn stats_service(ist: f32, soll: f32) -> MockVoluntaryStatsService {
     v
 }
 
-fn reporting_service() -> MockReportingService {
+/// Balance-Mock fuer den Deckel (REB-AUTO-06). Spiegelbildlich zum gleichnamigen
+/// Helper in `voluntary_rebooking.rs`: `-8.0` laesst genug Headroom, sodass der
+/// Deckel in den Bestandsfaellen nicht bindet.
+fn reporting_service(balance: f32) -> MockReportingService {
     let mut r = MockReportingService::new();
     r.expect_get_report_for_employee_range()
-        .returning(|_, _, _, _, _, _| Ok(make_report(-8.0)));
+        .returning(move |_, _, _, _, _, _| Ok(make_report(balance)));
     r
 }
 
@@ -290,7 +299,7 @@ async fn backfill_dry_run_writes_nothing() {
     let service = build_service(
         extra_hours_service,
         rebooking_batch_service,
-        reporting_service(),
+        reporting_service(-8.0),
         stats_service(8.0, 5.0), // Ist=8 > committed=5 → excess=3, would_book
         week_unset(),
         contracts(vec![capped_work_details()]),
@@ -319,13 +328,61 @@ async fn backfill_dry_run_writes_nothing() {
     }
 }
 
+/// REB-AUTO-06 / Invariante I-7: der Dry-Run-Preview zeigt den GEDECKELTEN Betrag.
+/// Ist=15, committed=5 → unconstrained waere 10; der Headroom aus Balance −2 ist 2
+/// → `excess == 2.0`.
+///
+/// Der Doc-Kommentar auf `BackfillPreviewItem.excess`
+/// (`service/src/rebooking_reconciliation.rs:115`) verspricht „der Ueberschuss, der
+/// gebucht wuerde" — ein ungedeckelter Preview-Wert waere ein Korrektheitsbruch
+/// gegenueber der REST-Antwort und der HR-UI. Zusammen mit
+/// `backfill_dry_run_writes_nothing` (excess 3.0 bei Balance −8) faerbt dieser Test
+/// jeden konstanten Platzhalter als vierten `week_excess`-Parameter rot (T-57-08).
+#[tokio::test]
+async fn backfill_dry_run_preview_respects_balance_cap() {
+    // Weder Batch- noch ExtraHours-create duerfen laufen (dry_run).
+    let rebooking_batch_service = MockRebookingBatchService::new();
+    let extra_hours_service = MockExtraHoursService::new();
+
+    let service = build_service(
+        extra_hours_service,
+        rebooking_batch_service,
+        reporting_service(-2.0),
+        stats_service(15.0, 5.0),
+        week_unset(),
+        contracts(vec![capped_work_details()]),
+        toggle_from("2026-01-01"),
+        clock_2026_w12(), // upper = KW 11
+        perm_ok(),
+        tx_ok(),
+    );
+
+    let items = service
+        .backfill_range(
+            ShiftyWeek::new(2026, 11),
+            true,
+            Authentication::Context(()),
+            None,
+        )
+        .await
+        .expect("dry-run backfill must succeed");
+
+    assert_eq!(items.len(), 1, "one week (KW11) x one capped person");
+    assert!(
+        (items[0].excess - 2.0).abs() < 1e-6,
+        "capped preview: min(15-5, -(-2)) = 2, got {}",
+        items[0].excess
+    );
+    assert!(items[0].would_book, "would_book in dry-run preview");
+}
+
 /// Ungedeckelte Personen werden ignoriert (nur cap_planned_hours_to_expected=true).
 #[tokio::test]
 async fn backfill_ignores_uncapped_persons() {
     let service = build_service(
         MockExtraHoursService::new(),
         MockRebookingBatchService::new(),
-        reporting_service(),
+        reporting_service(-8.0),
         stats_service(8.0, 5.0),
         week_unset(),
         // capped + uncapped im selben Vertrags-Set; nur capped zaehlt.
@@ -376,7 +433,7 @@ async fn backfill_apply_persists_autocron_backfill() {
     let service = build_service(
         extra_hours_service,
         rebooking_batch_service,
-        reporting_service(),
+        reporting_service(-8.0),
         stats_service(8.0, 5.0),
         week_unset(),
         contracts(vec![capped_work_details()]),
@@ -424,7 +481,7 @@ async fn backfill_apply_already_processed_skips() {
     let service = build_service(
         extra_hours_service,
         rebooking_batch_service,
-        reporting_service(),
+        reporting_service(-8.0),
         stats_service(8.0, 5.0),
         week_unset(),
         contracts(vec![capped_work_details()]),
@@ -462,7 +519,7 @@ async fn backfill_before_active_from_is_toggle_off() {
     let service = build_service(
         extra_hours_service,
         rebooking_batch_service,
-        reporting_service(),
+        reporting_service(-8.0),
         stats_service(8.0, 5.0),
         week_unset(),
         contracts(vec![capped_work_details()]),
@@ -500,7 +557,7 @@ async fn backfill_year_boundary_walk() {
     let service = build_service(
         MockExtraHoursService::new(),
         MockRebookingBatchService::new(),
-        reporting_service(),
+        reporting_service(-8.0),
         stats_service(5.0, 5.0), // kein Excess → nur Preview-Items, kein Write
         week_unset(),
         contracts(vec![capped_work_details()]),

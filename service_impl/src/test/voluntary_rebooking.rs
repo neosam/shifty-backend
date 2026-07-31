@@ -13,6 +13,12 @@
 //! 7. ISO-Jahresgrenze (2026, 53) resolvt Montag ueber from_iso_week_date.
 //!
 //! Zusaetzlich: die pure `week_excess`-Formel-Matrix.
+//!
+//! Phase 57 Plan 03 (REB-AUTO-06) ergaenzt zwei Deckel-Achsen:
+//! 8. Deckel bindet (Ist=15, committed=5, Balance −2) → `Booked{2.0}` statt 10.0,
+//!    und die Balance-Range ist per `withf` gepinnt (year-to-date ab 1. Januar bis
+//!    Sonntag der Woche, `include_carryover = true`, D-57-07).
+//! 9. Balance >= 0 → `Skipped{NoExcess}`, kein Write (Invariante I-4).
 
 use std::sync::Arc;
 
@@ -31,6 +37,7 @@ use service::voluntary_stats::{MockVoluntaryStatsService, VoluntaryStats};
 use service::week_status::{MockWeekStatusService, WeekStatus};
 use service::MockPermissionService;
 use service::ServiceError;
+use shifty_utils::{DayOfWeek, ShiftyDate};
 
 use service::rebooking_reconciliation::{
     RebookingReconciliationService, RunForWeekOutcome, SkipReason,
@@ -195,15 +202,35 @@ fn build_service(
 
 // ─── Pure-fn Matrix (week_excess) ────────────────────────────────────────────
 
-/// REB-AUTO-01: week_excess == max(ist - (soll + committed), 0), NaN/Inf → 0.
+/// REB-AUTO-01 + REB-AUTO-06: week_excess ==
+/// `min( max(ist - (soll + committed), 0), max(-balance, 0) )`.
+///
+/// Der unbeschraenkte Ueberschuss (REB-AUTO-01) wird seit Phase 57 zusaetzlich
+/// vom Headroom des bezahlten Stundenkontos gedeckelt (REB-AUTO-06): die
+/// Automatik gleicht das Konto bis 0 aus, hebt es aber nie darueber. Der
+/// HR-Vorschlagspfad (`proposed_hours`) bleibt bewusst UNgedeckelt und darf die
+/// Freiwilligen-Zusage unterschreiten (Invariante I-5, D-57-01).
+///
+/// Nicht-endliche Eingaben (NaN/Inf) ergeben in ALLEN vier Parametern 0.0.
 #[test]
 fn week_excess_matrix() {
-    // ist - committed (soll=0 in run_for_week; committed==soll_total).
-    assert!((week_excess(10.0, 0.0, 5.0) - 5.0).abs() < 1e-6, "10-5=5");
-    assert!((week_excess(5.0, 0.0, 5.0) - 0.0).abs() < 1e-6, "5-5=0 clamp");
-    assert!((week_excess(3.0, 0.0, 5.0) - 0.0).abs() < 1e-6, "negative clamps to 0");
-    assert!((week_excess(f32::NAN, 0.0, 5.0) - 0.0).abs() < 1e-6, "NaN -> 0");
-    assert!((week_excess(f32::INFINITY, 0.0, 5.0) - 0.0).abs() < 1e-6, "Inf -> 0");
+    // ist - committed (soll=0 in run_for_week; committed==soll_total). Balance
+    // -8 laesst in diesen fuenf Bestandszeilen genug Headroom → Deckel bindet nicht.
+    assert!((week_excess(10.0, 0.0, 5.0, -8.0) - 5.0).abs() < 1e-6, "10-5=5");
+    assert!((week_excess(5.0, 0.0, 5.0, -8.0) - 0.0).abs() < 1e-6, "5-5=0 clamp");
+    assert!((week_excess(3.0, 0.0, 5.0, -8.0) - 0.0).abs() < 1e-6, "negative clamps to 0");
+    assert!((week_excess(f32::NAN, 0.0, 5.0, -8.0) - 0.0).abs() < 1e-6, "NaN -> 0");
+    assert!((week_excess(f32::INFINITY, 0.0, 5.0, -8.0) - 0.0).abs() < 1e-6, "Inf -> 0");
+
+    // REB-AUTO-06 / Gegenprobe D-57-02: unconstrained waere 15-5=10, der Headroom
+    // aus Balance -2 ist 2 → der Deckel bindet (Invariante I-3).
+    assert!((week_excess(15.0, 0.0, 5.0, -2.0) - 2.0).abs() < 1e-6, "cap binds: min(10, 2) = 2");
+    // Invariante I-4: bei ausgeglichener oder positiver Balance gibt es nichts
+    // auszugleichen — kein Uebertrag, auch bei freiwilligem Ueberschuss.
+    assert!((week_excess(10.0, 0.0, 5.0, 0.0) - 0.0).abs() < 1e-6, "balance 0 -> no headroom");
+    assert!((week_excess(10.0, 0.0, 5.0, 3.0) - 0.0).abs() < 1e-6, "positive balance -> no headroom");
+    // Der NaN/Inf-Guard deckt auch den neuen vierten Parameter ab (T-57-07).
+    assert!((week_excess(10.0, 0.0, 5.0, f32::NAN) - 0.0).abs() < 1e-6, "NaN balance -> 0");
 }
 
 // ─── run_for_week behavior cases ─────────────────────────────────────────────
@@ -314,6 +341,147 @@ async fn run_for_week_no_excess_skips() {
         RunForWeekOutcome::Skipped {
             reason: SkipReason::NoExcess
         }
+    );
+}
+
+/// Case 8 (REB-AUTO-06, Invariante I-3): der Balance-Deckel bindet. Ist=15,
+/// committed=5 → unconstrained waere `15 − 5 = 10`; der Headroom aus Balance −2
+/// ist 2 → gebucht werden 2.0, nicht 10.0 (Gegenprobe D-57-02).
+///
+/// Die Roadmap-Formulierung „Ueberschuss 5" bezieht sich auf das Perioden-Delta
+/// `Ist − Soll` ueber BEIDE Wochen des Referenz-Szenarios, nicht auf diesen
+/// Wochen-Input — hier zaehlt allein `min(Wochen-Ueberschuss, Headroom)`.
+///
+/// Das `.withf` pinnt die Balance-Range strukturell (Pitfall 3): `suggest()` und
+/// `approve()` lesen die Balance fuer die ISOLIERTE ISO-Woche OHNE Carryover.
+/// Wer dieses naheliegende Muster nach `run_for_week` kopiert, faerbt diesen Test
+/// rot, statt still den falschen Deckel zu bauen.
+#[tokio::test]
+async fn run_for_week_balance_cap_binds() {
+    let created: Arc<std::sync::Mutex<Vec<ExtraHours>>> =
+        Arc::new(std::sync::Mutex::new(Vec::new()));
+    let created_cap = created.clone();
+    let mut extra_hours_service = MockExtraHoursService::new();
+    extra_hours_service
+        .expect_create()
+        .times(2)
+        .returning(move |eh, _, _| {
+            created_cap.lock().unwrap().push(eh.clone());
+            Ok(eh.clone())
+        });
+
+    let mut rebooking_batch_service = MockRebookingBatchService::new();
+    rebooking_batch_service
+        .expect_create()
+        .times(1)
+        .returning(|batch, entries, _, _| {
+            assert_eq!(batch.kind, RebookingBatchKind::AutoCron);
+            assert_eq!(batch.state, RebookingBatchState::Approved);
+            assert!(entries.is_empty(), "F4 batch claims the slot; no entry");
+            Ok(batch.clone())
+        });
+
+    // D-57-07: year-to-date ab dem 1. Januar bis Sonntag der verarbeiteten
+    // ISO-Woche, include_carryover = true. NICHT die isolierte Wochen-Range.
+    let mut reporting_service = MockReportingService::new();
+    reporting_service
+        .expect_get_report_for_employee_range()
+        .withf(|sales_person_id, from, to, include_carryover, _ctx, _tx| {
+            *sales_person_id == sp_id()
+                && *from == ShiftyDate::first_day_in_year(2026)
+                && *to
+                    == ShiftyDate::new(2026, 12, DayOfWeek::Sunday)
+                        .expect("KW 12/2026 has a Sunday")
+                && *include_carryover
+        })
+        .returning(|_, _, _, _, _, _| Ok(make_report(-2.0)));
+
+    let service = build_service(
+        extra_hours_service,
+        rebooking_batch_service,
+        reporting_service,
+        stats_service(15.0, 5.0),
+        week_unset(),
+        MockEmployeeWorkDetailsService::new(),
+        toggle_on(),
+        MockClockService::new(),
+        perm_ok(),
+        tx_ok(),
+    );
+
+    let outcome = service
+        .run_for_week(
+            sp_id(),
+            2026,
+            12,
+            RebookingBatchKind::AutoCron,
+            Authentication::Full,
+            None,
+        )
+        .await
+        .expect("run_for_week must succeed");
+
+    match outcome {
+        RunForWeekOutcome::Booked { hours } => {
+            assert!(
+                (hours - 2.0).abs() < 1e-6,
+                "capped: min(15-5, -(-2)) = 2, got {hours}"
+            );
+        }
+        other => panic!("expected Booked, got {other:?}"),
+    }
+
+    let rows = created.lock().unwrap();
+    assert_eq!(rows.len(), 2, "exactly one pair");
+    let out = rows
+        .iter()
+        .find(|r| r.category == ExtraHoursCategory::VolunteerWork)
+        .expect("VolunteerWork out-row");
+    let inn = rows
+        .iter()
+        .find(|r| r.category == ExtraHoursCategory::ExtraWork)
+        .expect("ExtraWork in-row");
+    assert!((out.amount + 2.0).abs() < 1e-6, "out must be -2.0");
+    assert!((inn.amount - 2.0).abs() < 1e-6, "in must be +2.0");
+}
+
+/// Case 9 (REB-AUTO-06, Invariante I-4): ausgeglichene Balance → kein Uebertrag.
+/// Ist=15 > committed=5 liefert einen freiwilligen Ueberschuss, aber das bezahlte
+/// Stundenkonto steht auf 0 — es gibt nichts auszugleichen, und die Automatik
+/// darf das Konto nicht ins Plus heben. Kein `ExtraHoursService::create`, kein
+/// `RebookingBatchService::create` (beide Mocks ohne Expect → jeder Write paniked).
+#[tokio::test]
+async fn run_for_week_non_negative_balance_skips() {
+    let service = build_service(
+        MockExtraHoursService::new(),
+        MockRebookingBatchService::new(),
+        reporting_service(0.0),
+        stats_service(15.0, 5.0),
+        week_unset(),
+        MockEmployeeWorkDetailsService::new(),
+        toggle_on(),
+        MockClockService::new(),
+        perm_ok(),
+        tx_ok(),
+    );
+
+    let outcome = service
+        .run_for_week(
+            sp_id(),
+            2026,
+            12,
+            RebookingBatchKind::AutoCron,
+            Authentication::Full,
+            None,
+        )
+        .await
+        .expect("run_for_week must succeed");
+    assert_eq!(
+        outcome,
+        RunForWeekOutcome::Skipped {
+            reason: SkipReason::NoExcess
+        },
+        "balance >= 0 leaves no headroom (I-4)"
     );
 }
 
