@@ -225,3 +225,12 @@ gemessen statt angenommen).
 |---|---|
 | `f169b176` | `docs(57-01)`: VOL-ACCT-03 neu fassen, VOL-ACCT-04 + REB-AUTO-06, Traceability 19/19 |
 | `c1265e7e` | `docs(57-01)`: STATE.md — Plan-01-Decisions + Checkpoint-Position |
+| `c77364e3` | `docs(57-01)`: SUMMARY — Requirements-Korrektur + Bestandsdaten-Pre-Flight |
+
+## Self-Check: PASSED
+
+- `.planning/REQUIREMENTS.md` — FOUND
+- `.planning/phases/57-.../57-01-SUMMARY.md` — FOUND
+- Commit `f169b176` — FOUND
+- Commit `c1265e7e` — FOUND
+- Commit `c77364e3` — FOUND

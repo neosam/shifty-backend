@@ -647,14 +647,14 @@ gearbeitet, Überschuss 5, Übertrag trotzdem nur 2 (Deckel), Balance 0.
 `service_impl/src/test/rebooking_reconciliation.rs` (Tests invertieren),
 `docs/features/F14-rebooking.{md,_de.md}` + F07 + F08 (Docs-Freshness-Gate).
 
-**Plans:** 6 plans
+**Plans:** 1/6 plans executed
 
 **Wave structure:** W1 = 01 · W2 = 02 · W3 = 03 · W4 = 04 + 05 (parallel) · W5 = 06
 
 Plans:
 **Wave 1**
 
-- [ ] 57-01-PLAN.md — Spec-Korrektur: VOL-ACCT-03 neu fassen, VOL-ACCT-04 + REB-AUTO-06 anlegen, Traceability 19/19 + Bestandsdaten-Pre-Flight (D-57-05)
+- [x] 57-01-PLAN.md — Spec-Korrektur: VOL-ACCT-03 neu fassen, VOL-ACCT-04 + REB-AUTO-06 anlegen, Traceability 19/19 + Bestandsdaten-Pre-Flight (D-57-05)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -689,7 +689,7 @@ Referenz-Szenario aus Plan 04.
 | 54.5. Voluntary-Soll Absence-Aware-Angleichung (Hotfix v2.6.1) | 2/2 | Complete | 2026-07-10 |
 | 55. Manuelle Umbuchung + HR-Alert-Modal (F3 + F5) | 6/6 | Complete    | 2026-07-24 |
 | 56. Wochen-Cron + Rollout-Backfill (F4) | 6/6 | Complete   | 2026-07-26 |
-| 57. F14-Rebooking-Wirksamkeit — Requirements-Korrektur + Balance-Ausgleich | 0/6 | Planned | — |
+| 57. F14-Rebooking-Wirksamkeit — Requirements-Korrektur + Balance-Ausgleich | 1/6 | In Progress|  |
 
 Requirements-Coverage: 17/17 mapped (5 → P54, 7 → P55, 5 → P56); VOL-ACCT-03
 wird in P57 neu gefasst + 1 neues REQ ergänzt.

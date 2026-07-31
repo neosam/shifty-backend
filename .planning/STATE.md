@@ -6,15 +6,15 @@ current_phase: 57
 current_phase_name: f14-rebooking-wirksamkeit-requirements-korrektur-balance-aus
 status: executing
 stopped_at: Phase 57 geplant — bereit zur Ausführung
-last_updated: "2026-07-31T13:17:12.992Z"
+last_updated: "2026-07-31T13:33:26.448Z"
 last_activity: 2026-07-31
-last_activity_desc: Phase 57 execution started
+last_activity_desc: Phase 57 Plan 01 Task 1 committed, Checkpoint Task 2 offen
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 29
-  completed_plans: 23
-  percent: 79
+  completed_plans: 24
+  percent: 80
 ---
 
 # Project State: Shifty Backend
@@ -34,12 +34,13 @@ progress:
 ## Current Position
 
 Phase: 57 (f14-rebooking-wirksamkeit-requirements-korrektur-balance-aus) — EXECUTING
-Plan: 1 of 6 — Task 1/2 fertig, PAUSIERT am blockierenden Human-Verify-Checkpoint (Task 2)
-Status: Executing Phase 57. Plan 01 Task 1 (Requirements-Korrektur) ist committed (`f169b176`).
-Task 2 ist der Bestandsdaten-Pre-Flight (zwei SELECTs gegen die Ziel-DB zur Prüfung von
-D-57-05/D-57-03); lokal existiert keine `localdb.sqlite3`, der Befund muss aus der
-Zielumgebung kommen. Wave 2 darf erst nach diesem Befund starten.
-Last activity: 2026-07-31 — Phase 57 Plan 01 Task 1 committed, Checkpoint Task 2 offen
+Plan: 2 of 6 — Plan 01 COMPLETE (2/2 Tasks, Human-Verify-Gate beantwortet)
+Status: Ready to execute — Wave 2 (Plan 02 Filter-Fix, Plan 03 Balance-Deckel) ist freigegeben.
+Der Bestandsdaten-Pre-Flight ist gemessen: `localdb.sqlite3` ist laut Nutzer die Ziel-DB,
+`rebooking_batch` ist leer (keine `kind`-Zeilen, `NULL|NULL|0`). Kein Blocker-Befund —
+D-57-05 (Auto-Cron nie aktiv) und D-57-03 (keine Rows ≤2025) sind nicht widerlegt, die
+rückwirkende Leseänderung aus Wave 2 ist abgesichert.
+Last activity: 2026-07-31 — Phase 57 Plan 01 abgeschlossen (Requirements-Korrektur 19/19)
 
 ## Quick Tasks Completed
 
@@ -211,8 +212,8 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 ## Session Continuity
 
 **Last session:** 2026-07-31T13:17:12.984Z
-**Stopped at:** Phase 57 Plan 01 — Task 1 committed (`f169b176`); blockierender Human-Verify-Checkpoint Task 2 (Bestandsdaten-Pre-Flight, zwei SELECTs gegen die Ziel-DB) offen
-**Resume file:** .planning/phases/57-f14-rebooking-wirksamkeit-requirements-korrektur-balance-aus/57-01-PLAN.md
+**Stopped at:** Completed 57-01-PLAN.md — Requirements 19/19 korrigiert, Bestandsdaten-Pre-Flight gemessen (kein Blocker), Wave 2 freigegeben
+**Resume file:** .planning/phases/57-f14-rebooking-wirksamkeit-requirements-korrektur-balance-aus/57-01-SUMMARY.md
 
 **To resume work in a new session:**
 
@@ -329,3 +330,4 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 | Phase 56 P04 | 11min | 2 tasks | 4 files |
 | Phase 56 P05 | 8min | 3 tasks | 9 files |
 | Phase 56 P06 | 7min | 3 tasks | 8 files |
+| Phase 57 P01 | 25min | 2 tasks | 2 files |
