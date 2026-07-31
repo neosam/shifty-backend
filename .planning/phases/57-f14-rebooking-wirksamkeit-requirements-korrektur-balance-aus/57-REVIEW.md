@@ -26,6 +26,12 @@ findings:
   info: 2
   total: 18
 status: issues_found
+fix_run:
+  date: 2026-07-31
+  fixed: [CR-01, CR-02, CR-03, WR-01, WR-02, WR-03, WR-04, WR-05, WR-07, WR-08, WR-10, WR-11, WR-12, WR-13]
+  partial: [WR-06]
+  obsolete: [WR-09]
+  out_of_scope: [IN-01, IN-02]
 ---
 
 # Phase 57: Code Review Report
@@ -74,11 +80,35 @@ Nachfolger direkt in den behobenen Bug zurückführt, und eine Verdopplung der
 YTD-Report-Roundtrips im Backfill, die den in Phase 56 explizit gesetzten DoS-Bound
 aufweicht.
 
+## Fix-Lauf (2026-07-31)
+
+Die drei Blocker wurden in einem ersten Lauf behoben (`88598514`,
+`11c242a2`, `20a00817`), die dreizehn Warnungen in einem zweiten. Jedes
+Finding traegt unten eine **Status**-Zeile mit dem zugehoerigen Commit.
+
+- **Behoben:** CR-01, CR-02, CR-03, WR-01, WR-02, WR-03, WR-04, WR-05,
+  WR-07, WR-08, WR-10, WR-11, WR-12, WR-13.
+- **Teilweise behoben:** WR-06 — das Cutoff-Gate steht jetzt vor den
+  teuren Reads; der Doppel-Read im Apply-Zweig und eine untere Schranke
+  fuer `from` bleiben bewusst offen (Begruendung am Finding).
+- **Gegenstandslos:** WR-09 — durch den CR-01-Fix vollstaendig erledigt
+  (verifiziert: beide Call-Sites haben einen 2027-Test).
+- **Nicht im Scope:** IN-01, IN-02 (INFO).
+
+Gates nach dem Fix-Lauf gruen: `cargo build`, `cargo test` (845 Tests in
+`service_impl`, Workspace vollstaendig), `cargo clippy --workspace
+--all-targets -- -D warnings`. `CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt
+bei 13 — kein Fix veraendert einen persistierten `value_type`.
+
+---
+
 ## Narrative Findings (AI reviewer)
 
 ### Critical Issues
 
 #### CR-01: Balance-Range ist kalender-verankert — falsches Carryover-Jahr + Extra-ISO-Woche ab 2027
+
+**Status:** fixed — Commit `88598514` (Balance-Range an ISO-Koordinaten verankert, zwei Regressionstests fuer 2027).
 
 **File:** `service_impl/src/rebooking_reconciliation.rs:645-659` und `service_impl/src/rebooking_reconciliation.rs:776-790`
 
@@ -138,6 +168,8 @@ der vorhandene Test in `voluntary_rebooking.rs::run_for_week_balance_cap_binds` 
 
 #### CR-02: Dry-Run-Preview des Backfill verletzt die Invariante I-7, die der Code selbst behauptet
 
+**Status:** fixed — Commit `11c242a2` (Dry-Run fuehrt den vergebenen Headroom in einer `HashMap` mit; Preview-Summe == Apply-Summe ueber drei Wochen).
+
 **File:** `service_impl/src/rebooking_reconciliation.rs:764-830`
 
 **Issue:**
@@ -191,6 +223,8 @@ dokumentiert bleibt.
 ---
 
 #### CR-03: Bei dynamischen Verträgen lässt das Rebooking-Paar Stunden verschwinden
+
+**Status:** fixed — Commit `20a00817` (leseseitige Option b: Rebooking-getaggte ExtraWork-Rows aus dem SOLL des Soll=Ist-Zweigs). Nachtrag: dieselbe Korrektur fuer `get_reports_for_all_employees` in `4f86380f` (WR-01).
 
 **File:** `service_impl/src/reporting.rs:2317-2323` und `service_impl/src/reporting.rs:2370-2371`, `service_impl/src/reporting.rs:2408-2414`
 
@@ -257,6 +291,8 @@ In jedem Fall: ein Test mit `expected_hours = 0.0 / is_dynamic = true` in
 
 #### WR-01: `get_reports_for_all_employees` — no-contract-/dynamic-Zweige zählen das `−h`-Bein gar nicht
 
+**Status:** fixed — Commit `4f86380f`. Beide Sonderzweige zaehlen jetzt die manuelle VolunteerWork-Summe; im dynamischen Zweig zusaetzlich die CR-03-Soll-Bereinigung (ohne sie haette der WR-01-Fix den CR-03-Fehler in den Summary-Pfad getragen). Snapshot-Version unveraendert 13 — der Builder liest `get_report_for_employee_range`, nicht diesen Pfad.
+
 **File:** `service_impl/src/reporting.rs:1363-1421`
 
 **Issue:** Beide Sonderzweige setzen `volunteer_hours` aus reinen Shiftplan-Größen
@@ -282,6 +318,8 @@ let manual_volunteer: f32 = extra_hours_array.iter()
 ---
 
 #### WR-02: Kein Epsilon vor `excess <= 0.0` — Float-Residuum erzeugt Micro-Pair und verbrennt den UNIQUE-Slot
+
+**Status:** fixed — Commit `78238781`. Gemeinsame Konstante `MIN_BOOKABLE_HOURS = 0.01`, angewandt im Schreibpfad UND vor dem `dry_run`-Zweig des Backfill (dort erzeugt die CR-02-Buchfuehrung das Residuum ohne DB-Roundtrip). `would_book` spiegelt die Schwelle.
 
 **File:** `service_impl/src/rebooking_reconciliation.rs:667-673` (und `:795`, `:819`)
 
@@ -320,6 +358,8 @@ Im Backfill analog für `would_book` / den `excess <= 0.0`-Zweig.
 
 #### WR-03: Trait-Doku beschreibt weiter die ungedeckelte Formel
 
+**Status:** fixed — Commit `d8955d40` (`BackfillPreviewItem.excess`, `run_for_week`-Ablauf als Schritte 3+4, zusaetzlich `SkipReason::NoExcess`).
+
 **File:** `service/src/rebooking_reconciliation.rs:115-116` und `service/src/rebooking_reconciliation.rs:195-197`
 
 **Issue:** Zwei Doc-Kommentare auf der öffentlichen Trait-Oberfläche sind nach dem
@@ -351,6 +391,8 @@ ergänzen.
 
 #### WR-04: `ExtraHoursSource`-Domänendoku fordert weiterhin genau den entfernten Filter
 
+**Status:** fixed — Commit `68d37576`. Alle drei Bloecke (Enum, Variante `Rebooking`, Feld `ExtraHours::source`) auf die neue Semantik umgeschrieben, mit expliziter Warnung vor dem Wiedereinbau eines `source == Manual`-Vorfilters.
+
 **File:** `service/src/extra_hours.rs:52-58` und `service/src/extra_hours.rs:182-186`
 
 **Issue:** Der Enum-Doc-Kommentar sagt unverändert:
@@ -380,6 +422,8 @@ aber nur dort, wo der Filter nicht mehr steht.
 
 #### WR-05: Toter No-op-Rebind nach der Filter-Entfernung
 
+**Status:** fixed — Commit `70574077`.
+
 **File:** `service_impl/src/reporting.rs:1217-1218`
 
 **Issue:**
@@ -398,6 +442,8 @@ Typ formal neu gebunden wird.
 ---
 
 #### WR-06: Backfill liest Report + Stats vor dem Toggle-Gate und danach noch einmal in `run_for_week`
+
+**Status:** teilweise fixed — Commit `878595f2`. Punkt 1 (Cutoff-Gate vor die teuren Reads) ist umgesetzt; ToggleOff-Items tragen jetzt `0.0` in den Kennzahlen, dokumentiert am `BackfillPreviewItem`. **Offen (bewusst):** Punkt 2, der Doppel-Read im Apply-Zweig — ihn aufzuloesen hiesse, vorberechnete Werte in `run_for_week` durchzureichen und damit einen zweiten Eingang in den Schreibpfad zu bauen (Single-Write-Path, Pitfall 15). Ebenfalls offen die angeregte untere Schranke fuer `from`: das ist eine Produktentscheidung, kein Review-Fix.
 
 **File:** `service_impl/src/rebooking_reconciliation.rs:776-842`
 
@@ -437,6 +483,8 @@ rückwärts) in `backfill_range` erwägen.
 
 #### WR-07: `item.excess` wird nach dem Apply nicht aus dem tatsächlich gebuchten Betrag nachgeführt
 
+**Status:** fixed — Commit `678f28be`.
+
 **File:** `service_impl/src/rebooking_reconciliation.rs:843-852`
 
 **Issue:** Der Apply-Zweig wertet `RunForWeekOutcome::Booked { .. }` aus und verwirft das
@@ -457,6 +505,8 @@ RunForWeekOutcome::Booked { hours } => {
 ---
 
 #### WR-08: `week_excess`-Parameter `soll` ist an beiden Call-Sites tot; `week_voluntary_figures` gibt denselben Wert doppelt zurück
+
+**Status:** fixed — Commit `9d71b922` (`week_excess(ist, committed, balance)`, `week_voluntary_figures -> (ist, committed)`; `voluntary_soll` im Preview aus `committed`, per Konstruktion derselbe Wert).
 
 **File:** `service_impl/src/rebooking_reconciliation.rs:82-94`, `:208-234`, `:667`, `:795`
 
@@ -481,6 +531,8 @@ und `week_voluntary_figures` auf `(f32, f32)` = `(ist, committed)` kürzen. Die
 
 #### WR-09: Keine Testabdeckung für die ISO-Jahresgrenze im neuen Balance-Read
 
+**Status:** obsolete — durch den CR-01-Fix (`88598514`) vollstaendig erledigt und verifiziert. Der Commit ergaenzte `voluntary_rebooking.rs::run_for_week_balance_range_is_iso_anchored_in_2027` und `rebooking_backfill.rs::backfill_balance_range_is_iso_anchored_in_2027` (beide pinnen den Montag der ISO-KW 1/2027 = 2027-01-04) und zog das `.withf` von `run_for_week_balance_cap_binds` vom Kalender- auf den ISO-Anker nach. Die ISO-Jahresgrenze ist damit an BEIDEN Call-Sites getestet — kein zweiter Fix noetig.
+
 **File:** `service_impl/src/test/voluntary_rebooking.rs:393-404`
 
 **Issue:** Das `.withf`-Prädikat pinnt die Balance-Range strukturell — aber mit
@@ -497,6 +549,8 @@ rot aus und wird nach dem CR-01-Fix grün.
 ---
 
 #### WR-10: `assert_snapshot_shift` überspringt zwei von vier Snapshot-Feldern für genau die verschobenen value_types
+
+**Status:** fixed — Commit `3aea5bfb`. Der Shift wird jetzt in `value_delta`, `value_ytd_to` und `value_full_year` geprueft; `value_ytd_from` bleibt bit-exakt.
 
 **File:** `service_impl/src/test/billing_period_straddling.rs:465-482`
 
@@ -530,6 +584,8 @@ assert_f32_bit_eq(act_val.value_ytd_from, exp_val.value_ytd_from, &name, "value_
 
 #### WR-11: Test- und Dateinamen behaupten das Gegenteil der Assertion
 
+**Status:** fixed — Commit `c476591a`. Alle vier Renames plus die Datei (`rebooking_neutrality.rs` -> `rebooking_effectiveness.rs`); Querverweise in `docs/features/F07`, `F08`, `F14` (beide Sprachen) und drei Test-Modul-Headern mitgezogen.
+
 **File:** `service_impl/src/test/rebooking_neutrality.rs:373,383`, `service_impl/src/test/rebooking_reconciliation.rs:253`, `service_impl/src/test/booking_information.rs:449`
 
 **Issue:** Vier Namen sind nach der Semantik-Umkehr aktiv irreführend:
@@ -559,6 +615,8 @@ Neutralitätstest — `rebooking_effectiveness.rs` wäre der ehrlichere Name.
 
 #### WR-12: Keine Leseseiten-Abdeckung für die Richtung `ExtraToVolunteer`
 
+**Status:** fixed — Commit `26b6ab34` (`reverse_rebooking_lowers_balance_and_raises_volunteer`, ueber Range-Report UND `get_week`).
+
 **File:** `service_impl/src/test/rebooking_neutrality.rs:181-186`, `service_impl/src/test/rebooking_reference_scenario.rs:128-145`
 
 **Issue:** Sämtliche neuen Leseseiten-Fixtures erzeugen ausschließlich das
@@ -578,6 +636,8 @@ ist derzeit ungetestet.
 ---
 
 #### WR-13: Zweiter `run_for_week`-Lauf meldet jetzt `NoExcess` statt `AlreadyProcessed`
+
+**Status:** fixed (minimale Option) — Commit `34a034ca`. Semantik dokumentiert (`SkipReason::AlreadyProcessed`-Rustdoc, Impl-Kommentar, F14 §9.1 in beiden Sprachen) und mit `run_for_week_second_run_reports_no_excess` festgenagelt. Den Slot-Check vorzuziehen wurde verworfen: das kostete fuer JEDE Woche einen zusaetzlichen Batch-Lookup und widerspraeche WR-06.
 
 **File:** `service_impl/src/rebooking_reconciliation.rs:661-698`
 
@@ -604,6 +664,8 @@ Stats-Mock nach dem ersten Lauf um `h` reduziert und die erwartete Skip-Reason p
 
 #### IN-01: Tautologische Assertion in `rebooking_reference_scenario.rs`
 
+**Status:** offen — INFO, nicht im Scope dieses Fix-Laufs.
+
 **File:** `service_impl/src/test/rebooking_reference_scenario.rs:383-384`
 
 **Issue:** `let committed_over_range = 2.0 * work_details().committed_voluntary;` gefolgt
@@ -617,6 +679,8 @@ zwölf Zeilen weiter oben sichtbar.
 ---
 
 #### IN-02: `backfill_range`-Doku behauptet „keine Tx" im Dry-Run
+
+**Status:** offen — INFO, nicht im Scope dieses Fix-Laufs.
 
 **File:** `service/src/rebooking_reconciliation.rs:224-225` gegen `service_impl/src/rebooking_reconciliation.rs:746`
 
