@@ -1214,8 +1214,6 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                     tx.clone(),
                 )
                 .await?;
-            let extra_hours_array: Arc<[ExtraHours]> =
-                extra_hours_array.iter().cloned().collect();
             let previous_year_carryover = self
                 .carryover_service
                 .get_carryover(
