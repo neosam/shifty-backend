@@ -962,8 +962,17 @@ impl<Deps: RebookingReconciliationServiceDeps> RebookingReconciliationService
                     )
                     .await?;
                 match outcome {
-                    RunForWeekOutcome::Booked { .. } => {
+                    RunForWeekOutcome::Booked { hours } => {
                         item.skipped = false;
+                        // WR-07: autoritativ ist, was `run_for_week` tatsaechlich
+                        // gebucht hat — nicht der Betrag, den `backfill_range`
+                        // selbst berechnet hat. Die beiden Rechnungen laufen
+                        // nebeneinander (der Apply-Zweig delegiert, rechnet aber
+                        // vorher selbst fuer den Preview); sobald sie
+                        // auseinanderlaufen, meldete die REST-Antwort sonst einen
+                        // Betrag, der nie gebucht wurde, obwohl die tatsaechliche
+                        // Zahl unmittelbar zur Hand ist.
+                        item.excess = hours;
                     }
                     RunForWeekOutcome::Skipped { reason } => {
                         item.skip_reason = Some(reason);

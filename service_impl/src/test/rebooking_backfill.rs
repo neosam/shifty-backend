@@ -570,6 +570,86 @@ async fn backfill_dry_run_sub_threshold_excess_is_no_excess() {
     );
 }
 
+/// WR-07 (Code-Review Phase 57): im Apply-Zweig ist der GEBUCHTE Betrag
+/// autoritativ fuer `item.excess`, nicht die Vorab-Rechnung des Backfill.
+///
+/// `backfill_range` berechnet den Ueberschuss fuer den Preview selbst und
+/// delegiert im Apply an `run_for_week`, das ihn ein zweites Mal berechnet.
+/// Solange beide Rechnungen identisch sind, faellt der Unterschied nicht auf —
+/// CR-01 und WR-02 waren aber genau solche Divergenzen, und jede kuenftige
+/// Aenderung an `run_for_week` kann eine neue erzeugen. Verwirft der Apply-Zweig
+/// das `hours`-Feld aus `Booked { hours }`, meldet die REST-Antwort einen
+/// Betrag, der nie gebucht wurde.
+///
+/// Der Balance-Mock liefert hier bei jedem Aufruf einen anderen Wert (−10, dann
+/// −3), zwingt die beiden Rechnungen also auseinander: der Preview-Zweig
+/// errechnet `min(4, 10) = 4`, `run_for_week` bucht `min(4, 3) = 3`.
+#[tokio::test]
+async fn backfill_apply_reports_the_amount_run_for_week_booked() {
+    let balances = Arc::new(std::sync::Mutex::new(vec![-10.0f32, -3.0f32]));
+    let mut reporting_service = MockReportingService::new();
+    reporting_service
+        .expect_get_report_for_employee_range()
+        .returning(move |_, _, _, _, _, _| {
+            let mut queue = balances.lock().unwrap();
+            let balance = if queue.is_empty() {
+                -3.0
+            } else {
+                queue.remove(0)
+            };
+            Ok(make_report(balance))
+        });
+
+    let booked_rows: Arc<std::sync::Mutex<Vec<f32>>> = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let rows_for_eh = booked_rows.clone();
+    let mut extra_hours_service = MockExtraHoursService::new();
+    extra_hours_service.expect_create().returning(move |eh, _, _| {
+        if eh.category == ExtraHoursCategory::ExtraWork {
+            rows_for_eh.lock().unwrap().push(eh.amount);
+        }
+        Ok(eh.clone())
+    });
+
+    let mut rebooking_batch_service = MockRebookingBatchService::new();
+    rebooking_batch_service
+        .expect_create()
+        .returning(|batch, _, _, _| Ok(batch.clone()));
+
+    let service = build_service(
+        extra_hours_service,
+        rebooking_batch_service,
+        reporting_service,
+        stats_service(9.0, 5.0), // unconstrained = 4.0
+        week_unset(),
+        contracts(vec![capped_work_details()]),
+        toggle_from("2026-01-01"),
+        clock_2026_w12(), // upper = KW 11
+        perm_ok(),
+        tx_ok(),
+    );
+
+    let items = service
+        .backfill_range(
+            ShiftyWeek::new(2026, 11),
+            false, // apply
+            Authentication::Context(()),
+            None,
+        )
+        .await
+        .expect("apply backfill must succeed");
+
+    assert_eq!(items.len(), 1);
+    assert!(!items[0].skipped);
+    let booked = booked_rows.lock().unwrap().clone();
+    assert_eq!(booked, vec![3.0], "run_for_week booked min(4, 3) = 3");
+    assert!(
+        (items[0].excess - 3.0).abs() < 1e-6,
+        "item.excess must report the booked amount (3.0), got {} — the value \
+         backfill_range computed for the preview was 4.0",
+        items[0].excess
+    );
+}
+
 /// CR-01 (Code-Review Phase 57): der Backfill-Balance-Read hat dieselbe
 /// ISO-Verankerung wie `run_for_week`.
 ///
