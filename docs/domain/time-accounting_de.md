@@ -55,6 +55,45 @@ die Erwartung um die Dauer reduziert. Effekt: Ein Tag unbezahlter
 Urlaub bringt die Balance nicht in Minus, sondern verringert die
 "was hätte gearbeitet werden müssen"-Zahl.
 
+### Übertrag freiwilliger Stunden auf das bezahlte Konto (Rebooking)
+
+Freiwillige Stunden können auf das bezahlte Stundenkonto **übertragen**
+werden. Ein Übertrag über `h` Stunden erhöht die gearbeiteten (bezahlten)
+Stunden um `h` und senkt die freiwilligen Stunden um dieselbe Menge — die
+Gesamtzahl der geleisteten Stunden bleibt gleich, nur das Konto, auf dem
+sie verbucht sind, ändert sich.
+
+Die Freiwilligen-Zusage aus dem Vertrag (`committed_voluntary`) wird von
+einem Übertrag **nicht** berührt. Sie ist die Sollgröße und bleibt
+unangetastet — ein Übertrag bewegt ausschließlich die Ist-Seite.
+
+Zwei Untergrenzen begrenzen, wie weit ein Übertrag gehen darf, und sie
+gehören zu zwei verschiedenen Akteuren:
+
+- **Die Automatik** (Wochen-Job) überträgt höchstens so viel, dass die
+  Balance `0` erreicht, und nur den Überschuss über die Zusage. Sie hebt
+  die Balance nie ins Plus, und sie lässt die Person nie unter ihre
+  Zusage fallen.
+- **Ein von HR bestätigter Vorschlag** *darf* die Zusage unterschreiten —
+  genau dafür gibt es den Vorschlag —, aber er darf die freiwilligen
+  Stunden im Jahr nie unter `0` drücken. Man kann nicht insgesamt −3
+  Stunden freiwillig gearbeitet haben.
+
+Beispiel: 5 h bezahlt + 5 h freiwillig zugesagt pro Woche über zwei
+Wochen; 3 h gearbeitet in Woche eins, 17 h in Woche zwei. Das Konto steht
+auf 8 h bezahlt / 12 h freiwillig, Balance −2. Ein Übertrag von 2 h
+gleicht es auf 10 h / 10 h aus, Balance 0. Selbst bei 23 h statt 20 h
+gearbeitet bliebe der Übertrag bei 2 h, nicht 5 — der Balance-Deckel
+bindet, und die 3 Überschuss-Stunden bleiben freiwillig.
+
+Für die Mechanik — wer das Paar schreibt, wann die Automatik läuft, wie
+der Deckel gerechnet wird — siehe
+[F14 §3 / §9.1](../features/F14-rebooking.md). Zu beachten: freiwillige
+Stunden zählen in der Wochensicht in die Balance, im Jahresreport aber
+nicht; dieser vorbestehende Unterschied zwischen den beiden
+Aggregations-Pfaden ist in
+[F07 §2.6](../features/F07-reporting-balance.md) dokumentiert.
+
 ### Ist/Soll-whole-week-out-Symmetrie für Freiwilligen-Stunden (v2.6.1)
 
 Sowohl die wöchentliche Freiwilligen-Anzeige

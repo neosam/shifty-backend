@@ -55,6 +55,44 @@ side, the expectation is reduced by the duration. Effect: A day of unpaid
 leave does not push the Balance into the negative but instead lowers the
 "how much should have been worked" figure.
 
+### Transferring voluntary hours to the paid account (rebooking)
+
+Voluntary hours can be **transferred** onto the paid hour account. A
+transfer over `h` hours raises the worked (paid) hours by `h` and lowers
+the voluntary hours by the same amount — the total number of hours the
+person put in stays the same, only the account they are booked on
+changes.
+
+The voluntary pledge from the contract (`committed_voluntary`) is **not**
+affected by a transfer. It is the target figure and is never touched — a
+transfer only ever moves the actual (`Ist`) side.
+
+Two lower bounds govern how far a transfer may go, and they belong to two
+different actors:
+
+- **The automation** (weekly job) transfers at most as much as brings the
+  balance to `0`, and only the surplus above the pledge. It never lifts
+  the balance into the positive, and it never lets the person fall below
+  their pledge.
+- **A proposal confirmed by HR** *may* undercut the pledge — that is
+  precisely what the proposal exists for — but it may never push the
+  voluntary hours for the year below `0`. You cannot have worked −3 hours
+  voluntarily in total.
+
+Example: 5 h paid + 5 h voluntary pledged per week over two weeks; 3 h
+worked in week one, 17 h in week two. The account reads 8 h paid / 12 h
+voluntary, balance −2. A transfer of 2 h settles it to 10 h / 10 h,
+balance 0. Even if 23 h had been worked instead of 20 h, the transfer
+would still be 2 h, not 5 — the balance cap binds, and the 3 surplus
+hours stay voluntary.
+
+For the mechanics — who writes the pair, when the automation runs, how
+the cap is computed — see
+[F14 §3 / §9.1](../features/F14-rebooking.md). Note that voluntary hours
+count into the balance in the weekly view but not in the annual report;
+that pre-existing difference between the two aggregation paths is
+documented in [F07 §2.6](../features/F07-reporting-balance.md).
+
 ### Ist/Soll whole-week-out symmetry for voluntary hours (v2.6.1)
 
 Both the Weekly voluntary display

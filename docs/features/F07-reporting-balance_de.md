@@ -245,36 +245,66 @@ aufblasen (`reporting.rs:1097-1098, 1406-1414`, „Dynamic-week guard").
   `holiday_hours`/`unpaid_leave_hours`/`volunteer_hours` durch Summe über
   `by_week` gefüllt — die alten Jahres-Lumps sind entfernt
   (`reporting.rs:861-874`). So schleicht sich keine Doppelzählung mehr ein.
-- **Rebooking-Neutralitäts-Filter** (VOL-ACCT-03, D-55-A1, seit Phase
-  55, Milestone v2.6): jedes `extra_hours`-Read-Aggregat behält nur
-  Zeilen mit `source == ExtraHoursSource::Manual` und **schließt**
-  `Rebooking`-Source-Zeilen **aus**. Der Filter greift einmal am
-  Aggregations-Eingang jeder der vier Report-Pfade —
-  `get_week` (`reporting.rs:859`),
-  `get_reports_for_all_employees` (`reporting.rs:1192`),
-  `hours_per_week` (`reporting.rs:1728`) und
-  `overall_extra_work_hours` (`reporting.rs:2161`). Da
-  `Rebooking`-Source-Zeilen ausschließlich `ExtraWork`/`VolunteerWork`-
-  Kategorien tragen, ist ein gleich-großes Gegenpaar `(−h, +h)` (beides
-  mit `source = 'rebooking'` gestempelt) **balance / ist / soll /
-  delta-neutral** — die gepaarten Zeilen heben sich auf und erreichen
-  keine der vier Kennzahlen. Absence/Holiday-Aggregate sind nicht
-  betroffen (Rebooking-Zeilen landen dort nie). Kein Snapshot-Schema-
-  Bump — das Paar netto-nullt im Aggregat, daher bleibt
-  `CURRENT_SNAPSHOT_SCHEMA_VERSION` bei 12. Derselbe Filter deckt
-  **jeden** `Rebooking`-Source-Writer ab: den F3-One-Shot und
-  F5-approve (Phase 55) **und** den F4-Auto-Cron-Scheduler +
-  Rollout-Backfill (Phase 56) — die Read-Ketten unterscheiden den
-  Trigger nicht, daher zählt Auto-Cron-Rebooking nie doppelt in
-  balance / F1-Ist / F2-Soll. Festgenagelt durch
-  `rebooking_neutrality_single_manual` / `rebooking_neutrality_roundtrip`
-  (`service_impl/src/test/rebooking_reconciliation.rs`) plus die drei
-  Phase-56-D-06-Property-Tests `test_neutrality_balance` /
-  `test_neutrality_f1_ist` / `test_neutrality_f2_soll`
-  (`service_impl/src/test/rebooking_neutrality.rs`), die `balance_hours`,
-  F1-Ist (`volunteer_hours`) und F2-Soll nach einem
-  `source = Rebooking`-Paar bit-identisch (`f32::to_bits()`) asserten —
-  der stehende CI-Guard. Siehe Feature
+- **Rebooking-Aggregation — Kategorie-Semantik statt Marker**
+  (VOL-ACCT-04, D-57-06, seit Phase 57, Milestone v2.7): die
+  `extra_hours`-Read-Aggregate filtern **nicht** nach Provenienz. Was
+  eine Zeile beiträgt, entscheidet ihre Kategorie:
+  `ExtraHoursCategory::as_report_type()` entscheidet über die
+  Balance-Relevanz (`ExtraWork` → `WorkingHours`, zählt in die bezahlte
+  Balance; `VolunteerWork` → `Documented`, zählt nicht), und
+  `ExtraHoursCategory::availability()` über die Anwesenheit. Ein
+  gleich-großes Gegenpaar `(−h VolunteerWork, +h ExtraWork)`, beides mit
+  `source = 'rebooking'` gestempelt, **hebt damit die Balance um `h` und
+  senkt das Ehrenamt-Ist um `h`** — das ist der Zweck des Übertrags,
+  kein Versehen. Absence/Holiday-Aggregate sind nicht betroffen
+  (Rebooking-Zeilen landen dort nie — `rebook()` schreibt nur
+  `VolunteerWork`/`ExtraWork`).
+
+  **Die einzige verbliebene source-abhängige Stelle** ist
+  `assemble_weeks` (`service_impl/src/reporting.rs`, der
+  Wochenübersichts-Pfad): dessen balance-relevante
+  `extra_working_hours`-Summe wird über `availability()` gebildet, und
+  `VolunteerWork.availability()` ist `Available`. Dort wird die
+  Konjunktion `VolunteerWork` **und** `source = Rebooking` ausgenommen,
+  weil sonst das `−h`-Bein die Anhebung des `+h`-Beins neutralisieren
+  würde und das Paar an dieser einen Stelle netto 0 wäre. Gewöhnliche
+  (Nicht-Rebooking-)`VolunteerWork`-Zeilen zählen dort unverändert mit —
+  das ist die vorbestehende Wochen-gegen-Jahres-Inkonsistenz (RISK-01),
+  die Phase 57 bewusst nicht angetastet hat. In `manual_volunteer_hours`
+  derselben Funktion bleibt die Rebooking-Zeile absichtlich drin: sie
+  ist es, die das Ehrenamt-Ist senkt.
+
+  **Was noch neutral ist:** ausschließlich das VOL-ACCT-01-**Soll**. Es
+  stammt aus `committed_voluntary` im Vertrag und liest überhaupt keine
+  `extra_hours`, ist über eine Umbuchung hinweg also bit-identisch
+  (`test_neutrality_f2_soll`). Die Delta-Zusage — Balance `+h`,
+  Ehrenamt-Ist `−h` — nageln `test_neutrality_balance` /
+  `test_neutrality_f1_ist`
+  (`service_impl/src/test/rebooking_neutrality.rs`),
+  `rebooking_neutrality_single_manual`
+  (`service_impl/src/test/rebooking_reconciliation.rs`), der
+  Wochenübersichts-Wächter `rebooking_effective_in_weekly_summary` für
+  die `assemble_weeks`-Site und das Ende-zu-Ende-Referenz-Szenario in
+  `service_impl/src/test/rebooking_reference_scenario.rs`
+  (8 h bezahlt / 12 h Ehrenamt / Balance −2 → 10 / 10 / 0) fest. Das
+  sind die stehenden CI-Wächter: sie werden rot, sobald ein
+  Rebooking-Paar die Balance nicht mehr bewegt.
+
+  **Snapshot-Konsequenz:** weil Rebooking-Zeilen jetzt die persistierten
+  Werte erreichen, wurde `CURRENT_SNAPSHOT_SCHEMA_VERSION` in Phase 57
+  auf **12 → 13** gebumpt (D-57-10) — die Phase-56-Aussage „bleibt bei
+  12" ist hinfällig. Siehe F08 §7.4.
+
+  **Historien-Hinweis.** Bis Phase 56 stand an den
+  Aggregations-Eingängen aller vier Report-Pfade (`get_week`,
+  `get_reports_for_all_employees`, `hours_per_week`,
+  `overall_extra_work_hours`) ein unbedingter Marker-Filter
+  (`source == ExtraHoursSource::Manual`, D-55-A1), begründet mit
+  „Doppelzählung". Er stammte aus der ursprünglichen Fassung von
+  VOL-ACCT-03, die Balance-Neutralität forderte — und diese Forderung
+  war selbst der Fehler: der Filter machte den gesamten Übertrag ein
+  ganzes Milestone lang wirkungslos. Neu gefasst in Phase 57
+  (VOL-ACCT-04). Siehe Feature
   [F14 §3 / §8 / §9](./F14-rebooking.md).
 
 ---
@@ -332,16 +362,19 @@ Chronologisch:
 - `20260707000001_add-source-column-to-extra-hours.sql` — Phase 54
   (Milestone v2.6) Marker-Spalte `extra_hours.source TEXT NOT NULL
   DEFAULT 'manual'` (Werte: `manual` \| `rebooking`). Volle Regeln
-  siehe Feature [F14](./F14-rebooking.md). **Reader-Impact:**
-  seit Phase 55 filtern die vier Balance-Ketten-Read-Aggregate in
-  `service_impl/src/reporting.rs` `source == Manual` (behalte `Manual`,
-  schließe `Rebooking` aus) am Aggregations-Eingang (siehe §2.6
-  Rebooking-Neutralitäts-Filter). Das Voluntary-Stats-Ist-Aggregat
-  delegiert an `EmployeeReport::volunteer_hours` (via
+  siehe Feature [F14](./F14-rebooking.md). **Reader-Impact (Stand seit
+  Phase 57):** die Aggregations-Eingänge in
+  `service_impl/src/reporting.rs` filtern **nicht** nach Provenienz; was
+  eine Zeile beiträgt, entscheidet die Kategorie-Semantik (siehe §2.6).
+  Der `source`-Wert bleibt als Herkunftskennzeichnung am Datensatz und
+  wird für die Aggregation an genau einer Stelle ausgewertet — der
+  `availability()`-basierten Summe in `assemble_weeks`. Das
+  Voluntary-Stats-Ist-Aggregat delegiert an
+  `EmployeeReport::volunteer_hours` (via
   `ReportingService::get_report_for_employee_range`) und erbt damit
-  denselben zentralen Filter. Zeilen ohne `rebooking`-Writer gehen
-  weiterhin identisch in die Balance ein (Backfill landet per
-  Column-DEFAULT auf `manual`).
+  dasselbe Verhalten. Zeilen ohne `rebooking`-Writer gehen weiterhin
+  identisch in die Balance ein (Backfill landet per Column-DEFAULT auf
+  `manual`).
 
 Reporting selbst schreibt in **keine** dieser Tabellen.
 
