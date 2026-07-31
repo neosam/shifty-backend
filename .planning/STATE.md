@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v2.6
 milestone_name: — Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
-current_phase: 56
-current_phase_name: wochen-cron-rollout-backfill-f4
+current_phase: 57
+current_phase_name: f14-rebooking-wirksamkeit-requirements-korrektur-balance-aus
 status: verifying
-stopped_at: Phase 56 context gathered
-last_updated: "2026-07-26T07:10:32.358Z"
-last_activity: 2026-07-26
-last_activity_desc: Phase 56 execution started
+stopped_at: Phase 57 context gathered
+last_updated: "2026-07-31T10:31:11.303Z"
+last_activity: 2026-07-31
+last_activity_desc: Phase 57 angelegt nach F14-Wirksamkeits-Analyse
 progress:
-  total_phases: 4
+  total_phases: 5
   completed_phases: 4
   total_plans: 23
   completed_plans: 23
-  percent: 100
+  percent: 80
 ---
 
 # Project State: Shifty Backend
@@ -27,16 +27,16 @@ progress:
 - **Latest milestone archive**: `.planning/milestones/v2.5-ROADMAP.md`
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
 - **Last shipped/closed**: **v2.5 Weekly-Overview Performance & Freiwilligen-Abwesenheiten** (shipped + archiviert 2026-07-06, Phasen 52–53, 8 Pläne + 3 Follow-Ups, 9/9 Requirements WOP-01..05 + VAA-01..04, verified_closeout, Audit `passed`)
-- **Current milestone**: **v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter** (executing; Phasen 54 + 55 complete, Phase 56 F4 offen)
-- **Current focus**: **Phase 56** — Wochen-Cron + Rollout-Backfill (F4). Automatischer Wochen-Job verarbeitet die Vorwoche und bucht Überschüsse als Ausgleich (Rebooking-Batch kind=auto_cron); rückwirkender Backfill-Command beim Rollout. Phasen 54 (Datenmodell) + 55 (F3 manuelle Umbuchung + F5 HR-Alert/Vorschlags-Modal) sind abgeschlossen, UAT durchgewunken, reale Validierung auf INT ausstehend. Phase 54.5 ist als v2.6.1 ge-shippt.
-- **Snapshot-Schema-Version**: aktuell **12**. Potenzieller Bump 12→13 in **Phase 56** discuss-phase zu pinnen (REB-AUTO-05; Beweislast beim „Nein"-Zweig = Straddling-Golden-Snapshot).
+- **Current milestone**: **v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter** (executing; Phasen 54–56 complete, Phase 57 offen — Milestone-Goal noch NICHT erreicht)
+- **Current focus**: **Phase 57** — F14-Rebooking-Wirksamkeit. Die Phasen 54–56 haben die vollständige Pipeline gebaut (Datenmodell, F1/F2-Statistik, F3 manuelle Umbuchung, F5 HR-Alert, F4 Auto-Cron + Backfill), aber der Übertrag wirkt nicht: der `source == Manual`-Filter verwirft beide Beine des Paars, die Balance bleibt unverändert. Ursache ist VOL-ACCT-03, das wörtlich das Gegenteil des Milestone-Goals fordert. P57 korrigiert **Spec vor Code**. Phase 54.5 ist als v2.6.1 ge-shippt.
+- **Snapshot-Schema-Version**: aktuell **12**. In **Phase 56** wurde der „Nein"-Zweig gepinnt (D-01, Straddling-Golden-Snapshot). Diese Entscheidung **fällt mit Phase 57** — sobald das Rebooking-Paar wirksam wird, ist der Bump 12→13 fällig.
 
 ## Current Position
 
-Phase: 56 (wochen-cron-rollout-backfill-f4) — EXECUTING
-Plan: 6 of 6
-Status: Phase complete — ready for verification
-Last activity: 2026-07-26 — Phase 56 execution started
+Phase: 57 (f14-rebooking-wirksamkeit-requirements-korrektur-balance-aus) — NOT PLANNED
+Plan: —
+Status: Phase angelegt; nächster Schritt `/gsd-plan-phase 57`
+Last activity: 2026-07-31 — Phase 57 angelegt nach F14-Wirksamkeits-Analyse
 
 ## Quick Tasks Completed
 
@@ -203,12 +203,13 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 - Backlog-Phase 999.1 „Breaking/Major Dependency-Migration" angelegt (2026-06-28): off-theme, eskaliert aus Quick-Task 260627-vgo. Bleibt separat verfügbar via `/gsd-plan-phase 999.1`.
 - **Milestone v2.6 + Phasen 54–56 angelegt (2026-07-06):** 17 Requirements → 3 Phasen (ARCHITECTURE-C Vertikal-Slice-Baseline aus Research SUMMARY-Divergenz-1 gewählt; Rationale in ROADMAP.md dokumentiert). Phase 54 = Data-Model + F1+F2 (5 Requirements: VOL-STAT/VOL-ACCT). Phase 55 = F3+F5 (7 Requirements: REB-MANUAL, HR-ALERT). Phase 56 = F4+Backfill (5 Requirements: REB-AUTO). Zwei offene Discuss-Decisions bleiben in den Phasen: Snapshot-Bump 12→13 in P56 (REB-AUTO-05), Denominator-Definition D-F1-01 + Mid-Week-Vertragswechsel D-F2-01 in P54.
+- **Phase 57 angelegt (2026-07-31): F14-Rebooking-Wirksamkeit — Requirements-Korrektur + Balance-Ausgleich.** Analyse auf User-Nachfrage ergab: der in 54–56 gebaute Übertrag freiwillig→bezahlt ist auf der Leseseite ein vollständiger No-Op — der `source == Manual`-Filter verwirft beide Beine des `(−h, +h)`-Paars, die Balance bleibt unverändert (empirisch: `−53 → −53`), das Minus wandert per Carryover ins Folgejahr. **Ursache liegt in der Planung, nicht in der Implementierung:** kein v2.6-Requirement operationalisiert das Milestone-Goal „Ausgleich"; VOL-ACCT-03 fordert wörtlich das Gegenteil („balance-neutral"). Der Widerspruch stand sichtbar in `55-CONTEXT.md` (D-55-07 „balance wird neu berechnet" vs. Constraint „NICHT verschiebt") und wurde in `55-RESEARCH.md:443` als bestätigungsbedürftig markiert, dann planintern zugunsten von VOL-ACCT-03 aufgelöst. Die Gates prüften gegen die Spec, nicht gegen den Zweck: das 55-UAT prüft „Banner verschwindet" — genau den Mechanismus (belegter UNIQUE-Slot, D-55-07), der das Versagen kaschiert. P57 korrigiert **Spec vor Code**: VOL-ACCT-03 neu fassen + neues Ausgleichs-REQ → D-55-07 entkoppeln → Filter kategorie-spezifisch → Balance-Deckel im Auto-Cron → Neutralitäts-Tests invertieren → Snapshot-Bump 12→13 (D-01 fällt mit dem Fix).
 
 ## Session Continuity
 
-**Last session:** 2026-07-26T07:10:16.665Z
-**Stopped at:** Phase 56 context gathered
-**Resume file:** .planning/phases/56-wochen-cron-rollout-backfill-f4/56-CONTEXT.md
+**Last session:** 2026-07-31T10:31:11.283Z
+**Stopped at:** Phase 57 context gathered
+**Resume file:** .planning/phases/57-f14-rebooking-wirksamkeit-requirements-korrektur-balance-aus/57-CONTEXT.md
 
 **To resume work in a new session:**
 
