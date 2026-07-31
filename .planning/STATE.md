@@ -6,9 +6,9 @@ current_phase: 57
 current_phase_name: f14-rebooking-wirksamkeit-requirements-korrektur-balance-aus
 status: executing
 stopped_at: Phase 57 geplant — bereit zur Ausführung
-last_updated: "2026-07-31T13:02:54.000Z"
+last_updated: "2026-07-31T13:17:12.992Z"
 last_activity: 2026-07-31
-last_activity_desc: Phase 57 geplant — 6 Pläne, 14 Tasks, 5 Waves
+last_activity_desc: Phase 57 execution started
 progress:
   total_phases: 5
   completed_phases: 4
@@ -33,13 +33,13 @@ progress:
 
 ## Current Position
 
-Phase: 57 (f14-rebooking-wirksamkeit-requirements-korrektur-balance-aus) — PLANNED (6 Pläne, 14 Tasks, 5 Waves)
-Plan: — (0/6 ausgeführt)
-Status: Ready to execute — `/gsd-execute-phase 57`. Achtung: Plan 01 ist `autonomous: false` und
-hat vor Wave 2 einen blockierenden Human-Verify-Checkpoint (zwei SELECTs gegen die Ziel-DB zur
-Prüfung von D-57-05/D-57-03); lokal existiert keine `localdb.sqlite3`, der Befund muss aus der
-Zielumgebung kommen.
-Last activity: 2026-07-31 — Phase 57 geplant (Research + Pattern-Map + 6 Pläne, Checker PASSED)
+Phase: 57 (f14-rebooking-wirksamkeit-requirements-korrektur-balance-aus) — EXECUTING
+Plan: 1 of 6 — Task 1/2 fertig, PAUSIERT am blockierenden Human-Verify-Checkpoint (Task 2)
+Status: Executing Phase 57. Plan 01 Task 1 (Requirements-Korrektur) ist committed (`f169b176`).
+Task 2 ist der Bestandsdaten-Pre-Flight (zwei SELECTs gegen die Ziel-DB zur Prüfung von
+D-57-05/D-57-03); lokal existiert keine `localdb.sqlite3`, der Befund muss aus der
+Zielumgebung kommen. Wave 2 darf erst nach diesem Befund starten.
+Last activity: 2026-07-31 — Phase 57 Plan 01 Task 1 committed, Checkpoint Task 2 offen
 
 ## Quick Tasks Completed
 
@@ -210,9 +210,9 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-07-31T10:31:11.283Z
-**Stopped at:** Phase 57 context gathered
-**Resume file:** .planning/phases/57-f14-rebooking-wirksamkeit-requirements-korrektur-balance-aus/57-CONTEXT.md
+**Last session:** 2026-07-31T13:17:12.984Z
+**Stopped at:** Phase 57 Plan 01 — Task 1 committed (`f169b176`); blockierender Human-Verify-Checkpoint Task 2 (Bestandsdaten-Pre-Flight, zwei SELECTs gegen die Ziel-DB) offen
+**Resume file:** .planning/phases/57-f14-rebooking-wirksamkeit-requirements-korrektur-balance-aus/57-01-PLAN.md
 
 **To resume work in a new session:**
 
@@ -286,6 +286,9 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 - [Phase ?]: 56-05: F4 FE toggle name mirrored as a single const referencing voluntary_rebooking_gate::TOGGLE_NAME (rest-types does not re-export it)
 - [Phase ?]: 56-05: FE is_valid_iso_week_input is syntactic-only; authoritative range/53-week check stays server-side (Fat Backend, Thin Client)
 - [Phase ?]: [Phase 56]: 56-06 Docs-Freshness-Gate synced (EN+DE) for F4 cron+backfill; snapshot version STAYS AT 12 (D-01, no bump) — stale F14 12→13 corrected, F08 non-bump confirmed via straddling fixture.
+- [Phase 57]: 57-01 D-57-09 umgesetzt — VOL-ACCT-03 schuetzt nur noch VOL-ACCT-01-Soll; Balance/Ist-Neutralitaet ersatzlos gestrichen, Fehlerspur D-55-A1 als Historien-Blockquote erhalten
+- [Phase 57]: 57-01 VOL-ACCT-04 (Ausgleichswirkung Balance +h / Ehrenamt-Ist -h, Akzeptanz Referenz-Szenario D-57-02) und REB-AUTO-06 (Balance-Deckel im Auto-Cron inkl. BackfillPreviewItem.excess, HR-Formel min(|balance|, ist) ausgenommen) angelegt; Coverage 19/19, VOL-ACCT-03 auf Phase 57 umgehaengt
+- [Phase 57]: 57-01 REB-AUTO-05 erhaelt Nachtragsnotiz (D-57-10/D-57-11) statt Ummapping — Phase-56-Ausgang 'bleibt bei 12' auf 13 revidiert, Owner bleibt Phase 56
 
 ## Performance Metrics
 
