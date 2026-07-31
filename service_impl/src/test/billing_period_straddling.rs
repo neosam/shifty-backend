@@ -429,12 +429,13 @@ async fn compute_snapshot(toggle_value: Option<&'static str>) -> BillingPeriodSa
 
 /// Vergleicht zwei Snapshots, die sich nur um das Rebooking-Paar unterscheiden.
 ///
-/// Für jeden `value_type` in `expected_shifts` muss `with_pair.value_delta −
-/// without_pair.value_delta` dem erwarteten Betrag entsprechen (Toleranz 1e-3)
-/// und `value_ytd_from` byte-identisch sein (die Rebooking-Woche liegt strikt
-/// INNERHALB des Zeitraums, also nach dem Perioden-Start — der ytd_from-Wert
-/// darf sich deshalb nicht bewegen). Alle übrigen `value_type`s müssen in allen
-/// vier Feldern byte-identisch sein.
+/// Für jeden `value_type` in `expected_shifts` muss die Verschiebung in **drei**
+/// Feldern messbar sein — `value_delta`, `value_ytd_to` und `value_full_year`
+/// (Toleranz 1e-3, WR-10) —, weil die Rebooking-Woche sowohl innerhalb des
+/// Zeitraums als auch innerhalb des Jahres liegt. `value_ytd_from` muss
+/// byte-identisch bleiben: es steht auf dem Perioden-Start und damit VOR der
+/// Rebooking-Woche. Alle übrigen `value_type`s müssen in allen vier Feldern
+/// byte-identisch sein.
 #[track_caller]
 fn assert_snapshot_shift(
     with_pair: &BillingPeriodSalesPerson,
@@ -463,17 +464,36 @@ fn assert_snapshot_shift(
 
         match expected_shifts.iter().find(|(shift_vt, _)| shift_vt == vt) {
             Some((_, expected_shift)) => {
-                let actual_shift = act_val.value_delta - exp_val.value_delta;
-                assert!(
-                    (actual_shift - expected_shift).abs() < 1e-3,
-                    "value_type `{name}` field `value_delta`: erwartete Verschiebung durch das \
-                     Rebooking-Paar {expected_shift}, gemessen {actual_shift} \
-                     (mit Paar={}, ohne Paar={}). Eine Verschiebung von 0 bedeutet, dass eine \
-                     Kette das Rebooking-Paar wieder herausfiltert — der Filter-Fix aus 57-02 \
-                     erreicht den Billing-Period-Pfad dann nicht mehr.",
-                    act_val.value_delta,
-                    exp_val.value_delta,
-                );
+                // WR-10 (Code-Review Phase 57): dieselbe Verschiebung MUSS in
+                // allen drei betroffenen Feldern messbar sein, nicht nur in
+                // `value_delta`. Die Rebooking-Woche (KW 16/2026) liegt sowohl
+                // innerhalb des Zeitraums als auch innerhalb des Jahres, also
+                // gilt fuer `value_ytd_to` und `value_full_year` derselbe Shift.
+                // Genau diese beiden Felder sind die, in denen sich der
+                // Bump-Grund („eine frische Neuberechnung liefert andere Werte")
+                // manifestiert — ein Regressions-Fix, der `value_full_year`
+                // wieder rebooking-blind macht, bliebe sonst unentdeckt.
+                for (field, act, exp) in [
+                    ("value_delta", act_val.value_delta, exp_val.value_delta),
+                    ("value_ytd_to", act_val.value_ytd_to, exp_val.value_ytd_to),
+                    (
+                        "value_full_year",
+                        act_val.value_full_year,
+                        exp_val.value_full_year,
+                    ),
+                ] {
+                    let actual_shift = act - exp;
+                    assert!(
+                        (actual_shift - expected_shift).abs() < 1e-3,
+                        "value_type `{name}` field `{field}`: erwartete Verschiebung durch das \
+                         Rebooking-Paar {expected_shift}, gemessen {actual_shift} \
+                         (mit Paar={act}, ohne Paar={exp}). Eine Verschiebung von 0 bedeutet, \
+                         dass eine Kette das Rebooking-Paar wieder herausfiltert — der \
+                         Filter-Fix aus 57-02 erreicht den Billing-Period-Pfad dann nicht mehr."
+                    );
+                }
+                // `value_ytd_from` steht auf dem Perioden-Start und liegt damit
+                // VOR der Rebooking-Woche — es darf sich nicht bewegen.
                 assert_f32_bit_eq(
                     act_val.value_ytd_from,
                     exp_val.value_ytd_from,
