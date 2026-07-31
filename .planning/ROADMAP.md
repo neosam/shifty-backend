@@ -560,8 +560,14 @@ nach einer Umbuchung ist die Balance um den umgebuchten Betrag höher und das
 Ehrenamt-Ist um denselben Betrag niedriger. Damit erreicht v2.6 sein
 Milestone-Goal, das die Phasen 54–56 zwar gebaut, aber nicht eingelöst haben.
 
-**Requirements:** VOL-ACCT-03 (Neufassung) + ein neues REQ für den Ausgleich
-(ID in discuss-phase zu vergeben). Alle übrigen 16 v2.6-REQs bleiben unberührt.
+**Requirements:** VOL-ACCT-03, VOL-ACCT-04, REB-AUTO-06
+
+VOL-ACCT-03 wird neu gefasst (Schutz der Freiwilligen-Statistik statt Einfrieren
+der Balance); VOL-ACCT-04 (tatsächlicher Ausgleich: Balance +h, Ehrenamt-Ist −h)
+und REB-AUTO-06 (Balance-Deckel im Auto-Cron) sind neu — IDs in discuss-phase
+vergeben. Die übrigen 16 v2.6-REQs bleiben unberührt; REB-AUTO-05 erhält
+lediglich eine Nachtragsnotiz zum revidierten Snapshot-Bump und bleibt Phase 56
+zugeordnet.
 
 **Depends on:** Phase 56 (vollständige F3/F4/F5-Pipeline existiert und schreibt
 korrekte Paare — es fehlt ausschließlich die Lesewirkung).
