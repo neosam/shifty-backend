@@ -1,29 +1,42 @@
-//! Phase 56 Plan 01 — D-01 Straddling-Golden-Snapshot-Fixture
-//! (REB-AUTO-05, D-01-BEWEISLAST / proof-of-burden).
+//! Straddling-Golden-Snapshot-Fixture — zwei getrennte Beweislasten.
 //!
-//! **Was dieser Test beweist:** Eine Billing-Period, deren Zeitraum eine
-//! Rebooking-Woche (`source=Rebooking`-Pair) enthält, produziert **byte-
-//! identische** Snapshot-Value-Rows, egal ob der `voluntary_rebooking_auto_active_from`-
-//! Stichtag NACH, VOR oder INNERHALB des Zeitraums liegt. Das ist die Beweislast
-//! für den "Nein"-Zweig von D-01: Solange die drei Szenarien byte-identisch
-//! sind, bleibt `CURRENT_SNAPSHOT_SCHEMA_VERSION` bei **12** (keine
-//! F4-Cron-Rebooking-Quelle ändert einen persistierten `value_type`).
+//! Ursprung: Phase 56 Plan 01 (REB-AUTO-05, D-01-BEWEISLAST). Seit **Phase 57**
+//! (VOL-ACCT-04, D-57-10/D-57-11) beweist die Datei zwei verschiedene Dinge, die
+//! man nicht verwechseln darf.
 //!
-//! **Warum das grün sein MUSS (56-01 key_finding):** Alle Billing-Period-
-//! Value-Rows stammen aus `ReportingService::get_report_for_employee_range`
-//! (`billing_period_report.rs:146..187`). Diese fn filtert unbedingt
-//! `source == ExtraHoursSource::Manual` (Phase 55, D-55-A1) — der Filter ist
-//! toggle-UNABHÄNGIG. Der Stichtag-Toggle steuert erst den Auto-Cron-Write
-//! (Plan 02/03), NICHT die Read-Aggregation. Die Rebooking-Pair-Rows sind für
-//! den Snapshot also unsichtbar, unabhängig vom Toggle-Wert.
+//! ## Beweislast 1 — der Stichtag-Toggle steuert nur die Schreibseite (Invariante I-8)
 //!
-//! **Wenn ein Szenario DIVERGIERT:** Der Fixture hat das Gegenteil bewiesen —
-//! eine Kette leakt Rebooking-Rows in den Snapshot. Dann kippt D-01 auf einen
-//! Bump: Plan 06 muss `CURRENT_SNAPSHOT_SCHEMA_VERSION` 12→13 heben + Migration
-//! + F08-Docs. NICHT die Assertion anpassen — im SUMMARY melden.
+//! Auf **demselben** Datensatz liefern alle vier Toggle-Szenarien — Stichtag NACH
+//! dem Zeitraum (pre), VOR dem Zeitraum (post), INNERHALB des Zeitraums
+//! (straddling) und `None` (Feature dormant) — **byte-identische**
+//! Snapshot-Value-Rows. Grund: `voluntary_rebooking_auto_active_from` wird
+//! ausschließlich vom Auto-Cron-Write ausgewertet; die Read-Aggregation in
+//! `ReportingService::get_report_for_employee_range` liest den Stichtag für
+//! Rebooking-Rows gar nicht. Das ist die Regressions-Absicherung und wird von
+//! `test_straddling_snapshot_pre` / `_post` / `_straddling` unverändert getragen.
+//!
+//! ## Beweislast 2 — ein Rebooking-Paar IST seit Phase 57 im Snapshot sichtbar
+//!
+//! Zwei Datensätze, die sich nur um ein Rebooking-Paar über `h` unterscheiden,
+//! liefern **verschiedene** Snapshots: das `+h ExtraWork`-Bein hebt Overall,
+//! Balance und ExtraWork, das `−h VolunteerWork`-Bein senkt Volunteer.
+//! Grund: Plan 57-02 hat den pauschalen `source == ExtraHoursSource::Manual`-
+//! Vorfilter (Phase 55, D-55-A1) aus den Read-Aggregaten entfernt (D-57-06).
+//!
+//! Genau diese Verschiebung ist die Begründung für den Bump
+//! `CURRENT_SNAPSHOT_SCHEMA_VERSION` **12 → 13** (D-57-10): eine frische
+//! Neuberechnung liefert für dieselbe Periode andere Werte als ein v12-Snapshot.
+//! Sie wird von `test_straddling_snapshot_rebooking_shifts_values` getragen.
+//!
+//! **Alarm-Richtung (seit Phase 57 umgedreht):** Wenn der with-vs-without-Vergleich
+//! KEINE Verschiebung mehr zeigt, ist der Filter-Fix aus 57-02 wieder wirkungslos
+//! geworden — eine Kette filtert das Rebooking-Paar erneut heraus. Dann NICHT die
+//! Assertion abschwächen, sondern melden. Umgekehrt gilt für Beweislast 1
+//! unverändert: divergieren zwei Toggle-Szenarien auf demselben Datensatz, leckt
+//! der Stichtag in die Leseseite.
 //!
 //! Muster: reales `BillingPeriodReportServiceImpl` mit realem
-//! `ReportingServiceImpl` (Mock-ExtraHours mit Rebooking-Pair) als Reporting-
+//! `ReportingServiceImpl` (Mock-ExtraHours mit/ohne Rebooking-Pair) als Reporting-
 //! Dep; `to_bits()`-Byte-Identität pro Value-Feld
 //! (Muster `booking_information_weekly_summary_year_batch.rs`, D-52-12).
 
@@ -65,7 +78,7 @@ fn assert_f32_bit_eq(actual: f32, expected: f32, value_type: &str, field: &str) 
     assert_eq!(
         actual.to_bits(),
         expected.to_bits(),
-        "value_type `{value_type}` field `{field}` diverges: actual={actual} (0x{:08x}), expected={expected} (0x{:08x}) — a chain leaked the rebooking pair into the snapshot => D-01 flips to a 12->13 bump",
+        "value_type `{value_type}` field `{field}` diverges: actual={actual} (0x{:08x}), expected={expected} (0x{:08x}) — je nach Aufrufer bedeutet das: (a) assert_snapshot_bit_eq => der Stichtag-Toggle leckt in die Read-Aggregation (Invariante I-8 verletzt), oder (b) assert_snapshot_shift => ein value_type verschiebt sich durch das Rebooking-Paar, obwohl er das nicht darf",
         actual.to_bits(),
         expected.to_bits(),
     );
@@ -187,6 +200,27 @@ fn straddling_extra_hours() -> Vec<ExtraHours> {
     ]
 }
 
+/// Derselbe Datensatz OHNE das Rebooking-Paar — die Vergleichsseite für
+/// Beweislast 2 (D-57-11). Identische manuelle Baseline (3.0 VolunteerWork,
+/// 2.0 ExtraWork, beide `source = Manual`, Tags 1 und 2), nur die beiden
+/// Rebooking-Beine fehlen.
+///
+/// HINWEIS (Pitfall 5): Die Baseline von 3.0 VolunteerWork und der
+/// Rebooking-Betrag von 2.0 sind aufeinander abgestimmt und dürfen NICHT
+/// verändert werden. `BillingPeriodValueType::Volunteer` wird nur geschrieben,
+/// wenn `report_delta.volunteer_hours != 0.0`
+/// (`billing_period_report.rs:283`). Ein Betrag, der die Baseline exakt
+/// neutralisiert, ließe den Volunteer-Key aus der Snapshot-Map fallen — der
+/// Shift-Test schlüge dann mit einer irreführenden "key set differs"-Meldung
+/// fehl statt mit einer Werte-Abweichung. Mit 3.0 − 2.0 = 1.0 ≠ 0 existiert der
+/// Key in BEIDEN Snapshots.
+fn straddling_extra_hours_without_rebooking() -> Vec<ExtraHours> {
+    vec![
+        eh(3.0, ExtraHoursCategory::VolunteerWork, ExtraHoursSource::Manual, 1),
+        eh(2.0, ExtraHoursCategory::ExtraWork, ExtraHoursSource::Manual, 2),
+    ]
+}
+
 /// Billing-Period Mo-2026-03-02 .. So-2026-05-17 (~2.5 Monate, straddelt die
 /// Rebooking-Woche 2026-04-15).
 fn period() -> (ShiftyDate, ShiftyDate) {
@@ -219,8 +253,11 @@ impl ReportingServiceDeps for ReportingDeps {
 
 /// Baut die reale Reporting-Impl. `toggle_value` ist der Stichtag, den der
 /// `MockToggleService` für JEDEN Toggle-Lookup zurückgibt (Some(ISO-Datum) /
-/// None). In dieser Fixture ist der Wert für das Ergebnis IRRELEVANT (der
-/// source==Manual-Filter ist toggle-unabhängig) — genau das beweist der Test.
+/// None). Der Wert ist für das Ergebnis IRRELEVANT — nicht mehr, weil ein
+/// Marker-Filter ihn ausblendet (den gibt es seit 57-02 nicht mehr), sondern
+/// weil der Stichtag ausschließlich den Auto-Cron-Write steuert: die
+/// Read-Aggregation liest ihn für Rebooking-Rows gar nicht. Genau das beweisen
+/// die drei Toggle-Szenarien (Beweislast 1, Invariante I-8).
 fn build_reporting_service(
     extra_hours: Vec<ExtraHours>,
     toggle_value: Option<&'static str>,
@@ -248,11 +285,29 @@ fn build_reporting_service(
         .expect_extract_shiftplan_report()
         .returning(|_, _, _, _, _| Ok(Arc::from(Vec::new())));
 
-    let eh_arc: Arc<[ExtraHours]> = Arc::from(extra_hours);
+    let eh_vec: Vec<ExtraHours> = extra_hours;
     let mut extra_hours_service = MockExtraHoursService::new();
+    // Der Mock MUSS seine Range-Parameter respektieren: der Billing-Period-Report
+    // ruft `get_report_for_employee_range` viermal mit VERSCHIEDENEN Ranges
+    // (ytd_from = Jahresstart..Perioden-Start-1, ytd_to, full_year, delta =
+    // Perioden-Range). Gäbe der Mock stets alle Rows zurück, wäre die
+    // Datums-Position der Rebooking-Woche innerhalb des Zeitraums bedeutungslos
+    // und `value_ytd_from` würde sich mitbewegen, obwohl die Produktion (DAO-
+    // seitige Datumsfilterung) das nicht tut.
     extra_hours_service
         .expect_find_by_sales_person_id_and_year_range()
-        .returning(move |_, _, _, _, _| Ok(eh_arc.clone()));
+        .returning(move |_, from_date, to_date, _, _| {
+            let from = from_date.to_date();
+            let to = to_date.to_date();
+            Ok(eh_vec
+                .iter()
+                .filter(|eh| {
+                    let day = eh.date_time.date();
+                    day >= from && day <= to
+                })
+                .cloned()
+                .collect())
+        });
     extra_hours_service
         .expect_find_by_sales_person_id_and_year()
         .returning(|_, _, _, _, _| Ok(Arc::from(Vec::new())));
@@ -320,6 +375,7 @@ impl BillingPeriodReportServiceDeps for BpDeps {
 }
 
 fn build_billing_period_service(
+    extra_hours: Vec<ExtraHours>,
     toggle_value: Option<&'static str>,
 ) -> BillingPeriodReportServiceImpl<BpDeps> {
     let mut transaction_dao = dao::MockTransactionDao::new();
@@ -329,7 +385,7 @@ fn build_billing_period_service(
 
     BillingPeriodReportServiceImpl {
         billing_period_service: Arc::new(service::billing_period::MockBillingPeriodService::new()),
-        reporting_service: Arc::new(build_reporting_service(straddling_extra_hours(), toggle_value)),
+        reporting_service: Arc::new(build_reporting_service(extra_hours, toggle_value)),
         sales_person_service: Arc::new(MockSalesPersonService::new()),
         employee_work_details_service: Arc::new(MockEmployeeWorkDetailsService::new()),
         text_template_service: Arc::new(service::text_template::MockTextTemplateService::new()),
@@ -341,10 +397,17 @@ fn build_billing_period_service(
 }
 
 /// Berechnet die Snapshot-Value-Rows des SalesPerson für den Zeitraum, mit dem
-/// gegebenen Stichtag-Toggle-Wert.
-async fn compute_snapshot(toggle_value: Option<&'static str>) -> BillingPeriodSalesPerson {
+/// gegebenen Stichtag-Toggle-Wert und dem gegebenen ExtraHours-Datensatz.
+///
+/// Der Datensatz ist der einzige Freiheitsgrad für Beweislast 2 (with- vs.
+/// without-Rebooking); der Toggle-Wert ist der einzige Freiheitsgrad für
+/// Beweislast 1 (Toggle-Unabhängigkeit).
+async fn compute_snapshot_for(
+    extra_hours: Vec<ExtraHours>,
+    toggle_value: Option<&'static str>,
+) -> BillingPeriodSalesPerson {
     let (start, end) = period();
-    let service = build_billing_period_service(toggle_value);
+    let service = build_billing_period_service(extra_hours, toggle_value);
     service
         .build_billing_period_report_for_sales_person(
             make_sales_person(),
@@ -355,6 +418,87 @@ async fn compute_snapshot(toggle_value: Option<&'static str>) -> BillingPeriodSa
         )
         .await
         .expect("billing period report must succeed")
+}
+
+/// Dünner Wrapper über `compute_snapshot_for` mit dem Standard-Datensatz
+/// (`straddling_extra_hours()`, also MIT Rebooking-Paar). Die drei
+/// Toggle-Szenarien der Beweislast 1 nutzen ihn unverändert.
+async fn compute_snapshot(toggle_value: Option<&'static str>) -> BillingPeriodSalesPerson {
+    compute_snapshot_for(straddling_extra_hours(), toggle_value).await
+}
+
+/// Vergleicht zwei Snapshots, die sich nur um das Rebooking-Paar unterscheiden.
+///
+/// Für jeden `value_type` in `expected_shifts` muss `with_pair.value_delta −
+/// without_pair.value_delta` dem erwarteten Betrag entsprechen (Toleranz 1e-3)
+/// und `value_ytd_from` byte-identisch sein (die Rebooking-Woche liegt strikt
+/// INNERHALB des Zeitraums, also nach dem Perioden-Start — der ytd_from-Wert
+/// darf sich deshalb nicht bewegen). Alle übrigen `value_type`s müssen in allen
+/// vier Feldern byte-identisch sein.
+#[track_caller]
+fn assert_snapshot_shift(
+    with_pair: &BillingPeriodSalesPerson,
+    without_pair: &BillingPeriodSalesPerson,
+    expected_shifts: &[(BillingPeriodValueType, f32)],
+) {
+    assert_eq!(
+        with_pair.sales_person_id, without_pair.sales_person_id,
+        "sales_person_id must match"
+    );
+    let with_keys: Vec<_> = with_pair.values.keys().cloned().collect();
+    let without_keys: Vec<_> = without_pair.values.keys().cloned().collect();
+    assert_eq!(
+        with_keys, without_keys,
+        "value_type key set must be identical between the with-pair and without-pair dataset — \
+         wenn hier der Volunteer-Key fehlt, hat der Rebooking-Betrag die VolunteerWork-Baseline \
+         exakt neutralisiert (Pitfall 5, billing_period_report.rs:283)"
+    );
+
+    for (vt, exp_val) in without_pair.values.iter() {
+        let act_val = with_pair
+            .values
+            .get(vt)
+            .unwrap_or_else(|| panic!("value_type {vt:?} missing in with-pair snapshot"));
+        let name = format!("{vt:?}");
+
+        match expected_shifts.iter().find(|(shift_vt, _)| shift_vt == vt) {
+            Some((_, expected_shift)) => {
+                let actual_shift = act_val.value_delta - exp_val.value_delta;
+                assert!(
+                    (actual_shift - expected_shift).abs() < 1e-3,
+                    "value_type `{name}` field `value_delta`: erwartete Verschiebung durch das \
+                     Rebooking-Paar {expected_shift}, gemessen {actual_shift} \
+                     (mit Paar={}, ohne Paar={}). Eine Verschiebung von 0 bedeutet, dass eine \
+                     Kette das Rebooking-Paar wieder herausfiltert — der Filter-Fix aus 57-02 \
+                     erreicht den Billing-Period-Pfad dann nicht mehr.",
+                    act_val.value_delta,
+                    exp_val.value_delta,
+                );
+                assert_f32_bit_eq(
+                    act_val.value_ytd_from,
+                    exp_val.value_ytd_from,
+                    &name,
+                    "value_ytd_from",
+                );
+            }
+            None => {
+                assert_f32_bit_eq(act_val.value_delta, exp_val.value_delta, &name, "value_delta");
+                assert_f32_bit_eq(
+                    act_val.value_ytd_from,
+                    exp_val.value_ytd_from,
+                    &name,
+                    "value_ytd_from",
+                );
+                assert_f32_bit_eq(act_val.value_ytd_to, exp_val.value_ytd_to, &name, "value_ytd_to");
+                assert_f32_bit_eq(
+                    act_val.value_full_year,
+                    exp_val.value_full_year,
+                    &name,
+                    "value_full_year",
+                );
+            }
+        }
+    }
 }
 
 // ─── Szenarien (D-01) ─────────────────────────────────────────────────────────
@@ -396,4 +540,75 @@ async fn test_straddling_snapshot_straddling() {
     // Zusätzlich: auch der None-Fall (Feature dormant) ist identisch.
     let dormant = compute_snapshot(None).await;
     assert_snapshot_bit_eq(&dormant, &reference);
+}
+
+// ─── Beweislast 2: das Rebooking-Paar ist im Snapshot sichtbar (D-57-11) ──────
+
+/// Zwei Datensätze, identisch bis auf das Rebooking-Paar über `h = 2.0`,
+/// liefern verschiedene Snapshots — und genau das ist die Begründung für
+/// `CURRENT_SNAPSHOT_SCHEMA_VERSION = 13` (D-57-10).
+///
+/// Herleitung der drei Verschiebungen:
+///
+/// | value_type | Quelle | Wirkung des Paars |
+/// |---|---|---|
+/// | `Overall`   | `report_delta.overall_hours`    | `+2.0` — `shiftplan_hours_by_week + overall_extra_work_hours`, das `+h ExtraWork`-Bein hebt den zweiten Summanden |
+/// | `Balance`   | `report_delta.balance_hours`    | `+2.0` — `overall_hours − expected_hours`, das Soll ist unberührt |
+/// | `ExtraWork` | `report_delta.extra_work_hours` | `+2.0` — dasselbe Bein, direkt |
+/// | `Volunteer` | `report_delta.volunteer_hours`  | `−2.0` — das `−h VolunteerWork`-Bein senkt das Ehrenamt-Ist |
+///
+/// `ExpectedHours` ist ausdrücklich NICHT betroffen: das Soll stammt aus dem
+/// Vertrag, nicht aus `extra_hours`. Ebenso unberührt bleiben alle Absence- und
+/// Urlaubs-value_types — `rebook()` schreibt ausschließlich die Kategorien
+/// `VolunteerWork` und `ExtraWork`.
+///
+/// Bis Phase 56 war diese Verschiebung 0, weil `get_report_for_employee_range`
+/// alle `source = Rebooking`-Rows pauschal verwarf (D-55-A1). Plan 57-02 hat
+/// diesen Vorfilter entfernt (D-57-06). Damit gilt die CLAUDE.md-Klausel
+/// „Change the input set the computation reads from": eine frische
+/// Neuberechnung derselben Periode weicht von einem v12-Snapshot ab, und ohne
+/// Bump wäre diese Drift von einem echten Datenfehler nicht unterscheidbar.
+///
+/// `value_ytd_from` bleibt in allen value_types byte-identisch: die
+/// Rebooking-Woche (KW 16/2026, Mi 2026-04-15) liegt strikt innerhalb des
+/// Zeitraums (Mo 2026-03-02 .. So 2026-05-17), also nach dem Perioden-Start.
+///
+/// Beide Snapshots werden mit demselben Toggle-Wert berechnet (`2026-06-01`,
+/// die PRE-Referenz der Beweislast-1-Tests) — der Toggle ist hier bewusst
+/// konstant, damit die gemessene Verschiebung ausschließlich vom Datensatz
+/// stammt.
+#[tokio::test]
+async fn test_straddling_snapshot_rebooking_shifts_values() {
+    let with_pair = compute_snapshot_for(straddling_extra_hours(), Some("2026-06-01")).await;
+    let without_pair =
+        compute_snapshot_for(straddling_extra_hours_without_rebooking(), Some("2026-06-01")).await;
+
+    // Pitfall-5-Wächter: der Volunteer-Key wird nur bei value_delta != 0.0
+    // geschrieben (billing_period_report.rs:283). Mit Paar: 3.0 − 2.0 = 1.0,
+    // ohne Paar: 3.0 — beide ungleich 0, der Key existiert also beidseitig.
+    // Fehlt er, ist die Fixture-Baseline verstellt worden und die
+    // Schlüsselsatz-Assertion in assert_snapshot_shift würde eine irreführende
+    // Meldung statt der Werte-Abweichung liefern.
+    assert!(
+        with_pair.values.contains_key(&BillingPeriodValueType::Volunteer),
+        "Volunteer-Key fehlt im with-pair-Snapshot — die Fixture-Beträge (Baseline 3.0 \
+         VolunteerWork, Rebooking −2.0) wurden verändert und neutralisieren sich jetzt exakt \
+         (Pitfall 5)"
+    );
+    assert!(
+        without_pair.values.contains_key(&BillingPeriodValueType::Volunteer),
+        "Volunteer-Key fehlt im without-pair-Snapshot — die manuelle Baseline von 3.0 \
+         VolunteerWork wurde entfernt oder auf 0 gesetzt (Pitfall 5)"
+    );
+
+    assert_snapshot_shift(
+        &with_pair,
+        &without_pair,
+        &[
+            (BillingPeriodValueType::Overall, 2.0),
+            (BillingPeriodValueType::Balance, 2.0),
+            (BillingPeriodValueType::ExtraWork, 2.0),
+            (BillingPeriodValueType::Volunteer, -2.0),
+        ],
+    );
 }
