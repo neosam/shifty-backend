@@ -508,7 +508,27 @@ separat via `/gsd-plan-phase 999.1`.
 
 ## Current State
 
-**v2.5 shipped 2026-07-06** (Phasen 52 + 53, 8 Pläne + 3 Follow-Ups, 9/9
+**v2.6 Phase 57 complete 2026-07-31 — letzte Phase des Milestones, alle
+Phasen 54–57 durch.** Phase 57 hat den in 54–56 gebauten, aber
+wirkungslosen Übertrag freiwillig→bezahlt eingelöst: der
+Phase-55-Filter `source == Manual` verwarf beide Beine des
+Rebooking-Paars, die Balance blieb nach einer Umbuchung unverändert
+(empirisch `−53 → −53`). Ursache war VOL-ACCT-03, das wörtlich das
+Gegenteil des Milestone-Goals forderte — deshalb erst Spec-Korrektur
+(VOL-ACCT-03 neu gefasst, VOL-ACCT-04 + REB-AUTO-06 neu, Traceability
+19/19), dann Code: Filter an vier Aggregations-Sites in `reporting.rs`
+entfernt (nur `assemble_weeks` behält eine gezielte Ausnahme, weil es
+über `availability()` statt `as_report_type()` filtert), Balance-Deckel
+im Auto-Cron (`week_excess` hebt die Balance nie über 0), Referenz-
+Szenario D-57-02 als E2E-Test, Snapshot-Bump 12→13. Verification
+9/9 must-haves passed. Der nachgelagerte Code-Review fand 3 Blocker
+(ISO- vs. Kalenderjahr-Anker ab 2027, Dry-Run-Preview ohne
+Headroom-Verbrauch, verschwindende Stunden bei dynamischen Verträgen)
+und 13 Warnings — alle behoben, jeweils mit Regressionstest. **Nächster
+Schritt: Milestone-Abschluss via `/gsd-audit-milestone` →
+`/gsd-complete-milestone`.**
+
+Zuvor: **v2.5 shipped 2026-07-06** (Phasen 52 + 53, 8 Pläne + 3 Follow-Ups, 9/9
 Requirements WOP-01..05 + VAA-01..04, verified_closeout, Milestone-Audit
 `passed`). Zwei zusammenhängende Ergänzungen an der Jahresübersicht:
 **Performance** — `get_weekly_summary` konsumiert Jahres-Aggregate statt
@@ -544,10 +564,14 @@ Admin-Impersonation** (2026-06-29); **v1.8 HR-UX** (2026-06-29); **v1.7
 Feiertage/VFA** (2026-06-29); **v1.6 Paid-Capacity** (2026-06-27) —
 alle archiviert (siehe MILESTONES.md).
 
-**Snapshot-Schema-Version: aktuell 12** (v1.7 Bump 10→11; v1.8 Bump 11→12;
+**Snapshot-Schema-Version: aktuell 13** (v1.7 Bump 10→11; v1.8 Bump 11→12;
 v1.9–v2.5 kein Bump — v2.4 rein additive View-Layer-Kürzung, v2.5
 Performance-Refactor + additive DTO-Erweiterung, kein
-`BillingPeriodValueType` angefasst).
+`BillingPeriodValueType` angefasst; **v2.6 Phase 57 Bump 12→13** —
+D-57-10 revidiert den Phase-56-Ausgang „bleibt bei 12": seit dem
+Filter-Fix ist ein Rebooking-Paar nicht mehr snapshot-neutral, es
+verschiebt vier value_types um ±h — `Overall`, `Balance`, `ExtraWork`
+und `Volunteer`).
 
 <details>
 <summary>✅ v1.4 Committed Voluntary Capacity — SHIPPED 2026-06-25 (Phasen 14–17)</summary>
