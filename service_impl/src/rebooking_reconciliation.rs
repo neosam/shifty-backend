@@ -56,6 +56,28 @@ gen_service_impl! {
     }
 }
 
+/// Kleinster buchbarer Uebertrag in Stunden (WR-02). Alles darunter ist
+/// f32-Rauschen und wird wie „kein Ueberschuss" behandelt.
+///
+/// Warum eine Schwelle und nicht `> 0.0`: `balance` ist eine f32-Summe ueber
+/// Shiftplan-, ExtraHours- und Carryover-Beitraege. Nach einem exakt
+/// ausgleichenden Uebertrag landet sie praktisch nie auf bit-exakt `0.0`,
+/// sondern auf einem Residuum wie `-1.2e-6`. Der Dry-Run des Backfill
+/// verschaerft das noch: seine `dry_run_consumed`-Buchfuehrung (CR-02) rechnet
+/// den vorgemerkten Uebertrag auf die gelesene Balance an und erzeugt dabei
+/// dasselbe Residuum ohne jeden Datenbank-Roundtrip.
+///
+/// Ein strikter `> 0.0`-Guard laesst den Write-Pfad auf so ein Residuum
+/// anlaufen. Teuer ist dabei nicht das `-0.0000012 / +0.0000012`-Paar
+/// (Datenrauschen), sondern der Batch-Claim: er belegt den UNIQUE-Slot
+/// `(person, iso_year, iso_week)`, sodass eine spaetere legitime manuelle
+/// Umbuchung oder ein HR-`suggest` fuer dieselbe Woche in
+/// `EntityAlreadyExists` (→ HTTP 409) laeuft, obwohl fachlich nie etwas
+/// gebucht wurde.
+///
+/// Pendant auf dem HR-Pfad: `rebook_manual` validiert `hours <= 0.0` hart.
+pub(crate) const MIN_BOOKABLE_HOURS: f32 = 0.01;
+
 /// Reine, testbare Ueberschuss-Formel (F4 core, REB-AUTO-01 + REB-AUTO-06):
 ///
 /// ```text
@@ -677,7 +699,10 @@ impl<Deps: RebookingReconciliationServiceDeps> RebookingReconciliationService
             .week_voluntary_figures(sales_person_id, iso_year, iso_week, tx.clone())
             .await?;
         let excess = week_excess(ist, 0.0, committed, balance);
-        if excess <= 0.0 {
+        // WR-02: Mindest-Buchungsgroesse statt `<= 0.0`. Ein f32-Residuum wie
+        // `1.2e-6` wuerde sonst ein Micro-Pair schreiben UND den UNIQUE-Slot
+        // der Woche verbrennen (siehe MIN_BOOKABLE_HOURS).
+        if excess < MIN_BOOKABLE_HOURS {
             self.transaction_dao.commit(tx).await?;
             return Ok(RunForWeekOutcome::Skipped {
                 reason: SkipReason::NoExcess,
@@ -844,7 +869,10 @@ impl<Deps: RebookingReconciliationServiceDeps> RebookingReconciliationService
                     voluntary_soll: soll,
                     committed_voluntary: committed,
                     excess,
-                    would_book: excess > 0.0 && toggle_on,
+                    // WR-02: dieselbe Mindest-Buchungsgroesse wie im Schreibpfad —
+                    // sonst verspricht der Preview eine Buchung, die
+                    // `run_for_week` verweigert (Invariante I-7).
+                    would_book: excess >= MIN_BOOKABLE_HOURS && toggle_on,
                     skipped: true,
                     skip_reason: None,
                 };
@@ -854,7 +882,11 @@ impl<Deps: RebookingReconciliationServiceDeps> RebookingReconciliationService
                     items.push(item);
                     continue;
                 }
-                if excess <= 0.0 {
+                // WR-02: der Guard steht VOR dem `dry_run`-Zweig und deckt damit
+                // beide Modi ab. Im Dry-Run ist er sogar dringlicher: die
+                // `dry_run_consumed`-Buchfuehrung (CR-02) erzeugt das Residuum
+                // selbst, sobald der Headroom exakt aufgebraucht ist.
+                if excess < MIN_BOOKABLE_HOURS {
                     item.skip_reason = Some(SkipReason::NoExcess);
                     items.push(item);
                     continue;

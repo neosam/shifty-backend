@@ -562,6 +562,21 @@ die beiden Trigger niemals driften können:
   Parametern). Nichts umzubuchen oder eine Balance ≥ 0 →
   `Skipped { NoExcess }`.
 
+  **Mindest-Buchungsgröße (`MIN_BOOKABLE_HOURS = 0.01`, WR-02).** Der
+  Guard lautet `excess < MIN_BOOKABLE_HOURS → Skipped { NoExcess }`, nicht
+  `excess <= 0.0`. `balance` ist eine f32-Summe über Shiftplan-,
+  ExtraHours- und Carryover-Beiträge; nach einem exakt ausgleichenden
+  Übertrag landet sie praktisch nie auf bit-exakt `0.0`, sondern auf einem
+  Residuum wie `-1.2e-6`. Ein strikter `> 0.0`-Guard ließe den Write-Pfad
+  darauf anlaufen — teuer ist dabei nicht das
+  `-0.0000012 / +0.0000012`-Paar, sondern der Batch-Claim: er belegt den
+  UNIQUE-Slot `(person, iso_year, iso_week)`, sodass eine spätere legitime
+  manuelle Umbuchung oder ein HR-`suggest` für dieselbe Woche in
+  `EntityAlreadyExists` (HTTP 409) läuft, obwohl fachlich nie etwas
+  gebucht wurde. Dieselbe Schwelle gilt für den Backfill-Preview
+  (`would_book`, §9.3), wo die Dry-Run-Headroom-Buchführung das Residuum
+  ganz ohne Datenbank-Roundtrip erzeugt.
+
   **Balance-Quelle (D-57-07):** die kumulierte **year-to-date**-Balance
   ab dem **Montag der ISO-Woche 1** des `iso_year`
   (`ShiftyDate::new(iso_year, 1, DayOfWeek::Monday)`) bis einschließlich

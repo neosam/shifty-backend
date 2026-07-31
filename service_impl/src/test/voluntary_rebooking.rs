@@ -489,6 +489,110 @@ async fn run_for_week_non_negative_balance_skips() {
     );
 }
 
+/// WR-02 (Code-Review Phase 57): ein f32-Residuum als Headroom darf KEIN
+/// Micro-Pair erzeugen — und vor allem nicht den UNIQUE-Slot der Woche belegen.
+///
+/// `balance` ist eine f32-Summe ueber Shiftplan-, ExtraHours- und
+/// Carryover-Beitraege; nach einem exakt ausgleichenden Uebertrag landet sie
+/// praktisch nie auf bit-exakt `0.0`, sondern auf einem Residuum wie `-1.2e-6`.
+/// Ein strikter `excess <= 0.0`-Guard laesst den Write-Pfad darauf anlaufen:
+/// geschrieben wuerde ein `-0.0000012 / +0.0000012`-Paar, und
+/// `rebooking_batch_service.create` claimt den UNIQUE-Slot
+/// `(person, iso_year, iso_week)`. Der zweite Effekt ist der teure — eine
+/// spaetere legitime manuelle Umbuchung oder ein HR-`suggest` fuer dieselbe
+/// Woche laeuft danach in `EntityAlreadyExists` (→ HTTP 409), obwohl fachlich
+/// nie etwas gebucht wurde.
+///
+/// Beide Write-Mocks sind ohne Expect gebaut: jeder Aufruf paniked.
+#[tokio::test]
+async fn run_for_week_float_residual_headroom_writes_nothing() {
+    let service = build_service(
+        MockExtraHoursService::new(),
+        MockRebookingBatchService::new(),
+        // Headroom = 1.2e-6 — mathematisch positiv, fachlich Rauschen.
+        reporting_service(-1.2e-6),
+        stats_service(8.0, 5.0), // unconstrained waere 3.0
+        week_unset(),
+        MockEmployeeWorkDetailsService::new(),
+        toggle_on(),
+        MockClockService::new(),
+        perm_ok(),
+        tx_ok(),
+    );
+
+    let outcome = service
+        .run_for_week(
+            sp_id(),
+            2026,
+            12,
+            RebookingBatchKind::AutoCron,
+            Authentication::Full,
+            None,
+        )
+        .await
+        .expect("run_for_week must succeed");
+    assert_eq!(
+        outcome,
+        RunForWeekOutcome::Skipped {
+            reason: SkipReason::NoExcess
+        },
+        "a headroom below MIN_BOOKABLE_HOURS is float noise — no pair, and above \
+         all no UNIQUE-slot claim that would 409 a later manual rebooking"
+    );
+}
+
+/// WR-02-Gegenprobe: die Schwelle darf keine fachlich relevanten Betraege
+/// schlucken. Ein Headroom von 0.02 h (> `MIN_BOOKABLE_HOURS` = 0.01) wird
+/// regulaer gebucht — die Schwelle ist ein Rausch-Filter, kein Deckel.
+#[tokio::test]
+async fn run_for_week_books_just_above_min_bookable() {
+    let mut extra_hours_service = MockExtraHoursService::new();
+    extra_hours_service
+        .expect_create()
+        .times(2)
+        .returning(|eh, _, _| Ok(eh.clone()));
+
+    let mut rebooking_batch_service = MockRebookingBatchService::new();
+    rebooking_batch_service
+        .expect_create()
+        .times(1)
+        .returning(|batch, _, _, _| Ok(batch.clone()));
+
+    let service = build_service(
+        extra_hours_service,
+        rebooking_batch_service,
+        reporting_service(-0.02),
+        stats_service(8.0, 5.0),
+        week_unset(),
+        MockEmployeeWorkDetailsService::new(),
+        toggle_on(),
+        MockClockService::new(),
+        perm_ok(),
+        tx_ok(),
+    );
+
+    let outcome = service
+        .run_for_week(
+            sp_id(),
+            2026,
+            12,
+            RebookingBatchKind::AutoCron,
+            Authentication::Full,
+            None,
+        )
+        .await
+        .expect("run_for_week must succeed");
+    match outcome {
+        RunForWeekOutcome::Booked { hours } => {
+            assert!(
+                (hours - 0.02).abs() < 1e-6,
+                "0.02 h is above MIN_BOOKABLE_HOURS and must be booked, got {hours}"
+            );
+        }
+        other => panic!("expected Booked, got {other:?}"),
+    }
+}
+
 /// CR-01 (Code-Review Phase 57): die Balance-Range MUSS an ISO-Koordinaten
 /// verankert sein, nicht am Kalender-Neujahr.
 ///

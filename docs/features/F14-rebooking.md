@@ -537,6 +537,21 @@ the two triggers can never drift:
   Non-finite inputs yield `0.0` (NaN/Inf guard on all four parameters).
   Nothing to rebook, or a balance ≥ 0 → `Skipped { NoExcess }`.
 
+  **Minimum bookable transfer (`MIN_BOOKABLE_HOURS = 0.01`, WR-02).** The
+  guard is `excess < MIN_BOOKABLE_HOURS → Skipped { NoExcess }`, not
+  `excess <= 0.0`. `balance` is an f32 sum over shiftplan, extra-hours and
+  carryover contributions; after a transfer that settles the account
+  exactly it practically never lands on bit-exact `0.0` but on a residue
+  like `-1.2e-6`. A strict `> 0.0` guard would let the write path run on
+  that residue — and the expensive part is not the
+  `-0.0000012 / +0.0000012` pair but the batch claim: it occupies the
+  UNIQUE slot `(person, iso_year, iso_week)`, so a later legitimate manual
+  rebooking or an HR `suggest` for the same week fails with
+  `EntityAlreadyExists` (HTTP 409) although nothing was ever booked. The
+  same threshold gates the backfill preview (`would_book`, §9.3), where
+  the dry-run headroom bookkeeping produces the residue without any
+  database roundtrip.
+
   **Balance source (D-57-07):** the cumulative **year-to-date** balance
   from the **Monday of ISO week 1** of `iso_year`
   (`ShiftyDate::new(iso_year, 1, DayOfWeek::Monday)`) up to and including

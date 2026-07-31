@@ -522,6 +522,54 @@ async fn backfill_dry_run_preview_matches_apply_over_multiple_weeks() {
     }
 }
 
+/// WR-02 (Code-Review Phase 57): die Mindest-Buchungsgroesse gilt AUCH im
+/// Dry-Run-Zweig — dort ist sie sogar dringlicher als im Schreibpfad.
+///
+/// Die `dry_run_consumed`-Buchfuehrung aus CR-02 rechnet den bereits
+/// vorgemerkten Uebertrag auf die gelesene Balance an. Ist der Headroom exakt
+/// aufgebraucht, entsteht das f32-Residuum ohne jeden Datenbank-Roundtrip —
+/// die Vorschau meldete dann `would_book` fuer einen Betrag, den
+/// `run_for_week` im Apply-Lauf verweigert (Invariante I-7 gebrochen).
+///
+/// Hier direkt am Grenzwert geprueft: Headroom 0.005 h (< `MIN_BOOKABLE_HOURS`
+/// = 0.01) bei einem unbeschraenkten Ueberschuss von 4 h.
+#[tokio::test]
+async fn backfill_dry_run_sub_threshold_excess_is_no_excess() {
+    let service = build_service(
+        MockExtraHoursService::new(),
+        MockRebookingBatchService::new(),
+        reporting_service(-0.005),
+        stats_service(9.0, 5.0), // unconstrained waere 4.0
+        week_unset(),
+        contracts(vec![capped_work_details()]),
+        toggle_from("2026-01-01"),
+        clock_2026_w12(), // upper = KW 11
+        perm_ok(),
+        tx_ok(),
+    );
+
+    let items = service
+        .backfill_range(
+            ShiftyWeek::new(2026, 11),
+            true,
+            Authentication::Context(()),
+            None,
+        )
+        .await
+        .expect("dry-run backfill must succeed");
+
+    assert_eq!(items.len(), 1, "one week (KW11) x one capped person");
+    assert!(
+        items[0].skipped,
+        "a sub-threshold headroom is float noise — the preview must not promise a booking"
+    );
+    assert_eq!(items[0].skip_reason, Some(SkipReason::NoExcess));
+    assert!(
+        !items[0].would_book,
+        "would_book must mirror the write path's MIN_BOOKABLE_HOURS guard"
+    );
+}
+
 /// CR-01 (Code-Review Phase 57): der Backfill-Balance-Read hat dieselbe
 /// ISO-Verankerung wie `run_for_week`.
 ///
