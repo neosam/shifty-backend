@@ -189,13 +189,31 @@ pub fn committed_voluntary_prorata_for_week(
 // `ReportingService::get_report_for_employee_range`) — das deckt alle drei
 // Erfassungsquellen (manuelle VolunteerWork-ExtraHours + Shiftplan-Cap-
 // Überlauf + no_contract-Shiftplan-Stunden) konsistent ab, statt nur die
-// erste zu zählen. Der source-Marker-Filter für Rebooking-Neutralität ist
-// ab Phase 55 aktiv: `source == ExtraHoursSource::Manual` filtert die
-// Rebooking-Pair-Rows (-N/+N) am Eingang der drei Report-Aggregations-
-// Funktionen (`assemble_weeks`, `get_reports_for_all_employees`,
-// `hours_per_week`) + `overall_extra_work_hours`, sodass eine einzelne
-// manuelle Umbuchung balance/ist/soll/delta-neutral bleibt (D-55-A1,
-// VOL-ACCT-03). Trifft automatisch auch das VoluntaryStats-Ist-Aggregat.
+// erste zu zählen.
+//
+// Phase 57 (VOL-ACCT-04 / D-57-06): Der pauschale source-Marker-Filter aus
+// Phase 55 (`source == ExtraHoursSource::Manual` am Eingang von
+// `assemble_weeks`, `get_reports_for_all_employees`, `hours_per_week` und
+// `overall_extra_work_hours`, D-55-A1) ist ENTFERNT. Er verwarf beide Beine
+// des Rebooking-Pairs — auch das `+h`-ExtraWork-Bein, das die Balance anheben
+// soll — und machte den Übertrag freiwillig→bezahlt damit wirkungslos.
+// Zuständig für die Balance-Relevanz ist jetzt wieder ausschließlich die
+// Kategorie-Semantik (`ExtraHoursCategory::as_report_type()` bzw.
+// `::availability()`): `ExtraWork` zählt in Balance und Overall,
+// `VolunteerWork` speist das Ehrenamt-Ist. Ein Pair über `h` hebt die Balance
+// um `h` und senkt das Ehrenamt-Ist um `h`; das VOL-ACCT-01-Soll bleibt
+// unberührt, weil es aus `committed_voluntary` stammt und keine ExtraHours
+// liest (VOL-ACCT-03 Neufassung).
+//
+// `ExtraHoursSource` bleibt als reines Provenienz-Feld erhalten
+// (UI-Kennzeichnung, spätere Undo-Fähigkeit) und wird für die Aggregation nur
+// noch an EINER Stelle herangezogen: an der `extra_working_hours`-Summe in
+// `assemble_weeks`, die über `availability()` statt über `as_report_type()`
+// filtert. Dort wird gezielt die Kombination `VolunteerWork` UND `Rebooking`
+// ausgenommen. Diese Einschränkung ist zwingend und gilt NICHT für
+// gewöhnliche VolunteerWork-Rows: die zählen in der Wochenübersicht heute in
+// overall/balance, im Jahresreport aber nicht (RISK-01) — eine vorbestehende
+// Alt-Inkonsistenz, die Phase 57 bewusst weder behebt noch verschlimmert.
 
 /// Phase 54 Gap-Closure G1 (VOL-STAT-01-Nenner, D-F1-01) +
 /// Phase 54.5 (D-54.5-02): Anzahl ISO-Wochen im Range
@@ -853,10 +871,6 @@ impl<Deps: ReportingServiceDeps> ReportingServiceImpl<Deps> {
                 .collect_to_hash_map_by(|r| r.sales_person_id);
             let extra_hours_bucket = extra_hours
                 .iter()
-                // Phase 55 (VOL-ACCT-03 / D-55-A1): Rebooking-Rows aus dem
-                // Weekly-Summary-Aggregat filtern (VolunteerWork- UND
-                // ExtraWork-Bein) — die Weekly-Sicht ist rebooking-neutral.
-                .filter(|eh| eh.source == ExtraHoursSource::Manual)
                 .filter(|eh| {
                     let sw = eh.to_date().as_shifty_week();
                     sw.year == year && sw.week == week
@@ -877,6 +891,22 @@ impl<Deps: ReportingServiceDeps> ReportingServiceImpl<Deps> {
                     .map(|eh| {
                         eh.iter()
                             .filter(|eh| eh.category.availability() == Availability::Available)
+                            // Phase 57 (VOL-ACCT-04 / D-57-06): Rebooking-
+                            // getaggte VolunteerWork zaehlt NICHT in die
+                            // Balance — das +h-ExtraWork-Bein desselben Pairs
+                            // traegt die Anhebung bereits. Diese Summe filtert
+                            // ueber availability(), nicht ueber
+                            // as_report_type(), und VolunteerWork ist
+                            // Available; ohne die Ausnahme wuerde das
+                            // -h-Bein die Anhebung netto neutralisieren.
+                            // Gewoehnliche (Nicht-Rebooking) VolunteerWork
+                            // bleibt laut RISK-01 unveraendert Teil dieser
+                            // Summe (vorbestehende Alt-Inkonsistenz zur
+                            // Jahres-Sicht, nicht Scope dieser Phase).
+                            .filter(|eh| {
+                                !(eh.category == ExtraHoursCategory::VolunteerWork
+                                    && eh.source == ExtraHoursSource::Rebooking)
+                            })
                             .map(|eh| eh.amount)
                             .sum::<f32>()
                     })
@@ -1184,14 +1214,8 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                     tx.clone(),
                 )
                 .await?;
-            // Phase 55 (VOL-ACCT-03 / D-55-A1): Rebooking-Rows aus dem
-            // All-Employees-Report filtern (VolunteerWork- UND ExtraWork-Bein),
-            // damit eine Umbuchung in dieser Sicht balance/volunteer-neutral ist.
-            let extra_hours_array: Arc<[ExtraHours]> = extra_hours_array
-                .iter()
-                .filter(|eh| eh.source == ExtraHoursSource::Manual)
-                .cloned()
-                .collect();
+            let extra_hours_array: Arc<[ExtraHours]> =
+                extra_hours_array.iter().cloned().collect();
             let previous_year_carryover = self
                 .carryover_service
                 .get_carryover(
@@ -1723,9 +1747,6 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
         // `shiftplan_hours_by_week` (siehe unten) ist die einzige Quelle.
         let overall_extra_work_hours = extra_hours
             .iter()
-            // Phase 55 (VOL-ACCT-03 / D-55-A1): Rebooking-Rows raus, damit das
-            // +N-ExtraWork-Bein einer Umbuchung nicht in overall/balance zaehlt.
-            .filter(|eh| eh.source == ExtraHoursSource::Manual)
             .filter(|eh| {
                 eh.to_date() >= from_date
                     && eh.to_date() <= to_date
@@ -2153,12 +2174,6 @@ fn hours_per_week(
         tracing::info!("Week: {}, Year: {}", week.week, week.year);
         let filtered_extra_hours_list = extra_hours_list
             .iter()
-            // Phase 55 (VOL-ACCT-03 / D-55-A1): Rebooking-Rows (source != Manual)
-            // werden aus ALLEN Read-Aggregaten dieser Woche gefiltert — sowohl
-            // aus den VolunteerWork- als auch aus den ExtraWork/WorkingHours-
-            // Sites, die in overall/balance einfliessen. Damit ist eine einzelne
-            // manuelle Umbuchung (-N/+N-Pair) balance/ist/soll/delta-neutral.
-            .filter(|eh| eh.source == ExtraHoursSource::Manual)
             .filter(|eh| eh.to_date().as_shifty_week() == week)
             .collect::<Vec<_>>();
         let filtered_shiftplan_hours_list = shiftplan_hours_list
