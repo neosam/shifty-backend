@@ -1,25 +1,41 @@
-//! Phase 56 Plan 01 — D-06 Rebooking-Neutralitäts-Property-Tests (REB-AUTO-02).
+//! Phase 57 Plan 02 (D-57-08) — Rebooking-**Wirksamkeits**-Property-Tests
+//! (VOL-ACCT-04) + der eine verbliebene Neutralitäts-Test (VOL-ACCT-03).
 //!
-//! Diese drei Tests sind das **CI-Gate** für D-06: eine EINZELNE Umbuchung
-//! (das -N/+N-ExtraHours-Pair mit `source=Rebooking`) lässt die drei
-//! Read-Aggregate **bit-identisch**:
+//! **Lage nach D-57-08.** Eine EINZELNE Umbuchung (das `-h/+h`-ExtraHours-Pair
+//! mit `source=Rebooking`) ist auf der Leseseite ausdrücklich NICHT neutral —
+//! sie ist genau dann korrekt, wenn sie wirkt:
 //!
-//! 1. `test_neutrality_balance` — `EmployeeReport::balance_hours`
-//! 2. `test_neutrality_f1_ist`  — `EmployeeReport::volunteer_hours` (= F1-Ist,
-//!    identisch zu `VoluntaryStats::ist_total`)
-//! 3. `test_neutrality_f2_soll` — `VoluntaryStats::soll_total`
+//! 1. `test_neutrality_balance` — `EmployeeReport::balance_hours` steigt um `h`
+//!    (VOL-ACCT-04, Invariante I-1). Das `+h`-ExtraWork-Bein ist balance-relevant,
+//!    das `-h`-VolunteerWork-Bein ist es nicht.
+//! 2. `test_neutrality_f1_ist` — `EmployeeReport::volunteer_hours` (= F1-Ist,
+//!    identisch zu `VoluntaryStats::ist_total`) sinkt um `h` (VOL-ACCT-04,
+//!    Invariante I-2). Die freiwillig geleisteten Stunden sind nach der Umbuchung
+//!    bezahlt, zählen also nicht mehr im Ehrenamt-Ist.
+//! 3. `test_neutrality_f2_soll` — `VoluntaryStats::soll_total` bleibt
+//!    **bit-identisch** (VOL-ACCT-03 Neufassung, Invariante I-6). Das Soll stammt
+//!    aus `committed_voluntary` im Arbeitsvertrag und liest überhaupt keine
+//!    `extra_hours` — es ist strukturell rebooking-blind. Das ist der einzige
+//!    verbliebene Neutralitäts-Test dieser Datei.
+//! 4. `rebooking_effective_in_weekly_summary` — dieselbe Wirkung über
+//!    `get_week` → `assemble_weeks`, also über den Wochenübersichts-Pfad
+//!    (Site 1), den die drei Range-Tests oben nicht erreichen.
 //!
-//! **Warum das auf `to_bits()` grün sein MUSS (56-01 key_finding):** Phase 55
-//! (D-55-A1) filtert `source == ExtraHoursSource::Manual` an jedem
+//! **Warum die Assertionen 1 und 2 invertiert wurden.** Die Fassung bis Phase 56
+//! forderte Bit-Identität auf allen drei Aggregaten und begründete das mit dem
+//! Phase-55-Filter (**D-55-A1**): `source == ExtraHoursSource::Manual` an jedem
 //! Read-Aggregations-Eingang (`assemble_weeks`, `get_reports_for_all_employees`,
-//! `hours_per_week`, `overall_extra_work_hours`). Rebooking-Rows sind damit für
-//! Balance/F1-Ist unsichtbar; F2-Soll liest überhaupt keine ExtraHours (nur
-//! `committed_voluntary` + Absences). Diese Tests nageln diese Eigenschaft
-//! empirisch fest — mit `active_from = None` (Feature dormant), sodass die
-//! Neutralität OHNE den Toggle bewiesen ist.
+//! `hours_per_week`, `overall_extra_work_hours`). Dieser Filter verwarf aber
+//! BEIDE Beine des Pairs — auch das `+h`, das die Balance anheben soll. Der
+//! Übertrag freiwillig→bezahlt war damit wirkungslos (empirisch `−53 → −53`), und
+//! die Tests hier zementierten genau diesen Fehler als Erfolg. Phase 57 korrigiert
+//! zuerst die Spec (VOL-ACCT-03 Neufassung, VOL-ACCT-04) und dann den Filter.
 //!
-//! Wenn eine Assertion FEHLSCHLÄGT, ist das eine echte Entdeckung (eine Kette
-//! leakt Rebooking-Rows) — NICHT die Assertion anpassen, sondern melden.
+//! **Rolle dieser Datei ab jetzt:** Sie ist der CI-Wächter dagegen, dass der
+//! Übertrag erneut wirkungslos wird. Diese Rolle wurde bewusst NICHT dem
+//! HR-Alert-Banner zugewiesen (D-57-04) — das Banner-Verhalten aus D-55-07 bleibt
+//! in Phase 57 unangetastet. Schlägt eine Assertion hier fehl, ist eine
+//! Aggregations-Kette wieder rebooking-blind geworden.
 //!
 //! Harness-Muster gespiegelt aus
 //! `service_impl/src/test/rebooking_reconciliation.rs` (Mock-ExtraHours-Service
@@ -51,7 +67,26 @@ use shifty_utils::{DayOfWeek, ShiftyDate};
 use crate::reporting::{ReportingServiceDeps, ReportingServiceImpl};
 use crate::voluntary_stats::{VoluntaryStatsServiceDeps, VoluntaryStatsServiceImpl};
 
-// ─── Byte-identity helper (to_bits, NaN verboten) ─────────────────────────────
+// ─── Vergleichs-Helper ────────────────────────────────────────────────────────
+
+/// Prüft, dass sich ein Aggregat um genau `expected_delta` verändert hat
+/// (Toleranz 1e-3, f32-Summationsrauschen). NaN ist wie bei [`assert_bit_eq`]
+/// explizit verboten. Für die beiden Aggregate, die nach VOL-ACCT-04 wirken
+/// MÜSSEN (Balance `+h`, Ehrenamt-Ist `−h`).
+#[track_caller]
+fn assert_delta(before: f32, after: f32, expected_delta: f32, aggregate: &str) {
+    assert!(
+        !before.is_nan() && !after.is_nan(),
+        "{aggregate} is NaN — cannot verify rebooking effect (before={before}, after={after})"
+    );
+    let actual_delta = after - before;
+    assert!(
+        (actual_delta - expected_delta).abs() < 1e-3,
+        "{aggregate} must change by {expected_delta} after the rebooking pair (VOL-ACCT-04): \
+         before={before}, after={after}, expected delta={expected_delta}, actual delta={actual_delta} \
+         — an aggregation chain is rebooking-blind again"
+    );
+}
 
 /// Vergleicht zwei f32 bit-exakt via `to_bits()`. NaN ist explizit verboten
 /// (nicht deterministisch vergleichbar) — panickt vorher.
@@ -143,8 +178,9 @@ fn baseline_extra_hours() -> Vec<ExtraHours> {
     ]
 }
 
-/// Baseline + EIN Rebooking-Pair (VolunteerToExtra N=2.0), beide
-/// source=Rebooking. Muss über alle drei Aggregate hinweg neutral sein.
+/// Baseline + EIN Rebooking-Pair (VolunteerToExtra h=2.0), beide
+/// source=Rebooking. Muss die Balance um +2.0 anheben und das Ehrenamt-Ist um
+/// −2.0 senken (VOL-ACCT-04); das VOL-ACCT-01-Soll bleibt unberührt.
 fn with_rebooking_pair() -> Vec<ExtraHours> {
     let mut v = baseline_extra_hours();
     v.push(eh(-2.0, ExtraHoursCategory::VolunteerWork, ExtraHoursSource::Rebooking, 3));
@@ -326,30 +362,39 @@ async fn soll_total(extra_hours: Vec<ExtraHours>) -> f32 {
     stats.soll_total.expect("HR path yields soll_total")
 }
 
-// ─── Property-Tests (D-06) ────────────────────────────────────────────────────
+// ─── Property-Tests (VOL-ACCT-04 / VOL-ACCT-03) ───────────────────────────────
 
-/// D-06 (1/3): `balance_hours` bleibt bit-identisch nach einem Rebooking-Pair.
+/// VOL-ACCT-04 (Invariante I-1): `balance_hours` steigt nach einem
+/// Rebooking-Pair über `h = 2.0` um genau 2.0. Das `+h`-ExtraWork-Bein zählt in
+/// die Balance, das `-h`-VolunteerWork-Bein nicht — genau das ist die
+/// Ausgleichswirkung des Übertrags freiwillig→bezahlt. Delta 0.0 hieße: eine
+/// Aggregations-Kette verwirft wieder beide Beine (der Phase-55-Zustand).
 #[tokio::test]
 async fn test_neutrality_balance() {
     let (bal_before, _) = balance_and_ist(baseline_extra_hours()).await;
     let (bal_after, _) = balance_and_ist(with_rebooking_pair()).await;
-    assert_bit_eq(bal_before, bal_after, "balance_hours");
+    assert_delta(bal_before, bal_after, 2.0, "balance_hours");
 }
 
-/// D-06 (2/3): F1-Ist (`volunteer_hours` == `VoluntaryStats::ist_total`) bleibt
-/// bit-identisch — die Rebooking-Rows (source=Rebooking) werden aus dem
-/// Ist-Aggregat gefiltert.
+/// VOL-ACCT-04 (Invariante I-2): F1-Ist (`volunteer_hours` ==
+/// `VoluntaryStats::ist_total`) sinkt nach demselben Pair um genau 2.0 — die
+/// umgebuchten Stunden sind jetzt bezahlt und zählen nicht mehr als Ehrenamt.
 #[tokio::test]
 async fn test_neutrality_f1_ist() {
     let (_, ist_before) = balance_and_ist(baseline_extra_hours()).await;
     let (_, ist_after) = balance_and_ist(with_rebooking_pair()).await;
-    assert_bit_eq(ist_before, ist_after, "f1_ist (volunteer_hours)");
+    assert_delta(ist_before, ist_after, -2.0, "f1_ist (volunteer_hours)");
 }
 
-/// D-06 (3/3): F2-Soll (`VoluntaryStats::soll_total`) bleibt bit-identisch —
-/// Soll liest überhaupt keine ExtraHours (nur committed_voluntary + Absences),
-/// ist also per Konstruktion rebooking-blind. Der Test exerziert den vollen
-/// HR-gated VoluntaryStats-Pfad, um diese Unabhängigkeit empirisch zu belegen.
+/// VOL-ACCT-03 (Neufassung, Invariante I-6): F2-Soll
+/// (`VoluntaryStats::soll_total`) bleibt bit-identisch — Soll liest überhaupt
+/// keine ExtraHours (nur committed_voluntary + Absences), ist also per
+/// Konstruktion rebooking-blind. Der Test exerziert den vollen HR-gated
+/// VoluntaryStats-Pfad, um diese Unabhängigkeit empirisch zu belegen.
+///
+/// Nach der Neufassung von VOL-ACCT-03 ist das der **einzige verbliebene
+/// Neutralitäts-Test** dieser Datei; Balance und Ehrenamt-Ist sollen sich
+/// ausdrücklich verändern (VOL-ACCT-04).
 #[tokio::test]
 async fn test_neutrality_f2_soll() {
     let soll_before = soll_total(baseline_extra_hours()).await;

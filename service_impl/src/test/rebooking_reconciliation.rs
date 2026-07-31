@@ -4,16 +4,19 @@
 //!
 //! Test-Achsen:
 //!
-//! 1. **VOL-ACCT-03 Neutralitaet (Property-Test, HART, TDD-RED-first):** eine
-//!    EINZELNE manuelle Umbuchung (das -N/+N-Pair mit `source=Rebooking`) laesst
-//!    `balance_hours` UND `volunteer_hours` (= Ist-Aggregat der VoluntaryStats)
-//!    in den Read-Aggregaten UNVERAENDERT. Der Nachweis erfolgt am
-//!    `ReportingServiceImpl` mit einem `MockExtraHoursService`, der einmal die
-//!    Baseline und einmal Baseline+Rebooking-Pair liefert — beide Reports muessen
-//!    balance/volunteer byte-genau (Epsilon) gleich sein. Damit ist die
-//!    Filter-Site-Autoritaet festgenagelt (D-55-A1), bevor der Filter existiert.
-//!    (Soll + Delta sind reine committed_voluntary-pure-fns und rebooking-blind;
-//!    ist == volunteer_hours ⇒ ist/soll/delta alle neutral.)
+//! 1. **VOL-ACCT-04 Wirksamkeit (Property-Test, HART; Phase 57 / D-57-08):** eine
+//!    EINZELNE manuelle Umbuchung (das -h/+h-Pair mit `source=Rebooking`) hebt
+//!    `balance_hours` um `h` und senkt `volunteer_hours` (= Ist-Aggregat der
+//!    VoluntaryStats) um `h`. Der Nachweis erfolgt am `ReportingServiceImpl` mit
+//!    einem `MockExtraHoursService`, der einmal die Baseline und einmal
+//!    Baseline+Rebooking-Pair liefert. Die frueher hier geforderte Neutralitaet
+//!    (VOL-ACCT-03 alte Fassung, D-55-A1) machte den Uebertrag wirkungslos und
+//!    ist mit der Requirements-Korrektur aus Phase 57 entfallen. Neutral bleibt
+//!    nur noch das VOL-ACCT-01-Soll (rein committed_voluntary-basiert, liest
+//!    keine ExtraHours) — belegt in
+//!    `service_impl/src/test/rebooking_neutrality.rs::test_neutrality_f2_soll`.
+//!    Ein Roundtrip aus zwei Pairs (hin und zurueck, netto 0) bleibt algebraisch
+//!    neutral und ist weiterhin als solcher getestet.
 //! 2. **Pure-fn-Matrizen:** `alert_predicate` + `proposed_hours` (HR-ALERT-01/D-55-01/03).
 //! 3. **BL-Service (mockall):** rebook_manual erzeugt das Pair + Batch (beide
 //!    Richtungen), suggest claimt einen pending-Batch und liefert IST/DANN,
@@ -107,8 +110,9 @@ fn baseline_extra_hours() -> Vec<ExtraHours> {
     ]
 }
 
-/// Baseline + EIN Rebooking-Pair (VolunteerToExtra ueber N=2.0): -2 VolunteerWork
-/// + +2 ExtraWork, BEIDE `source=Rebooking`. Muss neutral sein.
+/// Baseline + EIN Rebooking-Pair (VolunteerToExtra ueber h=2.0): -2
+/// VolunteerWork und +2 ExtraWork, BEIDE `source=Rebooking`. Muss balance um
+/// +2.0 anheben und volunteer_hours um -2.0 senken (VOL-ACCT-04).
 fn extra_hours_with_rebooking_pair() -> Vec<ExtraHours> {
     let mut v = baseline_extra_hours();
     v.push(eh(-2.0, ExtraHoursCategory::VolunteerWork, ExtraHoursSource::Rebooking, 3));
@@ -238,21 +242,25 @@ async fn balance_and_volunteer(extra_hours: Vec<ExtraHours>) -> (f32, f32) {
     (report.balance_hours, report.volunteer_hours)
 }
 
-/// VOL-ACCT-03 (D-55-A1) HART: eine EINZELNE VolunteerToExtra-Umbuchung
-/// (-N VolunteerWork + +N ExtraWork, beide source=Rebooking) laesst balance
-/// UND volunteer_hours (Ist-Aggregat) unveraendert. Property: baseline == pair.
+/// VOL-ACCT-04 (Phase 57, D-57-08) HART: eine EINZELNE VolunteerToExtra-Umbuchung
+/// ueber h=2.0 (-h VolunteerWork + +h ExtraWork, beide source=Rebooking) WIRKT auf
+/// der Leseseite — balance steigt um h, volunteer_hours (Ist-Aggregat) sinkt um h.
+/// Property: pair == baseline + 2.0 bzw. baseline - 2.0. Die frueher hier
+/// geforderte Neutralitaet (VOL-ACCT-03 alte Fassung, D-55-A1) machte den
+/// Uebertrag wirkungslos und ist mit der Requirements-Korrektur entfallen; nur
+/// noch das VOL-ACCT-01-Soll ist rebooking-neutral.
 #[tokio::test]
 async fn rebooking_neutrality_single_manual() {
     let (bal_before, vol_before) = balance_and_volunteer(baseline_extra_hours()).await;
     let (bal_after, vol_after) = balance_and_volunteer(extra_hours_with_rebooking_pair()).await;
 
     assert!(
-        (bal_before - bal_after).abs() < 1e-3,
-        "balance must be rebooking-neutral: before={bal_before}, after={bal_after}"
+        (bal_after - (bal_before + 2.0)).abs() < 1e-3,
+        "balance must rise by 2.0 after the rebooking pair (VOL-ACCT-04): before={bal_before}, after={bal_after}"
     );
     assert!(
-        (vol_before - vol_after).abs() < 1e-3,
-        "volunteer_hours (Ist) must be rebooking-neutral: before={vol_before}, after={vol_after}"
+        (vol_after - (vol_before - 2.0)).abs() < 1e-3,
+        "volunteer_hours (Ist) must drop by 2.0 after the rebooking pair (VOL-ACCT-04): before={vol_before}, after={vol_after}"
     );
 }
 
