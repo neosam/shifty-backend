@@ -804,6 +804,61 @@ async fn backfill_before_active_from_is_toggle_off() {
     }
 }
 
+/// WR-06 (Code-Review Phase 57): das Cutoff-Gate steht VOR den teuren Reads.
+///
+/// In `run_for_week` liegt der Balance-Read ausdruecklich hinter dem Toggle-Gate,
+/// „damit ein ausgeschalteter Cron / eine gesperrte Woche ohne Report-Roundtrip
+/// zurueckkehrt". Der Backfill las ihn davor. Fuer einen historischen Backfill,
+/// dessen `from` vor dem Stichtag liegt — der Normalfall —, zahlte damit jede
+/// (Person, Woche) einen vollen year-to-date-Report plus VoluntaryStats, nur um
+/// danach als ToggleOff verworfen zu werden. Der YTD-Report ist selbst
+/// O(Wochen im Jahr), und der Endpunkt hat keine untere Schranke fuer `from`
+/// (T-56-05 DoS-Bound).
+///
+/// `MockReportingService::new()` und `MockVoluntaryStatsService::new()` sind ohne
+/// Expect gebaut: jeder Read paniked. Der Test faerbt also rot, sobald das Gate
+/// wieder hinter die Reads rutscht.
+///
+/// Gegenstueck der Aussage im Item: fuer ToggleOff-Wochen stehen die Kennzahlen
+/// auf `0.0` — sie sind nicht berechnet (dokumentiert am `BackfillPreviewItem`).
+#[tokio::test]
+async fn backfill_toggle_off_week_skips_before_expensive_reads() {
+    let service = build_service(
+        MockExtraHoursService::new(),
+        MockRebookingBatchService::new(),
+        MockReportingService::new(),      // kein Report-Roundtrip erwartet
+        MockVoluntaryStatsService::new(), // keine VoluntaryStats erwartet
+        week_unset(),
+        contracts(vec![capped_work_details()]),
+        toggle_from("2026-12-01"), // alle Backfill-Wochen liegen davor
+        clock_2026_w13(),          // upper = KW 12
+        perm_ok(),
+        tx_ok(),
+    );
+
+    let items = service
+        .backfill_range(
+            ShiftyWeek::new(2026, 10),
+            true,
+            Authentication::Context(()),
+            None,
+        )
+        .await
+        .expect("backfill must succeed without touching the report");
+
+    assert_eq!(items.len(), 3, "KW10, KW11, KW12");
+    for item in &items {
+        assert_eq!(item.skip_reason, Some(SkipReason::ToggleOff));
+        assert!(item.skipped);
+        assert!(!item.would_book);
+        assert_eq!(
+            (item.voluntary_ist, item.voluntary_soll, item.committed_voluntary, item.excess),
+            (0.0, 0.0, 0.0, 0.0),
+            "pre-cutoff figures are not computed — documented on BackfillPreviewItem"
+        );
+    }
+}
+
 // ─── Year-boundary walk ────────────────────────────────────────────────────────
 
 /// REB-AUTO-04: from=2026-W52, clock=2027-W02 → upper=2027-W01. Der Walk kreuzt

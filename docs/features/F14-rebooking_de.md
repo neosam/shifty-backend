@@ -696,6 +696,20 @@ genestet unter `/admin/rebooking`) ist ein dünner Delegat an
   berechneten `voluntary_ist` / `voluntary_soll` / `committed_voluntary` /
   `excess` / `would_book` / `skipped`), identische Shape für dry-run und
   Apply, sodass der HR-Admin vor dem Commit eine Vorschau bekommt.
+- **Cutoff-Gate vor den teuren Reads (WR-06).** Die Stichtag-Prüfung
+  läuft **pro Woche, vor** den Report- und VoluntaryStats-Reads der
+  Kandidaten-Schleife — spiegelbildlich zu `run_for_week`, wo der
+  Balance-Read bewusst hinter dem Toggle-Gate steht. Folge für die
+  Response: ein Item mit `skip_reason = ToggleOff` trägt `0.0` in
+  `voluntary_ist` / `voluntary_soll` / `committed_voluntary` / `excess` —
+  diese Kennzahlen werden für eine Woche vor dem Stichtag **nicht
+  berechnet**. Grund ist der DoS-Bound T-56-05: ein
+  year-to-date-Report ist selbst O(Wochen im Jahr), und ein historischer
+  Backfill, dessen `from` vor dem Stichtag liegt — der Normalfall —,
+  zahlte sonst pro (Person, Woche) einen vollen Report plus
+  VoluntaryStats, nur um anschließend jede Zeile zu verwerfen.
+  Festgenagelt von `backfill_toggle_off_week_skips_before_expensive_reads`,
+  dessen Report- und Stats-Mocks bei jedem Aufruf paniken.
 - **Preview == Apply (Invariante I-7, seit Phase 57).**
   `BackfillPreviewItem.excess` wendet **denselben Balance-Deckel** an wie
   der Schreib-Pfad; der Vorschau-Wert ist also exakt der Betrag, den ein

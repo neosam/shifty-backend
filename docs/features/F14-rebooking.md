@@ -665,6 +665,19 @@ nested under `/admin/rebooking`) is a thin delegate to
   computed `voluntary_ist` / `voluntary_soll` / `committed_voluntary` /
   `excess` / `would_book` / `skipped`), identical shape for dry-run and
   apply so the HR-admin can preview before committing.
+- **Cutoff gate before the expensive reads (WR-06).** The Stichtag check
+  runs **per week, before** the candidate loop's report and
+  voluntary-stats reads — mirroring `run_for_week`, where the balance
+  read deliberately sits behind the toggle gate. Consequence for the
+  response: an item with `skip_reason = ToggleOff` carries `0.0` in
+  `voluntary_ist` / `voluntary_soll` / `committed_voluntary` / `excess`;
+  those figures are **not computed** for a pre-cutoff week. The reason is
+  the T-56-05 DoS bound: a year-to-date report is itself O(weeks in the
+  year), and a historical backfill whose `from` predates the Stichtag —
+  the normal case — would otherwise pay a full report plus voluntary
+  stats per (person, week) only to discard every row. Pinned by
+  `backfill_toggle_off_week_skips_before_expensive_reads`, whose report
+  and stats mocks panic on any call.
 - **Preview == apply (invariant I-7, since Phase 57).**
   `BackfillPreviewItem.excess` applies the **same balance cap** as the
   write path, so the previewed number is exactly the amount a

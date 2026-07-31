@@ -812,6 +812,25 @@ impl<Deps: RebookingReconciliationServiceDeps> RebookingReconciliationService
         for week in from.iter_until(&upper) {
             let (iso_year, iso_week) = (week.year, week.week);
 
+            // Cutoff-Gate (WR-06): vor Stichtag → ToggleOff-Skip, kein Write —
+            // und vor allem KEIN Datenabruf. Das Gate haengt nur an der Woche,
+            // nicht an der Person, und steht deshalb vor der Kandidaten-Schleife.
+            //
+            // In `run_for_week` steht der Balance-Read ausdruecklich HINTER dem
+            // Toggle-Gate, „damit ein ausgeschalteter Cron / eine gesperrte Woche
+            // ohne Report-Roundtrip zurueckkehrt". Der Backfill las ihn bis
+            // Phase 57 davor — fuer einen historischen Backfill, dessen `from`
+            // vor dem Stichtag liegt (der Normalfall), zahlte damit jede
+            // (Person, Woche) einen vollen YTD-Report plus VoluntaryStats, nur um
+            // danach als ToggleOff verworfen zu werden. Der YTD-Report ist selbst
+            // O(Wochen im Jahr), der Endpunkt hat keine untere Schranke fuer
+            // `from` (T-56-05 DoS-Bound).
+            let toggle_on = crate::voluntary_rebooking_gate::should_run_for_week(
+                iso_year,
+                iso_week,
+                active_from,
+            );
+
             // Kandidaten: alle gedeckelten SalesPersons mit gueltigem Vertrag in
             // dieser Woche.
             let contracts = self
@@ -824,6 +843,25 @@ impl<Deps: RebookingReconciliationServiceDeps> RebookingReconciliationService
                     continue;
                 }
                 let sales_person_id = wd.sales_person_id;
+
+                if !toggle_on {
+                    // Die Kennzahlen bleiben 0.0: sie werden fuer eine Woche vor
+                    // dem Stichtag nicht berechnet (siehe Doc-Kommentar auf
+                    // `BackfillPreviewItem`).
+                    items.push(BackfillPreviewItem {
+                        sales_person_id,
+                        iso_year,
+                        iso_week,
+                        voluntary_ist: 0.0,
+                        voluntary_soll: 0.0,
+                        committed_voluntary: 0.0,
+                        excess: 0.0,
+                        would_book: false,
+                        skipped: true,
+                        skip_reason: Some(SkipReason::ToggleOff),
+                    });
+                    continue;
+                }
 
                 // Derselbe Balance-Deckel wie in `run_for_week` (REB-AUTO-06),
                 // nur mit der bereits offenen `read_tx`. Ein Platzhalter (0.0
@@ -872,10 +910,6 @@ impl<Deps: RebookingReconciliationServiceDeps> RebookingReconciliationService
                     .await?;
                 let excess = week_excess(ist, committed, balance);
 
-                // Cutoff-Gate: vor Stichtag → ToggleOff-Skip (kein Write).
-                let toggle_on =
-                    crate::voluntary_rebooking_gate::should_run_for_week(iso_year, iso_week, active_from);
-
                 let mut item = BackfillPreviewItem {
                     sales_person_id,
                     iso_year,
@@ -888,17 +922,13 @@ impl<Deps: RebookingReconciliationServiceDeps> RebookingReconciliationService
                     excess,
                     // WR-02: dieselbe Mindest-Buchungsgroesse wie im Schreibpfad —
                     // sonst verspricht der Preview eine Buchung, die
-                    // `run_for_week` verweigert (Invariante I-7).
-                    would_book: excess >= MIN_BOOKABLE_HOURS && toggle_on,
+                    // `run_for_week` verweigert (Invariante I-7). Das Cutoff-Gate
+                    // ist an dieser Stelle bereits passiert (WR-06).
+                    would_book: excess >= MIN_BOOKABLE_HOURS,
                     skipped: true,
                     skip_reason: None,
                 };
 
-                if !toggle_on {
-                    item.skip_reason = Some(SkipReason::ToggleOff);
-                    items.push(item);
-                    continue;
-                }
                 // WR-02: der Guard steht VOR dem `dry_run`-Zweig und deckt damit
                 // beide Modi ab. Im Dry-Run ist er sogar dringlicher: die
                 // `dry_run_consumed`-Buchfuehrung (CR-02) erzeugt das Residuum

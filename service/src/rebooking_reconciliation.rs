@@ -100,6 +100,14 @@ pub enum RunForWeekOutcome {
 /// F4 (REB-AUTO-04): Ein Kandidaten-Item des Backfill-Laufs. Beschreibt fuer
 /// eine (SalesPerson, ISO-Woche) die berechneten Groessen und ob (bzw. warum
 /// nicht) gebucht wuerde. Im `dry_run` ist dies reine Vorschau (kein Write).
+///
+/// **Ausnahme `skip_reason == Some(SkipReason::ToggleOff)` (WR-06):** liegt die
+/// Woche vor dem Stichtag, sind `voluntary_ist`, `voluntary_soll`,
+/// `committed_voluntary` und `excess` **nicht berechnet** und stehen auf `0.0`.
+/// Das Cutoff-Gate laeuft bewusst VOR den teuren Reads (ein year-to-date-Report
+/// je (Person, Woche) ist selbst O(Wochen im Jahr)) — ein historischer Backfill,
+/// dessen `from` vor dem Stichtag liegt, wuerde sonst die gesamte Report-Arbeit
+/// leisten, nur um jede Zeile anschliessend zu verwerfen.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BackfillPreviewItem {
     pub sales_person_id: Uuid,
