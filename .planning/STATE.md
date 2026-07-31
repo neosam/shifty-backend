@@ -6,14 +6,14 @@ current_phase: 57
 current_phase_name: f14-rebooking-wirksamkeit-requirements-korrektur-balance-aus
 status: executing
 stopped_at: Phase 57 geplant — bereit zur Ausführung
-last_updated: "2026-07-31T13:33:26.448Z"
+last_updated: "2026-07-31T13:49:16.170Z"
 last_activity: 2026-07-31
-last_activity_desc: Phase 57 Plan 01 Task 1 committed, Checkpoint Task 2 offen
+last_activity_desc: Phase 57 Plan 01 abgeschlossen (Requirements-Korrektur 19/19)
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 29
-  completed_plans: 24
+  completed_plans: 25
   percent: 80
 ---
 
@@ -34,7 +34,7 @@ progress:
 ## Current Position
 
 Phase: 57 (f14-rebooking-wirksamkeit-requirements-korrektur-balance-aus) — EXECUTING
-Plan: 2 of 6 — Plan 01 COMPLETE (2/2 Tasks, Human-Verify-Gate beantwortet)
+Plan: 3 of 6 — Plan 01 COMPLETE (2/2 Tasks, Human-Verify-Gate beantwortet)
 Status: Ready to execute — Wave 2 (Plan 02 Filter-Fix, Plan 03 Balance-Deckel) ist freigegeben.
 Der Bestandsdaten-Pre-Flight ist gemessen: `localdb.sqlite3` ist laut Nutzer die Ziel-DB,
 `rebooking_batch` ist leer (keine `kind`-Zeilen, `NULL|NULL|0`). Kein Blocker-Befund —
@@ -211,7 +211,7 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-07-31T13:17:12.984Z
+**Last session:** 2026-07-31T13:49:09.667Z
 **Stopped at:** Completed 57-01-PLAN.md — Requirements 19/19 korrigiert, Bestandsdaten-Pre-Flight gemessen (kein Blocker), Wave 2 freigegeben
 **Resume file:** .planning/phases/57-f14-rebooking-wirksamkeit-requirements-korrektur-balance-aus/57-01-SUMMARY.md
 
@@ -290,6 +290,8 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 - [Phase 57]: 57-01 D-57-09 umgesetzt — VOL-ACCT-03 schuetzt nur noch VOL-ACCT-01-Soll; Balance/Ist-Neutralitaet ersatzlos gestrichen, Fehlerspur D-55-A1 als Historien-Blockquote erhalten
 - [Phase 57]: 57-01 VOL-ACCT-04 (Ausgleichswirkung Balance +h / Ehrenamt-Ist -h, Akzeptanz Referenz-Szenario D-57-02) und REB-AUTO-06 (Balance-Deckel im Auto-Cron inkl. BackfillPreviewItem.excess, HR-Formel min(|balance|, ist) ausgenommen) angelegt; Coverage 19/19, VOL-ACCT-03 auf Phase 57 umgehaengt
 - [Phase 57]: 57-01 REB-AUTO-05 erhaelt Nachtragsnotiz (D-57-10/D-57-11) statt Ummapping — Phase-56-Ausgang 'bleibt bei 12' auf 13 revidiert, Owner bleibt Phase 56
+- [Phase ?]: D-57-06 umgesetzt (57-02): Sites 2/3/4 verlieren das source-Prädikat ersatzlos, Site 1 bekommt stattdessen eine konjunktive VolunteerWork-UND-Rebooking-Ausnahme an der availability()-basierten extra_working_hours-Summe
+- [Phase ?]: ExtraHoursSource bleibt reines Provenienz-Feld, für die Aggregation nur noch an einer Stelle wirksam (assemble_weeks); RISK-01 bleibt bewusst unverändert (57-02)
 
 ## Performance Metrics
 
@@ -331,3 +333,4 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 | Phase 56 P05 | 8min | 3 tasks | 9 files |
 | Phase 56 P06 | 7min | 3 tasks | 8 files |
 | Phase 57 P01 | 25min | 2 tasks | 2 files |
+| Phase 57 P02 | ~35min | 3 tasks | 3 files |
