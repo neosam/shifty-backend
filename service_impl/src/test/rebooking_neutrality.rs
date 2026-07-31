@@ -201,6 +201,19 @@ fn with_rebooking_pair() -> Vec<ExtraHours> {
     v
 }
 
+/// Baseline + EIN Rebooking-Pair der GEGENRICHTUNG (`ExtraToVolunteer`, h=2.0):
+/// `-h ExtraWork` / `+h VolunteerWork`, beide source=Rebooking. Diese Richtung
+/// ist ueber `rebook_manual` erreichbar (Korrektur ueberzahlter Zusagen,
+/// `pair_categories`) und laeuft im Report durch dieselben Filter-Ausnahmen wie
+/// die Standard-Richtung — nur mit umgekehrten Vorzeichen. Erwartung:
+/// Balance −2.0, Ehrenamt-Ist +2.0.
+fn with_reverse_rebooking_pair() -> Vec<ExtraHours> {
+    let mut v = baseline_extra_hours();
+    v.push(eh(-2.0, ExtraHoursCategory::ExtraWork, ExtraHoursSource::Rebooking, 5));
+    v.push(eh(2.0, ExtraHoursCategory::VolunteerWork, ExtraHoursSource::Rebooking, 6));
+    v
+}
+
 // ─── Real ReportingServiceImpl mit Mock-ExtraHours ────────────────────────────
 
 struct ReportingDeps;
@@ -575,6 +588,46 @@ async fn rebooking_effective_in_weekly_summary() {
 
     assert_delta(bal_before, bal_after, 2.0, "weekly balance_hours");
     assert_delta(ist_before, ist_after, -2.0, "weekly volunteer_hours");
+}
+
+// ─── WR-12: Gegenrichtung ExtraToVolunteer ────────────────────────────────────
+
+/// WR-12 (Code-Review Phase 57): die Korrekturrichtung `ExtraToVolunteer`
+/// (`-h ExtraWork` / `+h VolunteerWork`) wirkt symmetrisch — auf BEIDEN
+/// Leseseiten.
+///
+/// Saemtliche uebrigen Leseseiten-Fixtures dieser Datei erzeugen ausschliesslich
+/// das `VolunteerToExtra`-Paar. Die Gegenrichtung ist ueber `rebook_manual`
+/// erreichbar (`pair_categories`) und laeuft durch dieselbe
+/// `availability()`-Ausnahme in `assemble_weeks` — nur mit umgekehrten
+/// Vorzeichen. Ein Fehler in der Ausnahme, der nur diese Richtung trifft (etwa
+/// eine auf `amount < 0.0` konditionierte Variante, die das `+h`-VolunteerWork-
+/// Bein faelschlich in die `extra_working_hours`-Summe laesst), faellt allein
+/// hier auf.
+#[tokio::test]
+async fn reverse_rebooking_lowers_balance_and_raises_volunteer() {
+    // Jahresreport (hours_per_week, Sites 3/4).
+    let (bal_before, ist_before) = balance_and_ist(baseline_extra_hours()).await;
+    let (bal_after, ist_after) = balance_and_ist(with_reverse_rebooking_pair()).await;
+    assert_delta(bal_before, bal_after, -2.0, "range balance_hours (ExtraToVolunteer)");
+    assert_delta(ist_before, ist_after, 2.0, "range volunteer_hours (ExtraToVolunteer)");
+
+    // Wochenuebersicht (assemble_weeks, Site 1 — die availability()-Ausnahme).
+    let (week_bal_before, week_ist_before) = weekly_balance_and_ist(baseline_extra_hours()).await;
+    let (week_bal_after, week_ist_after) =
+        weekly_balance_and_ist(with_reverse_rebooking_pair()).await;
+    assert_delta(
+        week_bal_before,
+        week_bal_after,
+        -2.0,
+        "weekly balance_hours (ExtraToVolunteer)",
+    );
+    assert_delta(
+        week_ist_before,
+        week_ist_after,
+        2.0,
+        "weekly volunteer_hours (ExtraToVolunteer)",
+    );
 }
 
 // ─── Site-2-Waechter: Summary-Report ueber get_reports_for_all_employees ───────
