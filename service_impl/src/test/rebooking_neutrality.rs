@@ -577,6 +577,182 @@ async fn rebooking_effective_in_weekly_summary() {
     assert_delta(ist_before, ist_after, -2.0, "weekly volunteer_hours");
 }
 
+// ─── Site-2-Waechter: Summary-Report ueber get_reports_for_all_employees ───────
+
+/// Harness fuer den Summary-Pfad (`get_reports_for_all_employees`). Er liest die
+/// ExtraHours ueber `find_by_sales_person_id_and_year` (nicht ueber die
+/// `_range`-Variante der beiden anderen Harnesse) und die Vertraege ueber
+/// `all` statt `find_by_sales_person_id` — deshalb ein eigener Aufbau.
+///
+/// `work_details` leer = keine Vertragszeile (no-contract-Zweig).
+fn build_reporting_service_for_summary_with(
+    extra_hours: Vec<ExtraHours>,
+    work_details: Vec<EmployeeWorkDetails>,
+) -> ReportingServiceImpl<ReportingDeps> {
+    let mut permission_service = MockPermissionService::new();
+    permission_service
+        .expect_check_permission()
+        .returning(|_, _| Ok(()));
+
+    let mut sales_person_service = MockSalesPersonService::new();
+    sales_person_service
+        .expect_get_all()
+        .returning(|_, _| Ok(Arc::from(vec![make_sales_person()])));
+    sales_person_service
+        .expect_get()
+        .returning(|_, _, _| Ok(make_sales_person()));
+
+    let mut employee_work_details_service = MockEmployeeWorkDetailsService::new();
+    employee_work_details_service
+        .expect_all()
+        .returning(move |_, _| Ok(Arc::from(work_details.clone())));
+
+    let mut shiftplan_report_service = MockShiftplanReportService::new();
+    shiftplan_report_service
+        .expect_extract_shiftplan_report()
+        .returning(|_, _, _, _, _| Ok(Arc::from(Vec::new())));
+
+    let eh_arc: Arc<[ExtraHours]> = Arc::from(extra_hours);
+    let mut extra_hours_service = MockExtraHoursService::new();
+    extra_hours_service
+        .expect_find_by_sales_person_id_and_year()
+        .returning(move |_, _, _, _, _| Ok(eh_arc.clone()));
+
+    let mut absence_service = MockAbsenceService::new();
+    absence_service
+        .expect_derive_hours_for_range()
+        .returning(|_, _, _, _, _| Ok(BTreeMap::new()));
+
+    let mut carryover_service = MockCarryoverService::new();
+    carryover_service
+        .expect_get_carryover()
+        .returning(|_, _, _, _| Ok(None));
+
+    let mut transaction_dao = dao::MockTransactionDao::new();
+    transaction_dao
+        .expect_use_transaction()
+        .returning(|_| Ok(dao::MockTransaction));
+
+    let mut toggle_service = MockToggleService::new();
+    toggle_service
+        .expect_get_toggle_value()
+        .returning(|_, _, _| Ok(None));
+
+    // Nur relevant, falls das HR-Alert-Praedikat feuert (D-55-07).
+    let mut rebooking_batch_service = MockRebookingBatchService::new();
+    rebooking_batch_service
+        .expect_find_by_sales_person_year_week()
+        .returning(|_, _, _, _, _| Ok(None));
+    rebooking_batch_service
+        .expect_find_pending_for_sales_person()
+        .returning(|_, _, _, _, _| Ok(None));
+
+    ReportingServiceImpl {
+        extra_hours_service: Arc::new(extra_hours_service),
+        shiftplan_report_service: Arc::new(shiftplan_report_service),
+        employee_work_details_service: Arc::new(employee_work_details_service),
+        sales_person_service: Arc::new(sales_person_service),
+        carryover_service: Arc::new(carryover_service),
+        permission_service: Arc::new(permission_service),
+        clock_service: Arc::new(MockClockService::new()),
+        uuid_service: Arc::new(MockUuidService::new()),
+        absence_service: Arc::new(absence_service),
+        transaction_dao: Arc::new(transaction_dao),
+        special_day_service: Arc::new(MockSpecialDayService::new()),
+        toggle_service: Arc::new(toggle_service),
+        rebooking_batch_service: Arc::new(rebooking_batch_service),
+    }
+}
+
+/// `(balance_hours, volunteer_hours)` aus `get_reports_for_all_employees`
+/// (2026, bis KW 12) fuer die Fixture-Person.
+async fn summary_balance_and_ist_with(
+    extra_hours: Vec<ExtraHours>,
+    work_details: Vec<EmployeeWorkDetails>,
+) -> (f32, f32) {
+    let service = build_reporting_service_for_summary_with(extra_hours, work_details);
+    let reports = service
+        .get_reports_for_all_employees(2026, 12, Authentication::Full, None)
+        .await
+        .expect("summary report must succeed");
+    let report = reports
+        .iter()
+        .find(|r| r.sales_person.id == sp_id())
+        .expect("summary must contain the fixture sales person");
+    (report.balance_hours, report.volunteer_hours)
+}
+
+/// WR-01 (Code-Review Phase 57): im **no-contract**-Zweig von
+/// `get_reports_for_all_employees` duerfen die umgebuchten Stunden nicht doppelt
+/// zaehlen.
+///
+/// Der Zweig setzte `volunteer_hours` aus reinen Shiftplan-Groessen
+/// (`auto_volunteer_hours + shiftplan_hours`) und summierte manuelle
+/// `VolunteerWork`-Rows UEBERHAUPT NICHT — anders als der Normal-Zweig derselben
+/// Funktion, `hours_per_week` und `assemble_weeks`. Das `+h`-ExtraWork-Bein wurde
+/// ueber den Kategorie-Filter dagegen sehr wohl gezaehlt. Ergebnis: die Balance
+/// stieg um `h`, das Ehrenamt-Ist blieb unveraendert — dieselben Stunden zaehlten
+/// zweimal.
+///
+/// Der Test pinnt die Bilanz-Erhaltung (`Δbalance + Δvolunteer == 0`, ohne den
+/// Fix `+2 + 0 == +2`) und die Wirkungsrichtung.
+#[tokio::test]
+async fn rebooking_conserves_hours_in_summary_without_contract_row() {
+    let (bal_before, ist_before) = summary_balance_and_ist_with(baseline_extra_hours(), vec![]).await;
+    let (bal_after, ist_after) = summary_balance_and_ist_with(with_rebooking_pair(), vec![]).await;
+
+    let bal_delta = bal_after - bal_before;
+    let ist_delta = ist_after - ist_before;
+    assert!(
+        (bal_delta + ist_delta).abs() < 1e-3,
+        "no-contract-Zweig des Summary-Reports: das Rebooking-Paar darf keine \
+         Stunden erschaffen — Δbalance={bal_delta}, Δvolunteer={ist_delta}, \
+         Summe={} (erwartet 0). Das -h-VolunteerWork-Bein wird nicht gezaehlt.",
+        bal_delta + ist_delta
+    );
+    assert_delta(bal_before, bal_after, 2.0, "summary balance_hours (no contract)");
+    assert_delta(ist_before, ist_after, -2.0, "summary volunteer_hours (no contract)");
+}
+
+/// WR-01 + CR-03 (Code-Review Phase 57): im **dynamischen** Zweig von
+/// `get_reports_for_all_employees` verschwand das Paar komplett.
+///
+/// `planned_hours = overall_hours` (Soll=Ist) neutralisierte das `+h`-Bein, und
+/// `volunteer_hours = auto_volunteer_hours` zaehlte das `-h`-Bein nicht — der
+/// Uebertrag war an dieser Site wirkungslos, waehrend er in `hours_per_week` und
+/// `assemble_weeks` wirkt. Dieselbe Person zeigte in Wochenuebersicht,
+/// Jahresreport und Mitarbeiter-Uebersicht drei verschiedene Zahlen.
+///
+/// Die Korrektur ist die Summe aus beiden Findings: manuelle VolunteerWork-Rows
+/// zaehlen (WR-01), und Rebooking-getaggte ExtraWork-Rows werden aus dem SOLL des
+/// Soll=Ist-Zweigs herausgerechnet (CR-03, leseseitige Option b).
+#[tokio::test]
+async fn rebooking_effective_in_summary_on_dynamic_contract() {
+    let (bal_before, ist_before) =
+        summary_balance_and_ist_with(baseline_extra_hours(), vec![dynamic_work_details()]).await;
+    let (bal_after, ist_after) =
+        summary_balance_and_ist_with(with_rebooking_pair(), vec![dynamic_work_details()]).await;
+
+    assert_delta(bal_before, bal_after, 2.0, "summary balance_hours (dynamic)");
+    assert_delta(ist_before, ist_after, -2.0, "summary volunteer_hours (dynamic)");
+
+    // Gegenprobe zur Site-Konsistenz: dieselbe Wirkung wie im Jahresreport.
+    let (range_bal_before, range_ist_before) =
+        balance_and_ist_with(baseline_extra_hours(), dynamic_work_details()).await;
+    let (range_bal_after, range_ist_after) =
+        balance_and_ist_with(with_rebooking_pair(), dynamic_work_details()).await;
+    assert!(
+        ((bal_after - bal_before) - (range_bal_after - range_bal_before)).abs() < 1e-3,
+        "Summary- und Jahresreport muessen fuer dasselbe Paar dieselbe \
+         Balance-Wirkung ausweisen"
+    );
+    assert!(
+        ((ist_after - ist_before) - (range_ist_after - range_ist_before)).abs() < 1e-3,
+        "Summary- und Jahresreport muessen fuer dasselbe Paar dieselbe \
+         Ehrenamt-Wirkung ausweisen"
+    );
+}
+
 // ─── CR-03: dynamischer Vertrag (Soll=Ist-Zweig) ──────────────────────────────
 
 /// CR-03 (Code-Review Phase 57): beim **dynamischen** Vertrag (Vertragszeile

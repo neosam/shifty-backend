@@ -239,7 +239,19 @@ balance (`reporting.rs:1097-1098, 1406-1414`, "dynamic-week guard").
   `get_week` (`reporting.rs:1006-1156`).
 - **Volunteer merge:** `volunteer_hours` of a week is
   `manual_volunteer + auto_volunteer (cap) + no_contract_volunteer`
-  (`reporting.rs:1539-1545`).
+  (`reporting.rs:1539-1545`). **Since phase 57 (WR-01) this holds in all
+  three read paths.** The no-contract and dynamic branches of
+  `get_reports_for_all_employees` used to build the value from shiftplan
+  quantities alone and never summed manual `VolunteerWork` rows, while
+  the `+h` ExtraWork leg of a rebooking pair *was* counted through the
+  category filter — the same hours counted twice in the no-contract
+  branch, and in the dynamic branch the pair disappeared entirely
+  (`planned_hours = overall_hours`). Both branches now mirror
+  `hours_per_week` / `assemble_weeks`, including the CR-03 expected
+  adjustment for rebooking-tagged ExtraWork in the dynamic branch.
+  Pinned by
+  `rebooking_neutrality.rs::rebooking_conserves_hours_in_summary_without_contract_row`
+  and `::rebooking_effective_in_summary_on_dynamic_contract`.
 - **Dynamic guard on Absence** (phase 8.4 / CR-01, WR-01):
   Absence hours (extra_hours + derived) reduce expected **only** when
   `working_hours_for_week > 0`. Otherwise, expected would go negative

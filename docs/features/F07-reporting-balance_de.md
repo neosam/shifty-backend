@@ -240,7 +240,19 @@ aufblasen (`reporting.rs:1097-1098, 1406-1414`, „Dynamic-week guard").
   (`reporting.rs:388-500`) sowie `get_week` (`reporting.rs:1006-1156`).
 - **Volunteer-Merge**: `volunteer_hours` einer Woche ist
   `manual_volunteer + auto_volunteer (cap) + no_contract_volunteer`
-  (`reporting.rs:1539-1545`).
+  (`reporting.rs:1539-1545`). **Seit Phase 57 (WR-01) gilt das in allen
+  drei Read-Pfaden.** Der no-contract- und der dynamische Zweig von
+  `get_reports_for_all_employees` bauten den Wert bis dahin aus reinen
+  Shiftplan-Größen und summierten manuelle `VolunteerWork`-Rows
+  überhaupt nicht, während das `+h`-ExtraWork-Bein eines Rebooking-Paars
+  über den Kategorie-Filter sehr wohl zählte — im no-contract-Zweig
+  zählten dieselben Stunden damit doppelt, im dynamischen Zweig
+  verschwand das Paar komplett (`planned_hours = overall_hours`). Beide
+  Zweige spiegeln jetzt `hours_per_week` / `assemble_weeks`, inklusive
+  der CR-03-Soll-Bereinigung für Rebooking-getaggte ExtraWork-Rows im
+  dynamischen Zweig. Festgenagelt von
+  `rebooking_neutrality.rs::rebooking_conserves_hours_in_summary_without_contract_row`
+  und `::rebooking_effective_in_summary_on_dynamic_contract`.
 - **Dynamic-Guard auf Absence** (Phase 8.4 / CR-01, WR-01):
   Absence-Stunden (extra_hours + derived) reduzieren die Erwartung **nur**,
   wenn `working_hours_for_week > 0`. Sonst würde bei dynamischem Vertrag

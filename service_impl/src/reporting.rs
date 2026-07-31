@@ -1358,6 +1358,24 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                             .map(|(_, r)| r.hours)
                             .sum::<f32>()
                     };
+                    // Phase 57 (WR-01): manuelle VolunteerWork-Rows der Woche. Die
+                    // beiden Sonderzweige unten setzten `volunteer_hours` bis
+                    // Phase 57 aus reinen Shiftplan-Groessen und zaehlten diese
+                    // Rows UEBERHAUPT NICHT — anders als der Normal-Zweig
+                    // (Z. 1486-1491), `hours_per_week` und `assemble_weeks`
+                    // (Z. 962-969). Fuer ein Rebooking-Paar hiess das im
+                    // no-contract-Zweig: das `+h`-ExtraWork-Bein hebt die Balance,
+                    // das `-h`-VolunteerWork-Bein verpufft — dieselben Stunden
+                    // zaehlten doppelt.
+                    let manual_volunteer_hours: f32 = extra_hours_array
+                        .iter()
+                        .filter(|extra_hours| {
+                            extra_hours.category == ExtraHoursCategory::VolunteerWork
+                                && extra_hours.date_time.iso_week() == week
+                                && extra_hours.date_time.year() as u32 == year
+                        })
+                        .map(|extra_hours| extra_hours.amount)
+                        .sum();
                     if !has_contract_row {
                         // Ehrenamt-Pfad (quick-260624-ujk): Keine Vertragszeile fuer diese KW.
                         // Shiftplan-Stunden fliessen als Ehrenamt, NICHT in overall/planned.
@@ -1383,7 +1401,9 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                             holiday_hours: 0.0,
                             unavailable_hours: 0.0,
                             unpaid_leave_hours: 0.0,
-                            volunteer_hours: auto_volunteer_hours + shiftplan_hours,
+                            volunteer_hours: manual_volunteer_hours
+                                + auto_volunteer_hours
+                                + shiftplan_hours,
                             custom_absence_hours: HashMap::new(),
                             absence_derived_balance_hours: 0.0,
                             cap_active,
@@ -1400,19 +1420,36 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                             })
                             .map(|extra_hours| extra_hours.amount)
                             .sum();
+                        // Phase 57 (CR-03, hier fuer den Summary-Pfad nachgezogen):
+                        // Rebooking-getaggte ExtraWork-Rows werden aus dem SOLL
+                        // dieses Soll=Ist-Zweigs herausgerechnet — sonst hebt das
+                        // `+h`-Bein zugleich `overall` und `planned` (Balance
+                        // neutral), waehrend das `-h`-Bein `volunteer_hours` sehr
+                        // wohl senkt: `h` Stunden wuerden verschwinden. Identisch
+                        // zu `hours_per_week` (Z. 2344-2352).
+                        let rebooked_extra_work: f32 = extra_hours_array
+                            .iter()
+                            .filter(|extra_hours| {
+                                extra_hours.source == ExtraHoursSource::Rebooking
+                                    && extra_hours.category == ExtraHoursCategory::ExtraWork
+                                    && extra_hours.date_time.iso_week() == week
+                                    && extra_hours.date_time.year() as u32 == year
+                            })
+                            .map(|extra_hours| extra_hours.amount)
+                            .sum();
                         let overall_hours = extra_work + shiftplan_hours;
                         WeeklyHours {
                             shiftplan_hours,
                             extra_working_hours: extra_work,
                             absense_hours: 0.0,
-                            planned_hours: overall_hours,
+                            planned_hours: overall_hours - rebooked_extra_work,
                             dynamic_hours,
                             vacation_hours: 0.0,
                             sick_leave_hours: 0.0,
                             holiday_hours: 0.0,
                             unavailable_hours: 0.0,
                             unpaid_leave_hours: 0.0,
-                            volunteer_hours: auto_volunteer_hours,
+                            volunteer_hours: manual_volunteer_hours + auto_volunteer_hours,
                             custom_absence_hours: HashMap::new(),
                             absence_derived_balance_hours: 0.0,
                             cap_active,
