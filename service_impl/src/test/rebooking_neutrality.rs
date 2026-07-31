@@ -401,3 +401,136 @@ async fn test_neutrality_f2_soll() {
     let soll_after = soll_total(with_rebooking_pair()).await;
     assert_bit_eq(soll_before, soll_after, "f2_soll (soll_total)");
 }
+
+// ─── Site-1-Wächter: Wochenübersicht über get_week → assemble_weeks ────────────
+
+/// Wie [`build_reporting_service`], aber mit den Mock-Erwartungen, die der
+/// `get_week`-Pfad zusätzlich braucht (`all_for_week`,
+/// `extract_shiftplan_report_for_week`, `find_by_week`, `get_all`, `find_all`).
+/// Die Wirkung soll ausschließlich aus den ExtraHours kommen: kein Shiftplan,
+/// keine Absence, kein Carryover, kein Holiday-Toggle.
+fn build_reporting_service_for_week(
+    extra_hours: Vec<ExtraHours>,
+) -> ReportingServiceImpl<ReportingDeps> {
+    let mut permission_service = MockPermissionService::new();
+    permission_service
+        .expect_check_permission()
+        .returning(|_, _| Ok(()));
+
+    let mut sales_person_service = MockSalesPersonService::new();
+    sales_person_service
+        .expect_verify_user_is_sales_person()
+        .returning(|_, _, _| Ok(()));
+    sales_person_service
+        .expect_get()
+        .returning(|_, _, _| Ok(make_sales_person()));
+    sales_person_service
+        .expect_get_all()
+        .returning(|_, _| Ok(Arc::from(vec![make_sales_person()])));
+
+    let mut employee_work_details_service = MockEmployeeWorkDetailsService::new();
+    employee_work_details_service
+        .expect_find_by_sales_person_id()
+        .returning(|_, _, _| Ok(Arc::from(vec![work_details()])));
+    employee_work_details_service
+        .expect_all_for_week()
+        .returning(|_, _, _, _| Ok(Arc::from(vec![work_details()])));
+
+    let mut shiftplan_report_service = MockShiftplanReportService::new();
+    shiftplan_report_service
+        .expect_extract_shiftplan_report()
+        .returning(|_, _, _, _, _| Ok(Arc::from(Vec::new())));
+    shiftplan_report_service
+        .expect_extract_shiftplan_report_for_week()
+        .returning(|_, _, _, _| Ok(Arc::from(Vec::new())));
+
+    let eh_arc: Arc<[ExtraHours]> = Arc::from(extra_hours);
+    let eh_arc_week = eh_arc.clone();
+    let mut extra_hours_service = MockExtraHoursService::new();
+    extra_hours_service
+        .expect_find_by_sales_person_id_and_year_range()
+        .returning(move |_, _, _, _, _| Ok(eh_arc.clone()));
+    extra_hours_service
+        .expect_find_by_sales_person_id_and_year()
+        .returning(|_, _, _, _, _| Ok(Arc::from(Vec::new())));
+    extra_hours_service
+        .expect_find_by_week()
+        .returning(move |_, _, _, _| Ok(eh_arc_week.clone()));
+
+    let mut absence_service = MockAbsenceService::new();
+    absence_service
+        .expect_derive_hours_for_range()
+        .returning(|_, _, _, _, _| Ok(BTreeMap::new()));
+    absence_service
+        .expect_find_all()
+        .returning(|_, _| Ok(Arc::from(Vec::new())));
+
+    let mut carryover_service = MockCarryoverService::new();
+    carryover_service
+        .expect_get_carryover()
+        .returning(|_, _, _, _| Ok(None));
+
+    let mut transaction_dao = dao::MockTransactionDao::new();
+    transaction_dao
+        .expect_use_transaction()
+        .returning(|_| Ok(dao::MockTransaction));
+
+    let mut toggle_service = MockToggleService::new();
+    toggle_service
+        .expect_get_toggle_value()
+        .returning(|_, _, _| Ok(None));
+
+    ReportingServiceImpl {
+        extra_hours_service: Arc::new(extra_hours_service),
+        shiftplan_report_service: Arc::new(shiftplan_report_service),
+        employee_work_details_service: Arc::new(employee_work_details_service),
+        sales_person_service: Arc::new(sales_person_service),
+        carryover_service: Arc::new(carryover_service),
+        permission_service: Arc::new(permission_service),
+        clock_service: Arc::new(MockClockService::new()),
+        uuid_service: Arc::new(MockUuidService::new()),
+        absence_service: Arc::new(absence_service),
+        transaction_dao: Arc::new(transaction_dao),
+        special_day_service: Arc::new(MockSpecialDayService::new()),
+        toggle_service: Arc::new(toggle_service),
+        rebooking_batch_service: Arc::new(MockRebookingBatchService::new()),
+    }
+}
+
+/// Liefert `(balance_hours, volunteer_hours)` aus der Wochenübersicht
+/// (`get_week` → `assemble_weeks`) für KW 12/2026. Die Fixture `eh()` datiert
+/// alle Rows auf Mi 2026-03-18 (KW 12/2026), `work_details()` deckt KW 10..=20
+/// ab.
+async fn weekly_balance_and_ist(extra_hours: Vec<ExtraHours>) -> (f32, f32) {
+    let service = build_reporting_service_for_week(extra_hours);
+    let reports = service
+        .get_week(2026, 12, Authentication::Full, None)
+        .await
+        .expect("weekly summary must succeed");
+    let report = reports
+        .iter()
+        .find(|r| r.sales_person.id == sp_id())
+        .expect("weekly summary must contain the fixture sales person");
+    (report.balance_hours, report.volunteer_hours)
+}
+
+/// VOL-ACCT-04 über die **Wochenübersicht** — der Wächter für Site 1
+/// (`assemble_weeks`).
+///
+/// Warum dieser Test zusätzlich existiert: Die drei Tests oben fahren alle über
+/// `get_report_for_employee_range` und erreichen damit nur die Sites 3/4, die
+/// über `as_report_type()` filtern. `assemble_weeks` filtert seine
+/// `extra_working_hours`-Summe dagegen über `availability()`, und
+/// `VolunteerWork.availability()` ist `Available`. Dort genügt das bloße
+/// Streichen des `source`-Prädikats also NICHT: das `-h`-VolunteerWork-Bein
+/// würde mitgezählt und die Balance-Anhebung des `+h`-Beins netto wieder
+/// neutralisieren (Delta 0.0). Dieser Test ist der einzige, der einen
+/// übersehenen oder falsch gefixten Site 1 rot färbt.
+#[tokio::test]
+async fn rebooking_effective_in_weekly_summary() {
+    let (bal_before, ist_before) = weekly_balance_and_ist(baseline_extra_hours()).await;
+    let (bal_after, ist_after) = weekly_balance_and_ist(with_rebooking_pair()).await;
+
+    assert_delta(bal_before, bal_after, 2.0, "weekly balance_hours");
+    assert_delta(ist_before, ist_after, -2.0, "weekly volunteer_hours");
+}
