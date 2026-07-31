@@ -21,8 +21,9 @@ rebooking_reconciliation, voluntary_rebooking_scheduler}`,
 `service_impl::{rebooking_batch, voluntary_stats, rebooking_reconciliation,
 voluntary_rebooking_scheduler, voluntary_rebooking_gate}`,
 `dao::rebooking_batch`, `dao_impl_sqlite::rebooking_batch`,
-`service_impl::reporting` (vier neue pure fns + der `source ==
-Manual`-Neutralitäts-Filter + das `has_pending_rebooking`-Alert-Flag),
+`service_impl::reporting` (vier neue pure fns + die kategoriebasierte
+Aggregation mit ihrer einen `source`-abhängigen Ausnahme in
+`assemble_weeks` + das `has_pending_rebooking`-Alert-Flag),
 `rest::{report, rebooking}` (voluntary-stats + F3/F5-Routes + die F4
 `/admin/rebooking/backfill`-Route),
 `rest-types::{VoluntaryStatsTO, rebooking}`,
@@ -67,7 +68,7 @@ faktisch ihren Vertrag plus Freiwillig-Extra geleistet hat.
 | F1 (Ø Freiwillig pro Vertragswoche) | v2.6 Phase 54 | shipped | HR-only Ø — Σ Volunteer / Vertragswochen im ISO-Jahr. |
 | F2 (Freiwillig-Soll + Delta) | v2.6 Phase 54 | shipped | HR-only Sicht auf `committed_voluntary`-pro-rata-Soll vs. Ist + Delta. |
 | F3 (manuelle One-Shot-Umbuchung) | v2.6 Phase 55 | shipped | HR bucht eine gewählte Stundenzahl in einem Schuss um; Batch landet als `kind = Manual`, `state = Approved`, gepaarte `extra_hours` atomar geschrieben. |
-| F4 (Auto-Cron-Scheduler + Backfill) | v2.6 Phase 56 | shipped | `VoluntaryRebookingScheduler` (Montag-03:15-Cron) verarbeitet die Vorwoche für jede gedeckelte Person via `run_for_week` (`kind = AutoCron`), plus der Rollout-Endpoint `POST /admin/rebooking/backfill` (`kind = AutoCronBackfill`). Stichtag-Toggle-gesteuert (`voluntary_rebooking_auto_active_from`); **kein Snapshot-Schema-Bump — bleibt bei 12** (D-01). Siehe §9. |
+| F4 (Auto-Cron-Scheduler + Backfill) | v2.6 Phase 56 | shipped | `VoluntaryRebookingScheduler` (Montag-03:15-Cron) verarbeitet die Vorwoche für jede gedeckelte Person via `run_for_week` (`kind = AutoCron`), plus der Rollout-Endpoint `POST /admin/rebooking/backfill` (`kind = AutoCronBackfill`). Stichtag-Toggle-gesteuert (`voluntary_rebooking_auto_active_from`); seit Phase 57 auf Balance 0 gedeckelt (REB-AUTO-06). **Snapshot-Schema in Phase 57 auf 12 → 13 gebumpt** (D-57-10; der Phase-56-„kein Bump"-Zweig ist hinfällig — siehe §9.4). Siehe §9. |
 | F5 (HR-Alert suggest / approve / reject) | v2.6 Phase 55 | shipped | Claim-on-Suggest (Modell B): `suggest` claimt einen `Pending`-`HrSuggestion`-Batch; `approve` schreibt die gepaarten Zeilen, `reject` transitioniert nur den State. |
 
 **Faustregel:** F3 (manuell) und F5 (HR-Alert) shippen in Phase 55
@@ -84,40 +85,73 @@ DEFAULT 'manual'`. Die aktiven Domain-Werte sind `manual` und
   geschrieben wird (HR-CRUD, Absence-Convert-Vacation-Writer, Dev-Seed,
   REST-TO → Service-Mapper). Bestandszeilen landen per Column-DEFAULT
   auf `manual`.
-- **`rebooking`** — reserviert für die gepaarten Zeilen, die F3/F4/F5
-  ab Phase 55 emittieren. In Phase 54 setzt kein Writer diesen Wert —
-  der Marker existiert ausschließlich als *Reader-Filter-Ziel*.
+- **`rebooking`** — die gepaarten Zeilen, die F3/F4/F5 seit Phase 55
+  schreiben. Seit Phase 57 ist der Wert ein reines **Provenienz**-Feld:
+  UI-Kennzeichnung, Audit-Queries und spätere Undo-Fähigkeit. Er hat
+  keine pauschale Aggregations-Wirkung mehr.
 
-**Reader-Regel (aktiv seit Phase 55):** jedes Read-Aggregat, das in
-Anwesenheit von Rebooking-Paaren balance-neutral bleiben muss, filtert
-`source == ExtraHoursSource::Manual` (behalte `Manual`, schließe
-`Rebooking` aus). Der Filter greift **einmal am Aggregations-Eingang**
-jeder der vier Report-Pfade in `service_impl/src/reporting.rs`
-(`get_week`, `get_reports_for_all_employees`, `hours_per_week`,
-`overall_extra_work_hours` — `reporting.rs:859, 1192, 1728, 2161`)
-statt an jeder einzelnen per-Kategorie-`.filter()`-Site (D-55-A1). Da
-`Rebooking`-Source-Zeilen ausschließlich `ExtraWork`/`VolunteerWork`-
-Kategorien tragen, hat der Eingangs-Cutoff exakt denselben Effekt für
-die vier Balance-Kennzahlen und Null Effekt auf Absence/Holiday-
-Aggregate. Ohne ihn würde dieselbe Freiwillig-Stunde doppelt gezählt
-(einmal als Original-`Volunteer`, einmal als `Rebooking`-Source-Zeile,
-die sie in der bezahlten Kette neutralisiert).
+**Reader-Regel (Stand nach D-57-06, VOL-ACCT-04).** Die Fachlogik trägt
+die **Kategorie-Semantik**, nicht der Marker:
 
-**Audit-Regel:** `rebooking`-Source-Zeilen bleiben in der DB und
-bleiben in *Audit*-Queries sichtbar — sie sind die Antwort auf "warum
-hat sich die Balance an diesem Datum geändert?" (F5). Sie sind nur
-für End-User-Aggregate unsichtbar.
+- `ExtraHoursCategory::as_report_type()` entscheidet über die
+  Balance-Relevanz — `ExtraWork` wird zu `WorkingHours` (zählt in die
+  bezahlte Balance), `VolunteerWork` zu `Documented` (zählt nicht).
+- `ExtraHoursCategory::availability()` entscheidet über die Anwesenheit.
 
-**Balance-Neutralitäts-Garantie (VOL-ACCT-03) — aktiv seit Phase 55:**
-mit dem `source == Manual`-Filter verändert das Einfügen eines
-gleich-großen Gegenpaares `(−h, +h)`, beides mit `source = 'rebooking'`
-gestempelt, `balance`, `ist`, `soll` und `delta` nicht — die
-F1/F2-Zahlen bleiben über ein Rebooking-Event stabil, sowohl für eine
-einzelne Umbuchung als auch über einen kompletten Roundtrip.
-Festgenagelt durch die Property-Tests
-`rebooking_neutrality_single_manual` und
-`rebooking_neutrality_roundtrip`
-(`service_impl/src/test/rebooking_reconciliation.rs`).
+Ein Rebooking-Paar über `h` Stunden hebt damit die Balance um `h` (das
+`+h ExtraWork`-Bein) und senkt das Ehrenamt-Ist um `h` (das
+`−h VolunteerWork`-Bein) — genau die Wirkung, für die es das Feature
+gibt.
+
+**Genau eine `source`-abhängige Ausnahme bleibt.** In `assemble_weeks`
+(dem Wochenübersichts-Pfad, `service_impl/src/reporting.rs`) wird die
+balance-relevante Summe über `availability()` gebildet, und
+`VolunteerWork.availability()` ist `Available`. Dort wird die Kombination
+`VolunteerWork` **und** `source = Rebooking` gezielt ausgenommen —
+andernfalls würde das `−h`-Bein die Anhebung durch das `+h`-Bein
+neutralisieren und das Paar wäre an dieser einen Stelle netto 0. In der
+Ehrenamt-Ist-Summe derselben Funktion (`manual_volunteer_hours`) bleibt
+dieselbe Zeile bewusst enthalten: ohne sie würde das Ehrenamt-Ist nicht
+sinken.
+
+**Vorbestehende Inkonsistenz, bewusst nicht angetastet (RISK-01).**
+Gewöhnliche (Nicht-Rebooking-)`VolunteerWork`-Stunden zählen in der
+Wochenübersicht in `balance_hours`/`overall_hours`, im Jahresreport aber
+nicht — weil die beiden Pfade die Balance unterschiedlich herleiten
+(`availability()` vs. `as_report_type()`). Phase 57 hat das **nicht**
+angefasst; die obige Site-1-Ausnahme ist genau deshalb auf
+`source = Rebooking` beschränkt, damit das Verhalten gewöhnlicher
+Freiwilligen-Zeilen unverändert bleibt.
+
+**Historien-Hinweis.** Bis Phase 56 stand an den Aggregations-Eingängen
+aller vier Report-Pfade (`get_week`, `get_reports_for_all_employees`,
+`hours_per_week`, `overall_extra_work_hours`, D-55-A1) ein unbedingter
+Marker-Filter (`source == ExtraHoursSource::Manual`, behalte `Manual`,
+schließe `Rebooking` aus). Er war mit „Doppelzählung" begründet und
+stammte aus der ursprünglichen Fassung von VOL-ACCT-03, die
+Balance-Neutralität forderte. Diese Forderung war selbst der Fehler: der
+Filter machte den **gesamten** Übertrag wirkungslos — ein Paar änderte
+nirgends etwas. Neu gefasst in Phase 57 (VOL-ACCT-04); an drei Sites ist
+der Filter ersatzlos entfallen, an der vierten auf die obige Ausnahme
+verengt.
+
+**Audit-Regel:** `rebooking`-Source-Zeilen bleiben in der DB und bleiben
+in *Audit*-Queries sichtbar — sie sind die Antwort auf „warum hat sich
+die Balance an diesem Datum geändert?" (F5).
+
+**Was neutral bleibt (VOL-ACCT-03, in Phase 57 neu gefasst):** nur das
+**Soll**. `voluntary_soll` stammt aus `committed_voluntary` im Vertrag
+und liest überhaupt keine `extra_hours`, ein Rebooking-Paar lässt es also
+bit-identisch. Das ist die einzige verbliebene Neutralitäts-Garantie,
+festgenagelt durch `test_neutrality_f2_soll`
+(`service_impl/src/test/rebooking_neutrality.rs`). Die Wirkung auf
+Balance und Ist nageln `test_neutrality_balance`,
+`test_neutrality_f1_ist`, `rebooking_neutrality_single_manual`
+(`service_impl/src/test/rebooking_reconciliation.rs`),
+`rebooking_effective_in_weekly_summary` (der Site-1-Wächter) und das
+Ende-zu-Ende-Referenz-Szenario in
+`service_impl/src/test/rebooking_reference_scenario.rs`
+(8 h bezahlt / 12 h Ehrenamt / Balance −2 → 10 / 10 / 0) fest.
 
 ## 4. Batch Structure
 
@@ -205,10 +239,10 @@ Unterscheidung ist im Runtime-Graph verankert — siehe
 Aggregat deckt alle drei Quellen ab — manuelle VolunteerWork-ExtraHours,
 Shiftplan-Cap-Überlauf (`auto_volunteer_hours`) und
 no_contract-Shiftplan-Stunden — konsistent zum OVERALL-"Ehrenamt"-Wert
-auf der Employee-Detail-Seite. Der Rebooking-Neutralitäts-Filter
-(`source == 'manual'`) ist in Phase 54 in diesem Service NICHT aktiv; er
-greift ab Phase 55 zentral im `ReportingService` und fließt dann
-automatisch in diese Kette.
+auf der Employee-Detail-Seite. Weil das Ist delegiert wird, fließt die
+Rebooking-Wirkung automatisch mit ein: seit Phase 57 senkt das
+`−h VolunteerWork`-Bein `volunteer_hours` um `h` (§3) — dieser Service
+hält keinen eigenen Filter.
 
 **Soll + contract-weeks:** zwei Range-basierte pure fns neben
 `committed_voluntary_prorata_for_week` (internal per-week Baustein) in
@@ -321,7 +355,7 @@ ausgeblendet, wenn das Feld `None` ist.
 serde `#[serde(default)]` für Wire-Kompatibilität):
 
 - `ist_per_contract_week` — F1 (Ø Freiwillig / Vertragswoche).
-- `ist_total` — F2-Ist (absolute Manual-Volunteer-Summe im Range).
+- `ist_total` — F2-Ist (absolute Ehrenamt-Summe im Range).
 - `soll_total` — F2-Soll (`committed_voluntary` pro-rata über den Range).
 - `delta` — `ist_total − soll_total`.
 - `contract_weeks` — F1-Nenner (Audit).
@@ -344,22 +378,23 @@ bestehende `[[web.proxy]]`-Eintrag in `shifty-dioxus/Dioxus.toml` für
 ## 7. Related Features
 
 - **F04 Extra Hours** — die neue Spalte `source` liegt auf der
-  `extra_hours`-Tabelle; die vorgelagerten Reader in F07/F08 nutzen
-  den Marker-Filter.
-- **F07 Reporting / Balance** — die Read-Aggregate filtern seit Phase 55
-  `source == Manual` (behalte `Manual`, schließe `Rebooking` aus) an
-  vier Eingangs-Sites, sodass ein Rebooking-Paar balance / ist / soll /
-  delta-neutral ist (VOL-ACCT-03). Siehe F07 §2.6.
-- **F08 Billing Period Snapshot** — **kein Version-Bump — bleibt bei 12
-  über Phase 55 UND Phase 56.** `CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt
-  bei 12: keine der beiden Phasen fügt einen persistierten `value_type`
-  hinzu noch eine Berechnung, die einen bestehenden ändern würde (das
-  Rebooking-Paar netto-nullt im Aggregat). REB-AUTO-05 hat dies als den
-  **„Nein"-Zweig (kein Bump)** gepinnt — die D-01-Straddling-Golden-
-  Snapshot-Fixture beweist, dass die Snapshot-Value-Rows byte-identisch
-  sind, egal ob der F4-Cron-Toggle aktiv ist oder nicht, weil jede
-  Billing-Period-Input-Kette `source == Manual` filtert und damit nie
-  eine `Rebooking`-Source-Zeile liest (siehe §9 und F08 §7.4).
+  `extra_hours`-Tabelle; seit Phase 57 ist sie reine Provenienz
+  (siehe §3).
+- **F07 Reporting / Balance** — die Read-Aggregate filtern nicht mehr
+  nach Provenienz; die Kategorie-Semantik entscheidet
+  (`as_report_type()` für die Balance-Relevanz, `availability()` für die
+  Anwesenheit), mit der einen `assemble_weeks`-Ausnahme aus §3. Ein
+  Rebooking-Paar hebt die Balance um `h` und senkt das Ehrenamt-Ist um
+  `h`; neutral bleibt nur das VOL-ACCT-01-Soll (VOL-ACCT-03/04). Siehe
+  F07 §2.6.
+- **F08 Billing Period Snapshot** — **in Phase 57 auf 12 → 13 gebumpt**
+  (D-57-10). Ohne den Marker-Filter erreichen Rebooking-Zeilen die
+  persistierten Werte; die `value_type`s `Overall`, `Balance`,
+  `ExtraWork` und `Volunteer` verschieben sich für eine Periode mit
+  Rebooking-Woche um `±h`. Das ist ein „Change the input set the
+  computation reads from" im Sinne der CLAUDE.md-Klausel und damit
+  Bump-Pflicht. Der Phase-56-REB-AUTO-05-„kein Bump"-Zweig ist hinfällig
+  — siehe §9.4 und F08 §7.4.
 - **F13 System-Infrastruktur** — der Toggle
   `voluntary_rebooking_auto_active_from` (in Phase 54 mit
   `enabled = 0`, `value = NULL` geseedet) gattet in Phase 56 den
@@ -466,6 +501,18 @@ pending-Batch existiert. Es gibt **kein Undo** (D-55-04). Um den
 Read-Path günstig zu halten, läuft der Batch-Lookup nur für
 Prädikat-Kandidaten.
 
+**Klarstellung (D-57-04) — das Banner-Verhalten ist unverändert.** Der
+Alert erlischt weiterhin bei Approve, bei Reject und beim belegten
+UNIQUE-Wochen-Slot. Er ist ein **Arbeitswerkzeug für HR**, kein Wächter
+dagegen, dass der Übertrag erneut wirkungslos wird. Eine Entkopplung von
+D-55-07 wurde vom User ausdrücklich verworfen („Solange bis HR auf
+annehmen oder ablehnen klickt. Dann hat HR entschieden und es gibt keine
+Frage mehr in der Woche."). Die Wächter-Rolle tragen strukturell die
+Property-Tests in `service_impl/src/test/rebooking_neutrality.rs` und
+`service_impl/src/test/rebooking_reference_scenario.rs` — sie werden rot,
+sobald ein Rebooking-Paar die Balance nicht mehr bewegt, und nicht eine
+Sichtprüfung des Banners.
+
 ### 8.5 REST-Routes (Phase 55, `rest/src/rebooking.rs`)
 
 Alle vier Routes sind HR-gated (am Service) und OpenAPI-dokumentiert;
@@ -486,10 +533,11 @@ Die optionale read-only `GET /rebooking-suggestions`-Liste wurde
 
 Phase 56 setzt die **Automatisierungs-Fläche** auf den Phase-55-Write-Path
 obendrauf. Der One-Shot-F3-Write und der F5-approve-Lifecycle brauchen
-einen Menschen; F4 bucht dieselben balance-neutralen Rebooking-Paare
-automatisch, Woche für Woche, für jede gedeckelte Person — plus ein
-einmaliges Backfill-Kommando, das beim Rollout historische Wochen
-nachzieht.
+einen Menschen; F4 bucht dieselben Rebooking-Paare automatisch, Woche für
+Woche, für jede gedeckelte Person — plus ein einmaliges
+Backfill-Kommando, das beim Rollout historische Wochen nachzieht. Seit
+Phase 57 ist die Automatik **auf Balance 0 gedeckelt** (REB-AUTO-06,
+§9.1).
 
 ### 9.1 Die trigger-agnostische Engine — `run_for_week`
 
@@ -500,9 +548,46 @@ Backfill (Plan 02). Er ist trigger-agnostisch: der Aufrufer übergibt den
 für den Backfill), und die Engine macht das gesamte Gating intern, sodass
 die beiden Trigger niemals driften können:
 
-- **Excess** = `max(ist − (soll + committed), 0)` — die freiwilligen
-  Stunden über dem Committed-Soll, die umgebucht werden
-  (`RunForWeekOutcome::Booked { hours }`). Nichts umzubuchen → `Skipped`.
+- **Excess (seit Phase 57 gedeckelt, REB-AUTO-06)** — die Automatik
+  gleicht das **bezahlte Stundenkonto** aus, aber nur so weit, wie der
+  Mitarbeiter seine Freiwilligen-Zusage noch erfüllt. Die Balance steigt
+  durch die Automatik nie über 0. Formel (`week_excess`,
+  `service_impl/src/rebooking_reconciliation.rs`):
+
+  ```
+  min( max(ist − committed_voluntary, 0), max(−balance, 0) )
+  ```
+
+  Nicht-endliche Eingaben liefern `0.0` (NaN/Inf-Guard auf allen vier
+  Parametern). Nichts umzubuchen oder eine Balance ≥ 0 →
+  `Skipped { NoExcess }`.
+
+  **Balance-Quelle (D-57-07):** die kumulierte **year-to-date**-Balance
+  ab `first_day_in_year(iso_year)` bis einschließlich Sonntag der
+  verarbeiteten Woche, **inklusive** Vorjahres-Carryover
+  (`include_carryover = true`) — *nicht* die Balance zum Laufzeitpunkt
+  und *nicht* die isolierte Wochen-Range, die `suggest()`/`approve()`
+  benutzen. Begründung: ein Backfill über mehrere historische Wochen
+  würde sonst denselben Spielraum mehrfach vergeben.
+
+  **Abgrenzung zum HR-Vorschlag (D-57-01, Invariante I-5):** der
+  HR-Alert-Vorschlag aus §8.3 bleibt bei `proposed_hours =
+  min(|balance|, voluntary_ist)` und ist bewusst **nicht** durch die
+  Zusage gedeckelt — er darf sie unterschreiten, genau darin liegt der
+  Sinn des Features; seine Untergrenze ist das Jahres-Ehrenamt-Ist von 0.
+  Zwei Untergrenzen, zwei Zuständigkeiten: die Automatik stoppt bei
+  Balance 0, der von einem Menschen bestätigte Vorschlag bei
+  Ehrenamt-Ist 0.
+
+  **Referenz-Szenario (D-57-02):** Vertrag 5 h bezahlt + 5 h freiwillig
+  pro Woche, zwei Wochen; Woche 1 mit 3 h, Woche 2 mit 17 h → 8 h bezahlt
+  / 12 h freiwillig / Balance −2, und ein Übertrag von 2 h landet auf
+  10 / 10 / 0. Gegenprobe Übererfüllung: 23 h gearbeitet bei 20 h
+  zugesagt überträgt trotzdem nur **2**, nicht 5 — der Deckel bindet.
+  Beide Hälften sind ausführbar in
+  `service_impl/src/test/rebooking_reference_scenario.rs`, die
+  Schreibseite mit denselben Zahlen in
+  `voluntary_rebooking.rs::run_for_week_balance_cap_binds`.
 - **Idempotenz (REB-AUTO-03):** eine Woche, die bereits einen aktiven
   `rebooking_batch` trägt (früherer Cron-Lauf, manueller F3-Batch oder
   offener pending-HR-Vorschlag), wird geskippt — `Skipped { AlreadyProcessed }`.
@@ -581,40 +666,75 @@ genestet unter `/admin/rebooking`) ist ein dünner Delegat an
   berechneten `voluntary_ist` / `voluntary_soll` / `committed_voluntary` /
   `excess` / `would_book` / `skipped`), identische Shape für dry-run und
   Apply, sodass der HR-Admin vor dem Commit eine Vorschau bekommt.
+- **Preview == Apply (Invariante I-7, seit Phase 57).**
+  `BackfillPreviewItem.excess` wendet **denselben Balance-Deckel** an wie
+  der Schreib-Pfad; der Vorschau-Wert ist also exakt der Betrag, den ein
+  `dry_run=false`-Lauf buchen würde. Das ist nicht selbstverständlich:
+  der Preview berechnet den Überschuss eigenständig und läuft **nicht**
+  über `run_for_week`, braucht also einen eigenen
+  year-to-date-Balance-Read (gleiche Range, gleiches
+  `include_carryover = true`) — ein `0.0`-Platzhalter dort würde den
+  Preview still lügen lassen. Zwei sich widersprechende Tests nageln das
+  fest (`backfill_dry_run_writes_nothing` bei Balance −8 → 3.0,
+  `backfill_dry_run_preview_respects_balance_cap` bei Balance −2 → 2.0).
 
-### 9.4 Snapshot-Schema-Entscheidung (REB-AUTO-05, D-01)
+### 9.4 Snapshot-Schema-Entscheidung (REB-AUTO-05 — in Phase 57 gekippt, D-57-10)
 
-**`CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt bei 12 — F4 bumpt NICHT.**
-Die offene Discuss-Decision war, ob der F4-Cron-`Rebooking`-Source-
-`ExtraHours`-Writer ein „Input-Set-Change" im Sinne der
-CLAUDE.md-Snapshot-Versioning-Klausel ist. Die Antwort ist **nein**, und
-der Beweis ist empirisch: die Plan-01-**Straddling-Golden-Snapshot-
-Fixture** (`service_impl/src/test/billing_period_straddling.rs`) treibt
-den echten `BillingPeriodReportServiceImpl` über eine Billing-Period, die
-eine Rebooking-Woche (KW 16/2026) überspannt, und assertet, dass die
-persistierten `BillingPeriodSalesPerson.values`-Rows über vier
-Toggle-Szenarien **byte-identisch** sind (`f32::to_bits()`) — Cutoff nach
-/ vor / innerhalb der Period gesetzt sowie unset. Keine Kette leakt eine
-Rebooking-Zeile in den Snapshot, weil jeder Billing-Period-Input-Pfad
-`source == Manual` filtert (der Phase-55-D-55-A1-Read-Aggregations-Filter
-ist unbedingt und toggle-unabhängig). Rebooking ist balance-neutral (§3,
-VOL-ACCT-03), sodass das gepaarte `(−h, +h)` nie einen persistierten
-`value_type` ändert. Daher nimmt F4 den **„kein Bump"**-Zweig: keine
-Migration, keine `billing_period_snapshot_locking.rs`-Assert-Änderung,
-F08 §7.4 verzeichnet den Non-Bump. Siehe F08 §7.4 und F07 §2.6.
+**`CURRENT_SNAPSHOT_SCHEMA_VERSION` wurde in Phase 57 auf 12 → 13
+gebumpt.**
+
+Phase 56 hat die REB-AUTO-05-Frage („ist der
+F4-Cron-`Rebooking`-Source-`ExtraHours`-Writer ein *Input-Set-Change* im
+Sinne der CLAUDE.md-Snapshot-Versioning-Klausel?") mit **nein**
+beantwortet und den „kein Bump"-Zweig gepinnt. Diese Antwort stützte sich
+vollständig auf die Balance-Neutralität des Rebookings — die
+Read-Aggregate filterten `source == Manual`, sodass nie eine
+`Rebooking`-Zeile eine Snapshot-Kette erreichte. **Diese Voraussetzung
+war selbst der Fehler** (§3): der Filter machte den gesamten Übertrag
+wirkungslos. Mit der neu gefassten Filter-Regel (VOL-ACCT-04, D-57-06)
+fließen Rebooking-Zeilen jetzt in die persistierten `value_type`s
+`Overall`, `Balance`, `ExtraWork` und `Volunteer` ein — `Overall`
+verschiebt sich mit, weil `report_delta.overall_hours =
+shiftplan_hours_by_week + overall_extra_work_hours` gilt und das
+`+h ExtraWork`-Bein den zweiten Summanden hebt. Nicht betroffen:
+`ExpectedHours`, `VacationEntitlement`, `VacationDays` und die
+Absence-Kategorien — `rebook()` schreibt ausschließlich die Kategorien
+`VolunteerWork` und `ExtraWork`, und das Soll stammt aus dem Vertrag.
+
+Nach der CLAUDE.md-Klausel „Change the input set the computation reads
+from" ist der Bump damit **Pflicht** und wurde in Phase 57 vollzogen
+(D-57-10). Bestehende v12-Rows bleiben unangetastet (D-57-12, kein
+Recompute, keine Repair-Migration) — Validatoren vergleichen nur
+innerhalb derselben `snapshot_schema_version`, genau dafür existiert das
+Versionsfeld.
+
+Der Beweis ist empirisch und läuft jetzt andersherum: die
+Straddling-Golden-Snapshot-Fixture
+(`service_impl/src/test/billing_period_straddling.rs`) beweist weiterhin,
+dass der *Toggle* kein einziges Byte bewegt (der Stichtag steuert nur die
+Schreibseite, Invariante I-8), und zusätzlich beweist
+`test_straddling_snapshot_rebooking_shifts_values`, dass der *Datensatz*
+es tut — dieselbe Periode mit und ohne Rebooking-Paar unterscheidet sich
+um genau `±h` auf den vier obigen value_types. Eine Verschiebung von `0`
+ist dort der Alarm: sie hieße, dass eine Kette das Paar wieder
+herausfiltert. Siehe F08 §7.4 für die Bump-Historie und F07 §2.6.
 
 ---
 
 **Fazit.** Phase 54 lieferte die Lese-Seite von F14 (F1/F2,
-Audit-Tabellen, Marker-Spalte). Phase 55 hängt die Write-Seite an: F3
-manuelle One-Shot-Umbuchung und der F5-Claim-on-Suggest-HR-Alert-
-Lifecycle (suggest / approve / reject), den `source ==
-Manual`-Neutralitäts-Filter (VOL-ACCT-03) und das
-`has_pending_rebooking`-Alert-Flag. Phase 56 setzt den F4-Auto-Cron-
-Scheduler (wöchentlich Montag 03:15) und den Rollout-Backfill-Endpoint
-obendrauf (§9). Die gesamte Pipeline landet **ohne Snapshot-Schema-Bump —
-`CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt durchgehend 12**, weil Rebooking
-balance-neutral ist und jede Snapshot-Input-Kette `source == Manual`
-filtert (D-01, bewiesen durch die Straddling-Golden-Snapshot-Fixture).
+Audit-Tabellen, Marker-Spalte). Phase 55 hängte die Write-Seite an: F3
+manuelle One-Shot-Umbuchung, den F5-Claim-on-Suggest-HR-Alert-Lifecycle
+(suggest / approve / reject) und das
+`has_pending_rebooking`-Alert-Flag. Phase 56 setzte den
+F4-Auto-Cron-Scheduler (wöchentlich Montag 03:15) und den
+Rollout-Backfill-Endpoint obendrauf (§9). **Phase 57 hat den Übertrag
+tatsächlich wirksam gemacht:** bis dahin hielt ein unbedingter
+`source == Manual`-Filter jedes Rebooking-Paar aus den Read-Aggregaten
+heraus, eine Umbuchung änderte also nichts. Seit Phase 57 trägt die
+Kategorie-Semantik die Fachlogik (VOL-ACCT-04), die Automatik ist auf
+Balance 0 gedeckelt, während der von HR bestätigte Vorschlag bewusst
+nicht gedeckelt ist (REB-AUTO-06, D-57-01), und das Snapshot-Schema steht
+auf **13** (D-57-10). Das Einzige, was über eine Umbuchung hinweg noch
+neutral bleibt, ist das VOL-ACCT-01-Soll.
 
 *Letzte Verifikation gegen Code:* siehe git blame dieser Datei.
