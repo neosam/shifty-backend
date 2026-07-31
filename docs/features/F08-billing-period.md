@@ -658,7 +658,7 @@ Whoever bumps the constant **must** also lift this assert and rewrite
 the message to reflect the new reason. Phase 57 broke **five** such
 pins, not one: besides this test also
 `booking_information_vfa.rs::phase26_vfa_no_snapshot_bump`,
-`booking_information.rs::snapshot_schema_version_pinned_at_10` (the
+`booking_information.rs::snapshot_schema_version_pinned` (the
 function name is historical), `pdf_export_config.rs::snapshot_version_unchanged_grep_gate`
 (a grep gate on the literal `… u32 = 13;`) and
 `shiftplan_report.rs::test_snapshot_schema_version_unchanged`. All five

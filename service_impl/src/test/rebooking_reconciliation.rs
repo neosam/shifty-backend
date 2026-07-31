@@ -14,7 +14,7 @@
 //!    ist mit der Requirements-Korrektur aus Phase 57 entfallen. Neutral bleibt
 //!    nur noch das VOL-ACCT-01-Soll (rein committed_voluntary-basiert, liest
 //!    keine ExtraHours) — belegt in
-//!    `service_impl/src/test/rebooking_neutrality.rs::test_neutrality_f2_soll`.
+//!    `service_impl/src/test/rebooking_effectiveness.rs::test_neutrality_f2_soll`.
 //!    Ein Roundtrip aus zwei Pairs (hin und zurueck, netto 0) bleibt algebraisch
 //!    neutral und ist weiterhin als solcher getestet.
 //! 2. **Pure-fn-Matrizen:** `alert_predicate` + `proposed_hours` (HR-ALERT-01/D-55-01/03).
@@ -250,7 +250,7 @@ async fn balance_and_volunteer(extra_hours: Vec<ExtraHours>) -> (f32, f32) {
 /// Uebertrag wirkungslos und ist mit der Requirements-Korrektur entfallen; nur
 /// noch das VOL-ACCT-01-Soll ist rebooking-neutral.
 #[tokio::test]
-async fn rebooking_neutrality_single_manual() {
+async fn rebooking_effective_single_manual() {
     let (bal_before, vol_before) = balance_and_volunteer(baseline_extra_hours()).await;
     let (bal_after, vol_after) = balance_and_volunteer(extra_hours_with_rebooking_pair()).await;
 

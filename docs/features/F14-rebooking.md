@@ -136,9 +136,9 @@ balance change on that date".
 contract and reads no `extra_hours` at all, so a rebooking pair leaves it
 bit-identical. This is the one remaining neutrality guarantee, nailed by
 `test_neutrality_f2_soll`
-(`service_impl/src/test/rebooking_neutrality.rs`). The effect on balance
-and Ist is nailed by `test_neutrality_balance`, `test_neutrality_f1_ist`,
-`rebooking_neutrality_single_manual`
+(`service_impl/src/test/rebooking_effectiveness.rs`). The effect on balance
+and Ist is nailed by `rebooking_raises_balance`, `rebooking_lowers_volunteer_ist`,
+`rebooking_effective_single_manual`
 (`service_impl/src/test/rebooking_reconciliation.rs`),
 `rebooking_effective_in_weekly_summary` (the Site-1 guard) and the
 end-to-end reference scenario in
@@ -485,7 +485,7 @@ rebooking transfer becoming ineffective again. Decoupling D-55-07 was
 explicitly rejected by the user ("once HR has clicked accept or reject,
 HR has decided and there is no question left in that week"). The
 watchdog role is carried structurally by the property tests in
-`service_impl/src/test/rebooking_neutrality.rs` and
+`service_impl/src/test/rebooking_effectiveness.rs` and
 `service_impl/src/test/rebooking_reference_scenario.rs`, which turn red
 as soon as a rebooking pair stops moving the balance — not by a visual
 inspection of the banner.

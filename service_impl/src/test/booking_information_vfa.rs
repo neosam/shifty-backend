@@ -388,7 +388,7 @@ async fn vfa02_holiday_vs_absence_asymmetry() {
 /// which is a live, non-persisted year-view (Achse-B). No `BillingPeriodValueType` row is
 /// added or changed → no bump from Phase 26.
 ///
-/// This assertion is independent of `snapshot_schema_version_pinned_at_10` in
+/// This assertion is independent of `snapshot_schema_version_pinned` in
 /// `test/booking_information.rs` — that test covers the Phase-15..28 history; this one is a
 /// dedicated Phase-26 CI guard that will catch any accidental bump introduced by VFA work.
 #[test]

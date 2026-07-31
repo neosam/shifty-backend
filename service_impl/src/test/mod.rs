@@ -41,7 +41,7 @@ pub mod rebooking_batch_state;
 #[cfg(test)]
 pub mod rebooking_reconciliation;
 #[cfg(test)]
-pub mod rebooking_neutrality;
+pub mod rebooking_effectiveness;
 #[cfg(test)]
 pub mod rebooking_reference_scenario;
 #[cfg(test)]

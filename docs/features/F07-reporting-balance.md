@@ -250,7 +250,7 @@ balance (`reporting.rs:1097-1098, 1406-1414`, "dynamic-week guard").
   `hours_per_week` / `assemble_weeks`, including the CR-03 expected
   adjustment for rebooking-tagged ExtraWork in the dynamic branch.
   Pinned by
-  `rebooking_neutrality.rs::rebooking_conserves_hours_in_summary_without_contract_row`
+  `rebooking_effectiveness.rs::rebooking_conserves_hours_in_summary_without_contract_row`
   and `::rebooking_effective_in_summary_on_dynamic_contract`.
 - **Dynamic guard on Absence** (phase 8.4 / CR-01, WR-01):
   Absence hours (extra_hours + derived) reduce expected **only** when
@@ -297,10 +297,10 @@ balance (`reporting.rs:1097-1098, 1406-1414`, "dynamic-week guard").
   from `committed_voluntary` on the contract and reads no `extra_hours`
   at all, so it is bit-identical across a rebooking
   (`test_neutrality_f2_soll`). The delta promise — balance `+h`,
-  voluntary Ist `−h` — is nailed by `test_neutrality_balance` /
-  `test_neutrality_f1_ist`
-  (`service_impl/src/test/rebooking_neutrality.rs`),
-  `rebooking_neutrality_single_manual`
+  voluntary Ist `−h` — is nailed by `rebooking_raises_balance` /
+  `rebooking_lowers_volunteer_ist`
+  (`service_impl/src/test/rebooking_effectiveness.rs`),
+  `rebooking_effective_single_manual`
   (`service_impl/src/test/rebooking_reconciliation.rs`), the
   weekly-summary guard `rebooking_effective_in_weekly_summary` for the
   `assemble_weeks` site, and the end-to-end reference scenario in
@@ -730,7 +730,7 @@ and the memory note "Dioxus.toml proxy for new backend endpoints".
   removed from the expected-equals-actual expected. Otherwise the
   rebooked hours would leave the volunteer account without ever arriving
   in the paid one. Pinned by
-  `rebooking_neutrality.rs::rebooking_conserves_hours_on_dynamic_contract`,
+  `rebooking_effectiveness.rs::rebooking_conserves_hours_on_dynamic_contract`,
   which additionally checks that `hours_per_week` and `assemble_weeks`
   report the same effect.
 

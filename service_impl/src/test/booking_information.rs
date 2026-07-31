@@ -446,12 +446,13 @@ fn d05_uncapped_nonzero_excluded() {
 // ─── No-bump regression test (D-01 / CVC-05 / D-05 / Plan-01) ───────────────
 
 #[test]
-fn snapshot_schema_version_pinned_at_10() {
-    // HINWEIS zum Funktionsnamen: er ist historisch (Stand v10) und laengst irrefuehrend.
-    // Er bleibt bewusst unveraendert, weil er aus test/booking_information_vfa.rs
-    // (phase26_vfa_no_snapshot_bump) namentlich zitiert wird — ein Rename wuerde diesen
-    // Querverweis brechen. Der tatsaechlich gepinnte Wert steht ausschliesslich in der
-    // Assertion unten.
+fn snapshot_schema_version_pinned() {
+    // HINWEIS zum Funktionsnamen (WR-11): er hiess bis Phase 57
+    // `snapshot_schema_version_pinned_at_10` und pinnte da laengst 13. Der frueher hier
+    // notierte Verzicht auf ein Rename ("wird aus booking_information_vfa.rs namentlich
+    // zitiert") trug nicht: das ist ein Kommentar-Querverweis, keine Compile-Abhaengigkeit
+    // — beide Stellen sind in einem Commit umbenannt. Der Name traegt jetzt keine
+    // Versionsnummer mehr; der gepinnte Wert steht ausschliesslich in der Assertion unten.
     //
     // D-01 / CVC-05: Phase 15 touches NO persisted value_type — committed_voluntary_hours
     // (Band 1) and the reduced volunteer_hours (Band 2) are Achse-B (year-view) only and

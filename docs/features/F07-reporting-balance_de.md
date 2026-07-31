@@ -251,7 +251,7 @@ aufblasen (`reporting.rs:1097-1098, 1406-1414`, „Dynamic-week guard").
   Zweige spiegeln jetzt `hours_per_week` / `assemble_weeks`, inklusive
   der CR-03-Soll-Bereinigung für Rebooking-getaggte ExtraWork-Rows im
   dynamischen Zweig. Festgenagelt von
-  `rebooking_neutrality.rs::rebooking_conserves_hours_in_summary_without_contract_row`
+  `rebooking_effectiveness.rs::rebooking_conserves_hours_in_summary_without_contract_row`
   und `::rebooking_effective_in_summary_on_dynamic_contract`.
 - **Dynamic-Guard auf Absence** (Phase 8.4 / CR-01, WR-01):
   Absence-Stunden (extra_hours + derived) reduzieren die Erwartung **nur**,
@@ -299,10 +299,10 @@ aufblasen (`reporting.rs:1097-1098, 1406-1414`, „Dynamic-week guard").
   stammt aus `committed_voluntary` im Vertrag und liest überhaupt keine
   `extra_hours`, ist über eine Umbuchung hinweg also bit-identisch
   (`test_neutrality_f2_soll`). Die Delta-Zusage — Balance `+h`,
-  Ehrenamt-Ist `−h` — nageln `test_neutrality_balance` /
-  `test_neutrality_f1_ist`
-  (`service_impl/src/test/rebooking_neutrality.rs`),
-  `rebooking_neutrality_single_manual`
+  Ehrenamt-Ist `−h` — nageln `rebooking_raises_balance` /
+  `rebooking_lowers_volunteer_ist`
+  (`service_impl/src/test/rebooking_effectiveness.rs`),
+  `rebooking_effective_single_manual`
   (`service_impl/src/test/rebooking_reconciliation.rs`), der
   Wochenübersichts-Wächter `rebooking_effective_in_weekly_summary` für
   die `assemble_weeks`-Site und das Ende-zu-Ende-Referenz-Szenario in
@@ -731,7 +731,7 @@ und den Memory-Hinweis „Dioxus.toml Proxy für neue Backend-Endpoints".
   Soll=Ist-Soll herausgerechnet. Andernfalls würden die umgebuchten
   Stunden das Ehrenamt-Konto verlassen, ohne im bezahlten anzukommen.
   Festgenagelt von
-  `rebooking_neutrality.rs::rebooking_conserves_hours_on_dynamic_contract`,
+  `rebooking_effectiveness.rs::rebooking_conserves_hours_on_dynamic_contract`,
   das zusätzlich prüft, dass `hours_per_week` und `assemble_weeks`
   dieselbe Wirkung ausweisen.
 

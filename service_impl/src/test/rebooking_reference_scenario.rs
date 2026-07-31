@@ -6,7 +6,7 @@
 //! > Woche 2 siebzehn Stunden; das sind 20 Stunden gearbeitet bei 20 Stunden
 //! > zugesagt, aber Shifty rechnet 8 zu 12 und zeigt Balance −2."
 //!
-//! **Was diesen Test von `rebooking_neutrality.rs` unterscheidet.** Dort
+//! **Was diesen Test von `rebooking_effectiveness.rs` unterscheidet.** Dort
 //! entstehen die Ehrenamt-Stunden aus direkt gesetzten
 //! `VolunteerWork`-ExtraHours — das prüft die Aggregations-Deltas, aber nicht
 //! den Pfad, über den die Stunden in der Produktion tatsächlich entstehen. Hier
@@ -165,7 +165,7 @@ impl ReportingServiceDeps for ReportingDeps {
     type RebookingBatchService = MockRebookingBatchService;
 }
 
-/// Wie `build_reporting_service` in `rebooking_neutrality.rs`, mit dem einen
+/// Wie `build_reporting_service` in `rebooking_effectiveness.rs`, mit dem einen
 /// inhaltlichen Unterschied: der `MockShiftplanReportService` liefert echte
 /// Shiftplan-Stunden — eine Row für KW 10 und eine für KW 11. Die
 /// Tages-Granularität ist irrelevant, weil `hours_per_week` die Stunden pro

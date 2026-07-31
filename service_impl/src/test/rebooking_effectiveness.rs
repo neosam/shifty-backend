@@ -5,10 +5,10 @@
 //! mit `source=Rebooking`) ist auf der Leseseite ausdrücklich NICHT neutral —
 //! sie ist genau dann korrekt, wenn sie wirkt:
 //!
-//! 1. `test_neutrality_balance` — `EmployeeReport::balance_hours` steigt um `h`
+//! 1. `rebooking_raises_balance` — `EmployeeReport::balance_hours` steigt um `h`
 //!    (VOL-ACCT-04, Invariante I-1). Das `+h`-ExtraWork-Bein ist balance-relevant,
 //!    das `-h`-VolunteerWork-Bein ist es nicht.
-//! 2. `test_neutrality_f1_ist` — `EmployeeReport::volunteer_hours` (= F1-Ist,
+//! 2. `rebooking_lowers_volunteer_ist` — `EmployeeReport::volunteer_hours` (= F1-Ist,
 //!    identisch zu `VoluntaryStats::ist_total`) sinkt um `h` (VOL-ACCT-04,
 //!    Invariante I-2). Die freiwillig geleisteten Stunden sind nach der Umbuchung
 //!    bezahlt, zählen also nicht mehr im Ehrenamt-Ist.
@@ -20,6 +20,20 @@
 //! 4. `rebooking_effective_in_weekly_summary` — dieselbe Wirkung über
 //!    `get_week` → `assemble_weeks`, also über den Wochenübersichts-Pfad
 //!    (Site 1), den die drei Range-Tests oben nicht erreichen.
+//! 5. `reverse_rebooking_lowers_balance_and_raises_volunteer` (WR-12) — die
+//!    Korrekturrichtung `ExtraToVolunteer` mit umgekehrten Vorzeichen, über
+//!    beide Leseseiten.
+//! 6. `rebooking_conserves_hours_in_summary_without_contract_row` und
+//!    `rebooking_effective_in_summary_on_dynamic_contract` (WR-01) — der
+//!    Mitarbeiter-Übersichts-Pfad `get_reports_for_all_employees` (Site 2)
+//!    mit seinen beiden Sonderzweigen.
+//! 7. `rebooking_conserves_hours_on_dynamic_contract` (CR-03) — der
+//!    Soll=Ist-Zweig des dynamischen Vertrags, in dem Stunden verschwanden.
+//!
+//! **Dateiname (WR-11):** die Datei hieß bis Phase 57 `rebooking_neutrality.rs`
+//! und trug damit den Namen der Eigenschaft, die sie widerlegt. Genau ein Test
+//! (`test_neutrality_f2_soll`) prüft noch Neutralität; alle übrigen prüfen
+//! Wirksamkeit.
 //!
 //! **Warum die Assertionen 1 und 2 invertiert wurden.** Die Fassung bis Phase 56
 //! forderte Bit-Identität auf allen drei Aggregaten und begründete das mit dem
@@ -411,7 +425,7 @@ async fn soll_total(extra_hours: Vec<ExtraHours>) -> f32 {
 /// Ausgleichswirkung des Übertrags freiwillig→bezahlt. Delta 0.0 hieße: eine
 /// Aggregations-Kette verwirft wieder beide Beine (der Phase-55-Zustand).
 #[tokio::test]
-async fn test_neutrality_balance() {
+async fn rebooking_raises_balance() {
     let (bal_before, _) = balance_and_ist(baseline_extra_hours()).await;
     let (bal_after, _) = balance_and_ist(with_rebooking_pair()).await;
     assert_delta(bal_before, bal_after, 2.0, "balance_hours");
@@ -421,7 +435,7 @@ async fn test_neutrality_balance() {
 /// `VoluntaryStats::ist_total`) sinkt nach demselben Pair um genau 2.0 — die
 /// umgebuchten Stunden sind jetzt bezahlt und zählen nicht mehr als Ehrenamt.
 #[tokio::test]
-async fn test_neutrality_f1_ist() {
+async fn rebooking_lowers_volunteer_ist() {
     let (_, ist_before) = balance_and_ist(baseline_extra_hours()).await;
     let (_, ist_after) = balance_and_ist(with_rebooking_pair()).await;
     assert_delta(ist_before, ist_after, -2.0, "f1_ist (volunteer_hours)");

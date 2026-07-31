@@ -656,7 +656,7 @@ Wer die Konstante bumpt, **muss** auch diesen Assert mitheben und die
 Message auf den neuen Grund umschreiben. Phase 57 hat **fünf** solcher
 Pins gebrochen, nicht einen: neben diesem Test auch
 `booking_information_vfa.rs::phase26_vfa_no_snapshot_bump`,
-`booking_information.rs::snapshot_schema_version_pinned_at_10` (der
+`booking_information.rs::snapshot_schema_version_pinned` (der
 Funktionsname ist historisch),
 `pdf_export_config.rs::snapshot_version_unchanged_grep_gate` (ein
 Grep-Gate auf das Literal `… u32 = 13;`) und

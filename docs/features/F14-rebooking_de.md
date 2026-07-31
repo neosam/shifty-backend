@@ -144,9 +144,9 @@ die Balance an diesem Datum geändert?" (F5).
 und liest überhaupt keine `extra_hours`, ein Rebooking-Paar lässt es also
 bit-identisch. Das ist die einzige verbliebene Neutralitäts-Garantie,
 festgenagelt durch `test_neutrality_f2_soll`
-(`service_impl/src/test/rebooking_neutrality.rs`). Die Wirkung auf
-Balance und Ist nageln `test_neutrality_balance`,
-`test_neutrality_f1_ist`, `rebooking_neutrality_single_manual`
+(`service_impl/src/test/rebooking_effectiveness.rs`). Die Wirkung auf
+Balance und Ist nageln `rebooking_raises_balance`,
+`rebooking_lowers_volunteer_ist`, `rebooking_effective_single_manual`
 (`service_impl/src/test/rebooking_reconciliation.rs`),
 `rebooking_effective_in_weekly_summary` (der Site-1-Wächter) und das
 Ende-zu-Ende-Referenz-Szenario in
@@ -508,7 +508,7 @@ dagegen, dass der Übertrag erneut wirkungslos wird. Eine Entkopplung von
 D-55-07 wurde vom User ausdrücklich verworfen („Solange bis HR auf
 annehmen oder ablehnen klickt. Dann hat HR entschieden und es gibt keine
 Frage mehr in der Woche."). Die Wächter-Rolle tragen strukturell die
-Property-Tests in `service_impl/src/test/rebooking_neutrality.rs` und
+Property-Tests in `service_impl/src/test/rebooking_effectiveness.rs` und
 `service_impl/src/test/rebooking_reference_scenario.rs` — sie werden rot,
 sobald ein Rebooking-Paar die Balance nicht mehr bewegt, und nicht eine
 Sichtprüfung des Banners.
