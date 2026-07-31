@@ -203,7 +203,7 @@ fn build_service(
 // ─── Pure-fn Matrix (week_excess) ────────────────────────────────────────────
 
 /// REB-AUTO-01 + REB-AUTO-06: week_excess ==
-/// `min( max(ist - (soll + committed), 0), max(-balance, 0) )`.
+/// `min( max(ist - committed, 0), max(-balance, 0) )`.
 ///
 /// Der unbeschraenkte Ueberschuss (REB-AUTO-01) wird seit Phase 57 zusaetzlich
 /// vom Headroom des bezahlten Stundenkontos gedeckelt (REB-AUTO-06): die
@@ -211,26 +211,30 @@ fn build_service(
 /// HR-Vorschlagspfad (`proposed_hours`) bleibt bewusst UNgedeckelt und darf die
 /// Freiwilligen-Zusage unterschreiten (Invariante I-5, D-57-01).
 ///
-/// Nicht-endliche Eingaben (NaN/Inf) ergeben in ALLEN vier Parametern 0.0.
+/// Nicht-endliche Eingaben (NaN/Inf) ergeben in ALLEN drei Parametern 0.0.
+///
+/// WR-08: die Signatur fuehrte bis Phase 57 einen vierten Parameter `soll`, der
+/// an beiden Call-Sites konstant `0.0` war. Er ist entfernt — `committed`
+/// (== `VoluntaryStats::soll_total`) ist die einzige Zusagen-Groesse.
 #[test]
 fn week_excess_matrix() {
-    // ist - committed (soll=0 in run_for_week; committed==soll_total). Balance
-    // -8 laesst in diesen fuenf Bestandszeilen genug Headroom → Deckel bindet nicht.
-    assert!((week_excess(10.0, 0.0, 5.0, -8.0) - 5.0).abs() < 1e-6, "10-5=5");
-    assert!((week_excess(5.0, 0.0, 5.0, -8.0) - 0.0).abs() < 1e-6, "5-5=0 clamp");
-    assert!((week_excess(3.0, 0.0, 5.0, -8.0) - 0.0).abs() < 1e-6, "negative clamps to 0");
-    assert!((week_excess(f32::NAN, 0.0, 5.0, -8.0) - 0.0).abs() < 1e-6, "NaN -> 0");
-    assert!((week_excess(f32::INFINITY, 0.0, 5.0, -8.0) - 0.0).abs() < 1e-6, "Inf -> 0");
+    // ist - committed (committed == soll_total). Balance -8 laesst in diesen
+    // fuenf Bestandszeilen genug Headroom → Deckel bindet nicht.
+    assert!((week_excess(10.0, 5.0, -8.0) - 5.0).abs() < 1e-6, "10-5=5");
+    assert!((week_excess(5.0, 5.0, -8.0) - 0.0).abs() < 1e-6, "5-5=0 clamp");
+    assert!((week_excess(3.0, 5.0, -8.0) - 0.0).abs() < 1e-6, "negative clamps to 0");
+    assert!((week_excess(f32::NAN, 5.0, -8.0) - 0.0).abs() < 1e-6, "NaN -> 0");
+    assert!((week_excess(f32::INFINITY, 5.0, -8.0) - 0.0).abs() < 1e-6, "Inf -> 0");
 
     // REB-AUTO-06 / Gegenprobe D-57-02: unconstrained waere 15-5=10, der Headroom
     // aus Balance -2 ist 2 → der Deckel bindet (Invariante I-3).
-    assert!((week_excess(15.0, 0.0, 5.0, -2.0) - 2.0).abs() < 1e-6, "cap binds: min(10, 2) = 2");
+    assert!((week_excess(15.0, 5.0, -2.0) - 2.0).abs() < 1e-6, "cap binds: min(10, 2) = 2");
     // Invariante I-4: bei ausgeglichener oder positiver Balance gibt es nichts
     // auszugleichen — kein Uebertrag, auch bei freiwilligem Ueberschuss.
-    assert!((week_excess(10.0, 0.0, 5.0, 0.0) - 0.0).abs() < 1e-6, "balance 0 -> no headroom");
-    assert!((week_excess(10.0, 0.0, 5.0, 3.0) - 0.0).abs() < 1e-6, "positive balance -> no headroom");
-    // Der NaN/Inf-Guard deckt auch den neuen vierten Parameter ab (T-57-07).
-    assert!((week_excess(10.0, 0.0, 5.0, f32::NAN) - 0.0).abs() < 1e-6, "NaN balance -> 0");
+    assert!((week_excess(10.0, 5.0, 0.0) - 0.0).abs() < 1e-6, "balance 0 -> no headroom");
+    assert!((week_excess(10.0, 5.0, 3.0) - 0.0).abs() < 1e-6, "positive balance -> no headroom");
+    // Der NaN/Inf-Guard deckt auch den Balance-Parameter ab (T-57-07).
+    assert!((week_excess(10.0, 5.0, f32::NAN) - 0.0).abs() < 1e-6, "NaN balance -> 0");
 }
 
 // ─── run_for_week behavior cases ─────────────────────────────────────────────

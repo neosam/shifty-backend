@@ -81,7 +81,7 @@ pub(crate) const MIN_BOOKABLE_HOURS: f32 = 0.01;
 /// Reine, testbare Ueberschuss-Formel (F4 core, REB-AUTO-01 + REB-AUTO-06):
 ///
 /// ```text
-/// week_excess = min( max(ist - (soll + committed_voluntary), 0), max(-balance, 0) )
+/// week_excess = min( max(ist - committed_voluntary, 0), max(-balance, 0) )
 /// ```
 ///
 /// Der erste Term ist der freiwillige Wochen-Ueberschuss (REB-AUTO-01): was ueber
@@ -99,17 +99,24 @@ pub(crate) const MIN_BOOKABLE_HOURS: f32 = 0.01;
 /// Freiwilligen-Zusage unterschreiten, weil ein Mensch die Entscheidung traegt.
 /// Die Automatik darf das nicht und gleicht nur den unstrittigen Teil aus.
 ///
-/// Nicht-endliche Eingaben (NaN/Inf) ergeben in allen vier Parametern `0.0`
+/// Nicht-endliche Eingaben (NaN/Inf) ergeben in allen drei Parametern `0.0`
 /// (defensiver Skip statt Panik / Muell-Buchung, T-57-07).
-pub(crate) fn week_excess(ist: f32, soll: f32, committed_voluntary: f32, balance: f32) -> f32 {
-    if !ist.is_finite()
-        || !soll.is_finite()
-        || !committed_voluntary.is_finite()
-        || !balance.is_finite()
-    {
+///
+/// **WR-02:** ein positives Ergebnis ist noch keine Buchung — die Aufrufer
+/// pruefen zusaetzlich gegen [`MIN_BOOKABLE_HOURS`], damit ein f32-Residuum
+/// kein Micro-Pair erzeugt und keinen UNIQUE-Slot verbrennt.
+///
+/// **WR-08:** die Signatur hatte bis Phase 57 einen vierten Parameter `soll`,
+/// der an BEIDEN Call-Sites konstant `0.0` war — er existierte nur noch, um in
+/// der Formel zu stehen. Ein solcher Schein-Freiheitsgrad laedt dazu ein,
+/// versehentlich `soll` UND `committed` zu uebergeben und den Ueberschuss
+/// doppelt abzuziehen. Fachlich gibt es genau drei Eingaben: der Wochen-Ist,
+/// die Freiwilligen-Zusage der Woche und die Balance.
+pub(crate) fn week_excess(ist: f32, committed_voluntary: f32, balance: f32) -> f32 {
+    if !ist.is_finite() || !committed_voluntary.is_finite() || !balance.is_finite() {
         return 0.0;
     }
-    let unconstrained = ist - (soll + committed_voluntary);
+    let unconstrained = ist - committed_voluntary;
     let unconstrained = if unconstrained > 0.0 { unconstrained } else { 0.0 };
     let headroom = if -balance > 0.0 { -balance } else { 0.0 };
     unconstrained.min(headroom)
@@ -223,17 +230,25 @@ impl<Deps: RebookingReconciliationServiceDeps> RebookingReconciliationServiceImp
         }
     }
 
-    /// Liest die Wochen-Freiwilligen-Kennzahlen `(ist, soll, committed)` fuer die
-    /// ISO-Woche (Range Mo..=So) aus `VoluntaryStats`. `committed == soll ==
-    /// soll_total` (committed-voluntary-target); `ist == ist_total`. `None`-Felder
-    /// (z. B. Nicht-HR / Nicht-Freiwilliger) werden defensiv auf `0.0` gemappt.
+    /// Liest die Wochen-Freiwilligen-Kennzahlen `(ist, committed)` fuer die
+    /// ISO-Woche (Range Mo..=So) aus `VoluntaryStats`. `ist == ist_total`;
+    /// `committed == soll_total` (der committed-voluntary-target der Woche).
+    /// `None`-Felder (z. B. Nicht-HR / Nicht-Freiwilliger) werden defensiv auf
+    /// `0.0` gemappt.
+    ///
+    /// **WR-08:** die fn lieferte bis Phase 57 das Tripel `(ist, soll, soll)` —
+    /// denselben Wert zweimal. Der `soll`-Slot war kein Freiheitsgrad, sondern
+    /// eine Einladung, ihn zusaetzlich zu `committed` in `week_excess` zu
+    /// stecken. Wer das F2-Soll fuer die Anzeige braucht (Backfill-Preview),
+    /// nimmt `committed`: die beiden sind fuer die Single-Week-Range per
+    /// Konstruktion identisch.
     async fn week_voluntary_figures(
         &self,
         sales_person_id: Uuid,
         iso_year: u32,
         iso_week: u8,
         tx: Deps::Transaction,
-    ) -> Result<(f32, f32, f32), ServiceError> {
+    ) -> Result<(f32, f32), ServiceError> {
         let from_date = ShiftyDate::new(iso_year, iso_week, DayOfWeek::Monday)
             .map_err(|_| ServiceError::InternalError)?;
         let to_date = ShiftyDate::new(iso_year, iso_week, DayOfWeek::Sunday)
@@ -250,9 +265,9 @@ impl<Deps: RebookingReconciliationServiceDeps> RebookingReconciliationServiceImp
             )
             .await?;
         let ist = stats.ist_total.unwrap_or(0.0);
-        let soll = stats.soll_total.unwrap_or(0.0);
         // committed == soll_total (der committed-voluntary-target der Woche).
-        Ok((ist, soll, soll))
+        let committed = stats.soll_total.unwrap_or(0.0);
+        Ok((ist, committed))
     }
 }
 
@@ -695,10 +710,10 @@ impl<Deps: RebookingReconciliationServiceDeps> RebookingReconciliationService
         // Ueberschuss = Ist - committed_voluntary (beide fuer die Wochen-Range
         // Mo..=So), gedeckelt auf den Headroom der Balance. `committed` ==
         // VoluntaryStats::soll_total (committed-voluntary-target).
-        let (ist, _soll, committed) = self
+        let (ist, committed) = self
             .week_voluntary_figures(sales_person_id, iso_year, iso_week, tx.clone())
             .await?;
-        let excess = week_excess(ist, 0.0, committed, balance);
+        let excess = week_excess(ist, committed, balance);
         // WR-02: Mindest-Buchungsgroesse statt `<= 0.0`. Ein f32-Residuum wie
         // `1.2e-6` wuerde sonst ein Micro-Pair schreiben UND den UNIQUE-Slot
         // der Woche verbrennen (siehe MIN_BOOKABLE_HOURS).
@@ -852,10 +867,10 @@ impl<Deps: RebookingReconciliationServiceDeps> RebookingReconciliationService
                         .copied()
                         .unwrap_or(0.0);
 
-                let (ist, soll, committed) = self
+                let (ist, committed) = self
                     .week_voluntary_figures(sales_person_id, iso_year, iso_week, read_tx.clone())
                     .await?;
-                let excess = week_excess(ist, 0.0, committed, balance);
+                let excess = week_excess(ist, committed, balance);
 
                 // Cutoff-Gate: vor Stichtag → ToggleOff-Skip (kein Write).
                 let toggle_on =
@@ -866,7 +881,9 @@ impl<Deps: RebookingReconciliationServiceDeps> RebookingReconciliationService
                     iso_year,
                     iso_week,
                     voluntary_ist: ist,
-                    voluntary_soll: soll,
+                    // WR-08: F2-Soll und committed-voluntary-target sind fuer
+                    // die Single-Week-Range derselbe Wert (`soll_total`).
+                    voluntary_soll: committed,
                     committed_voluntary: committed,
                     excess,
                     // WR-02: dieselbe Mindest-Buchungsgroesse wie im Schreibpfad —
