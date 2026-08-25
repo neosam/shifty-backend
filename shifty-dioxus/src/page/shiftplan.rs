@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use dioxus::prelude::*;
 use futures_util::StreamExt;
-use rest_types::{DayOfWeekTO, SpecialDayTO, SpecialDayTypeTO};
+use rest_types::{DayOfWeekTO, SpecialDayTO, SpecialDayTypeTO, WarningTO};
 use time::macros::format_description;
 use tracing::info;
 use uuid::Uuid;
@@ -94,6 +94,37 @@ pub(crate) fn special_day_error_after_create<T, E>(
 /// full 4×2 matrix (WeekStatus × Option<Uuid>).
 pub fn should_show_pdf_button(status: WeekStatus, shiftplan_id: Option<Uuid>) -> bool {
     shiftplan_id.is_some() && matches!(status, WeekStatus::Planned | WeekStatus::Locked)
+}
+
+/// Kanban `t_7a17277a`: pure visibility filter for the dismissible
+/// booking-warning banner.
+///
+/// The backend emits `WarningTO::BookingOnAbsenceDay` for every booking that
+/// lands on a day covered by an absence period
+/// (`ShiftplanEditService::book_slot_with_conflict_check`). For shiftplanners
+/// the same conflict is already visible persistently in the booking-conflicts
+/// section, which is loaded via `GET /booking-information/conflicts/for-week`
+/// — the banner is redundant there. That section is gated `is_shiftplanner`
+/// in the FE and `SHIFTPLANNER_PRIVILEGE` in the BE, though: a regular
+/// employee booking **themselves** onto their own absence day (booking gate:
+/// Shiftplanner ∨ self) has no conflicts list at all and needs the banner as
+/// their only feedback channel.
+///
+/// Returns the warnings to display in the banner: for shiftplanners the
+/// `BookingOnAbsenceDay` variant is dropped (redundant with the conflicts
+/// list); for any other role all warnings are kept (self-booking feedback
+/// preserved, backend contract untouched).
+pub(crate) fn booking_warnings_for_banner(
+    warnings: Vec<WarningTO>,
+    is_shiftplanner: bool,
+) -> Vec<WarningTO> {
+    if !is_shiftplanner {
+        return warnings;
+    }
+    warnings
+        .into_iter()
+        .filter(|w| !matches!(w, WarningTO::BookingOnAbsenceDay { .. }))
+        .collect()
 }
 
 pub enum ShiftPlanAction {
@@ -531,11 +562,20 @@ pub fn ShiftPlan(props: ShiftPlanProps) -> Element {
                                     // Booking always kept — no rollback path
                                     block_error.set(None); // D-24-05: clear any previous hard-block on success
                                     update_shiftplan();
-                                    if warnings.is_empty() {
+                                    // t_7a17277a: for shiftplanners the
+                                    // BookingOnAbsenceDay warning is redundant
+                                    // (persistent conflicts section, gated
+                                    // is_shiftplanner); for everyone else the
+                                    // banner is the only feedback channel
+                                    // (self-booking on own absence day).
+                                    let visible_warnings =
+                                        booking_warnings_for_banner(warnings, is_shiftplanner);
+                                    if visible_warnings.is_empty() {
                                         booking_warnings.set(WarningsList::empty());
                                     } else {
-                                        booking_warnings
-                                            .set(WarningsList(Rc::from(warnings.as_slice())));
+                                        booking_warnings.set(WarningsList(Rc::from(
+                                            visible_warnings.as_slice(),
+                                        )));
                                     }
                                 }
                                 Err(crate::error::ShiftyError::Reqwest(ref e))
@@ -2189,6 +2229,102 @@ mod tests {
         #[test]
         fn none_id_in_planning() {
             assert!(!should_show_pdf_button(WeekStatus::InPlanning, None));
+        }
+    }
+
+    /// t_7a17277a: `booking_warnings_for_banner` drops the redundant
+    /// `BookingOnAbsenceDay` warning for shiftplanners (who already see the
+    /// persistent conflicts section) and keeps every warning for everyone else
+    /// (self-booking employees, whose only feedback channel is the banner).
+    mod booking_banner_filter_tests {
+        use super::super::booking_warnings_for_banner;
+        use rest_types::{AbsenceCategoryTO, DayOfWeekTO, WarningTO};
+        use uuid::Uuid;
+
+        fn absence_day_warning() -> WarningTO {
+            WarningTO::BookingOnAbsenceDay {
+                booking_id: Uuid::from_u128(0x7a17_277a_0000_0000_0000_0000_0000_0001),
+                date: time::Date::from_calendar_date(2026, time::Month::January, 1).unwrap(),
+                absence_id: Uuid::from_u128(0x7a17_277a_0000_0000_0000_0000_0000_0002),
+                category: AbsenceCategoryTO::Vacation,
+            }
+        }
+
+        fn unavailable_day_warning() -> WarningTO {
+            WarningTO::BookingOnUnavailableDay {
+                booking_id: Uuid::from_u128(0x7a17_277a_0000_0000_0000_0000_0000_0003),
+                year: 2026,
+                week: 1,
+                day_of_week: DayOfWeekTO::Monday,
+            }
+        }
+
+        // --- shiftplanner: BookingOnAbsenceDay is redundant --------------
+
+        #[test]
+        fn shiftplanner_drops_absence_day_warning() {
+            let out = booking_warnings_for_banner(vec![absence_day_warning()], true);
+            assert!(
+                out.is_empty(),
+                "shiftplanner must not see the redundant BookingOnAbsenceDay banner, got: {out:?}"
+            );
+        }
+
+        #[test]
+        fn shiftplanner_keeps_other_warnings() {
+            let out = booking_warnings_for_banner(vec![unavailable_day_warning()], true);
+            assert_eq!(
+                out.len(),
+                1,
+                "only BookingOnAbsenceDay is redundant for shiftplanners, got: {out:?}"
+            );
+            assert!(matches!(out[0], WarningTO::BookingOnUnavailableDay { .. }));
+        }
+
+        #[test]
+        fn shiftplanner_mixed_list_keeps_only_non_absence() {
+            let out = booking_warnings_for_banner(
+                vec![
+                    absence_day_warning(),
+                    unavailable_day_warning(),
+                    absence_day_warning(),
+                ],
+                true,
+            );
+            assert_eq!(out.len(), 1, "both absence warnings must be dropped, got: {out:?}");
+            assert!(matches!(out[0], WarningTO::BookingOnUnavailableDay { .. }));
+        }
+
+        #[test]
+        fn shiftplanner_empty_stays_empty() {
+            assert!(booking_warnings_for_banner(Vec::new(), true).is_empty());
+        }
+
+        // --- non-shiftplanner: banner is the only feedback channel -------
+
+        #[test]
+        fn non_shiftplanner_keeps_absence_day_warning() {
+            let out = booking_warnings_for_banner(vec![absence_day_warning()], false);
+            assert_eq!(
+                out.len(),
+                1,
+                "self-booking employees need the BookingOnAbsenceDay banner, got: {out:?}"
+            );
+            assert!(matches!(out[0], WarningTO::BookingOnAbsenceDay { .. }));
+        }
+
+        #[test]
+        fn non_shiftplanner_keeps_everything() {
+            let out = booking_warnings_for_banner(
+                vec![absence_day_warning(), unavailable_day_warning()],
+                false,
+            );
+            assert_eq!(out.len(), 2, "no filtering for non-shiftplanners, got: {out:?}");
+        }
+
+        #[test]
+        fn non_shiftplanner_empty_stays_empty() {
+            assert!(booking_warnings_for_banner(Vec::new(), false).is_empty());
         }
     }
 }
