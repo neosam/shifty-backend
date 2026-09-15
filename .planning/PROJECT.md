@@ -1,8 +1,8 @@
 ---
 type: project_charter
-last_updated: 2026-07-25
-last_milestone: v2.5 Weekly-Overview Performance & Freiwilligen-Abwesenheiten (shipped 2026-07-06, Phasen 52-53, 9/9 Requirements, Audit passed)
-current_milestone: v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter (executing — Phasen 54+55 complete, Phase 56 F4 offen)
+last_updated: 2026-09-15
+last_milestone: v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter (shipped 2026-07-31, deployed; Phasen 54-57, 19/19 Requirements, Audit passed, override_closeout)
+current_milestone: (keiner — zwischen Milestones, nächste Iteration via /gsd-new-milestone)
 ---
 
 # Shifty — Project Charter
@@ -159,7 +159,75 @@ bewusst synchron halten — Update via `cli-update-version.sh` (im Backend-Root)
 und `shifty-dioxus/cli-update-version.sh` (im Frontend-Subordner). Eine
 spätere Konsolidierung könnte das vereinheitlichen, ist aber nicht dringend.
 
-## Zuletzt geshipt: v2.5 Weekly-Overview Performance & Freiwilligen-Abwesenheiten (2026-07-06)
+## Zuletzt geshipt: v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter (2026-07-31, deployed)
+
+**Geliefert (as built):** 19/19 Requirements (VOL-STAT-01/02, VOL-ACCT-01..04,
+REB-MANUAL-01..03, HR-ALERT-01..04, REB-AUTO-01..06) über fünf Phasen
+(54, 54.5, 55, 56, 57 — 29 Pläne). Gedeckelte Mitarbeiter können ihre
+freiwillig geleisteten Stunden jetzt als Ausgleich gegen ein negatives
+Stundenkonto einsetzen; die Doppelbuchung erledigt die Software.
+
+**Datenmodell (Phase 54).** Zwei neue Tabellen `rebooking_batch` (Parent) +
+`rebooking_batch_entry` (Children pro SalesPerson), gemeinsam genutzt von F4
+(`kind=auto_cron` / `auto_cron_backfill`) und F5 (`kind=hr_suggestion`, States
+`pending`/`approved`/`rejected`). Neue Spalte `extra_hours.source`
+(`Manual` | `Rebooking`) unterscheidet von Hand erfasste von maschinell
+erzeugten Stundenposten. Stichtag-Toggle `voluntary_rebooking_auto_active_from`
+als Seed-Migration, Default `None` = Feature dormant.
+
+**F1/F2 Freiwilligen-Konto (Phase 54, korrigiert in 54.5).** HR sieht im
+Mitarbeiter-Report Ø freiwillige Stunden pro Vertragswoche (Ist), die zugesagte
+Soll-Summe (`committed_voluntary` × Vertragswochen) und das Delta. Alles
+HR-gated per Backend-Nullable (Non-HR bekommt `None`, kein Rollen-Check im FE).
+Hotfix v2.6.1 (Phase 54.5) hat das Soll absence-aware gemacht — analog VFA-01.
+
+**F3 Manuelle Umbuchung + F5 HR-Alert (Phase 55).** `RebookingReconciliation`-
+Service mit `rebook`/`suggest`/`approve`/`reject`; eine Umbuchung schreibt in
+**einer** Transaktion zwei ExtraHours-Zeilen (−h freiwillig / +h bezahlt) plus
+Batch und Entry. Claim-on-Suggest (Modell B) reserviert den UNIQUE-Slot schon
+beim Vorschlag, sodass Cron und HR nicht kollidieren. FE: Dauer-Warnbanner in
+der Mitarbeiter-Übersicht, IST/DANN-Modal backend-berechnet, Approve/Reject
+state-conditional (409 bei Doppel-Approve).
+
+**F4 Wochen-Cron + Backfill (Phase 56).** `VoluntaryRebookingScheduler` läuft
+montags 03:15 über die abgeschlossene ISO-Vorwoche, idempotent über einen
+UNIQUE-Partial-Index. `POST /admin/rebooking/backfill` (HR-gated) macht den
+rückwirkenden Rollout, mit `dry_run=true` als folgenlose Vorschau.
+
+**Phase 57 — die Korrektur, die den Milestone eingelöst hat.** Die Phasen 54–56
+hatten die vollständige Pipeline gebaut, aber der Übertrag wirkte nicht: der in
+Phase 55 eingezogene `source == Manual`-Filter verwarf **beide** Beine des
+Rebooking-Paars, die Balance blieb nach einer Umbuchung unverändert (empirisch
+`−53 → −53`). Ursache war kein Implementierungsfehler, sondern VOL-ACCT-03 —
+ein Requirement, das wörtlich das Gegenteil des Milestone-Goals forderte
+("Rebooking-Paar ist balance-neutral"). Deshalb **Spec vor Code**: VOL-ACCT-03
+neu gefasst auf reinen Soll-Schutz, VOL-ACCT-04 (Wirksamkeit) und REB-AUTO-06
+(Balance-Deckel) neu aufgenommen, Traceability 17/17 → 19/19. Erst danach der
+Code: Filter an den Balance-/Ist-Sites entfernt, Balance-Deckel
+`week_excess = min(max(ist−committed,0), max(−balance,0))` im Auto-Cron —
+identisch im Schreibpfad `run_for_week` und im Dry-Run `backfill_range`, während
+die HR-Vorschlagsformel `proposed_hours` bewusst ungedeckelt bleibt (D-57-01,
+HR darf die Zusage unterschreiten). Referenz-Szenario D-57-02 als E2E-Test.
+
+**Snapshot-Schema-Version: Bump 12→13** (D-57-10). Phase 56 hatte per
+Straddling-Golden-Snapshot noch "bleibt bei 12" belegt; seit dem Filter-Fix ist
+ein Rebooking-Paar nicht mehr snapshot-neutral — es verschiebt vier value_types
+um ±h (`Overall`, `Balance`, `ExtraWork`, `Volunteer`). Die Fixture wurde auf
+zwei Beweislasten umgebaut: Stichtag-Neutralität bleibt byte-identisch,
+Rebooking verschiebt die Werte erwartungsgemäß.
+
+**Verifikation.** Audit `passed`, 19/19 Requirements, 3/3 E2E-Flows, 0 Blocker,
+Docs-Freshness-Gate bestanden (alle sieben Trigger-Kategorien mit Docs-Diff in
+beiden Sprachen). Code-Reviews der Phasen 55 und 57 fanden zusammen 5 Blocker —
+alle behoben, jeweils mit Regressionstest. Closeout-Typ `override_closeout`:
+Phase 54 und 56 tragen je eine Verhaltensinvariante, die `cargo test`
+prinzipiell nicht erreicht (DOM-Rendering der HR-Zeile bzw. Cron-Feuern um
+Mo 03:15), Phase 54.5 hat als Hotfix nie eine eigene VERIFICATION bekommen.
+Details: `milestones/v2.6-ROADMAP.md` / `-REQUIREMENTS.md` /
+`-MILESTONE-AUDIT.md` / `-phases/`.
+
+<details>
+<summary>✅ v2.5 Weekly-Overview Performance & Freiwilligen-Abwesenheiten — SHIPPED 2026-07-06 (Phasen 52–53)</summary>
 
 **Geliefert (as built):** 9/9 Requirements (WOP-01..05 + VAA-01..04) über zwei
 Phasen (52 + 53, 8 Pläne + 3 Follow-Ups). Zwei zusammenhängende Ergänzungen an
@@ -442,91 +510,72 @@ siehe `milestones/v1.5-REQUIREMENTS.md`, Archiv `milestones/v1.5-ROADMAP.md`.
 gefixt (Signal-Mirror `current_employee_id` + Regressionstest `FROZEN_CAPTURE`) —
 Debug-Session `working-hours-wrong-employee` obsolet.
 
-## Current Milestone: v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
+</details>
 
-**Goal:** Gedeckelte Mitarbeiter (`cap_planned_hours_to_expected=true`), die
-freiwillig mitarbeiten, sollen ihre Freiwilligen-Stunden automatisch oder
-halbautomatisch als Ausgleich gegen ein negatives Stundenkonto einsetzen
-können. HR sieht ein Soll/Ist-Konto für Freiwilligkeit, wird proaktiv über
-Ausgleichsbedarf informiert und kann Umbuchungen bestätigen; die Software
-erledigt die Doppelbuchung (heute manuell: −N freiwillig / +N bezahlt).
+## Zwischen Milestones — Kandidaten für die nächste Iteration
 
-**Target features (F1–F5):**
+Kein aktiver Milestone. Nächste Iteration via `/gsd-new-milestone`.
 
-- **F1 — Ist-Statistik freiwillige Stunden**: Ø freiwillig geleistete
-  Stunden pro Vertragswoche (Nenner: Wochen mit gültigem
-  `working_hours`-Eintrag der Person), pro Jahr, im HR-Mitarbeiterreport
-  neben AVG-01.
-- **F2 — Freiwilliges Stundenkonto**: In `/employees/:sales_person_id`
-  unter „Freiwillige Stunden" zusätzlich die zugesagte Soll-Summe
-  (`committed_voluntary` × Vertragswochen) — HR-only → implizites
-  Soll/Ist-Konto.
-- **F3 — Manuelle Umbuchung Freiwillig ↔ Bezahlt**: FE-Aktion legt in
-  einer Transaktion zwei ExtraHours-Rows an (−N in Kategorie A / +N in
-  Kategorie B); ersetzt den heutigen Doppel-Eintrag-Workaround.
-- **F4 — Automatische Umbuchung (Wochen-Cron)**: Cron-Job verarbeitet die
-  Vorwoche; wenn `Ist > Soll + committed_voluntary` → Überschuss
-  automatisch als Ausgleich buchen; persistiert via Rebooking-Batch
-  (kind=`auto_cron`); rückwirkender Backfill-Command beim Rollout.
-- **F5 — HR-Alert + Vorschlags-Modal**: Für jede gedeckelte SalesPerson
-  mit negativem Stundenkonto Dauer-Warnzeile in Mitarbeiter-Übersicht;
-  Klick öffnet Modal mit IST vs. DANN (Konto, Freiw.-Ist, Freiw.-Soll,
-  Freiw.-Konto); HR approve/reject; persistiert via Rebooking-Batch
-  (kind=`hr_suggestion`) mit States `pending` / `approved` / `rejected`.
+**Bereits ausgearbeitete Phasen-Entwürfe** (in `.hermes/plans/`, noch nicht in
+der ROADMAP):
 
-**Key context:**
+- **Phase 58 (Feature) — Optionale Stundenverteilung pro Werktag.** Sieben
+  optionale `REAL`-Spalten auf der bestehenden, bereits versionierten
+  `employee_work_details`-Vertragszeile; der Vertragswechsel-Mechanismus liefert
+  "gültig ab KW" gratis. Betrifft beide heutigen Ableitungen der Tagesstunde
+  (`hours_per_day`, `holiday_hours`) und damit Holiday-Derivation und
+  Absence-Zählung. **Zieht einen Snapshot-Bump 13→14 nach sich.** Enabler für
+  die Vertragszeit-Warnung.
+- **Phase 59 (Maintenance, off-theme) — E2E-Browser-Tests mit Playwright.**
+  Kein Milestone-Goal, kein REQUIREMENTS-Eintrag; Abnahmemessstab ist der
+  Scope aus dem Origin-Todo. Würde genau die Klasse von Invarianten abdecken,
+  die in v2.6 zweimal als `human_needed` stehenblieb (DOM-Rendering) und die
+  wiederkehrende Dev-Proxy-Bug-Klasse (fehlender `[[web.proxy]]`-Eintrag → 405).
+  Plan liegt fertig unter `.planning/phases/59-e2e-browser-testinfra/`.
 
-- **Datenmodell**: 2 neue Tabellen `rebooking_batch` (Parent) +
-  `rebooking_batch_entry` (Children pro SalesPerson), gemeinsam für F4
-  und F5 (Kind-Feld unterscheidet Batch-Typ).
-- **Snapshot-Schema-Version**: potenzieller Bump 12→13 nur, falls ein
-  neuer `BillingPeriodValueType` persistiert wird — in discuss-phase
-  klären.
-- **Migration**: additiv (2 neue Tabellen, keine Umschreibung
-  bestehender Werte); Backfill-Command für rückwirkende Auto-Umbuchung.
-- **Fat Backend, Thin Client**: alle Berechnungen (Ist, Soll, Konto,
-  Auto-Umbuchungs-Logik) im Backend; FE zeigt vorbereitete DTOs.
-- **Scope**: Backend + Frontend voll enthalten in diesem Milestone.
+**Offener Tech-Debt aus v2.6** (nicht-blockierend, siehe
+`milestones/v2.6-MILESTONE-AUDIT.md`):
 
-**Sichtbare Follow-up-Kandidaten aus v2.5** (Tech-Debt, nicht-blockierend,
-siehe `milestones/v2.5-MILESTONE-AUDIT.md`):
+- Phase 55: WR-01 (Banner-Prädikat jahres-kumulativ vs. Suggest-Vorschau
+  wochen-scoped), WR-03 (`iso_week`/`iso_year` ohne Bereichsprüfung), WR-05
+  (`suggest()` committet vor der DANN-Berechnung).
+- Phase 57: WR-06 bewusst teilweise offen (Doppel-Read im Backfill-Apply-Zweig;
+  Auflösung würde einen zweiten Eingang in den Schreibpfad bauen).
+- utoipa-Nesting: `RebookingApiDoc` hängt an zwei Nests, die
+  `/rebooking-suggestions`-Routen werden dadurch in Swagger unter falschem
+  Präfix dokumentiert.
+- Nyquist-VALIDATION der Phasen 55/56/57 steht auf `draft` (Checklisten nach
+  Ausführung nicht zurückgepflegt; die geforderten Tests existieren).
 
-- SDF-03-Semantik-Cleanup: `SpecialDayService::get_by_iso_year` (analog zu
-  den Follow-up-#3 Bulk-Methoden) würde die 55
-  `special_day.get_by_week`-Calls in `assemble_weeks` auf konstant 2
-  reduzieren. Nicht latenz-relevant.
+**Weiterhin offen aus v2.5** (unverändert gültig):
+
+- SDF-03-Semantik-Cleanup: `SpecialDayService::get_by_iso_year` würde die 55
+  `special_day.get_by_week`-Calls in `assemble_weeks` auf konstant 2 reduzieren.
+  Nicht latenz-relevant.
 - DB-Indices: `booking(year, calendar_week)`, `extra_hours(date_time)`,
-  `working_hours(from_year, to_year)` — RESEARCH-Q3 v2.5. Kein Bottleneck
-  mehr nach Follow-up #2.
-- F07-Doku: Follow-Ups #1+#2 haben die neuen Pure-Helper
-  (`derive_hours_for_week_pure`, `build_derived_holiday_map_for_week_pure`)
-  NICHT in `docs/features/F07-reporting-balance.{md,_de.md}` dokumentiert.
-  Balance-Formel selbst ist unverändert dokumentiert.
+  `working_hours(from_year, to_year)`. Kein Bottleneck mehr nach Follow-up #2.
+- F07-Doku: die Pure-Helper `derive_hours_for_week_pure` +
+  `build_derived_holiday_map_for_week_pure` sind in
+  `docs/features/F07-reporting-balance.{md,_de.md}` noch nicht dokumentiert.
 
 Die off-theme **Backlog-Phase 999.1 (Breaking/Major Dependency-Migration)** bleibt
 separat via `/gsd-plan-phase 999.1`.
 
 ## Current State
 
-**v2.6 Phase 57 complete 2026-07-31 — letzte Phase des Milestones, alle
-Phasen 54–57 durch.** Phase 57 hat den in 54–56 gebauten, aber
-wirkungslosen Übertrag freiwillig→bezahlt eingelöst: der
-Phase-55-Filter `source == Manual` verwarf beide Beine des
-Rebooking-Paars, die Balance blieb nach einer Umbuchung unverändert
-(empirisch `−53 → −53`). Ursache war VOL-ACCT-03, das wörtlich das
-Gegenteil des Milestone-Goals forderte — deshalb erst Spec-Korrektur
-(VOL-ACCT-03 neu gefasst, VOL-ACCT-04 + REB-AUTO-06 neu, Traceability
-19/19), dann Code: Filter an vier Aggregations-Sites in `reporting.rs`
-entfernt (nur `assemble_weeks` behält eine gezielte Ausnahme, weil es
-über `availability()` statt `as_report_type()` filtert), Balance-Deckel
-im Auto-Cron (`week_excess` hebt die Balance nie über 0), Referenz-
-Szenario D-57-02 als E2E-Test, Snapshot-Bump 12→13. Verification
-9/9 must-haves passed. Der nachgelagerte Code-Review fand 3 Blocker
-(ISO- vs. Kalenderjahr-Anker ab 2027, Dry-Run-Preview ohne
-Headroom-Verbrauch, verschwindende Stunden bei dynamischen Verträgen)
-und 13 Warnings — alle behoben, jeweils mit Regressionstest. **Nächster
-Schritt: Milestone-Abschluss via `/gsd-audit-milestone` →
-`/gsd-complete-milestone`.**
+**v2.6 geschlossen und deployed (2026-09-15 archiviert, Code seit 2026-07-31
+in Produktion).** 19/19 Requirements, Audit `passed`, Closeout-Typ
+`override_closeout`. Der Milestone hat den Freiwilligen-Ausgleich für
+gedeckelte Mitarbeiter vollständig geliefert — Datenmodell, HR-Statistik,
+manuelle Umbuchung, HR-Alert mit Vorschlags-Modal, Wochen-Cron plus
+rückwirkenden Backfill, und in Phase 57 die Korrektur, die den Übertrag
+überhaupt erst wirksam gemacht hat (siehe „Zuletzt geshipt" oben).
+Snapshot-Schema-Version steht seit D-57-10 auf **13**.
+
+**Aktuell zwischen Milestones.** Zwei Phasen-Entwürfe liegen ausgearbeitet
+bereit (58 Werktags-Stundenverteilung mit Snapshot-Bump 13→14, 59 E2E-Browser-
+Tests mit Playwright), beide noch nicht in der ROADMAP — siehe „Zwischen
+Milestones" oben. Nächster Schritt: `/gsd-new-milestone`.
 
 Zuvor: **v2.5 shipped 2026-07-06** (Phasen 52 + 53, 8 Pläne + 3 Follow-Ups, 9/9
 Requirements WOP-01..05 + VAA-01..04, verified_closeout, Milestone-Audit
@@ -648,6 +697,8 @@ Siehe `.planning/ROADMAP.md` + `.planning/MILESTONES.md`. Geshipt:
   Archiv: `milestones/v2.4-ROADMAP.md`, `milestones/v2.4-REQUIREMENTS.md`, `milestones/v2.4-MILESTONE-AUDIT.md`, `milestones/v2.4-phases/`.
 - v2.5 Weekly-Overview Performance & Freiwilligen-Abwesenheiten — shipped 2026-07-06 (Phasen 52–53).
   Archiv: `milestones/v2.5-ROADMAP.md`, `milestones/v2.5-REQUIREMENTS.md`, `milestones/v2.5-MILESTONE-AUDIT.md`, `milestones/v2.5-phases/`.
+- v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter — shipped 2026-07-31, deployed (Phasen 54, 54.5, 55, 56, 57).
+  Archiv: `milestones/v2.6-ROADMAP.md`, `milestones/v2.6-REQUIREMENTS.md`, `milestones/v2.6-MILESTONE-AUDIT.md`, `milestones/v2.6-phases/`.
 
 Zwischen Milestones — nächste Iteration via `/gsd-new-milestone`.
 

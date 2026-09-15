@@ -1,49 +1,42 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.6
-milestone_name: — Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
-current_phase: 57
-status: executing
-stopped_at: Completed 57-03-PLAN.md
-last_updated: "2026-07-31T16:14:50.850Z"
-last_activity: 2026-07-31
-last_activity_desc: Phase 57 complete
+milestone: (keiner — zwischen Milestones)
+last_milestone: v2.6 — Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
+current_phase: —
+status: Awaiting next milestone
+closeout_type: override_closeout
+stopped_at: Milestone v2.6 archiviert
+last_updated: "2026-09-15T12:51:40.945Z"
+last_activity: 2026-09-15
+last_activity_desc: Milestone v2.6 completed and archived
 progress:
   total_phases: 5
   completed_phases: 5
   total_plans: 29
   completed_plans: 29
   percent: 100
-current_phase_name: f14-rebooking-wirksamkeit-requirements-korrektur-balance-aus
 ---
 
 # Project State: Shifty Backend
 
 ## Project Reference
 
-- **Roadmap**: `.planning/ROADMAP.md` (v2.6 aktiv: Phasen 54–56; Backlog 999.1 erhalten)
-- **Requirements**: `.planning/REQUIREMENTS.md` (17 REQ-IDs in 5 Kategorien: VOL-STAT, VOL-ACCT, REB-MANUAL, REB-AUTO, HR-ALERT)
+- **Roadmap**: `.planning/ROADMAP.md` (kein aktiver Milestone; Phasen 58 + 59 vorbereitet, Backlog 999.1 erhalten)
+- **Requirements**: keine aktive `REQUIREMENTS.md` — wird von `/gsd-new-milestone` frisch angelegt. Letzte: `.planning/milestones/v2.6-REQUIREMENTS.md` (19 REQ-IDs, 19/19 complete)
 - **Milestones-Index**: `.planning/MILESTONES.md`
-- **Latest milestone archive**: `.planning/milestones/v2.5-ROADMAP.md`
+- **Latest milestone archive**: `.planning/milestones/v2.6-ROADMAP.md`
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
-- **Last shipped/closed**: **v2.5 Weekly-Overview Performance & Freiwilligen-Abwesenheiten** (shipped + archiviert 2026-07-06, Phasen 52–53, 8 Pläne + 3 Follow-Ups, 9/9 Requirements WOP-01..05 + VAA-01..04, verified_closeout, Audit `passed`)
-- **Current milestone**: **v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter** (executing; Phasen 54–56 complete, Phase 57 offen — Milestone-Goal noch NICHT erreicht)
-- **Current focus**: **Phase 57** — F14-Rebooking-Wirksamkeit. Die Phasen 54–56 haben die vollständige Pipeline gebaut (Datenmodell, F1/F2-Statistik, F3 manuelle Umbuchung, F5 HR-Alert, F4 Auto-Cron + Backfill), aber der Übertrag wirkt nicht: der `source == Manual`-Filter verwirft beide Beine des Paars, die Balance bleibt unverändert. Ursache ist VOL-ACCT-03, das wörtlich das Gegenteil des Milestone-Goals fordert. P57 korrigiert **Spec vor Code**. Phase 54.5 ist als v2.6.1 ge-shippt.
-- **Snapshot-Schema-Version**: aktuell **12**. In **Phase 56** wurde der „Nein"-Zweig gepinnt (D-01, Straddling-Golden-Snapshot). Diese Entscheidung **fällt mit Phase 57** — sobald das Rebooking-Paar wirksam wird, ist der Bump 12→13 fällig.
+- **Last shipped/closed**: **v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter** (shipped 2026-07-31, deployed; Planungs-Archiv 2026-09-15; Phasen 54, 54.5, 55, 56, 57 — 29 Pläne, 19/19 Requirements, Audit `passed`, `override_closeout`)
+- **Current milestone**: keiner — zwischen Milestones. Nächste Iteration via `/gsd-new-milestone`.
+- **Current focus**: kein aktiver Milestone. Zwei ausgearbeitete Phasen-Entwürfe warten auf Zuordnung: **Phase 58** (Optionale Stundenverteilung pro Werktag, zieht Snapshot-Bump 13→14 nach sich) und **Phase 59** (E2E-Browser-Tests mit Playwright, off-theme Maintenance, `59-PLAN.md` fertig).
+- **Snapshot-Schema-Version**: aktuell **13** (Bump 12→13 in Phase 57, D-57-10 — revidiert den Phase-56-Ausgang „bleibt bei 12"). Phase 58 würde auf 14 heben.
 
 ## Current Position
 
-Phase: 57
-Plan: Not started
-Status: Ready to execute — Wave 4 (Plan 04, Ende-zu-Ende-Referenz-Szenario D-57-02) ist
-freigegeben. Wave 2 hat den Übertrag auf der Leseseite wirksam gemacht (Plan 02,
-VOL-ACCT-04-Invarianten I-1/I-2), Wave 3 den Balance-Deckel im Auto-Cron gesetzt
-(Plan 03, REB-AUTO-06): `week_excess` deckelt auf den Headroom der year-to-date-Balance,
-im Schreib-Pfad `run_for_week` und im Dry-Run-Preview `backfill_range` mit demselben Wert.
-Die HR-Vorschlagsformel `proposed_hours` bleibt bewusst ungedeckelt (D-57-01).
-Offen für Plan 04: VOL-ACCT-04 und REB-AUTO-06 abhaken — beide Requirements verlangen
-das Ende-zu-Ende-Szenario als Akzeptanzbedingung.
-Last activity: 2026-07-31 — Phase 57 complete
+Phase: — (zwischen Milestones)
+Plan: —
+Status: v2.6 geschlossen und archiviert; kein aktiver Milestone
+Last activity: 2026-09-15 — Milestone v2.6 completed and archived
 
 ## Quick Tasks Completed
 
@@ -54,6 +47,53 @@ Last activity: 2026-07-31 — Phase 57 complete
 | 260702-jql | Special-Day Duplikat-Hinweis nach Create ausblenden, erst bei Feld-Änderung wieder | 2026-07-02 | b9d270b | [260702-jql-special-day-duplikat-hinweis-nach-create](./quick/260702-jql-special-day-duplikat-hinweis-nach-create/) |
 
 ## Deferred Items
+
+### Beim v2.6-Close acknowledged (2026-09-15)
+
+19 offene Artefakte wurden beim Milestone-Close gescannt und als deferred
+dokumentiert (`closeout_type: override_closeout`, 0 aus einem früheren Close
+fortgeschrieben).
+
+> **Technischer Hinweis:** Die installierte `gsd-tools`-Version kennt den
+> `audit-open acknowledge`-Writer noch nicht (`Unknown audit-open subcommand`).
+> Die maschinelle Suppression konnte daher nicht gesetzt werden — diese Tabelle
+> ist die Disclosure. Praktische Folge: dieselben Items erscheinen beim nächsten
+> `audit-open`-Scan erneut, wie schon bei den Closes v2.2 und v2.5.
+
+| Kategorie | Item | Status | Deferred At | Milestone |
+|-----------|------|--------|-------------|-----------|
+| debug_sessions | carryover-absence-vs-report | awaiting_human_verify | 2026-09-15 | v2.6 |
+| verification_gaps | 54-data-model-voluntary-stats / 54-VERIFICATION.md | human_needed — FE-Rendering-Invariante (HR-Zeile sichtbar, Non-HR nicht) nur im Browser prüfbar | 2026-09-15 | v2.6 |
+| verification_gaps | 56-wochen-cron-rollout-backfill-f4 / 56-VERIFICATION.md | human_needed — Cron-Feuern Mo 03:15 nur zur Laufzeit beobachtbar | 2026-09-15 | v2.6 |
+| uat_gaps | 54-data-model-voluntary-stats / 54-UAT.md | diagnosed — 0 pending scenarios | 2026-09-15 | v2.6 |
+| uat_gaps | 56-wochen-cron-rollout-backfill-f4 / 56-UAT.md | partial — 0 pending scenarios | 2026-09-15 | v2.6 |
+| context_questions | 54.5-voluntary-soll-absence-fix / 54.5-CONTEXT.md | 3 offene Planungsfragen (beantwortet durch die Ausführung, nie zurückgepflegt) | 2026-09-15 | v2.6 |
+| context_questions | 55-manual-rebooking-hr-alert / 55-CONTEXT.md | 3 offene Planungsfragen (dito) | 2026-09-15 | v2.6 |
+| quick_tasks | 260516-g63-stunden-eingaben-muessen-auf-zwei-nachkommastellen | unknown | 2026-09-15 | v2.6 |
+| quick_tasks | 260516-gv8-delete-button-fuer-arbeitsvertraege-employee | unknown | 2026-09-15 | v2.6 |
+| quick_tasks | 260612-nlv-absence-page-stundenbasierte-marker | unknown | 2026-09-15 | v2.6 |
+| quick_tasks | 260612-o7t-absencespage-sales-person-filter | unknown | 2026-09-15 | v2.6 |
+| quick_tasks | 260613-jxe-abwesenheitsseite-inaktive-sales-persons | unknown | 2026-09-15 | v2.6 |
+| quick_tasks | 260624-qgk-stunden-ohne-arbeitsvertrag-als-ehrenamt | unknown | 2026-09-15 | v2.6 |
+| quick_tasks | 260624-ujk-mitarbeiter-report-geleistete-stunden | unknown | 2026-09-15 | v2.6 |
+| todos | 2026-05-05-warnung-eintrag-ausserhalb-vertragszeiten.md | (presence-only) | 2026-09-15 | v2.6 |
+| todos | 2026-05-07-review-frontend-list-user-invitations-silent-empty-fallback.md | (presence-only) | 2026-09-15 | v2.6 |
+| todos | 2026-05-07-review-silent-renew-iframe-in-index-html.md | (presence-only) | 2026-09-15 | v2.6 |
+| todos | 2026-05-08-admin-rolle-bekommt-alle-privilegien.md | (presence-only) | 2026-09-15 | v2.6 |
+| todos | 2026-05-08-cutover-ui-admin-feature.md | (presence-only) | 2026-09-15 | v2.6 |
+| todos | 2026-06-22-committed-voluntary-capacity-jahresansicht.md | (presence-only) | 2026-09-15 | v2.6 |
+| todos | 2026-06-29-end-to-end-integrationstests-mit-ferngesteuertem-browser.md | (presence-only) — Origin-Todo für die vorbereitete Phase 59 | 2026-09-15 | v2.6 |
+| todos | 2026-07-01-optionale-stundenverteilung-pro-werktag-fuer-salesperson.md | (presence-only) — Origin-Todo für die vorbereitete Phase 58 | 2026-09-15 | v2.6 |
+| todos | 2026-07-01-urlaub-beantragen-mit-genehmigung.md | (presence-only) | 2026-09-15 | v2.6 |
+| todos | 2026-07-03-schmale-admin-rolle-mit-user-impersonation.md | (presence-only) | 2026-09-15 | v2.6 |
+
+**Milestone-eigene Items** sind nur die vier Phasen-Artefakte (2 verification_gaps,
+2 uat_gaps) plus die zwei CONTEXT-Fragen. Debug-Session, Quick-Tasks und Todos
+sind historischer Ballast aus v1.4–v2.1, beim v2.2- und v2.5-Close bereits
+acknowledged.
+
+### Historisch (v1.4–v2.5)
+
 
 Erneut acknowledged + deferred beim **v2.2-Milestone-Close am 2026-07-03**
 (User-Entscheidung override_closeout — Pre-Close-Audit meldete 13 offene Items: 1 Debug-
@@ -238,8 +278,7 @@ Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Mark
 
 ## Operator Next Steps
 
-- `/gsd-execute-phase 54` starten (Wave 1 = Plan 01 Migrations+DAO; danach Wave 2 = Plans 02+03 parallel; Wave 3 = Plans 04+05; Wave 4 = Plan 06 Docs).
-- Optional: v2.5 Tech-Debt (SDF-03-Cleanup, DB-Indices, F07-Doku) als Todos in `.planning/todos/pending/` erfassen.
+- Start the next milestone with /gsd-new-milestone
 
 ## Decisions
 

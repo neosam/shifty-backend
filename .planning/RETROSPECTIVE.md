@@ -2,6 +2,98 @@
 
 *A living document updated after each milestone. Lessons feed forward into future planning.*
 
+## Milestone: v2.6 — Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
+
+**Shipped:** 2026-07-31 (deployed; Planungs-Archiv 2026-09-15)
+**Phases:** 5 (54, 54.5, 55, 56, 57) | **Plans:** 29
+
+### What Was Built
+
+- **Datenmodell** `rebooking_batch` + `rebooking_batch_entry` als gemeinsame
+  Basis für Auto-Cron und HR-Vorschlag; additive Spalte `extra_hours.source`
+  (`Manual` | `Rebooking`); Stichtag-Toggle als Seed mit Default `None`.
+- **F1/F2** Freiwilligen-Konto im HR-Mitarbeiter-Report (Ist Ø/Vertragswoche,
+  zugesagtes Soll, Delta), HR-gated per Backend-Nullable.
+- **F3/F5** `RebookingReconciliationService` mit einem einzigen Pair-Write-Path,
+  Claim-on-Suggest, race-sicherer State-Transition; FE-Banner + zwei Modals.
+- **F4** Wochen-Cron (Mo 03:15, idempotent) + HR-gated Backfill-Endpoint mit
+  folgenloser Dry-Run-Vorschau + Admin-Card.
+- **Phase 57** hat den Übertrag überhaupt erst wirksam gemacht: Filter-Entfernung
+  an den Balance-/Ist-Read-Sites, Balance-Deckel im Auto-Cron, Snapshot-Bump
+  12→13.
+
+### What Worked
+
+- **Spec vor Code bei widersprüchlichem Requirement.** Als sich zeigte, dass der
+  Übertrag nicht wirkt, war der Reflex-Fix „Filter entfernen" verfügbar. Phase 57
+  hat stattdessen zuerst VOL-ACCT-03 neu gefasst und VOL-ACCT-04/REB-AUTO-06
+  ergänzt — und erst danach Code angefasst. Das hat verhindert, dass ein Fix
+  gegen ein weiterhin gültiges, gegenteiliges Requirement gebaut wird, und es hat
+  die Audit-Spur hinterlassen, mit der sich die Umkehr heute belegen lässt.
+- **Ein einziger Pair-Write-Path.** `rebook()` als alleiniger Schreibpfad hat sich
+  dreimal ausgezahlt: F4-Cron, Backfill und HR-Approve teilen ihn, wodurch
+  Dry-Run und Apply per Konstruktion dieselben Zahlen liefern und die
+  Idempotenz-Garantie nur an einer Stelle bewiesen werden muss.
+- **Claim-on-Suggest (Modell B)** hat die Race zwischen Cron und HR eliminiert,
+  bevor sie in Produktion auftreten konnte — der UNIQUE-Slot wird schon beim
+  Vorschlag reserviert, nicht erst beim Approve.
+- **Code-Review nach der Plan-Ausführung.** Die Reviews der Phasen 55 und 57
+  fanden zusammen 5 Blocker, die alle Plan-Gates passiert hatten — darunter der
+  ISO- vs. Kalenderjahr-Anker, der erst ab 2027 gezündet hätte.
+
+### What Was Inefficient
+
+- **Der teuerste Fehler war ein Requirement, kein Code.** VOL-ACCT-03 forderte
+  wörtlich das Gegenteil des Milestone-Goals („Rebooking-Paar ist balance-neutral"
+  vs. „Freiwilligen-Stunden gleichen das Konto aus"). Drei Phasen (54, 55, 56)
+  haben es korrekt umgesetzt und dabei verifiziert, dass der Übertrag *nicht*
+  wirkt — 21 Pläne Arbeit, die ein No-Op absicherten. Phase 57 war eine reine
+  Korrekturphase.
+- **Die Verifikation hat den Widerspruch nicht gefangen,** weil sie pro Phase
+  gegen die Requirements prüft, nicht gegen das Milestone-Goal. Phase 54 und 55
+  bekamen beide ein sauberes SATISFIED für VOL-ACCT-03 — mit Tests, die die
+  Neutralität festnagelten.
+- **Phase 56 hat eine Entscheidung gepinnt, die eine Phase später fiel.** Der
+  Straddling-Golden-Snapshot-Beweis für „Snapshot bleibt bei 12" war methodisch
+  einwandfrei und trotzdem Wegwerfarbeit, weil er auf der Prämisse des falschen
+  Requirements stand.
+- **Doku-Rückpflege blieb liegen.** Die Nyquist-VALIDATION der Phasen 55–57 steht
+  bis heute auf `draft`, obwohl die dort geforderten Tests existieren; die
+  Traceability-Tabelle stand beim Close auf 19× `Pending` bei 19/19 abgehakten
+  Checkboxen.
+
+### Patterns Established
+
+- **Der Milestone-Goal-Gegencheck im Requirement-Review.** Ein Requirement, das
+  eine Invariante *festschreibt*, muss gegen das Milestone-Goal geprüft werden,
+  bevor Phasen darauf aufbauen — besonders wenn es Neutralität oder
+  Unveränderlichkeit fordert. Neutralitäts-Requirements sind die gefährliche
+  Klasse: sie lassen sich mühelos testen und grün halten, auch wenn sie das
+  Feature verhindern.
+- **Marker-Spalte statt Kategorie-Missbrauch.** `extra_hours.source` trennt
+  maschinell erzeugte von handerfassten Posten, ohne die fachliche Kategorie zu
+  überladen. Das hat die spätere Umkehr in Phase 57 überhaupt erst chirurgisch
+  möglich gemacht — es ließ sich pro Aggregations-Site entscheiden, ob gefiltert
+  wird oder nicht.
+- **Gedeckelt schreiben, ungedeckelt vorschlagen** (D-57-01): Der Automat darf die
+  Balance nie über 0 heben, der HR-Vorschlag darf die Zusage unterschreiten. Zwei
+  bewusst verschiedene Formeln an derselben Domäne, beide dokumentiert.
+
+### Key Lessons
+
+1. **Wenn drei Phasen sauber verifiziert sind und das Feature trotzdem nicht
+   wirkt, ist die Spec verdächtig, nicht der Code.** Das Symptom war hier
+   eindeutig (`−53 → −53`), die Ursachensuche hätte trotzdem leicht im
+   Reporting-Code landen können.
+2. **Eine Entscheidung, die auf einem Requirement fußt, erbt dessen
+   Fehlerhaftigkeit** — Phase 56 hat den Snapshot-Non-Bump korrekt bewiesen und
+   lag trotzdem falsch.
+3. **`human_needed` häuft sich dort, wo automatisierte Tests strukturell nicht
+   hinkommen** (DOM-Rendering, Wall-Clock-Cron). Beides in v2.6 aufgetreten; die
+   vorbereitete Phase 59 (Playwright) adressiert genau die erste Hälfte davon.
+
+---
+
 ## Milestone: v2.5 — Weekly-Overview Performance & Freiwilligen-Abwesenheiten
 
 **Shipped:** 2026-07-06
@@ -358,6 +450,7 @@ kein Snapshot-Bump, keine Migration, keine neuen Deps.
 | v1.6 | 1 | Kompakter Ein-Phasen-Milestone auf bestehender Infrastruktur (`ToggleService`); override_closeout mit deferred Human-UAT-Item; Decision-getrieben (D-24-XX) statt formaler REQ-IDs (keine REQUIREMENTS.md). |
 | v1.7 | 2 | derive-on-read + Cutoff-Stichtag-Pattern; Asymmetrie als executable CI-Guard; Milestone-Close verzögert (gemeinsam mit v1.8 nachgeholt) → REQUIREMENTS.md-Drift. |
 | v1.8 | 2 | Formaler Milestone-Audit (`passed`) trotz fehlender aktiver REQUIREMENTS.md (3-Quellen-Cross-Reference); API-level Hiding + Offset/Delta-Pattern; Live-HR-Browser-Smokes als Verifikation. |
+| v2.6 | 5 | Erster Milestone mit **Requirements-Korrektur mitten im Lauf**: Phase 57 hat ein Requirement neu gefasst, das drei Phasen korrekt umgesetzt hatten und das dabei das Milestone-Goal verhinderte (Spec vor Code). Milestone-Audit musste zusätzlich prüfen, ob die *überholte* Evidenz früherer Phasen konsistent aufgeräumt wurde. `override_closeout` wegen zweier strukturell nicht automatisierbarer Invarianten (DOM-Rendering, Wall-Clock-Cron). |
 
 ### Cumulative Quality
 
@@ -368,6 +461,7 @@ kein Snapshot-Bump, keine Migration, keine neuen Deps.
 | v1.6 | workspace grün (+ 4 Hard-Block-Tests + `test_current_paid_count_correct_for_non_hr_caller`) / WASM-Build grün | 10 (unverändert durch v1.6 — kein persistierter `value_type` berührt) |
 | v1.7 | workspace grün (+ Holiday-Acceptance-Tests + VFA-01/02-Guards) / WASM-Build grün | 11 (Bump 10→11 in Phase 25, Holiday-Computation/Input-Set) |
 | v1.8 | workspace grün (+ Offset/Balance/Off-by-one/Snapshot-Guard) / WASM-Build + 678 FE-Tests grün | 12 (Bump 11→12 in Phase 28, `VacationEntitlement`-Computation) |
+| v2.6 | workspace grün (+ Rebooking-Referenz-Szenario, Neutralitäts-Property-Tests, Straddling-Fixture mit zwei Beweislasten, Cron-Idempotenz, Backfill-Dry-Run-Parität) / WASM-Build grün | **13** (Bump 12→13 in Phase 57, D-57-10 — revidiert den Phase-56-Ausgang „bleibt bei 12"; ein Rebooking-Paar verschiebt `Overall`, `Balance`, `ExtraWork`, `Volunteer` um ±h) |
 
 ### Top Lessons (Verified Across Milestones)
 
@@ -375,3 +469,5 @@ kein Snapshot-Bump, keine Migration, keine neuen Deps.
 2. End-to-end-Feld-Threading braucht Per-Boundary-Tests; Round-Trip-Tests mit fraktionalen Werten (2.5) fangen stille `0.0`-Drops zuverlässig.
 3. **Neue REST-Pfad-Familien brauchen am selben Tag den `Dioxus.toml`-Dev-Proxy-Eintrag** — in v1.6 (`/toggle`) und v1.8 (`/vacation-entitlement-offset`) je erst im Live-Smoke (HTTP 405/funktionslos) aufgeschlagen, obwohl alle Tests grün waren. Backend-Pfad ≠ im Dev erreichbar.
 4. **Snapshot-Bump-Pflicht gilt auch für Korrektheits-Fixes:** sobald die Computation eines persistierten `value_type` sich ändert (v1.8 Off-by-one → `VacationEntitlement`), ist der Bump zwingend — unabhängig davon, ob es ein „Feature" oder ein „Bugfix" ist.
+5. **Neutralitäts-Requirements sind die gefährliche Klasse.** Ein Requirement, das eine Invariante festschreibt („X verändert Y nicht"), lässt sich mühelos testen und dauerhaft grün halten — auch dann, wenn es genau das Feature verhindert, für das der Milestone existiert (v2.6 VOL-ACCT-03: drei Phasen verifizierten erfolgreich, dass der Übertrag *nicht* wirkt). Solche Requirements gehören vor der ersten abhängigen Phase gegen das Milestone-Goal gegengeprüft.
+6. **Phasen-Verifikation prüft gegen Requirements, nicht gegen das Milestone-Goal** — diese Lücke fängt erst das Milestone-Audit. Wenn ein Requirement falsch ist, sind saubere Phasen-VERIFICATIONs kein Schutz, sondern Bestätigung des Fehlers.

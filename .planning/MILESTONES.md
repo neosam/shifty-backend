@@ -1,5 +1,87 @@
 # Milestones — Shifty Backend
 
+## v2.6 — Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
+
+**Shipped:** 2026-07-31 (deployed; Planungs-Archiv 2026-09-15)
+**Phases:** 54, 54.5, 55, 56, 57 (5 phases, 29 plans, 55 tasks)
+**Archive:** [`milestones/v2.6-ROADMAP.md`](milestones/v2.6-ROADMAP.md), [`milestones/v2.6-REQUIREMENTS.md`](milestones/v2.6-REQUIREMENTS.md), [`milestones/v2.6-MILESTONE-AUDIT.md`](milestones/v2.6-MILESTONE-AUDIT.md), [`milestones/v2.6-phases/`](milestones/v2.6-phases/)
+
+**Delivered:**
+
+Gedeckelte Mitarbeiter (`cap_planned_hours_to_expected=true`), die freiwillig
+mitarbeiten, können ihre Freiwilligen-Stunden jetzt als Ausgleich gegen ein
+negatives Stundenkonto einsetzen — manuell durch HR, halbautomatisch per
+Vorschlag, oder vollautomatisch per Wochen-Cron. Die Doppelbuchung (−h
+freiwillig / +h bezahlt) erledigt die Software in einer Transaktion.
+
+**Key accomplishments:**
+
+- **Datenmodell (Phase 54):** `rebooking_batch` + `rebooking_batch_entry` als
+  gemeinsame Basis für Auto-Cron und HR-Vorschlag (Kind-Feld unterscheidet);
+  additive Spalte `extra_hours.source` (`Manual` | `Rebooking`); Stichtag-Toggle
+  `voluntary_rebooking_auto_active_from` als Seed, Default `None` = dormant.
+- **F1/F2 Freiwilligen-Konto (Phase 54, korrigiert in 54.5):** HR sieht Ø
+  freiwillige Stunden pro Vertragswoche, zugesagtes Soll und Delta im
+  Mitarbeiter-Report — HR-gated per Backend-Nullable, kein Rollen-Check im FE.
+  Hotfix v2.6.1 machte das Soll absence-aware (Ist/Soll-Symmetrie, behebt einen
+  systematischen ~15h-Overshoot pro 3 Abwesenheitswochen).
+- **F3 + F5 (Phase 55):** `RebookingReconciliationService` mit einem einzigen
+  internen Pair-Write-Path; Claim-on-Suggest (Modell B) reserviert den
+  UNIQUE-Slot bereits beim Vorschlag, sodass Cron und HR nicht kollidieren;
+  race-sichere `pending → approved|rejected`-Transition. FE: Alert-Banner,
+  IST/DANN-Modal backend-berechnet, Manual-Modal, 27 i18n-Keys in de/en/cs.
+- **F4 (Phase 56):** `VoluntaryRebookingScheduler` montags 03:15 über die
+  abgeschlossene ISO-Vorwoche, idempotent über UNIQUE-Partial-Index;
+  `POST /admin/rebooking/backfill` (HR-gated) für den rückwirkenden Rollout mit
+  folgenloser `dry_run`-Vorschau; Admin-Settings-Card für Stichtag und Backfill.
+- **Phase 57 — die Korrektur, die den Milestone eingelöst hat:** Die Phasen
+  54–56 hatten die Pipeline vollständig gebaut, aber der Übertrag wirkte nicht.
+  Der in Phase 55 eingezogene `source == Manual`-Filter verwarf **beide** Beine
+  des Rebooking-Paars; die Balance blieb nach einer Umbuchung unverändert
+  (empirisch `−53 → −53`). Ursache war kein Implementierungsfehler, sondern
+  VOL-ACCT-03 — ein Requirement, das wörtlich das Gegenteil des Milestone-Goals
+  forderte. Korrektur daher **Spec vor Code**: VOL-ACCT-03 neu gefasst auf
+  reinen Soll-Schutz, VOL-ACCT-04 und REB-AUTO-06 neu aufgenommen (17/17 →
+  19/19), danach der Filter an den Balance-/Ist-Sites entfernt und der
+  Balance-Deckel `week_excess = min(max(ist−committed,0), max(−balance,0))`
+  gesetzt — identisch in `run_for_week` und im Dry-Run `backfill_range`, während
+  `proposed_hours` für den HR-Vorschlag bewusst ungedeckelt bleibt (D-57-01).
+- **Snapshot-Schema-Version 12→13** (D-57-10): revidiert den Phase-56-Ausgang
+  „bleibt bei 12". Seit dem Filter-Fix verschiebt ein Rebooking-Paar vier
+  value_types um ±h (`Overall`, `Balance`, `ExtraWork`, `Volunteer`). Die
+  Straddling-Golden-Snapshot-Fixture wurde auf zwei Beweislasten umgebaut:
+  Stichtag-Neutralität byte-identisch, Rebooking verschiebt erwartungsgemäß.
+
+**Test verification:** Milestone-Audit `passed` — 19/19 Requirements satisfied,
+3/3 E2E-Flows vollständig, 0 Blocker, Docs-Freshness-Gate bestanden (alle sieben
+Trigger-Kategorien mit Docs-Diff, EN + DE synchron). Code-Reviews der Phasen 55
+und 57 fanden zusammen 5 Blocker (u. a. ISO- vs. Kalenderjahr-Anker ab 2027,
+Dry-Run-Preview ohne Headroom-Verbrauch, verschwindende Stunden bei dynamischen
+Verträgen) — alle behoben, jeweils mit Regressionstest.
+
+**Closeout:** `override_closeout`. Known verification overrides: 19 offene
+Artefakte beim Close dokumentiert (siehe `.planning/STATE.md` „Deferred Items"),
+davon milestone-eigen: Phase 54 und 56 tragen je eine Verhaltensinvariante, die
+`cargo test` prinzipiell nicht erreicht (DOM-Rendering der HR-Zeile bzw.
+Cron-Feuern um Mo 03:15); Phase 54.5 hat als Hotfix nie eine eigene
+VERIFICATION bekommen. Der Rest ist historischer Ballast aus v1.4–v2.1.
+
+**Known deferred items (nicht-blockierend):**
+
+- Phase 55: WR-01 (Banner-Prädikat jahres-kumulativ vs. Suggest-Vorschau
+  wochen-scoped), WR-03 (`iso_week`/`iso_year` ohne Bereichsprüfung), WR-05
+  (`suggest()` committet vor der DANN-Berechnung).
+- Phase 57: WR-06 bewusst teilweise offen (Doppel-Read im Backfill-Apply-Zweig).
+- utoipa-Nesting: `RebookingApiDoc` hängt an zwei Nests, die
+  `/rebooking-suggestions`-Routen erscheinen in Swagger unter falschem Präfix.
+- Nyquist-VALIDATION der Phasen 55/56/57 auf `draft` (Checklisten nach
+  Ausführung nicht zurückgepflegt; die geforderten Tests existieren).
+
+**Hinweis:** v2.6 ist das interne Planungs-Label. Reale Release-Version via
+`/release-version` (`git.create_tag=false` in GSD-Config, Tags aus SemVer-Flow).
+
+---
+
 Historischer Index aller geshipten Milestones. Jeder Eintrag verlinkt auf die Detail-Archive in `.planning/milestones/`.
 
 ---
@@ -512,12 +594,15 @@ Audit `passed` (16/16 Requirements, Integration clean, 3/3 E2E-Flows). Neue Deps
   v2.1) in `service_impl/src/test/shiftplan_edit_lock.rs:6` — fires nur mit
   `--all-targets`, nicht Teil des Standard-Clippy-Gates. Non-blocking, trivialer
   Folge-Fix.
+
 - **Phase 45 Scope-Caveat:** 13 pre-existing `#[allow(dead_code)]`/
   `#[allow(non_snake_case)]` ohne reason-Kommentar bleiben — Clippy `-D warnings`
   trotzdem grün. Optionale Nach-Hygiene-Runde.
+
 - **Phase 48 Deviation:** PDF-Determinismus-Test normalisiert die `/ID`-Array-Bytes
   test-seitig (dokumentiert im SUMMARY) — Payload/Layout byte-gleich, nur der
   printpdf-internal `/ID`-Fingerprint runspezifisch.
+
 - **Pre-Close-Audit 2026-07-03**: 13 Carry-over-Items (1 debug session
   `awaiting_human_verify`, 7 Quick-Tasks, 5+ Pending Todos aus Mai/Juni 2026) —
   historischer Ballast aus v1.4–v2.1, in v2.2 nicht in Scope gezogen, weiterhin in
@@ -735,12 +820,15 @@ FE-Clippy `-D warnings` grün. Snapshot-Schema-Version bleibt 12
 
 - W1 (cosmetic): P07-SUMMARY-Doc-Drift (nennt pdf_render-Fns die nicht
   existieren; Runtime korrekt via loader-Collapse). Kein Blocker.
+
 - W2 (latent): `shifty-dioxus/src/state/shiftplan.rs:199-214`
   `From<&SlotTO> for Slot` ignoriert `effective_to`; heute nur im
   Slot-Edit-Form-Pfad (raw korrekt). Empfehlung: Doc-Warnkommentar
   oder Rename zu `Slot::from_edit_to(SlotTO)`.
+
 - Pre-existing 4 `dbg!`-Makros in `service_impl/src/block.rs:71-91`
   (kein Clippy-Verstoß, in VERIFICATION.md dokumentiert).
+
 - Historische Deferred-Items siehe `.planning/STATE.md` „Deferred
   Items"-Sektion.
 
@@ -784,6 +872,7 @@ Snapshot-Bump (bleibt 12), keine Migration, keine neuen Cargo-Deps.
 2. **Wave 2+3+4 additive Batch-Trait-Methoden** (Plans 52-02, 52-03,
    52-04) — `assemble_weeks(weeks, ...)` als `pub(crate) async fn` in
    `reporting.rs` (Wave 2, reiner Extract); `ExtraHoursService::find_by_year`
+
    + `ShiftplanReportService::extract_shiftplan_report_for_year` mit
    `sqlx prepare` (Wave 3); `ReportingService::get_year` mit drei
    Bulk-Load-Roundtrips + Vec-Delegation (Wave 4). `get_week`-Signatur
@@ -841,13 +930,16 @@ VAA-Tests = 3/3 grün. Regression-Locks (VFA-01, Chain-C, Legacy-Wire-Compat) al
 - SDF-03 Semantik-Cleanup: `SpecialDayService::get_by_iso_year` als
   Follow-up, um die 55 `special_day.get_by_week`-Calls in `assemble_weeks`
   auf konstant 2 zu reduzieren. Nicht latenz-relevant.
+
 - DB-Indices: `booking(year, calendar_week)`, `extra_hours(date_time)`,
   `working_hours(from_year, to_year)` — RESEARCH-Q3 v2.5. Kein Bottleneck
   mehr nach Follow-up #2.
+
 - F07-Doku: Follow-Ups #1+#2 haben die neuen Pure-Helper
   (`derive_hours_for_week_pure`, `build_derived_holiday_map_for_week_pure`)
   NICHT in `docs/features/F07-reporting-balance.{md,_de.md}` dokumentiert;
   Balance-Formel selbst ist unverändert dokumentiert.
+
 - Historische Deferred-Items siehe `.planning/STATE.md` „Deferred
   Items"-Sektion.
 

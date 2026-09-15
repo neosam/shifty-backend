@@ -12,7 +12,8 @@
 //! - D: Stichtag-Grenzfall (booking_date == active_from ⇔ inklusiv).
 //! - E: Zwei Bookings dieselbe Slot-Zeit → summiert (SHC-05 kein Rewrite).
 //! - F: Multi-Wochen-Range mit gemischtem Gate.
-//! - G: `CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt bei 12 (Snapshot-Immunität).
+//! - G: Chain D bewegt `CURRENT_SNAPSHOT_SCHEMA_VERSION` nicht (Snapshot-
+//!   Immunität). Der gepinnte Absolutwert ist 13 seit Phase 57 (D-57-10).
 
 use std::sync::Arc;
 
