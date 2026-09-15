@@ -25,6 +25,13 @@ Vollständiger historischer Index: [`MILESTONES.md`](MILESTONES.md).
 
 **Kein aktiver Milestone.** Nächste Iteration via `/gsd-new-milestone`.
 
+**Kern-Scope für den nächsten Milestone** (User-Festlegung 2026-09-15):
+Benutzerverwaltung und Sales-Person-Verwaltung in der UI zusammenlegen — heute
+zerfällt dieselbe Person in drei Detailseiten (`/user_details`,
+`/sales_person_details`, `/employees/:id`), was Nutzer verwirrt. Ist-Zustand,
+vorhandene 1:1-Verknüpfung im Datenmodell und die offenen Zuschnitt-Fragen:
+[`seeds/personenverwaltung-zusammenlegen.md`](seeds/personenverwaltung-zusammenlegen.md).
+
 ## Phasen
 
 <details>
