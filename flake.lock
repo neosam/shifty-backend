@@ -42,11 +42,11 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1782588143,
-        "narHash": "sha256-pZ8EG93VEgxwf5oL42tt3Tdz+RsNPcKIwj+85uB9kHQ=",
+        "lastModified": 1787407392,
+        "narHash": "sha256-Xpw7C5rTeAKwbgaVJzTKmt0aZaW0ZPTUbM1Nug3oYzE=",
         "owner": "neosam",
         "repo": "gsd-flake",
-        "rev": "83d27c90fe2d9099c55a08c41713528da361c80a",
+        "rev": "7260068514e45263c83854089270a32b5eda1a15",
         "type": "github"
       },
       "original": {
