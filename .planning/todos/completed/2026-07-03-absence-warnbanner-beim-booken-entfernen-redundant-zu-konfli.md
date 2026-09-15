@@ -51,3 +51,21 @@ Tests:
   aus `book_slot_with_conflict_check`.
 
 Aufwand: klein (backend 1 Filter-Zeile + Regression-Test).
+
+## Resolution (2026-09-15)
+
+Umgesetzt als **Frontend-Filter**, nicht als Backend-Removal — die im Todo
+gestellte Vorab-Frage ist mit „ja" beantwortet: ein regulärer Mitarbeiter,
+der sich selbst auf seinen eigenen Abwesenheitstag bucht (Booking-Gate:
+Shiftplanner ∨ Selbst), sieht die Konfliktliste nicht (FE-gated auf
+`is_shiftplanner`, BE-gated auf `SHIFTPLANNER_PRIVILEGE`) und braucht das
+Banner als einzigen Rückkanal.
+
+- Reiner Filter `booking_warnings_for_banner(warnings, is_shiftplanner)` in
+  `shifty-dioxus/src/page/shiftplan.rs`: verwirft `BookingOnAbsenceDay` nur
+  für Shiftplanner, lässt für alle anderen Rollen alles durch.
+- 7 Unit-Tests (`booking_banner_filter_tests`): beide Rollen, gemischte
+  Listen, Leerfall.
+- Backend-Vertrag unverändert — `BookingOnAbsenceDay` wird weiterhin emittiert.
+
+Commit: `feat(fe): Absence-Warnbanner fuer Shiftplanner unterdruecken`
