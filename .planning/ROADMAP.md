@@ -28,8 +28,11 @@ Vollständiger historischer Index: [`MILESTONES.md`](MILESTONES.md).
 **Kern-Scope für den nächsten Milestone** (User-Festlegung 2026-09-15):
 Benutzerverwaltung und Sales-Person-Verwaltung in der UI zusammenlegen — heute
 zerfällt dieselbe Person in drei Detailseiten (`/user_details`,
-`/sales_person_details`, `/employees/:id`), was Nutzer verwirrt. Ist-Zustand,
-vorhandene 1:1-Verknüpfung im Datenmodell und die offenen Zuschnitt-Fragen:
+`/sales_person_details`, `/employees/:id`), was Nutzer verwirrt. Dafür bekommt
+der Eintrag ein **eigenes Fachobjekt `Person`** als Aggregat über User und
+SalesPerson (Entscheidung 2026-09-15) — also eine Data-Model-first-Phase mit
+Migration und Backfill, nicht nur UI. Ist-Zustand, Blast Radius und offene
+Modellierungsfragen:
 [`seeds/personenverwaltung-zusammenlegen.md`](seeds/personenverwaltung-zusammenlegen.md).
 
 ## Phasen

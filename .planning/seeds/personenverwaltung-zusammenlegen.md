@@ -48,10 +48,11 @@ sind. `SalesPersonDao` hat schon
 existieren `assign_user_to_sales_person` / Pendant
 (`service/src/sales_person.rs:109,115`).
 
-**Konsequenz:** Das ist sehr wahrscheinlich eine reine Frontend-/UX-Phase.
-Backend-Änderungen wären allenfalls additiv (z. B. ein Aggregat-DTO, das
-Person + User + Rollen in einem Rutsch liefert — Fat Backend, Thin Client).
-Keine Migration absehbar, kein Snapshot-Bump.
+**Korrektur (2026-09-15, nach der Person-Entscheidung unten):** Die erste
+Einschätzung „reine Frontend-Phase, keine Migration" ist hinfällig. Mit einem
+eigenen Fachobjekt `Person` wird das eine **Data-Model-first-Phase** mit
+Migration und Backfill — Frontend ist die zweite Hälfte, nicht die ganze
+Aufgabe.
 
 ## Festgelegt (User, 2026-09-15)
 
@@ -76,19 +77,72 @@ verschiedene Seiten zu verzweigen. Daraus folgt direkt:
 - Die Liste unter `/user_management/` braucht keine Tabs mehr, sondern **eine**
   Liste aller Einträge mit erkennbarer Ausprägung (Badge/Spalte) und Filter.
 
+## Entscheidung: eigenes Fachobjekt `Person` (User, 2026-09-15)
+
+Von den drei Identitäts-Varianten fällt die Wahl auf die dritte: **ein neues
+Fachobjekt `Person`** als Aggregat über User und SalesPerson. Damit hat der
+Eintrag eine echte, stabile Identität statt einer aus zwei Fremd-PKs
+zusammengesetzten.
+
+### Was dabei nicht angetastet werden darf
+
+`sales_person.id` bleibt. Die UUID wird von **zwölf Tabellen** referenziert
+(`booking`, `extra_hours`, `working_hours`, `absence_period`,
+`sales_person_unavailable`, `sales_person_shiftplan`, `shiftplan`,
+`billing_period_sales_person`, Carryover-Backups, Quarantäne-Tabellen …) —
+darunter `billing_period_sales_person`, also die **write-once-Snapshots**. Eine
+Umschlüsselung der SalesPerson-ID würde historische Abrechnungsdaten berühren
+und ist damit ausgeschlossen.
+
+Ebenso bleibt `user.name` als PK: daran hängen `user_role` (und darüber die
+Privilegien), `user_invitation` und `sales_person_user`, dazu die Session-/
+Auth-Schicht.
+
+**Person kommt also obendrauf, nicht an deren Stelle.** `sales_person` und
+`user` bleiben die Aggregate, an denen die Fachdaten hängen; `Person` bündelt
+sie und trägt die Identität des Eintrags.
+
+### Offene Modellierungsfrage
+
+Zwei Varianten, beide additiv:
+
+- **A — Person als Elterntabelle:** neue Tabelle `person(id, …)`, dazu
+  `sales_person.person_id` und `user.person_id` als nullable FKs.
+  `sales_person_user` wird überflüssig und aufgelöst. Fachlich am saubersten
+  (Person ist das Aggregat, User/SalesPerson sind Facetten), verlangt aber
+  Spalten-Migrationen an zwei bestehenden Tabellen.
+- **B — `sales_person_user` zu `person` weiterentwickeln:** die bestehende
+  Verknüpfungstabelle bekommt eine eigene `id` und beide Spalten werden
+  nullable, sodass sie auch Einträge ohne Gegenstück trägt. Migrationsärmer,
+  aber „Person" bleibt strukturell eine Verknüpfungstabelle mit Identität.
+
+Für beide gilt: **Backfill-Migration** nötig — für jede bestehende SalesPerson
+und jeden bestehenden User eine Person anlegen, verknüpfte Paare zu *einer*
+Person zusammenführen. Die 1:1-Constraints auf `sales_person_user` garantieren,
+dass dabei keine Mehrdeutigkeit entsteht.
+
+### Weitere zu klärende Punkte
+
+- **Wo lebt der Name?** Heute doppelt: `sales_person.name` (Anzeigename) und
+  `user.name` (PK = Login-Kennung). Mit einer Person wäre der Anzeigename
+  natürlicherweise an ihr — was aber die Frage aufwirft, was mit
+  `sales_person.name` passiert (Migration der Werte? Spalte behalten und
+  spiegeln? deprecaten?). `user.name` bleibt in jedem Fall die Login-Kennung.
+- **Snapshot-Schema-Version:** voraussichtlich **kein** Bump. Person ändert
+  keine Computation und keinen persistierten `value_type`; solange
+  `billing_period_sales_person.sales_person_id` unverändert bleibt, ist der
+  Snapshot-Vertrag nicht berührt. In der discuss-phase explizit gegen die
+  CLAUDE.md-Klausel prüfen und die Begründung festhalten (Präzedenz: v1.4
+  no-bump-Justification).
+- **Docs-Trigger:** eine Migration zieht `docs/architecture/03-data-model.md` +
+  `diagrams/db-schema-er.mmd` + die passenden `docs/features/F*.md` nach sich,
+  jeweils EN **und** DE (hartes Gate beim Milestone-Close).
+
 ## Vor dem Planen zu klären
 
-1. **Woran wird ein Eintrag identifiziert?** Das ist die harte Frage, weil es im
-   Datenmodell kein gemeinsames Eintrags-Objekt gibt: `user.name` ist ein TEXT-PK,
-   `sales_person.id` eine UUID, verbunden über `sales_person_user`. Kandidaten:
-   - diskriminierte Route (`/person/sp/:uuid` vs. `/person/user/:name`) — stabil,
-     aber ein verknüpfter Eintrag hätte zwei gültige URLs (Alias-Verhalten bewusst
-     entscheiden);
-   - SalesPerson-ID bevorzugt, Username als Fallback — eine URL pro Eintrag, aber
-     die URL eines reinen Users **ändert sich**, sobald er eine SalesPerson
-     bekommt;
-   - synthetische Eintrags-ID vom Backend — sauberste UI-Semantik, teuerste
-     Variante.
+1. ~~Woran wird ein Eintrag identifiziert?~~ **Entschieden:** eigenes Fachobjekt
+   `Person` (siehe oben). Offen bleibt nur noch Variante A vs. B der
+   Modellierung.
 2. **Gehört `/employees/:id` mit hinein** oder bleibt die Report-Sicht (Balance,
    Stunden, Freiwilligen-Konto) getrennt? Sie ist HR-gated und dient der
    Auswertung, nicht der Verwaltung — Argument für getrennt lassen, dann aber mit
