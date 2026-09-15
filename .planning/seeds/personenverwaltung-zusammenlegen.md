@@ -102,59 +102,85 @@ Auth-Schicht.
 `user` bleiben die Aggregate, an denen die Fachdaten hängen; `Person` bündelt
 sie und trägt die Identität des Eintrags.
 
-### Offene Modellierungsfrage
+### Modellierung: Variante A (entschieden 2026-09-15)
 
-Zwei Varianten, beide additiv:
+Neue Tabelle `person` als Elterntabelle, `sales_person` und `user` bekommen je
+einen nullable FK darauf; `sales_person_user` wird dadurch überflüssig und
+aufgelöst.
 
-- **A — Person als Elterntabelle:** neue Tabelle `person(id, …)`, dazu
-  `sales_person.person_id` und `user.person_id` als nullable FKs.
-  `sales_person_user` wird überflüssig und aufgelöst. Fachlich am saubersten
-  (Person ist das Aggregat, User/SalesPerson sind Facetten), verlangt aber
-  Spalten-Migrationen an zwei bestehenden Tabellen.
-- **B — `sales_person_user` zu `person` weiterentwickeln:** die bestehende
-  Verknüpfungstabelle bekommt eine eigene `id` und beide Spalten werden
-  nullable, sodass sie auch Einträge ohne Gegenstück trägt. Migrationsärmer,
-  aber „Person" bleibt strukturell eine Verknüpfungstabelle mit Identität.
+```
+person(id BLOB(16) PK, <Audit-Spalten>)
+sales_person.person_id  BLOB(16) NULL  -> person(id)
+user.person_id          BLOB(16) NULL  -> person(id)
+-- sales_person_user entfällt (Inhalt geht in den Backfill ein)
+```
 
-Für beide gilt: **Backfill-Migration** nötig — für jede bestehende SalesPerson
-und jeden bestehenden User eine Person anlegen, verknüpfte Paare zu *einer*
-Person zusammenführen. Die 1:1-Constraints auf `sales_person_user` garantieren,
-dass dabei keine Mehrdeutigkeit entsteht.
+**Backfill-Migration:** für jede bestehende SalesPerson und jeden bestehenden
+User eine `person`-Zeile anlegen; für jedes Paar in `sales_person_user` **eine
+gemeinsame** Person, auf die beide Seiten zeigen. Die beidseitigen
+UNIQUE-Constraints der alten Tabelle garantieren, dass dabei keine
+Mehrdeutigkeit entstehen kann.
 
-### Weitere zu klärende Punkte
+**Anmerkung zum Zuschnitt:** Da die Namen bei ihren bisherigen Objekten bleiben
+(siehe unten), trägt `person` zunächst nur Identität und Audit-Spalten. Das ist
+gewollt — Person ist das Aggregat, nicht der Datenträger. Sollten später echte
+Personenstammdaten dazukommen (E-Mail, Telefon, Geburtsdatum), ist `person` der
+natürliche Ort dafür.
 
-- **Wo lebt der Name?** Heute doppelt: `sales_person.name` (Anzeigename) und
-  `user.name` (PK = Login-Kennung). Mit einer Person wäre der Anzeigename
-  natürlicherweise an ihr — was aber die Frage aufwirft, was mit
-  `sales_person.name` passiert (Migration der Werte? Spalte behalten und
-  spiegeln? deprecaten?). `user.name` bleibt in jedem Fall die Login-Kennung.
-- **Snapshot-Schema-Version:** voraussichtlich **kein** Bump. Person ändert
-  keine Computation und keinen persistierten `value_type`; solange
-  `billing_period_sales_person.sales_person_id` unverändert bleibt, ist der
-  Snapshot-Vertrag nicht berührt. In der discuss-phase explizit gegen die
-  CLAUDE.md-Klausel prüfen und die Begründung festhalten (Präzedenz: v1.4
-  no-bump-Justification).
-- **Docs-Trigger:** eine Migration zieht `docs/architecture/03-data-model.md` +
-  `diagrams/db-schema-er.mmd` + die passenden `docs/features/F*.md` nach sich,
-  jeweils EN **und** DE (hartes Gate beim Milestone-Close).
+### Namen bleiben, wo sie sind (entschieden 2026-09-15)
+
+Kein Namens-Umzug an die Person. Die beiden vorhandenen Namen bedeuten
+unterschiedliche Dinge und behalten ihre Rolle:
+
+- `user.name` — **der Username, mit dem man sich einloggt.** Bleibt PK, bleibt
+  an `user`.
+- `sales_person.name` — **der Name des Verkäufers** (Anzeigename im Schichtplan,
+  in Reports usw.). Bleibt an `sales_person`.
+
+Daraus folgt eine FE-/DTO-Detailfrage für die Planung: **womit wird ein Eintrag
+in der Liste beschriftet?** Ein verknüpfter Eintrag hat beide Namen, ein reiner
+Admin-Account nur den Username, eine Freiwillige ohne Login nur den
+Verkäufernamen. Nach „Fat Backend, Thin Client" sollte das Backend den
+Anzeigenamen fertig im DTO liefern, statt das FE die Fallback-Regel bauen zu
+lassen.
+
+### Snapshot-Schema-Version: kein Bump (entschieden 2026-09-15)
+
+**Begründung (gehört so in die discuss-phase und ins PLAN, Präzedenz: v1.4
+no-bump-Justification):** `person` wird ausschließlich zur Administration
+benötigt. Die Tabelle führt keinen neuen persistierten `value_type` ein, ändert
+keine Computation, kein Input-Set und keine Filterung der
+Billing-Period-Berechnung. `billing_period_sales_person.sales_person_id` bleibt
+unverändert — die Snapshots referenzieren weiterhin dieselbe SalesPerson-UUID.
+Damit greift keine der vier Bump-Klauseln aus `CLAUDE.md`.
+`CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt bei **13**.
+
+### Docs-Trigger (hartes Gate beim Milestone-Close)
+
+Die Migration zieht `docs/architecture/03-data-model.md` +
+`diagrams/db-schema-er.mmd` + die passenden `docs/features/F*.md` nach sich,
+jeweils EN **und** DE. Da `dao/**` und `service/**` mit betroffen sind, kommen
+deren Feature-Docs dazu.
 
 ## Vor dem Planen zu klären
 
-1. ~~Woran wird ein Eintrag identifiziert?~~ **Entschieden:** eigenes Fachobjekt
-   `Person` (siehe oben). Offen bleibt nur noch Variante A vs. B der
-   Modellierung.
-2. **Gehört `/employees/:id` mit hinein** oder bleibt die Report-Sicht (Balance,
+Die Identitäts-, Modellierungs-, Namens- und Snapshot-Fragen sind entschieden
+(siehe oben). Offen bleiben:
+
+1. **Gehört `/employees/:id` mit hinein** oder bleibt die Report-Sicht (Balance,
    Stunden, Freiwilligen-Konto) getrennt? Sie ist HR-gated und dient der
    Auswertung, nicht der Verwaltung — Argument für getrennt lassen, dann aber mit
    klarem Absprung zwischen beiden Sichten.
-3. **Abschnittsweises Rollen-Gating.** Rollen/Einladungen/Impersonation sind heute
+2. **Abschnittsweises Rollen-Gating.** Rollen/Einladungen/Impersonation sind heute
    Admin-Gebiet (`/user_details`), Stammdaten/Shiftplan shiftplanner-nah
    (`/sales_person_details`). Auf einer gemeinsamen Seite muss das pro Abschnitt
    greifen, nicht pro Seite.
-4. **Wer liefert die Union?** Nach „Fat Backend, Thin Client" sollte das Backend
-   die Eintragsliste fertig ausgeprägt liefern (inkl. Ausprägungs-Marker), statt
-   das FE zwei Listen mergen zu lassen. Präzedenz: v2.5 VAA
-   (`sales_person_absences` als Union bezahlt + freiwillig).
+3. **Anzeigename-Regel im DTO** (siehe „Namen bleiben, wo sie sind") — welcher
+   Name beschriftet einen Eintrag in der Liste, und liefert das Backend ihn
+   fertig?
+4. **Phasen-Schnitt.** Data-Model-first ist gesetzt (Migration + Backfill vor
+   allem anderen). Offen ist, ob Person-Tabelle + Backfill + Aggregat-Service
+   eine Phase sind und die UI eine zweite, oder ob feiner geschnitten wird.
 
 ## Vorhandene Bausteine
 
