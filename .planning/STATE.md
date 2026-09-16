@@ -4,17 +4,17 @@ milestone: v2.7
 milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 60
 current_phase_name: person-datenmodell-backfill
-status: executing
-stopped_at: Completed 60-01-PLAN.md
-last_updated: "2026-09-16T06:14:03.576Z"
+status: verifying
+stopped_at: Completed 60-03-PLAN.md
+last_updated: "2026-09-16T07:16:09.693Z"
 last_activity: 2026-09-16
-last_activity_desc: Plan 60-01 abgeschlossen (person-Tabelle, person_id-Spalten, idempotenter Backfill; 8/8 Tests grün)
+last_activity_desc: Plan 60-03 abgeschlossen (Docs-Freshness-Gate geschlossen — 7 Doku-Dateien, EN + DE)
 progress:
   total_phases: 5
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 2
-  percent: 0
+  completed_plans: 3
+  percent: 20
 ---
 
 # Project State: Shifty Backend
@@ -33,11 +33,11 @@ progress:
 
 ## Current Position
 
-Phase: 60 (person-datenmodell-backfill) — EXECUTING
+Phase: 60 (person-datenmodell-backfill) — COMPLETE (ready for verification)
 Plan: 3 of 3
-Status: Ready to execute
-Last activity: 2026-09-16 — Plan 60-01 abgeschlossen (person-Tabelle, person_id-Spalten, idempotenter Backfill; 8/8 Tests grün)
-Resume file: `.planning/phases/60-person-datenmodell-backfill/60-02-PLAN.md`
+Status: Phase complete — ready for verification
+Last activity: 2026-09-16 — Plan 60-03 abgeschlossen (Docs-Freshness-Gate geschlossen — 7 Doku-Dateien, EN + DE)
+Resume file: None — alle 3 Plaene ausgefuehrt
 
 ## Quick Tasks Completed
 
@@ -271,8 +271,8 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-09-16T06:13:59.100Z
-**Stopped at:** Completed 60-01-PLAN.md
+**Last session:** 2026-09-16T07:16:04.012Z
+**Stopped at:** Completed 60-03-PLAN.md
 **Resume file:** None
 
 **To resume work in a new session:**
@@ -366,6 +366,8 @@ D-63-01/02, D-64-01/02/03).
 - [Phase ?]: Die F08-Bump-Historie nennt VIER betroffene value_types (Overall, Balance, ExtraWork, Volunteer) — Messbefund aus Plan 05
 - [Phase 60]: D-60-01 bestaetigt (60-01 Checkpoint, auto-mode): UNIQUE-Index auf sales_person.person_id bleibt vollstaendig statt partiell — soft-geloeschte Sales Persons behalten ihre Person-Identitaet dauerhaft (one-way).
 - [Phase 60]: Apply-twice-Nachweis via Marker-Split (BACKFILL-START/END-Kommentare + sqlx::raw_sql) statt vollem Datei-Replay — SQLite kennt fuer ALTER TABLE ADD COLUMN keine Existenz-Guard-Klausel.
+- [Phase 60]: [To verify] in der Foreign-Keys-Konvention aufgeloest — PRAGMA foreign_keys wird nirgends gesetzt, FK-Deklarationen sind dekorativ (D-60-06)
+- [Phase 60]: one-way-Vermerk zu den vollstaendigen Unique-Indizes steht in beiden Sprachfassungen von 03-data-model UND im Migrations-Kopfkommentar — Vertragsbestandteil gegen kuenftige Aufraeum-Passes
 
 ## Performance Metrics
 
@@ -414,3 +416,4 @@ D-63-01/02, D-64-01/02/03).
 | Phase 57 P06 | ~35min | 3 tasks | 10 files |
 | Phase 60 P01 | 12min | 3 tasks | 3 files |
 | Phase 60 P02 | 7min | 2 tasks | 1 files |
+| Phase 60 P03 | 6min | 2 tasks | 7 files |

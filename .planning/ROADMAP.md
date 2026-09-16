@@ -286,7 +286,7 @@ Plans:
 **Wave 2** *(blocked on Wave 1 completion)*
 
 - [x] 60-02-PLAN.md — DB-Level-Ablehnungstests für die 1:1-Garantie plus Schema- und Erhaltungs-Locks (Index vollständig, `person`-Spaltensatz, `sales_person_user` unangetastet, Legacy-Schlüssel bitgleich, Snapshot-Version 13)
-- [ ] 60-03-PLAN.md — Docs-Freshness-Gate: `03-data-model.md` + `_de.md`, `diagrams/db-schema-er.mmd`, `F01-employee-management` und `F12-auth-session` je EN + DE
+- [x] 60-03-PLAN.md — Docs-Freshness-Gate: `03-data-model.md` + `_de.md`, `diagrams/db-schema-er.mmd`, `F01-employee-management` und `F12-auth-session` je EN + DE
 
 ---
 
