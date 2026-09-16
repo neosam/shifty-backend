@@ -77,33 +77,45 @@ nachdem die Konsequenz benannt wurde.
 
 ## Traceability
 
-Wird bei der Roadmap-Erstellung gefüllt.
+Gefüllt bei der Roadmap-Erstellung am 2026-09-16 (`.planning/ROADMAP.md`, Milestone-Sektion v2.7).
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PERS-01 | — | Pending |
-| PERS-02 | — | Pending |
-| PERS-03 | — | Pending |
-| PERS-04 | — | Pending |
-| PERS-05 | — | Pending |
-| PERS-06 | — | Pending |
-| PADM-01 | — | Pending |
-| PADM-02 | — | Pending |
-| PADM-03 | — | Pending |
-| PADM-04 | — | Pending |
-| PADM-05 | — | Pending |
-| PADM-06 | — | Pending |
-| PADM-07 | — | Pending |
-| PADM-08 | — | Pending |
-| PSOLL-01 | — | Pending |
-| PSOLL-02 | — | Pending |
-| PSOLL-03 | — | Pending |
-| PSOLL-04 | — | Pending |
+| PERS-01 | Phase 60 | Pending |
+| PERS-02 | Phase 60 | Pending |
+| PERS-03 | Phase 60 | Pending |
+| PERS-04 | Phase 60 | Pending |
+| PERS-05 | Phase 61 | Pending |
+| PERS-06 | Phase 60 | Pending |
+| PADM-01 | Phase 62 | Pending |
+| PADM-02 | Phase 63 | Pending |
+| PADM-03 | Phase 63 | Pending |
+| PADM-04 | Phase 63 | Pending |
+| PADM-05 | Phase 63 | Pending |
+| PADM-06 | Phase 62 | Pending |
+| PADM-07 | Phase 63 | Pending |
+| PADM-08 | Phase 62 | Pending |
+| PSOLL-01 | Phase 64 | Pending |
+| PSOLL-02 | Phase 64 | Pending |
+| PSOLL-03 | Phase 64 | Pending |
+| PSOLL-04 | Phase 64 | Pending |
 
 **Coverage:**
 - v1 requirements: 18 total
-- Mapped to phases: 0
-- Unmapped: 18 ⚠️ (Roadmap ausstehend)
+- Mapped to phases: 18 ✓
+- Unmapped: 0
+
+**Verteilung:**
+
+| Phase | Requirements | Anzahl |
+|---|---|---|
+| Phase 60 — Person-Datenmodell + Backfill | PERS-01, PERS-02, PERS-03, PERS-04, PERS-06 | 5 |
+| Phase 61 — PersonService + Auflösung `sales_person_user` | PERS-05 | 1 |
+| Phase 62 — Personen-Verzeichnis (eine Liste statt Tabs) | PADM-01, PADM-06, PADM-08 | 3 |
+| Phase 63 — Personen-Detailansicht + Ausprägungs-Aktionen | PADM-02, PADM-03, PADM-04, PADM-05, PADM-07 | 5 |
+| Phase 64 — Planungs-Soll für dynamische Verträge | PSOLL-01, PSOLL-02, PSOLL-03, PSOLL-04 | 4 |
+
+Jedes Requirement ist genau einer Phase zugeordnet — keine Waisen, keine Doppelung.
 
 ---
-*Requirements defined: 2026-09-16*
+*Requirements defined: 2026-09-16 — Traceability gefüllt 2026-09-16 (Roadmap v2.7, Phasen 60–64)*

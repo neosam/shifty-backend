@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v2.7
 milestone_name: Personenverwaltung & Planungs-Soll
 status: planning
-last_updated: "2026-09-16T03:54:09.815Z"
+last_updated: "2026-09-16T00:00:00.000Z"
 last_activity: 2026-09-16
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,22 +17,22 @@ progress:
 
 ## Project Reference
 
-- **Roadmap**: `.planning/ROADMAP.md` (kein aktiver Milestone; Phasen 58 + 59 vorbereitet, Backlog 999.1 erhalten)
-- **Requirements**: keine aktive `REQUIREMENTS.md` — wird von `/gsd-new-milestone` frisch angelegt. Letzte: `.planning/milestones/v2.6-REQUIREMENTS.md` (19 REQ-IDs, 19/19 complete)
+- **Roadmap**: `.planning/ROADMAP.md` (aktiver Milestone **v2.7**, Phasen 60–64; Phasen 58 + 59 weiter reserviert/vorbereitet, Backlog 999.1 erhalten)
+- **Requirements**: `.planning/REQUIREMENTS.md` (18 REQ-IDs: PERS-01..06, PADM-01..08, PSOLL-01..04; 18/18 auf Phasen gemappt). Letzte abgeschlossene: `.planning/milestones/v2.6-REQUIREMENTS.md` (19/19 complete)
 - **Milestones-Index**: `.planning/MILESTONES.md`
 - **Latest milestone archive**: `.planning/milestones/v2.6-ROADMAP.md`
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
 - **Last shipped/closed**: **v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter** (shipped 2026-07-31, deployed; Planungs-Archiv 2026-09-15; Phasen 54, 54.5, 55, 56, 57 — 29 Pläne, 19/19 Requirements, Audit `passed`, `override_closeout`)
-- **Current milestone**: keiner — zwischen Milestones. Nächste Iteration via `/gsd-new-milestone`.
-- **Current focus**: kein aktiver Milestone. Zwei ausgearbeitete Phasen-Entwürfe warten auf Zuordnung: **Phase 58** (Optionale Stundenverteilung pro Werktag, zieht Snapshot-Bump 13→14 nach sich) und **Phase 59** (E2E-Browser-Tests mit Playwright, off-theme Maintenance, `59-PLAN.md` fertig).
-- **Snapshot-Schema-Version**: aktuell **13** (Bump 12→13 in Phase 57, D-57-10 — revidiert den Phase-56-Ausgang „bleibt bei 12"). Phase 58 würde auf 14 heben.
+- **Current milestone**: **v2.7 Personenverwaltung & Planungs-Soll** (planning; Roadmap erstellt 2026-09-16, Phasen 60–64).
+- **Current focus**: Roadmap steht, Phasen noch ungeplant. Nächster Schritt: `/gsd-discuss-phase 60` (Person-Datenmodell + Backfill). Die zwei ausgearbeiteten Entwürfe **Phase 58** (Werktags-Stundenverteilung, Snapshot-Bump 13→14) und **Phase 59** (E2E-Playwright) bleiben bewusst außerhalb von v2.7; ihre Nummern sind reserviert.
+- **Snapshot-Schema-Version**: aktuell **13** (Bump 12→13 in Phase 57, D-57-10). **v2.7 bumpt nicht** — `person` ist rein administrativ, das Planungs-Soll ein reines Anzeigefeld. Phase 58 (nicht in v2.7) würde auf 14 heben.
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 60 (Person-Datenmodell + Backfill) — not started
 Plan: —
-Status: Defining requirements
-Last activity: 2026-09-16 — Milestone v2.7 started
+Status: Roadmap complete, phase planning pending
+Last activity: 2026-09-16 — Roadmap v2.7 erstellt (Phasen 60–64, 18/18 Requirements gemappt)
 
 ## Quick Tasks Completed
 
@@ -245,35 +245,55 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 - Backlog-Phase 999.1 „Breaking/Major Dependency-Migration" angelegt (2026-06-28): off-theme, eskaliert aus Quick-Task 260627-vgo. Bleibt separat verfügbar via `/gsd-plan-phase 999.1`.
 - **Milestone v2.6 + Phasen 54–56 angelegt (2026-07-06):** 17 Requirements → 3 Phasen (ARCHITECTURE-C Vertikal-Slice-Baseline aus Research SUMMARY-Divergenz-1 gewählt; Rationale in ROADMAP.md dokumentiert). Phase 54 = Data-Model + F1+F2 (5 Requirements: VOL-STAT/VOL-ACCT). Phase 55 = F3+F5 (7 Requirements: REB-MANUAL, HR-ALERT). Phase 56 = F4+Backfill (5 Requirements: REB-AUTO). Zwei offene Discuss-Decisions bleiben in den Phasen: Snapshot-Bump 12→13 in P56 (REB-AUTO-05), Denominator-Definition D-F1-01 + Mid-Week-Vertragswechsel D-F2-01 in P54.
+- **Milestone v2.7 + Phasen 60–64 angelegt (2026-09-16):** 18 Requirements → 5 Phasen.
+  Research schlug vier Phasen vor (60–63); die Roadmap teilt den UI-Block zusätzlich in
+  **Liste (62)** und **Detail + Ausprägungs-Aktionen (63)**, weil er sonst 10+ Pläne in
+  einer Phase gebündelt hätte. Phase 60 = Datenmodell + Backfill (PERS-01/02/03/04/06,
+  Backend-only). Phase 61 = `PersonService` + Auflösung `sales_person_user` inkl.
+  Umschreibung der Selbst-Zugriffs-Prüfung `find_sales_person_by_user_id` (PERS-05,
+  Backend-only; bewusst eigene Phase trotz nur eines Requirements — einzige
+  sicherheitsrelevante Umschreibung des Milestones). Phase 62 = Aggregat-Service +
+  merged Liste (PADM-01/06/08). Phase 63 = Detailansicht + Ausprägungs-Mutationen
+  (PADM-02/03/04/05/07). Phase 64 = Planungs-Soll (PSOLL-01..04), architektonisch
+  unabhängig, bewusst ans Ende sequenziert (irreversibles Migrationsrisiko zuerst;
+  eigene Test-Matrix für die zwei `ShortEmployeeReport`-Konstruktionsstellen).
+  **Nummern 58 und 59 bleiben reserviert.** Gesperrt in der Roadmap: kein
+  Snapshot-Bump (bleibt 13), keine Umschlüsselung von `sales_person.id`/`user.name`,
+  abschnittsweises Rollen-Gating ist PADM-F-02 (Future) — die Seite ist als Ganzes
+  admin-gated.
+
 - **Phase 57 angelegt (2026-07-31): F14-Rebooking-Wirksamkeit — Requirements-Korrektur + Balance-Ausgleich.** Analyse auf User-Nachfrage ergab: der in 54–56 gebaute Übertrag freiwillig→bezahlt ist auf der Leseseite ein vollständiger No-Op — der `source == Manual`-Filter verwirft beide Beine des `(−h, +h)`-Paars, die Balance bleibt unverändert (empirisch: `−53 → −53`), das Minus wandert per Carryover ins Folgejahr. **Ursache liegt in der Planung, nicht in der Implementierung:** kein v2.6-Requirement operationalisiert das Milestone-Goal „Ausgleich"; VOL-ACCT-03 fordert wörtlich das Gegenteil („balance-neutral"). Der Widerspruch stand sichtbar in `55-CONTEXT.md` (D-55-07 „balance wird neu berechnet" vs. Constraint „NICHT verschiebt") und wurde in `55-RESEARCH.md:443` als bestätigungsbedürftig markiert, dann planintern zugunsten von VOL-ACCT-03 aufgelöst. Die Gates prüften gegen die Spec, nicht gegen den Zweck: das 55-UAT prüft „Banner verschwindet" — genau den Mechanismus (belegter UNIQUE-Slot, D-55-07), der das Versagen kaschiert. P57 korrigiert **Spec vor Code**: VOL-ACCT-03 neu fassen + neues Ausgleichs-REQ → D-55-07 entkoppeln → Filter kategorie-spezifisch → Balance-Deckel im Auto-Cron → Neutralitäts-Tests invertieren → Snapshot-Bump 12→13 (D-01 fällt mit dem Fix).
 
 ## Session Continuity
 
-**Last session:** 2026-07-31T14:45:04.548Z
-**Stopped at:** Completed 57-03-PLAN.md
+**Last session:** 2026-09-16
+**Stopped at:** Roadmap v2.7 erstellt (ROADMAP.md + REQUIREMENTS.md-Traceability)
 **Resume file:** None
 
 **To resume work in a new session:**
 
 1. Read `.planning/STATE.md` (this file)
-2. Read `.planning/ROADMAP.md` (v2.6 Milestone-Sektion + Phasen 54–56 mit Details)
-3. Read `.planning/REQUIREMENTS.md` (17 REQ-IDs + Traceability)
-4. Read `.planning/research/SUMMARY.md` (2 offene Discuss-Decisions)
-5. Read `.planning/PROJECT.md` (Current Milestone: v2.6-Sektion)
+2. Read `.planning/ROADMAP.md` (Sektion „Milestone v2.7 … (Active)", Phasen 60–64 mit Details)
+3. Read `.planning/REQUIREMENTS.md` (18 REQ-IDs + gefüllte Traceability)
+4. Read `.planning/research/SUMMARY.md` + `ARCHITECTURE.md` + `PITFALLS.md`
+5. Read `.planning/seeds/personenverwaltung-zusammenlegen.md` (gesperrte Entscheidungen)
+6. Read `.planning/PROJECT.md` (Current Milestone: v2.7-Sektion)
 
-**Aktueller Stand:** Milestone v2.6 in Planning. ROADMAP.md fertig (Phasen 54–56).
-Snapshot-Version bleibt aktuell 12; Bump-Entscheidung in Phase 56 discuss-phase.
+**Aktueller Stand:** Milestone v2.7 in Planning. ROADMAP.md fertig (Phasen 60–64,
+18/18 Requirements gemappt). Snapshot-Version bleibt **13** — kein Bump in v2.7.
 
-**Next command**: `/gsd-discuss-phase 54` (Data-Model + F1 + F2; Discuss-Points: D-F1-01
-Denominator, D-F2-01 Mid-Week-Contract, D-54-DM-01 UNIQUE-Shape, D-54-DM-02 Marker-Approach).
+**Next command**: `/gsd-discuss-phase 60` (Person-Datenmodell + Backfill). Offene
+Discuss-Punkte pro Phase stehen in der ROADMAP-Phase-Detail-Sektion (D-62-01/02,
+D-63-01/02, D-64-01/02/03).
 
 ---
 
-*State updated: 2026-07-06 — Roadmap v2.6 created (Phasen 54–56, 17/17 Requirements mapped; ARCHITECTURE-C 3-Phasen-Baseline gewählt; Snapshot-Bump-Entscheidung + Stichtag-Toggle-Seed in korrekten Phasen zugeordnet; Docs-Freshness-Gate für F14 + F07 + F08 + Architektur-Docs vorgemerkt).*
+*State updated: 2026-09-16 — Roadmap v2.7 created (Phasen 60–64, 18/18 Requirements gemappt; UI-Block gegen den Research-Vorschlag in Liste + Detail geteilt; PSOLL als unabhängige Schluss-Phase; Nummern 58/59 reserviert; kein Snapshot-Bump, bleibt 13; Docs-Freshness-Check nach jeder Phase statt erst beim Close).*
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Review `.planning/ROADMAP.md` (Sektion „Milestone v2.7 … (Active)")
+- Dann `/gsd-discuss-phase 60` — Person-Datenmodell + Backfill
 
 ## Decisions
 
