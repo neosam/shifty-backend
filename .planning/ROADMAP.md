@@ -80,6 +80,7 @@ geteilt.
    irgendetwas durch sie liest oder schreibt. `sales_person_user` bleibt in Phase
    60 bewusst stehen und wird erst in Phase 61 aufgelöst — die Tabelle ist bis
    dahin die laufende Wahrheit, gegen die der Backfill geprüft werden kann.
+
 2. **Phase 61 bleibt von Phase 60 getrennt**, obwohl sie nur ein Requirement trägt
    (PERS-05). Sie enthält die einzige sicherheitsrelevante Umschreibung des
    Milestones (`find_sales_person_by_user_id`, siehe Constraints unten) und braucht
@@ -87,6 +88,7 @@ geteilt.
    Migrations-Rauschen mitzulaufen. Präzedenz gegen das Zusammenlegen: v2.6
    Phase 57 — ein Requirement, das planintern „mitlief", kostete eine ganze
    Nachzieh-Phase.
+
 3. **Der UI-Block wird geteilt.** Zusammen wären Aggregat-Service + zwei DTO-
    Familien + mehrere REST-Endpoints + Listen-Umbau + Detail-Komponente +
    Anlege-/Verknüpfungs-Masken + i18n de/en/cs eine Phase von 10+ Plänen; die
@@ -94,6 +96,7 @@ geteilt.
    verläuft entlang Lesen/Schreiben: Phase 62 liefert die Liste (ein
    Aggregat-Read, sofort UAT-bar — „keine Tabs mehr"), Phase 63 die Detailansicht
    und alle Ausprägungs-Mutationen.
+
 4. **PSOLL bekommt eine eigene Phase (64)** — Begründung steht in der
    Phase-Detail-Sektion unter „Depends on".
 
@@ -119,17 +122,21 @@ Permission-Beobachtungen, 62–64 gegen sichtbares Verhalten im Browser.
   das Planungs-Soll ist ein reines Anzeigefeld aus bereits lebender Logik. Die
   Begründung ist im Seed und in PROJECT.md schriftlich festgehalten. **Keine Phase
   bumpt „vorsichtshalber".**
+
 - **`sales_person.id` und `user.name` werden nicht umgeschlüsselt** — zwölf Tabellen
   referenzieren die Sales-Person-UUID, darunter write-once-Abrechnungs-Snapshots;
   `user.name` trägt die Auth-Schicht. `Person` kommt obendrauf, nicht an deren Stelle.
+
 - **Namen bleiben, wo sie sind** — `person` trägt zunächst nur Identität und
   Audit-Spalten. Echte Personenstammdaten sind PERS-F-01 (Future).
+
 - **Abschnittsweises Rollen-Gating ist nicht v2.7-Scope.** Die Personenverwaltung
   ist als Ganzes admin-gated (PADM-08); das von der Research als „unscoped work"
   markierte Per-Sektion-Rollen-Gating steht in REQUIREMENTS.md bewusst als
   **PADM-F-02** hinten an. Die Sektions-Sichtbarkeit in Phase 63 richtet sich
   ausschließlich nach der **Ausprägung**, nicht nach der Rolle. Das reduziert den
   von der Research befürchteten Umfang des UI-Blocks erheblich.
+
 - **`/employees/:id` (HR-Report) bleibt eine getrennte Sicht** — PADM-F-01.
 
 ### Harte Constraints aus der Research (mit file:line, verbatim in die Pläne)
@@ -144,30 +151,36 @@ von selbst fangen würden:
    gehört in **dieselbe Phase wie die Auflösung der Verknüpfungstabelle (61)**,
    mit eigener Vorher/Nachher-Matrix. Vergleich im SQL-Join, nie zwei separat
    geladene `Option<Uuid>` in Rust — sonst fail-open über `NULL == NULL`.
+
 2. **`user` hat keine Soft-Delete-Spalte, `sales_person` schon.** Ein Backfill mit
    dem gewohnten `WHERE deleted IS NULL` überspringt soft-gelöschte Sales Persons,
    die noch write-once-`billing_period_sales_person`-Zeilen besitzen (Phase 60,
    PERS-03).
+
 3. **`booking_information.rs:644` und `:818` lesen bewusst das genullte
    `expected_hours` in `available_hours`** — der v2.5-Regression-Lock
    („`WorkingHoursPerSalesPerson` (Bezahlten-Vertrag) unangetastet"). Das
    Planungs-Soll darf dort **nicht** substituiert werden (Phase 64, PSOLL-04).
+
 4. **`ShortEmployeeReport` wird an ZWEI unabhängigen Stellen konstruiert** —
    `assemble_weeks` (`service_impl/src/reporting.rs:996-1150`) und
    `get_reports_for_all_employees` (`:1318-1664`). Beide müssen in **derselben**
    Phase gefüllt werden, sonst ist das Feld in einer Sicht gesetzt und in der
    anderen leer. Strukturell dieselbe Falle wie der Phase-57-Bug (Phase 64,
    PSOLL-03).
+
 5. **`PersonService` ist Basic-Tier** — nur DAOs + `PermissionService` +
    Clock/Uuid + `TransactionDao`, **kein** anderer Domain-Service (CLAUDE.md
    Tier-Regel). Sonst entsteht ein DI-Zyklus über `PermissionService`, das jeder
    Service braucht. Das zusammengeführte Lese-Aggregat für Liste und Detail
    gehört eine Stufe höher als Business-Logic-Service. DI-Konstruktion in
    `shifty_bin/src/main.rs` strikt basic-vor-business-logic.
+
 6. **Eine neue REST-Routen-Familie braucht ihren `Dioxus.toml`-Dev-Proxy-Eintrag
    in derselben Phase** — dieses Repo hat genau diesen Bug dreimal geshipt
    (v1.6 `/toggle`, v1.8 `/vacation-entitlement-offset`, v1.10
    `/special-days`-Variante). Betrifft Phase 62 (erste `/person`-Route).
+
 7. **Die 1:1-Garantie aus `sales_person_user` (`UNIQUE(sales_person_id)` +
    `UNIQUE(user_id)`, `migrations/sqlite/20240506114107_add_sales_person.sql:14-22`)
    verschwindet mit der Tabelle** und muss als `UNIQUE(person_id)` auf **beiden**
@@ -266,7 +279,12 @@ Präzedenz in diesem Repo (nullable `ALTER TABLE ADD COLUMN`, SQL-only-Backfill,
 **Plans:** 3 plans
 
 Plans:
+**Wave 1**
+
 - [ ] 60-01-PLAN.md — Migration `20260916000000_create-person-backfill.sql`: `person`-Tabelle, beide nullable `person_id`-Spalten, beide vollständigen Unique-Indizes, idempotenter Backfill inkl. soft-gelöschter Sales Persons, Selbst-Assertion (TDD: RED→GREEN; Entscheidungs-Gate für D-60-01 one-way)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 60-02-PLAN.md — DB-Level-Ablehnungstests für die 1:1-Garantie plus Schema- und Erhaltungs-Locks (Index vollständig, `person`-Spaltensatz, `sales_person_user` unangetastet, Legacy-Schlüssel bitgleich, Snapshot-Version 13)
 - [ ] 60-03-PLAN.md — Docs-Freshness-Gate: `03-data-model.md` + `_de.md`, `diagrams/db-schema-er.mmd`, `F01-employee-management` und `F12-auth-session` je EN + DE
 
@@ -377,6 +395,7 @@ Entitäten — kein Neuschnitt nötig), `shifty-dioxus/Dioxus.toml`, i18n de/en/
 - **D-62-01:** Braucht das Listen-DTO ein explizites `kind`-Enum, oder sind
   `Option`-gefüllte Felder (`sales_person_id` / `username`) Signal genug?
   (SUMMARY offene Frage 8 — kleine DTO-Form-Entscheidung, kein Blocker.)
+
 - **D-62-02:** Die Liste wird aus dem Outer-Join `sales_person`/`user` abgeleitet,
   **nicht** direkt aus `person` — dann sind verwaiste `person`-Zeilen unsichtbar,
   unabhängig davon, wie D-63-01 ausgeht (PITFALLS Nr. 5). Bestätigen oder
@@ -437,6 +456,7 @@ Entscheidungen".
   entfernt wird — mitlöschen, liegen lassen, oder in einer Admin-Sicht zeigen?
   (SUMMARY offene Frage 4; PITFALLS empfiehlt „letztes Lösen löscht die Person"
   als einfachste Variante, nennt es aber ausdrücklich eine Produkt-Entscheidung.)
+
 - **D-63-02:** Wie stark trennt die Maske „neu anlegen" von „bestehendes Objekt
   verknüpfen"? Zwei getrennt beschriftete Aktionen statt eines mehrdeutigen Feldes
   (FEATURES-Empfehlung, Keycloak-Präzedenz).
@@ -469,10 +489,13 @@ keinen Person-Service. Sie ist jederzeit vorziehbar.
 - Die Person-Kette trägt das irreversible Risiko dieses Milestones (Migration und
   Backfill gegen Live-Daten). Sie bekommt deshalb den frühesten Start und die
   längste Liegezeit zwischen Ausführung und Milestone-Close.
+
 - Ein Fehler im Planungs-Soll ist anzeigeseitig und rückbaubar; ein Fehler im
   Backfill ist es nicht. Das riskantere Stück zuerst.
+
 - Die Phase ist klein und in sich geschlossen (wenige Dateien, keine Migration) —
   sie kann Terminsdruck am Ende absorbieren, ohne etwas halbfertig zu hinterlassen.
+
 - Sie darf sich **keine** Phase mit der Person-Arbeit teilen: ihre eigene Falle
   (zwei unabhängige `ShortEmployeeReport`-Konstruktionsstellen) braucht eine
   eigene Test-Matrix und würde in einer gemischten Phase untergehen.
@@ -514,9 +537,11 @@ keinen Person-Service. Sie ist jederzeit vorziehbar.
   umgestellt — `hours_text_class`, `progress_bar_class`, `total_target` in
   `working_hours_mini_overview.rs`? Das ist laut Origin-Todo **eine bewusste
   Entscheidung pro Stelle**, kein pauschales Suchen-und-Ersetzen.
+
 - **D-64-02:** Soll `get_year` das Feld auf seinen `ShortEmployeeReport`-Zeilen
   ebenfalls führen, oder bleibt die Jahresansicht außen vor (rendert die Spalte
   heute nicht)? (SUMMARY offene Frage 10.)
+
 - **D-64-03:** Braucht die Anzeige einen visuellen Hinweis, dass diese Zahl reines
   Planungsziel ist und die Balance nicht bewegt — jetzt, wo bilanzrelevantes Soll
   und Planungs-Soll erstmals nebeneinander sichtbar werden? (PITFALLS §UX.)

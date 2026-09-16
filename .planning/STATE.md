@@ -8,7 +8,7 @@ last_activity: 2026-09-16
 progress:
   total_phases: 5
   completed_phases: 0
-  total_plans: 0
+  total_plans: 3
   completed_plans: 0
   percent: 0
 ---
@@ -24,16 +24,16 @@ progress:
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
 - **Last shipped/closed**: **v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter** (shipped 2026-07-31, deployed; Planungs-Archiv 2026-09-15; Phasen 54, 54.5, 55, 56, 57 — 29 Pläne, 19/19 Requirements, Audit `passed`, `override_closeout`)
 - **Current milestone**: **v2.7 Personenverwaltung & Planungs-Soll** (planning; Roadmap erstellt 2026-09-16, Phasen 60–64).
-- **Current focus**: Phase-60-Kontext steht (`.planning/phases/60-person-datenmodell-backfill/60-CONTEXT.md`). Nächster Schritt: `/gsd-plan-phase 60`. Die zwei ausgearbeiteten Entwürfe **Phase 58** (Werktags-Stundenverteilung, Snapshot-Bump 13→14) und **Phase 59** (E2E-Playwright) bleiben bewusst außerhalb von v2.7; ihre Nummern sind reserviert.
+- **Current focus**: Phase 60 ist geplant (3 Pläne, 2 Waves) und ausführbereit. Nächster Schritt: `/gsd-execute-phase 60`. Die zwei ausgearbeiteten Entwürfe **Phase 58** (Werktags-Stundenverteilung, Snapshot-Bump 13→14) und **Phase 59** (E2E-Playwright) bleiben bewusst außerhalb von v2.7; ihre Nummern sind reserviert.
 - **Snapshot-Schema-Version**: aktuell **13** (Bump 12→13 in Phase 57, D-57-10). **v2.7 bumpt nicht** — `person` ist rein administrativ, das Planungs-Soll ein reines Anzeigefeld. Phase 58 (nicht in v2.7) würde auf 14 heben.
 
 ## Current Position
 
-Phase: 60 (Person-Datenmodell + Backfill) — context gathered
-Plan: —
-Status: CONTEXT.md erstellt, bereit für `/gsd-plan-phase 60`
-Last activity: 2026-09-16 — Phase-60-Kontext gesammelt (3 Entscheidungen: Person-Kennung bleibt bei soft-gelöschten Sales Persons, Benutzer/Sales-Person bleiben optional, Datei-Backup statt Backup-Tabelle)
-Resume file: `.planning/phases/60-person-datenmodell-backfill/60-CONTEXT.md`
+Phase: 60 (Person-Datenmodell + Backfill) — planned
+Plan: 0/3 (Wave 1: `60-01`; Wave 2: `60-02`, `60-03`)
+Status: Ready to execute — `/gsd-execute-phase 60`
+Last activity: 2026-09-16 — Phase 60 geplant: RESEARCH + VALIDATION + PATTERNS + 3 Pläne (7 Tasks, 2 Waves); Plan-Checker `VERIFICATION PASSED`, Requirements 5/5, Decision-Coverage 10/10
+Resume file: `.planning/phases/60-person-datenmodell-backfill/60-01-PLAN.md`
 
 ## Quick Tasks Completed
 
