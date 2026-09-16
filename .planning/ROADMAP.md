@@ -35,6 +35,13 @@ Migration und Backfill, nicht nur UI. Ist-Zustand, Blast Radius und offene
 Modellierungsfragen:
 [`seeds/personenverwaltung-zusammenlegen.md`](seeds/personenverwaltung-zusammenlegen.md).
 
+**Zweiter Scope-Punkt** (User-Festlegung 2026-09-15): **Sollstunden bei
+dynamischen Verträgen** fehlen in der Übersicht unterhalb des Schichtplans.
+`weight_for_week` setzt `expected_hours` bei `is_dynamic` hart auf 0, damit das
+Soll die Balance nicht beeinflusst — für die Planung soll es aber angezeigt und
+vom Backend geliefert werden. Lösungsrichtung und die Falle beim naheliegenden
+Fix: [`todos/pending/2026-09-15-sollstunden-fehlen-bei-dynamischen-vertraegen-unter-schichtplan.md`](todos/pending/2026-09-15-sollstunden-fehlen-bei-dynamischen-vertraegen-unter-schichtplan.md).
+
 ## Phasen
 
 <details>
