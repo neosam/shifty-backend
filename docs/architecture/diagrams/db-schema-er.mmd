@@ -1,5 +1,5 @@
 %% Datenbank-Schema (SQLite) — abgeleitet aus migrations/sqlite/*.sql (chronologisch).
-%% Enthält nur den STATUS-QUO nach allen Migrationen bis 2026-07-04.
+%% Enthält nur den STATUS-QUO nach allen Migrationen bis 2026-09-16.
 %%
 %% Konventionen:
 %%   - Nahezu alle Tabellen tragen die Audit-Spalten
@@ -18,6 +18,7 @@ erDiagram
     USER {
         text name PK
         text update_process
+        blob person_id "nullable, UK"
     }
 
     ROLE {
@@ -59,6 +60,17 @@ erDiagram
         text session_revoked_at "nullable"
     }
 
+    %% Person-Identitäts-Elterntabelle (Phase 60, v2.7).
+    %% ACHTUNG — Ausnahme von der oben genannten Audit-Spalten-Konvention:
+    %% PERSON hat BEWUSST KEINE `deleted`-Spalte (D-60-04) und keine
+    %% Namensspalten. Der komplette Spaltensatz steht hier vollständig.
+    PERSON {
+        blob id PK
+        text created
+        text update_process
+        blob update_version
+    }
+
     SALES_PERSON {
         blob id PK
         text name
@@ -66,6 +78,7 @@ erDiagram
         boolean is_paid
         text background_color "hex; added later"
         text deleted "nullable soft-delete"
+        blob person_id "nullable, UK"
     }
 
     SALES_PERSON_USER {
@@ -335,8 +348,17 @@ erDiagram
 
     USER ||--o{ SESSION : "authenticated-as"
     USER ||--o{ USER_INVITATION : "invitee"
+    %% Verknüpfungstabelle: bleibt bis Phase 61 die laufende Wahrheit der
+    %% 1:1-Kopplung. Phase 60 ergänzt person_id daneben, löst sie NICHT ab.
     USER ||--o| SALES_PERSON_USER : "maps-to"
     SALES_PERSON ||--o| SALES_PERSON_USER : "maps-to"
+
+    %% Person-Identität (Phase 60, v2.7): je Person höchstens ein Träger pro
+    %% Seite — durchgesetzt von den VOLLSTÄNDIGEN (nicht partiellen) Indizes
+    %% sales_person_person_id_unique_idx / user_person_id_unique_idx.
+    %% Null Träger ist erlaubt und dauerhaft (D-60-03).
+    PERSON ||--o| SALES_PERSON : "identifies"
+    PERSON ||--o| USER : "identifies"
 
     SALES_PERSON ||--o{ BOOKING : "assigned-to"
     SLOT ||--o{ BOOKING : "filled-by"

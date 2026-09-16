@@ -28,6 +28,11 @@ Kern-Aggregate:
 - **Week Metadata** — Week Status + Week Message.
 - **Auth & Session** — User + Role + Session + Invitation.
 - **System** — Feature Flag + Toggle + Scheduler.
+- **Person** (v2.7, Phase 60) — Identitäts-Klammer über dem
+  Employee-Aggregat und dem Auth-&-Session-Aggregat: eine `person`-Zeile pro
+  realem Menschen, optional referenziert von `sales_person.person_id` und
+  `user.person_id`. Sie ersetzt das Employee-Aggregat nicht — sie spannt sich
+  darüber.
 
 ## Konventionen im Schema
 
@@ -48,8 +53,13 @@ DB-Constraint — d.h. Reviewer müssen prüfen, dass jeder neue
 
 ### Foreign Keys
 
-SQLite prüft FKs nur, wenn `PRAGMA foreign_keys = ON` aktiv ist. Ob
-Shifty das global setzt: **[Zu prüfen]** im Startup-Pfad.
+SQLite prüft FKs nur, wenn `PRAGMA foreign_keys = ON` aktiv ist. Shifty
+setzt es nirgends — weder im Startup-Pfad noch in einer Migration (in
+Phase 60 verifiziert: null Treffer über alle `*.rs` und `*.sql`). Die
+vorhandenen `FOREIGN KEY`-Deklarationen sind damit dekorative Dokumentation,
+kein durchgesetztes Constraint [D-60-06]. Was wirklich halten muss, muss als
+`UNIQUE`-Index oder `CHECK` formuliert werden — siehe den Phase-60-Abschnitt
+weiter unten.
 
 ### Views
 
@@ -87,6 +97,7 @@ Chronologisch geordnet — Details siehe die einzelnen Feature-Dokus:
 | 2025-10 | User Invitation, Session-Tracking. |
 | 2026+ | Absence-System-Cutover, Multi-Plan-Support. |
 | 2026-07 | v2.6 Phase 54 — Tabellen `rebooking_batch` + `rebooking_batch_entry`, Marker-Spalte `extra_hours.source`, Voluntary-Rebooking-Toggle-Seed. |
+| 2026-09 | v2.7 Phase 60 — `20260916000000_create-person-backfill.sql`: Identitäts-Elterntabelle `person`, nullable `person_id` an `sales_person` + `user`, zwei vollständige UNIQUE-Indizes, idempotenter selbst-verifizierender Backfill. |
 
 Die vollständige Liste steht in `migrations/sqlite/` — Dateinamen sind
 sortiert nach Zeitstempel-Prefix.
@@ -170,6 +181,144 @@ seedet idempotent `INSERT OR IGNORE INTO toggle` mit
 `enabled = 0, value = NULL`. In Phase 54 inaktiv — der F4-Cron in
 Phase 56 liest den ISO-Datums-Wert, um die AutoCron-Writer-Kette zu
 aktivieren.
+
+## Phase 60 (v2.7) — Person-Identitäts-Elterntabelle
+
+Migration `20260916000000_create-person-backfill.sql` legt das
+Identitäts-Fundament der v2.7-Personenverwaltung für die Features
+[F01](../features/F01-employee-management.md) und
+[F12](../features/F12-auth-session.md). Phase 60 ist **reine** Schema- +
+Backfill-Arbeit — kein DAO, kein Service, kein Endpoint, keine sichtbare
+Verhaltensänderung.
+
+### `person` (Identitäts-Elterntabelle)
+
+Eine Zeile pro realem Menschen. `person` ist die Klammer über das
+**Employee**-Aggregat (`sales_person`) und das **Auth & Session**-Aggregat
+(`user`).
+
+| Spalte | Typ | Anmerkung |
+| --- | --- | --- |
+| `id` | BLOB(16) PK | UUID v4, roh als 16 Bytes gespeichert (bitkompatibel zu `Uuid::from_slice`). |
+| `created` | TEXT | Anlage-Zeitstempel. |
+| `update_process` | TEXT | Herkunftsmarker — Backfill-Zeilen tragen `phase-60-person-backfill`. |
+| `update_version` | BLOB(16) | Audit-Spalte. |
+
+Diese vier Spalten sind der **vollständige** Satz:
+
+- **Keine `deleted`-Spalte [D-60-04].** In v2.7 wird keine Person gelöscht,
+  und eine ungenutzte Soft-Delete-Spalte lädt zu einer halb implementierten
+  Semantik ein. Falls eine spätere Phase ein „Person löschen" braucht, kommt
+  die Spalte dort dazu. Das ist eine bewusste Ausnahme von der oben
+  beschriebenen Soft-Delete-Konvention; festgezurrt vom Schema-Test
+  `person_table_has_no_deleted_column`.
+- **Keine Namensspalten.** Namen bleiben, wo sie sind — `user.name` und
+  `sales_person.name`. Echte Personenstammdaten (E-Mail, Telefon,
+  Geburtsdatum) sind Future-Scope (PERS-F-01), nicht v2.7.
+
+### `sales_person.person_id` und `user.person_id`
+
+Beide Spalten sind `BLOB(16)`, **nullable, ohne DEFAULT**.
+
+Die Optionalität ist eine **fachliche Zusage, kein Übergangszustand
+[D-60-03]**: eine Person darf einen Benutzer **oder** eine Sales Person
+**oder** beides haben. Reine HR-/Admin-Accounts ohne Sales Person und
+Freiwillige ohne Login sind gleichwertige, dauerhaft unterstützte
+Ausprägungen. Es wird nirgends automatisch die fehlende Gegenseite angelegt.
+Der Unique-Index weiter unten verbietet ausschließlich **zwei** Träger
+derselben Seite an einer Person — „null Träger" ist der Normalfall zweier der
+drei Ausprägungen.
+
+### Eindeutigkeit — `sales_person_person_id_unique_idx`, `user_person_id_unique_idx`
+
+Beide Indizes sind **vollständig, nicht partiell**: keiner trägt eine
+`WHERE deleted IS NULL`-Filterklausel.
+
+Das weicht bewusst vom dominanten Repo-Muster ab, das unter
+*Konventionen im Schema* beschrieben ist (vgl. den partiellen
+`rebooking_batch_week_unique_idx`). Begründung [D-60-01]: eine soft-gelöschte
+Sales Person **behält** ihre Person-Identität dauerhaft. Gäbe die Löschung die
+Identität frei, könnten zwei verschiedene Menschen über die Zeit dieselbe
+Person-Identität belegen, und write-once-Snapshots in
+`billing_period_sales_person` von vor Jahren würden auf die falsche Person
+auflösen. Bewusst in Kauf genommener Preis: ein zurückkehrender Mitarbeiter
+ist zunächst zwei Personen; ein Zusammenführen ist Future-Scope, nicht v2.7.
+
+**Diese Entscheidung ist one-way.** Nach Produktiv-Betrieb würde eine
+Umstellung auf einen partiellen Index bereits vergebene Identitäten neu binden
+und historische Abrechnungs-Snapshots neu zuordnen. Ein späterer Aufräum-Pass
+darf diese beiden Indizes **nicht** an die Partial-Index-Konvention angleichen.
+Die Regressions-Guards `sales_person_index_is_not_partial` und
+`user_index_is_not_partial` lesen die gespeicherte DDL aus `sqlite_master` und
+schlagen fehl, sobald die Filterklausel auftaucht. `user` hat gar keine
+Soft-Delete-Spalte, dort stellt sich die Frage nicht [D-60-02].
+
+### Durchsetzung: Index, nicht Fremdschlüssel
+
+Die 1:1-Garantie, die heute die beiden `UNIQUE`-Constraints auf
+`sales_person_user` tragen, sitzt ab jetzt zusätzlich in diesen beiden
+Indizes. Sie wird **von der Datenbank** durchgesetzt, nicht von einer
+Applikationsprüfung [D-60-05] — SQLite verbietet `UNIQUE` bei
+`ALTER TABLE … ADD COLUMN`, daher der separate `CREATE UNIQUE INDEX`.
+
+Der Nachweis läuft über den Index, **nicht** über Fremdschlüssel: die
+FK-Durchsetzung ist in diesem Repo ausgeschaltet, die vorhandenen
+`FOREIGN KEY`-Deklarationen sind damit dekorativ [D-60-06] — siehe
+*Konventionen im Schema → Foreign Keys* weiter oben. Die Durchsetzung
+einzuschalten ist ausdrücklich nicht Phase-60-Scope.
+
+### Backfill
+
+Ein einmaliger, idempotenter SQL-Backfill in derselben Migrationsdatei (und
+damit in einer Transaktion):
+
+- Er trägt bewusst **keinen** Soft-Delete-Filter — jede historische
+  `sales_person`-Zeile bekommt eine Identität, auch die soft-gelöschten
+  (PERS-03). Sonst würden write-once-Snapshots in
+  `billing_period_sales_person` später ins Leere auflösen.
+- Idempotenz-Schlüssel ist die noch leere `person_id`-Spalte
+  (`WHERE person_id IS NULL`); das `person`-Insert schließt bereits vorhandene
+  Zeilen aus. Ein zweiter Lauf ändert weder Zeilenzahlen noch eine einzige
+  Zuordnung (PERS-02).
+- Bei einem verknüpften Paar würfelt nur die Sales-Person-Seite ein
+  `randomblob(16)`; die Benutzer-Seite **kopiert** den Wert über eine
+  korrelierte Subquery zurück, damit beide Seiten eines Paars auf dieselbe
+  Person zeigen.
+- Am Ende **verifiziert sich die Migration selbst** [D-60-07]: die Zählprobe
+  `COUNT(person) = COUNT(sales_person) + COUNT(user) − COUNT(sales_person_user)`
+  läuft als harte Assertion innerhalb der Migrations-Transaktion (eine
+  Wegwerf-`TEMP`-Tabelle mit `CHECK`-Constraint, weil SQLite `RAISE()` nur in
+  Triggern kennt). Geht sie nicht auf, rollt die gesamte Migration zurück und
+  der Server startet nicht — das ist besser, als einen halb ausgeführten
+  Backfill zu committen.
+- Backfill-Zeilen bleiben dauerhaft an `update_process =
+  'phase-60-person-backfill'` erkennbar.
+- Es gibt keine Down-Migration und keine Backup-Tabelle in der Datenbank
+  [D-60-09]. Der Wiederherstellungspfad ist die vor dem Deploy gezogene Kopie
+  der SQLite-Datei.
+
+### Abgrenzung
+
+- `sales_person_user` **bleibt** in Phase 60 bestehen. Die Tabelle ist die
+  laufende Wahrheit, gegen die der Backfill geprüft wird; ihre Auflösung ist
+  Phase 61.
+- Zeilen, die **nach** der Migration entstehen (Login-Auto-Anlage,
+  `create_sales_person`), bekommen in Phase 60 **kein** `person_id` — die
+  Vergabe beim Anlegen ist Phase-61-Scope. Kein Trigger, kein DAO-Eingriff in
+  dieser Phase [D-60-10]. Die Zählprobe gilt für den Zustand *unmittelbar nach*
+  der Migration.
+- `sales_person.id` und `user.name` werden nicht umgeschlüsselt; beide bleiben
+  bitgleich (PERS-06).
+
+### Snapshot-Vertrag
+
+`CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt **13** — kein Bump. `person` ist rein
+administrativ: kein neuer persistierter `value_type`, keine geänderte
+Computation, kein geändertes Input-Set, und
+`billing_period_sales_person.sales_person_id` ist unverändert. Keine der vier
+Bump-Klauseln aus `CLAUDE.md` greift, und „vorsichtshalber bumpen" wäre hier
+ausdrücklich falsch — es ließe jeden älteren Snapshot so aussehen, als sei er
+unter anderen Regeln geschrieben worden.
 
 ## Verwandte Randfälle
 
