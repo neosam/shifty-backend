@@ -1,130 +1,294 @@
-# Technology Stack — v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
+# Stack Research
 
-**Project:** shifty-backend (monorepo incl. shifty-dioxus)
-**Researched:** 2026-07-06
-**Scope:** ONLY new stack surface for F1–F5. Existing capabilities (Axum, layered
-architecture, `ExtraHoursService`, `ReportingService`, `ToggleService`, `sqlx`,
-`tokio_cron_scheduler`, Dioxus frontend) are treated as fixed baseline.
+**Domain:** Rust/Axum/SQLx backend — additive schema migration (new `person` aggregate table + nullable FK backfill) and additive REST DTO field (`planning target hours`)
+**Researched:** 2026-09-16
+**Confidence:** HIGH (every claim below is grounded in a file this agent actually read in this repo)
 
-**Bottom line — NO NEW HARD DEPENDENCIES REQUIRED.** All five features can be
-built by reusing the stack that already ships in `v2.5.1-dev`. This is by design:
-`v2.6` is a business-logic / data-model milestone, not an infrastructure
-milestone. One optional additive (dev-dep `clap` for a backfill subcommand)
-is discussed below and is explicitly recommended AGAINST — a REST endpoint is
-the better path.
+## Headline Finding: No New Dependencies Needed
 
-## Recommended Stack — for what changes in v2.6
+Both v2.7 features are expressible entirely with what's already in the workspace. This
+is the single most important fact for the roadmapper: **do not add an ORM, a migration
+framework, a UUID crate, or a schema-diffing tool.** Everything required —
+raw-bytes UUID generation, nullable FK columns, additive backfill SQL, additive
+DTO fields — has a direct, working precedent already committed in this repo (cited
+below). Confirmed via:
 
-### Reuse without modification
+- `Cargo.toml` (repo root, lines 1–10) — workspace members are `rest`, `service`,
+  `service_impl`, `shifty_bin`, `dao`, `dao_impl_sqlite`, `rest-types`,
+  `shifty-utils`. No ORM crate (diesel, sea-orm) anywhere in the workspace.
+- `dao_impl_sqlite/Cargo.toml`, `dao/Cargo.toml`, `rest-types/Cargo.toml`,
+  `service_impl/Cargo.toml`, `shifty_bin/Cargo.toml` — read in full; `sqlx = "0.8.2"`,
+  `uuid = "1.8.0/1.8"` (feature `v4`, and `serde` in `rest-types`), `serde = "1.0"`,
+  `utoipa = "5"`, `time = "0.3.36"` are already present in every crate that would
+  touch this feature.
+- `shifty_bin/src/main.rs:1651`, `dao_impl_sqlite/src/migration_source.rs:111`,
+  `shifty_bin/src/integration_test.rs:283` — all three call
+  `sqlx::migrate!("./../migrations/sqlite")` / `("../migrations/sqlite")`. Migrations
+  run automatically at startup via the `sqlx` macro; there is no separate
+  migration-runner tool to introduce.
+- `.sqlx/` directory exists at repo root (query cache files, e.g.
+  `.sqlx/query-00173731e94f6d830f379f558dbe3778f20c997a82bfa357f65b3a7624b322e2.json`)
+  — confirms `sqlx-cli`'s offline-mode workflow (`cargo sqlx prepare`) is already
+  the established tool for compile-time-checked queries. Any new hand-written
+  `query!`/`query_as!` calls in a `PersonDao` must be followed by re-running
+  `cargo sqlx prepare` (or the Nix build's `SQLX_OFFLINE` step will fail) — this is
+  existing workflow, not a new tool.
 
-| Concern | Reused component | Version (as pinned) | Why |
-|---|---|---|---|
-| Weekly cron loop (F4) | `tokio-cron-scheduler` | `0.15` (`0.15.1` in lockfile) | Already carries the `PdfExportScheduler` (v2.2/Phase 48). Same runtime, same `JobScheduler` pattern with dormant-boot + `reload_from_db` semantics, same TLS/rustls stance. No second scheduler needed. |
-| Persistence (2 new tables) | `sqlx` + `sqlx::migrate!` | `0.8.2` (`0.8.6` in lockfile) | Every previous milestone that added tables (v1.0 `absence_period`, v1.1 `slot.max_paid_employees`, v1.4 `committed_voluntary`, v2.1 `week_status`, v2.2 `pdf_export_config`) added them additively via `migrations/sqlite/YYYYMMDDHHMMSS_*.sql`. Two more additive files fit that path exactly. Compile-time query checking (`SQLX_OFFLINE=true` in CI + `cargo sqlx prepare --workspace` + committed `.sqlx/`) is already the workflow. |
-| Rebooking as 2 ExtraHours in one Tx (F3, F4, F5-approve) | `ExtraHoursService::create` + `TransactionDao` | current | Service-tier convention (`Option<Transaction>` → `use_transaction` → business logic → `commit`) is precisely what „−N in Kategorie A / +N in Kategorie B atomar" needs. No saga library, no outbox. Parent-batch-write + N-child-writes + Tx-commit = one flat sequence. |
-| Ist-Statistik F1 aggregation | `ReportingService` year-batch pattern | current | v2.5 lifted three Chain A/B/C preloads to `_iso_year` bulk methods; the pure helpers `derive_hours_for_week_pure` + `build_derived_holiday_map_for_week_pure` already have year-scope inputs. F1 = „Σ voluntary hours ÷ contract-weeks" — one more year-scoped pure fold. |
-| Soll-Berechnung F2 | `WorkingHoursService` + `committed_voluntary` field | current (v1.4 delivery) | Zeit-versioniertes Feld existiert; F2 multipliziert es mit den Vertragswochen des Jahres. Neuer Aggregate-Service, keine neuen Deps. |
-| HR-alert row + modal (F5) | Dioxus + `rest-types` union path | current | Zusätzliches DTO-Feld `NegativeBalanceAlertTO`/`RebookingSuggestionTO`, additiv mit `#[serde(default)]`-Guard (Präzedenz v2.5 D-53). Kein neuer Modal-Framework, kein neuer FE-State-Store. |
-| Auth-Gate HR-only (F1, F2, F5) | `PermissionService` mit `HR`-Privileg | current | Identisch zu AVG-01 (v2.1) und VAC-OFFSET-01 (v1.8). |
-| API-Level hiding von HR-Feldern | Existing pattern (`Self-View` sees `None`) | current | v1.8 VAC-OFFSET-01 hat den Präzedenzfall etabliert; F1+F2 folgen dem. |
-| Cutoff-Toggle (Rollout-Schutz, optional) | `ToggleService` | current | Falls F4 einen `active_from`-Stichtag braucht (analog `holiday_auto_credit_active_from` v1.7 und `shortday_slot_clipping_active_from` v2.4), ist der Blueprint fertig. Keine neue Dep. |
-| Observability | `tracing` + `warn!`/`error!`/`info!` | `0.1.40` | Existing scheduler-Muster (`pdf_export_scheduler.rs`) loggt Cron-Trigger, Errors, Skip-Reasons ohne Sensitive-Data. F4/F5 folgen 1:1. |
+## Recommended Approach (no new packages)
 
-### Additive (optional) — nur EIN Kandidat
+### 1. Adding nullable FK columns to `sales_person` and `user`
 
-| Technology | Version | Purpose | Verdict |
-|---|---|---|---|
-| `clap` | `4.6.1` (derive-Feature) | Backfill-CLI-Subcommand für F4-Rollout (rückwirkende Auto-Umbuchung ab Datum X) | **NICHT empfohlen.** Heute parst `shifty_bin/src/main.rs` **keine** CLI-Args (grep-verifiziert: nur ein Kommentar-Match, kein `clap`/`env::args`/`std::env` in produktivem Code). Ein einmaliger Backfill kann als **admin-gated REST-Endpoint** (`POST /rebooking/backfill?from=YYYY-MM-DD&dry_run=true`) implementiert werden. Vorteile: (a) kein Deployment-Rebuild für einen One-Shot, (b) reuse des bestehenden Auth-Gates, (c) audit-trail via existierende Access-Logs, (d) `dry_run`-Modus trivial, (e) keine neue Crate. **Empfehlung: KEIN `clap`. Backfill = HR-Endpoint mit Dry-Run-Flag.** |
+**Established technique, directly reusable, zero risk:** a plain
+`ALTER TABLE ... ADD COLUMN ... REFERENCES ...(id)` with no `NOT NULL`. SQLite's
+`ALTER TABLE ADD COLUMN` restriction against `NOT NULL` columns without a
+non-NULL default does **not** apply here, because the new `person_id` columns
+are nullable per the seed decision (`.planning/seeds/personenverwaltung-zusammenlegen.md`,
+"Variante A": `sales_person.person_id BLOB(16) NULL`, `user.person_id BLOB(16) NULL`).
 
-### NICHT neu einführen — explizit ausschließen
+Two migrations already in this repo do exactly this — add a nullable, FK-bearing
+column to a live, populated table, in a single `ALTER TABLE` statement, no table
+rebuild:
 
-| Verlockung | Warum ablehnen |
-|---|---|
-| `chrono` (upgrade / weitere Nutzung) | `time = "0.3.36"` ist die kanonische Zeit-Bibliothek workspace-weit (`ShiftyDate`/`ShiftyWeek` in `shifty-utils`). `chrono` ist NUR Transitiv-Abhängigkeit von `tokio-cron` und `service_impl` (für `Local` in Legacy-`scheduler.rs`). Neue Zeit-Logik in F1/F4 muss `time` + `ShiftyDate`/`ShiftyWeek` nutzen. |
-| Ein zweites Scheduler-Framework (`apalis`, `sqlx-cron`, `cron`, …) | `tokio-cron-scheduler 0.15` deckt Wochen-Cron mit 6-Feld-Ausdrücken ab (Migration `20260704000000_fix-pdf-export-cron-6-field.sql` zeigt: das ist die etablierte Konvention). Ein Zweit-Scheduler bricht das Dormant-Boot- + Reload-from-DB-Muster und verdoppelt die Test-Fläche. |
-| `serde_yaml`, `toml` für Config | Cron-Ausdruck + Enable-Flag gehören in `rebooking_batch_config`-Tabelle (analog `pdf_export_config`, v2.2) — falls überhaupt konfigurierbar. Keine File-Config nötig. |
-| Neuer HTTP-Client / SSE / WebSocket für F5-Alerts | F5-Banner wird durch existierenden REST-Poll (`GET /employees/:id/rebooking-suggestions` o. ä.) versorgt — analog v1.6 Overage-Warn-Sektion. Live-Push ist Overkill für HR-Sichtbarkeit. |
-| „Batch-Job-Library" wie `sqlxmq`, `graphile-worker` | Batch = 1 Parent + N Children in einer SQLite-Tx. Kein Job-Queue-Substrat nötig; das ist ein reines Domänen-Aggregat, kein Distributed-Task-System. |
-| Neuer FE-State-Store (`dioxus-signals`-Erweiterung o. ä.) | Rebooking-Modal ist ephemeres Modal-State — der Präzedenzfall aus v1.5/v1.8 (Convert-Dialog, VAC-OFFSET-Editor) reicht: lokales `use_signal` im Component-Scope. |
-| `mockall` upgrade / Ersatz | `mockall = "0.13"` ist workspace-weit; alle neuen Services testen sich damit unverändert. |
-| Snapshot-Schema-Version-Bump „vorsorglich" | Nur bumpen, wenn F1/F2/F4/F5 einen neuen persistierten `BillingPeriodValueType` einführen. **Wahrscheinlich NICHT** — die 2 neuen Tabellen sind Domain-State-Tracking, kein Billing-Snapshot-Wert. In discuss-phase pinnen. |
+- `migrations/sqlite/20260330000000_add-shiftplan-table.sql:25` —
+  `ALTER TABLE slot ADD COLUMN shiftplan_id blob(16) REFERENCES shiftplan(id);`
+  (nullable BLOB(16) FK onto an existing populated table — the exact shape needed
+  for `sales_person.person_id`).
+- `migrations/sqlite/20251017044013_add-session-tracking-to-user-invitation.sql:5-6` —
+  `ALTER TABLE user_invitation ADD COLUMN session_id TEXT REFERENCES session(id)
+  ON DELETE SET NULL;` (nullable TEXT FK — the shape needed for `user.person_id`,
+  modulo the column type).
 
-### Cargo.toml-Konflikt-Check
+**Conclusion:** `sales_person.person_id` and `user.person_id` can each be added
+with a one-line `ALTER TABLE ADD COLUMN`. No `CREATE TABLE new / INSERT SELECT /
+DROP / RENAME` rebuild is required, because the new columns are nullable — SQLite's
+rebuild-forcing restrictions (no `PRIMARY KEY`/`UNIQUE` on the new column, `NOT
+NULL` needs a non-NULL default) simply don't trigger.
 
-Ich habe die drei relevanten Manifeste (`shifty_bin`, `service_impl`, workspace-root) und `Cargo.lock` gegen die geplanten Reuse-Punkte gelesen:
+### 2. Creating the `person` table
 
-- `tokio-cron-scheduler = { version = "0.15", default-features = false }` in `service_impl/Cargo.toml` — bereits gepinnt, kein Konflikt.
-- `sqlx = "0.8.2"` in `shifty_bin` + `service_impl` (dev) + `dao_impl_sqlite` — alle drei alignen; Lockfile-Auflösung `0.8.6` (patch-innerhalb-0.8). Kein Konflikt.
-- `time = "0.3.36"` mit `local-offset` — reicht für F1-Aggregation (Woche-Berechnung, ISO-Kalender). Kein Feature-Bump nötig.
-- `mockall = "0.13"`, `async-trait = "0.1.80"`, `thiserror = "1"`, `tracing = "0.1.40"` — unverändert.
-- `printpdf`, `reqwest_dav`, `reqwest`, `tera`, `minijinja`, `wiremock` — v2.6-irrelevant, bleiben unverändert.
+Plain `CREATE TABLE person (id BLOB(16) NOT NULL PRIMARY KEY, ...)` following the
+existing audit-column convention on `sales_person`
+(`migrations/sqlite/20240506114107_add_sales_person.sql`): `update_timestamp TEXT`,
+`update_process TEXT NOT NULL`, `update_version blob(16) NOT NULL`. No new
+column types or extensions needed — SQLite's dynamic typing already stores
+`BLOB(16)` UUIDs the same way `sales_person.id` and `extra_hours.id` do today.
 
-**Keine `Cargo.toml`-Konflikte erwartet.** F3/F4 fügen `sqlx::query!`/`query_as!`-Aufrufe für die 2 neuen Tabellen hinzu — reine Anwendungsschicht, keine Version-Bumps.
+### 3. Dissolving `sales_person_user`
 
-## Alternativen erwogen
+A plain `DROP TABLE sales_person_user;` at the end of the migration, once its
+data has been folded into the `person` backfill (see below). No FK-enforcement
+blocker was found: no other table's schema in `migrations/sqlite/*.sql`
+references `sales_person_user`, and no `PRAGMA foreign_keys = ON` /
+`SqliteConnectOptions::foreign_keys(...)` call exists anywhere in
+`shifty_bin/src/main.rs` or `dao_impl_sqlite/src/*.rs` (grepped, no hits) — so
+SQLite FK constraints are not being actively enforced by this app's connection
+setup in the first place. This is a minor observation, not load-bearing for the
+migration technique, but worth a note for the phase's discuss-step: it means
+orphaned FK values wouldn't be rejected at the DB layer even if introduced by
+mistake — validation discipline in the backfill SQL itself matters more than DB
+enforcement here.
 
-| Bereich | Empfohlen | Alternative | Warum abgelehnt |
-|---|---|---|---|
-| F4 Cron-Trigger | `tokio-cron-scheduler` (reuse) | Neuer `apalis`/`sqlxmq`-Worker mit persistierter Queue | Wochen-Cron ist idempotent + read-heavy + write-batch — Queue-Substrat wäre Over-Engineering. Nach Crash: nächster Wochen-Trigger holt die vergessene Woche via Backfill-Endpoint nach. Präzedenzfall v2.2 PDF-Export läuft seit 2026-07-03 stabil mit demselben Muster. |
-| F5 Alert-Delivery | REST-Poll auf HR-Dashboard | Server-Sent Events / WebSocket-Push | Poll-Latenz irrelevant (HR-Team schaut alle paar Stunden); Push-Infra ist neuer Angriffs-/Test-Vektor. |
-| Batch-Persistenz (F4/F5) | 2 SQLite-Tabellen + Tx | Event-Sourcing über `extra_hours`-Historie | ExtraHours ist bereits das Log der Wahrheit; `rebooking_batch` = Parent-Metadaten (kind, created_by, state, source_week), `rebooking_batch_entry` = 1 Row pro SalesPerson mit Verweis auf die zwei erzeugten `extra_hours.id`s. Rebuild eines Batches = JOIN. Kein CQRS-Framework. |
-| Backfill-Trigger | HR-gated REST-Endpoint mit `?dry_run=true` | `clap`-Subcommand im Binary | Kein Rebuild + Deploy für einen One-Shot, kein neues Auth-Handling. |
-| Cutoff-Stichtag für F4 | `ToggleService` (falls überhaupt nötig) | Config-Datei / ENV-Var | `ToggleService` mit `active_from`-`value` ist der einzige workspace-etablierte Weg (v1.7 `holiday_auto_credit_active_from`, v2.4 `shortday_slot_clipping_active_from`). Analog D-51-07 / HCFG-02. In discuss-phase klären, ob überhaupt nötig — F4 könnte auch nur „Vorwoche == KW-1" ohne Toggle laufen und Rollout via Backfill-Endpoint handhaben. |
+### 4. The backfill (person rows + merge of paired rows)
 
-## Installation — was tatsächlich neu geschrieben wird
+**Do this as raw SQL inside the migration file, not as an application-code
+migration step.** This repo has both patterns in its history, and the
+distinguishing factor is business-logic complexity, not table count:
 
-```bash
-# Migrations (additiv, keine bestehende Zeile verändern):
-# migrations/sqlite/20260707000000_create-rebooking-batch.sql
-# migrations/sqlite/20260707000001_create-rebooking-batch-entry.sql
-# (evtl. 20260707000002_seed-auto-rebooking-active-from-toggle.sql, wenn ToggleService-Gate gewünscht)
+- **Simple, mechanical backfills run as SQL in the migration file itself.**
+  Precedent: `migrations/sqlite/20260428101456_add-logical-id-to-extra-hours.sql`
+  — add nullable column, `UPDATE extra_hours SET logical_id = id;`, then rebuild
+  the table to enforce `NOT NULL`. Also
+  `migrations/sqlite/20260707000001_add-source-column-to-extra-hours.sql` — a
+  column with a `DEFAULT` value stands in for a backfill sweep entirely ("kein
+  Backfill-Sweep noetig").
+- **Backfills with real business logic (categorization, ambiguity resolution,
+  date-range splitting) run as Rust application/service code**, with dedicated
+  bookkeeping tables. Precedent: the `extra_hours` → `absence_period` cutover
+  used `service_impl/src/absence_conversion.rs` plus
+  `dao/src/migration_source.rs` / `dao_impl_sqlite/src/migration_source.rs`, and
+  two dedicated SQL-only bookkeeping tables
+  (`migrations/sqlite/20260503000000_create-absence-migration-quarantine.sql`,
+  `...20260503000001_create-absence-period-migration-source.sql`) to record what
+  happened and quarantine ambiguous rows for manual HR resolution.
 
-# Nach jedem neuen sqlx::query!/query_as! in DAO-Impls:
-cd shifty-backend
-cargo sqlx prepare --workspace   # committet .sqlx/*.json — CI läuft SQLX_OFFLINE=true
+**The `person` backfill belongs in the first camp.** The merge rule is
+mechanical and already provably unambiguous — the seed doc states this
+explicitly: *"Die beidseitigen UNIQUE-Constraints der alten Tabelle garantieren,
+dass dabei keine Mehrdeutigkeit entstehen kann"* (`sales_person_user` has
+`UNIQUE(sales_person_id)` **and** `UNIQUE(user_id)`, confirmed at
+`migrations/sqlite/20240506114107_add_sales_person.sql:14-22`). There is no
+categorization, no date splitting, no manual-review case — every pair maps to
+exactly one shared `person` row, every unpaired `sales_person`/`user` gets its
+own. That means a quarantine table and a Rust cutover service (the pattern used
+for the harder absence-migration problem) would be over-engineering here; three
+or four `INSERT ... SELECT` / `UPDATE ... SET person_id = (SELECT ...)`
+statements in the migration file are sufficient and match the repo's own
+proportionality precedent (`extra_hours.logical_id` did its backfill in three
+lines of SQL because the rule was equally mechanical: `logical_id = id`).
 
-# Keine Cargo-Änderungen erwartet.
+**UUID generation inside the migration:** use `randomblob(16)` directly (raw 16
+bytes), **not** the `V_UUID_V4` view defined in
+`migrations/sqlite/20240426150045_user-roles.sql:90-98`. That view formats a
+*text* UUID (`lower(hex(...) || '-' || ...)`, 36-char dashed string) and is
+never referenced by any other migration or any Rust file in the repo (grepped
+`--include` for `V_UUID_V4` across `.sql` and `.rs`, zero hits outside its own
+definition) — it appears to be dead code from the early schema, not the
+established convention. The actual convention, confirmed in
+`dao_impl_sqlite/src/sales_person.rs:34` and
+`dao_impl_sqlite/src/billing_period_sales_person.rs:94-110`, is: Rust holds
+`uuid::Uuid`, persists it via `.as_bytes().to_vec()` into a `BLOB(16)` column,
+and reads it back via `Uuid::from_slice(&bytes).unwrap()`. `randomblob(16)`
+produces exactly the 16 raw bytes that `Uuid::from_slice` expects — no dashes,
+no hex-string parsing needed. (The generated bytes won't carry RFC 4122 version/
+variant bits the way `Uuid::new_v4()` does, but nothing in the DAO layer
+validates that — `from_slice` only checks length.) If strict RFC 4122
+conformance is wanted for defensiveness, note it as an open question for
+discuss-phase rather than pulling in a UUID-generation library — SQLite's
+`randomblob` is sufficient for this backfill's purposes and needs zero new
+dependencies.
+
+### 5. The "planning target hours" additive DTO field
+
+Directly reuse the additive-field pattern already used three times in
+`rest-types/src/lib.rs`. Concretely, `ShortEmployeeReportTO`
+(`rest-types/src/lib.rs:376-389`) already carries this exact shape:
+
+```rust
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct ShortEmployeeReportTO {
+    pub sales_person: SalesPersonTO,
+    pub balance_hours: f32,
+    pub expected_hours: f32,
+    pub dynamic_hours: f32,
+    pub overall_hours: f32,
+    #[serde(default)]
+    pub volunteer_hours: f32,
+    #[serde(default)]
+    pub has_pending_rebooking: bool,
+    #[serde(default)]
+    pub pending_rebooking_id: Option<Uuid>,
+}
 ```
 
-## Integration mit bestehenden Services — konkrete Andockpunkte
+`has_pending_rebooking` / `pending_rebooking_id` were added in Phase 55
+specifically as additive, `#[serde(default)]`-guarded fields to keep wire
+compatibility with old clients/payloads (comment at `rest-types/src/lib.rs:381-384`
+cites this explicitly as "Praezedenz VAA-04"). A new `planning_target_hours: f32`
+(or similarly named) field on the report DTO follows the identical recipe: add
+the field with `#[serde(default)]`, compute it in the corresponding
+`impl From<&service::reporting::...> for ...TO` block
+(`rest-types/src/lib.rs:392-406` shows the exact `From` pattern for
+`ShortEmployeeReportTO`), and populate it in `service_impl/src/reporting.rs`
+(the file already listed as a Docs-Freshness-Gate trigger in `CLAUDE.md` for
+exactly this kind of change). No `utoipa`/`serde` version bump needed — `f32`
+and `Option<Uuid>` fields already have `ToSchema` derives working today via the
+same crate versions.
 
-| Neue Kapazität | Andockt an | Wie |
-|---|---|---|
-| F1 Statistik-Aggregation | `ReportingService` (existing) oder neuer thin **business-logic** `VoluntaryStatisticsService` | Konsumiert `ExtraHoursService` + `WorkingHoursService` + optional `SpecialDayService::get_by_iso_year` (wenn v2.5-Follow-up SDF-03 vorher ausgeführt wird — sonst reicht year-batch aus v2.5). |
-| F2 Soll-Aggregat | Neuer basic/business-logic Service (Klassifizierung in discuss-phase) | Liest `WorkingHours::committed_voluntary` × Vertragswochen; write-free. |
-| F3 Manuelle Umbuchung | Neuer **business-logic** `RebookingService` | Konsumiert `ExtraHoursService::create` (2×) + `TransactionDao` + `PermissionService`. Schreibt `rebooking_batch` (kind=`manual`) + `rebooking_batch_entry` mit Verweis auf die beiden erzeugten `extra_hours.id`s. |
-| F4 Automatischer Cron | Neuer `AutoRebookingScheduler` (analog `PdfExportSchedulerImpl`) | Reuse `JobScheduler`-Muster mit dormant-boot + `reload_from_db`; per Tick: iterate SalesPersonen mit `cap=true`, berechne `Ist > Soll + committed_voluntary`, delegiere Umbuchung an `RebookingService::rebook(..., kind=auto_cron)`. |
-| F5 HR-Alert-Feed | Erweiterung Employee-Overview-Endpoint + neuer `RebookingSuggestionService` | Business-Logic-Tier. Signals-Trigger: negatives `balance_hours` UND `cap=true`. Vorschlags-Rows in `rebooking_batch(kind=hr_suggestion, state=pending)`; approve/reject mutiert `state`; approve führt zusätzlich Rebooking aus (denselben Pfad wie F3). |
-| Backfill-CLI (F4-Rollout) | Neuer REST `POST /rebooking/backfill` (nicht `clap`) | HR-Admin-gated, `?dry_run=true` + `?from=YYYY-MM-DD` — schreibt Batches mit `kind=auto_cron_backfill`. |
+**No snapshot-schema-version bump applies to either feature** — confirmed by the
+project's own decision log: `.planning/PROJECT.md` states `person` "kommt
+obendrauf... kein neuer persistierter value_type... CURRENT_SNAPSHOT_SCHEMA_VERSION
+bleibt 13," and the planning-target-hours field is explicitly a *display* field
+computed from the already-live `expected_hours`/dynamic-contract logic — it does
+not touch `billing_period_sales_person` or `BillingPeriodValueType` at all
+(neither the `person` seed doc nor the sollstunden-bug todo referenced in
+`PROJECT.md` mentions billing-period snapshots).
 
-**Service-Tier-Klassifizierung (per CLAUDE.md-Konvention):**
+## Supporting Libraries
 
-- `RebookingService` → **business-logic** (konsumiert `ExtraHoursService`, kombiniert mehrere Aggregate).
-- `AutoRebookingScheduler` → **business-logic** (konsumiert `RebookingService` + `WorkingHoursService` + `ReportingService`).
-- `VoluntaryStatisticsService` → **business-logic** (Read-Aggregat).
-- `RebookingSuggestionService` → **business-logic** (kombiniert Balance + Rebooking).
-- KEIN Basic-Service für die 2 neuen Tabellen nötig, wenn die DAO direkt aus `RebookingService` konsumiert wird — beide Tabellen sind ein einziges Aggregat mit einer Wurzel (`rebooking_batch.id`).
+| Library | Version (as pinned in repo) | Purpose | When to Use |
+|---------|------------------------------|---------|-------------|
+| `uuid` | 1.8.0/1.8, feature `v4` (`dao/Cargo.toml`, `dao_impl_sqlite/Cargo.toml`, `service_impl/Cargo.toml`, `shifty_bin/Cargo.toml`); + `serde` feature in `rest-types/Cargo.toml` | Rust-side UUID type for `person.id` in DAO/service/DTO layers | Already the workspace-wide convention for every `BLOB(16)` PK; use `Uuid::new_v4()` for any *runtime* (non-migration) person-creation path, exactly like `sales_person`/`extra_hours` today |
+| `sqlx` | 0.8.2, features `runtime-tokio`, `sqlite` (`dao_impl_sqlite/Cargo.toml`, `shifty_bin/Cargo.toml`) | Compile-time-checked queries + `sqlx::migrate!` migration runner | Already wired for every DAO; a new `PersonDao` follows the same `query!`/`query_as!` pattern seen in `dao_impl_sqlite/src/sales_person.rs` |
+| `serde` | 1.0 (all crates) | DTO (de)serialization, `#[serde(default)]` for additive-field wire compat | Use for the new `planning_target_hours` field exactly as done for `volunteer_hours`/`has_pending_rebooking` |
+| `utoipa` | 5, features `time`, `rc_schema`, `uuid` (`rest-types/Cargo.toml`) | OpenAPI schema derive (`ToSchema`) | Already covers `f32`, `Option<Uuid>`, no new feature flags needed |
 
-## Beobachtbarkeit / Scheduler-Pattern zum Wiederverwenden
+No entries need to be added to this table — it documents what already exists
+and is sufficient.
 
-Der `PdfExportSchedulerImpl` liefert das komplette Blueprint (F4 sollte dies 1:1 spiegeln):
+## Development Tools
 
-1. `Arc<Mutex<Option<JobScheduler>>>` — lazy-init in `start()`, tolerant gegenüber DB-Config-Fehlern beim Boot (dormant-Modus + `warn!`-Log, kein Boot-Fail).
-2. `reload_from_db()` — separate Methode, die per Config-Änderung (PUT-Endpoint) getriggert wird, alten Job removed, neuen Job registriert.
-3. `Job::new_async(cron_schedule.as_str(), move |_uuid, _lock| { … })` — 6-Feld-Cron-Ausdruck (siehe Migration `20260704000000_fix-pdf-export-cron-6-field.sql`).
-4. Per-Iteration: `Authentication::Full` für interne Aggregate (siehe `ToggleService`-Full-Context-Bypass in MEMORY-Referenz `reference_toggle_service_full_context_bypass.md`).
-5. Fehler in einem einzelnen Item werden per `record_error` + `return Ok(())` **skip-per-item** behandelt, nicht batch-fail (v2.3.1-Präzedenz Commit `754f94f`).
-6. Kein sensibles Feld loggen (Token-Leak-Guard) — F4 sollte SalesPerson-IDs loggen, aber keine Namen.
+| Tool | Purpose | Notes |
+|------|---------|-------|
+| `sqlx migrate add <name>` (sqlx-cli) | Scaffolds a new timestamped file under `migrations/sqlite/` | Documented in `CLAUDE.md:184`; use for both the `person`/backfill migration and any follow-up cleanup migration |
+| `cargo sqlx prepare` (sqlx-cli, offline mode) | Regenerates `.sqlx/query-*.json` cache after adding/changing any `query!`/`query_as!` call | Required after adding a `PersonDao` with new hand-written queries, or the Nix `SQLX_OFFLINE` build step will fail to compile. This is existing project workflow (`.sqlx/` already populated), not a new tool. |
+| `sqlx setup --source migrations/sqlite` | Local dev DB bootstrap + migration run | `CLAUDE.md:12`, unchanged by this milestone |
 
-**Neuer Test-Modus, den F4 mitbringen sollte** (nicht als Dep, als Konvention): `RebookingService::compute_dry_run(week) -> DryRunReport` — dieselbe Berechnungsfunktion ohne DAO-Write, wiederverwendet vom Backfill-Endpoint UND F5-Modal-„DANN"-Zahl. Präzedenzfall: `PdfExportScheduler` hat kein Dry-Run, aber das `absence_service::compute_conflict`-Muster (v1.0) hat es — Ratschlag: von dort spiegeln.
+## Installation
+
+```bash
+# Nothing to install. Every crate/version needed already exists in the
+# workspace Cargo.toml files listed above. No `cargo add` calls are required
+# for either the Person migration+DAO+service work or the planning-target-hours
+# DTO field.
+```
+
+## Alternatives Considered
+
+| Recommended | Alternative | Why Not |
+|-------------|-------------|---------|
+| Plain `ALTER TABLE ADD COLUMN ... REFERENCES ...` for `sales_person.person_id` / `user.person_id` | Full table rebuild (`CREATE TABLE new` / `INSERT SELECT` / `DROP` / `RENAME`, as used for `extra_hours.logical_id`) | Rebuild is only needed in this repo's own history when a `NOT NULL` constraint must be retroactively enforced after backfill. `person_id` is nullable by the seed's own "Variante A" decision, so the simpler one-line `ALTER TABLE` (precedent: `slot.shiftplan_id`, `user_invitation.session_id`) is sufficient — no reason to pay the rebuild's extra risk/complexity. |
+| Pure-SQL backfill inside the migration file | Rust application-code cutover service + quarantine/migration-source bookkeeping tables (the `absence_conversion.rs` pattern) | That pattern exists in this repo specifically because the extra_hours→absence_period migration had real disambiguation logic (categorization, date-range splitting, manual-review cases). The person merge has no such ambiguity — the pre-existing `UNIQUE(sales_person_id)` + `UNIQUE(user_id)` constraints on `sales_person_user` already prove every pair is 1:1. Introducing a Rust cutover service here would be scope creep relative to the repo's own proportionality precedent. |
+| `randomblob(16)` for new `person.id` values inside the migration SQL | The `V_UUID_V4` view (`migrations/sqlite/20240426150045_user-roles.sql:90`) | `V_UUID_V4` produces a dashed hex *string*, not raw bytes, and is unused anywhere else in the codebase (grep confirmed zero references) — it doesn't match the `BLOB(16)` + `Uuid::from_slice` convention every other table uses. `randomblob(16)` produces the correct raw-byte shape directly. |
+| New DTO field with `#[serde(default)]`, computed in the existing `From<&service::...>` impl | A wrapper/versioned DTO, or a new API version | The repo has an established, working additive-field convention (`ShortEmployeeReportTO.has_pending_rebooking`/`pending_rebooking_id`, `sales_person_absences`) that keeps wire compatibility without versioning machinery. No reason to deviate. |
+
+## What NOT to Use
+
+| Avoid | Why | Use Instead |
+|-------|-----|-------------|
+| Any ORM (diesel, sea-orm, sqlx's `Model`-style helpers) | Not used anywhere in this workspace; would require introducing a parallel data-access paradigm alongside every existing `dao_impl_sqlite/src/*.rs` file | Plain `sqlx::query!`/`query_as!` following the existing `SalesPersonDaoImpl` pattern |
+| A standalone migration framework (refinery, diesel_migrations, sqlx-cli replaced by something else) | `sqlx::migrate!` already runs every migration in `migrations/sqlite/` at startup (`shifty_bin/src/main.rs:1651`) and is the sole mechanism in this codebase | Keep using `sqlx migrate add` + the existing `migrations/sqlite/` directory |
+| A UUID-generation crate/extension for SQLite (e.g. a custom SQLite function, `sqlite-uuid` extension) | SQLite's built-in `randomblob(16)` already produces the exact byte shape the Rust layer expects (`Uuid::from_slice`); no extension loading infrastructure exists in this repo | `randomblob(16)` in migration SQL; `Uuid::new_v4()` in Rust runtime code |
+| The `V_UUID_V4` view for the person backfill | Wrong output shape (dashed text string vs. raw BLOB(16)) and unreferenced/dead elsewhere in the codebase | `randomblob(16)` |
+| A new API version / breaking DTO change for `planning_target_hours` | The existing additive-field + `#[serde(default)]` convention already solves wire compatibility without versioning | Add the field additively, exactly like `has_pending_rebooking` |
+
+## Stack Patterns by Variant
+
+**If the `person_id` columns must eventually become `NOT NULL`** (not part of
+v2.7 per the seed doc, which keeps them nullable to support the "nur User" /
+"nur SalesPerson" cases permanently — this is not a transitional nullable, it's
+a permanent one):
+- No rebuild needed now or later for this reason, because these FKs are
+  intentionally, permanently optional (one of the three "Ausprägungen" has no
+  `sales_person` row, another has no `user` row).
+
+**If a future phase needs `PersonDao`/`PersonService` at the Basic-Service tier**
+(per `CLAUDE.md`'s Basic-vs-Business-Logic-Service convention):
+- `PersonService` is a Basic Service (CRUD + validation over its own aggregate,
+  consumes only `PersonDao` + `PermissionService` + `TransactionDao`) if it only
+  manages the `person` row itself.
+- Any cross-entity operation (e.g., "create a fully-linked person with both a
+  sales_person and a user row in one transaction") belongs one tier up, as a
+  Business-Logic Service that consumes `PersonService`, `SalesPersonService`,
+  and a user-management service — matching the existing `AbsenceService` /
+  `BookingInformationService` precedent in `CLAUDE.md`.
+
+## Version Compatibility
+
+| Package A | Compatible With | Notes |
+|-----------|------------------|-------|
+| `sqlx 0.8.2` | `uuid 1.8.0` via `Uuid::from_slice`/`.as_bytes()` (not sqlx's native `uuid` feature) | This repo does **not** use sqlx's built-in `uuid` Cargo feature — it manually converts `Vec<u8>` ⇄ `Uuid` in every DAO (see `dao_impl_sqlite/src/sales_person.rs:34`, `dao_impl_sqlite/src/billing_period_sales_person.rs:94`). A new `PersonDao` should follow the same manual-conversion style for consistency, not introduce sqlx's `uuid` feature as a shortcut. |
+| SQLite `ALTER TABLE ADD COLUMN` | Nullable FK columns only, without rebuild | Confirmed by two real precedents in this repo (`slot.shiftplan_id`, `user_invitation.session_id`); do not attempt `ADD COLUMN ... NOT NULL ... REFERENCES ...` without a rebuild — that combination is what forced the `extra_hours_new` rebuild for `logical_id`, and it doesn't apply here since `person_id` stays nullable. |
 
 ## Sources
 
-- Repo-internal: `service_impl/src/pdf_export_scheduler.rs` (Zeilen 1–260, Blueprint für F4), `service_impl/src/scheduler.rs` (Legacy `tokio-cron`, NICHT als Vorlage), `service_impl/src/pdf_export_config.rs` (Config-Reload-Muster), `service_impl/Cargo.toml` (pinning-Präzedenz), `Cargo.lock` (transitive Auflösungen `tokio-cron-scheduler 0.15.1`, `sqlx 0.8.6`, `reqwest_dav 0.3.3`, `printpdf 0.7.0`).
-- Repo-internal: `CLAUDE.md` (Service-Tier-Konvention, `gen_service_impl!`, sqlx-prepare-Gate, Docs-Freshness-Gate, Snapshot-Schema-Version-Bump-Vertrag).
-- Repo-internal: `.planning/PROJECT.md` §„Current Milestone: v2.6" (F1–F5-Definition), §v2.5-Shipped (Fat-Backend-Präzedenz und Chain-A/B/C-year-scope), §v2.2-Shipped (WebDAV-Scheduler-Muster).
-- Repo-internal: `migrations/sqlite/*.sql` (Migration-Namenskonvention, additive-Präzedenz — 25 Einträge, alle additiv).
-- Web: [tokio-cron-scheduler 0.15.1 — crates.io](https://crates.io/crates/tokio-cron-scheduler) — bereits gepinnt, latest confirmed.
-- Web: [clap 4.6.1 — Docs.rs](https://docs.rs/crate/clap/latest) — nur als NICHT-empfohlene Alternative dokumentiert.
+- `Cargo.toml` (repo root) — workspace member list, confirms no ORM crate.
+- `dao/Cargo.toml`, `dao_impl_sqlite/Cargo.toml`, `rest-types/Cargo.toml`, `service_impl/Cargo.toml`, `shifty_bin/Cargo.toml` — read in full for exact pinned versions (`sqlx 0.8.2`, `uuid 1.8/1.8.0`, `serde 1.0`, `utoipa 5`, `time 0.3.36`).
+- `migrations/sqlite/20240506114107_add_sales_person.sql` — original `sales_person` + `sales_person_user` schema, confirms `UNIQUE(sales_person_id)` + `UNIQUE(user_id)` and the audit-column convention.
+- `migrations/sqlite/20260330000000_add-shiftplan-table.sql:25` — nullable BLOB(16) FK added via plain `ALTER TABLE ADD COLUMN`.
+- `migrations/sqlite/20251017044013_add-session-tracking-to-user-invitation.sql:5-6` — nullable TEXT FK added via plain `ALTER TABLE ADD COLUMN`.
+- `migrations/sqlite/20260428101456_add-logical-id-to-extra-hours.sql` — precedent for simple SQL-only backfill, and for when a full table rebuild is actually required (`NOT NULL` enforcement after backfill).
+- `migrations/sqlite/20260707000001_add-source-column-to-extra-hours.sql` — precedent for `DEFAULT`-only "backfill" (no sweep needed).
+- `migrations/sqlite/20240426150045_user-roles.sql:90-98` — `V_UUID_V4` view definition, confirmed unused elsewhere via grep.
+- `migrations/sqlite/20260503000000_create-absence-migration-quarantine.sql`, `...20260503000001_create-absence-period-migration-source.sql` — precedent for the *other* backfill style (Rust cutover + bookkeeping tables), used here to justify why the person merge does NOT need this heavier pattern.
+- `dao_impl_sqlite/src/sales_person.rs:1-60` — confirms raw-bytes UUID convention (`Uuid::from_slice`).
+- `dao_impl_sqlite/src/billing_period_sales_person.rs:42-155` — confirms `.as_bytes().to_vec()` write-side convention and `Uuid::new_v4()` for new IDs at runtime.
+- `rest-types/src/lib.rs:376-406` — `ShortEmployeeReportTO` additive-field pattern (`#[serde(default)]`), the direct precedent for the planning-target-hours DTO field.
+- `shifty_bin/src/main.rs:1651`, `dao_impl_sqlite/src/migration_source.rs:111`, `shifty_bin/src/integration_test.rs:283` — `sqlx::migrate!` call sites, confirming migration-runner mechanism.
+- `.planning/PROJECT.md` (current-milestone section, "v2.7 Personenverwaltung & Planungs-Soll") — snapshot-version-stays-13 decision, phase numbering, docs-freshness triggers.
+- `.planning/seeds/personenverwaltung-zusammenlegen.md` — Variante A schema decision, nullable FK, "Namen bleiben, wo sie sind", unambiguity-via-UNIQUE-constraints argument.
+- `CLAUDE.md` (repo root) — `sqlx setup`/`sqlx migrate add` commands, Basic-vs-Business-Logic-Service convention, Docs-Freshness-Gate trigger table.
+- Confidence: HIGH for all claims — every statement above cites a specific file/line this agent read directly in this repo; no external web search was needed because the question was entirely "what does this repo already do," not "what does the ecosystem offer."
 
-**Confidence:** HIGH — alle Empfehlungen stützen sich auf im Repo bereits gelieferte Präzedenzfälle (v1.0, v1.4, v1.7, v1.8, v2.2, v2.4, v2.5) statt auf externe Web-Behauptungen. Der einzige Web-Fakt (Version-Bestätigung `tokio-cron-scheduler 0.15.1` + `clap 4.6.1`) ist crates.io-verified.
+---
+*Stack research for: Person aggregate migration + planning-target-hours DTO field (v2.7, Shifty backend)*
+*Researched: 2026-09-16*

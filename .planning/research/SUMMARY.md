@@ -1,258 +1,215 @@
 # Project Research Summary
 
-**Project:** Shifty — v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
-**Domain:** HR / Time-Tracking — voluntary-vs-paid reconciliation on top of shipped payroll-adjacent balance stack
-**Researched:** 2026-07-06
-**Confidence:** HIGH (all four researcher outputs converge on stack + architecture; two decisions explicitly flagged as open — see Critical Synthesis Points)
+**Project:** Shifty Backend
+**Domain:** Rust/Axum/SQLx layered backend + Dioxus/WASM frontend — internal shift-planning/HR admin tool
+**Researched:** 2026-09-16
+**Confidence:** HIGH (all four researchers grounded findings in code/migrations/docs actually read in this repo; no external ecosystem research was needed because both features are "what does this repo already do")
 
 ## Executive Summary
 
-Shifty v2.6 adds a five-feature reconciliation stack (F1 Ø freiwillig / Vertragswoche, F2 Freiwilliges Konto Soll/Ist, F3 manuelle 1-Click-Umbuchung, F4 wöchentlicher Auto-Cron, F5 HR-Alert + Vorschlags-Modal) on top of primitives shipped in v1.4 (`committed_voluntary`), v1.5 (Employee-Year-Report), v1.7/v2.4 (`ToggleService` Stichtag), v2.1 (AVG-01 read-aggregate + HR-Gate), v2.2 (`tokio_cron_scheduler` + Admin-gated Cron-Config), v2.5 (VAA cap-gated formula + `find_by_iso_year`-Pattern). It is a business-logic / data-model milestone, **not** an infrastructure milestone — zero neue Cargo-Dependencies.
+Milestone v2.7 reads as a small two-line description ("merge Person, add a Planungs-Soll field") but all four researchers independently converge on the same conclusion: **it is larger than its description implies**, primarily because dissolving `sales_person_user` doesn't just move data — it removes a live authorization check (`find_sales_person_by_user_id`, used for self-vs-HR permission gating) and a database-enforced 1:1 invariant (`UNIQUE(sales_person_id)` + `UNIQUE(user_id)`) that must both be rebuilt by hand, not just migrated. No new dependencies, ORMs, or crates are needed anywhere — every technique (nullable `ALTER TABLE ADD COLUMN`, raw-SQL backfill, `randomblob(16)`, additive `#[serde(default)]` DTO fields) has a direct working precedent already in this codebase. That is the good news: technically this is low-risk, well-trodden ground.
 
-Der empfohlene Kern-Architektur-Move: zwei additive SQLite-Tabellen (`rebooking_batch` Parent + `rebooking_batch_entry` Child), ein `kind`-Diskriminator (`manual` / `hr_suggestion` / `auto_cron` / `auto_cron_backfill`), UNIQUE-Index `(sales_person_id, iso_year, iso_week)` als kombinierter Idempotenz- + TOCTOU- + Doppel-Zählungs-Guard. Neue Services: `RebookingBatchService` (Basic, Entity-Manager), `RebookingReconciliationService` (BL, orchestriert 2× ExtraHours-Doppel-Eintrag + Batch in einer Tx), `VoluntaryStatsService` (BL, HR-gated Read-Aggregat für F1/F2), `VoluntaryRebookingScheduler` (BL, 1:1-Spiegel von `PdfExportSchedulerImpl`). Backfill läuft als HR-gated REST-Endpoint mit `?dry_run=true` — kein `clap`, kein Rebuild für One-Shot-Rollout.
+The recommended approach is data-model-first, tier-respecting, in four stages: (1) migration + idempotent, soft-delete-inclusive backfill with `UNIQUE(person_id)` constraints rebuilt on both new FK columns; (2) a new Basic-tier `PersonService`/`PersonDao` that does NOT depend on `SalesPersonService` or `UserService` (to avoid a DI cycle through `PermissionService`, which everything depends on); (3) the DAO-internal rewrite of `sales_person_user`-backed queries — six methods, one of which (`find_sales_person_by_user_id`) is the authorization check and must be tested before/after, not deferred; (4) a Business-Logic-tier read aggregate (e.g. `PersonDirectoryService`) for the merged list/detail UI, following the v2.5 "Fat Backend, Thin Client" precedent (`SalesPersonAbsenceTO`/`WeeklySummaryTO`) with backend-computed display names and API-level `Option`-redaction for section-level role gating (the `VoluntaryStatsService` None-redaction pattern) rather than 403s. Planungs-Soll is architecturally independent of all of this — it only touches `reporting.rs`/`rest-types`/one frontend file — and can be sequenced early or in parallel as the smaller, better-understood change.
 
-Die Risiken konzentrieren sich auf drei Punkte: (a) **Doppel-Zählung** durch F4-Rebooking-ExtraHours, die in F1-Ist / F2-Soll-Nutz / Balance zurück-lecken — geblockt durch Marker-Spalte + UNIQUE-Constraint + drei Property-Tests (`balance_before == balance_after`, `F1_before == F1_after`, `F2_Soll_before == F2_Soll_after`); (b) **Stichtag-Rollout mit falscher Legacy-Semantik pro Chain** — analog HCFG-02 / SHC-04, jede Konsumkette braucht explizite pre-Stichtag-Semantik + golden-snapshot-Regression; (c) **Snapshot-Schema-Version-Bump 12→13** — hier divergieren die Researcher, siehe „Critical Synthesis Points" unten. Fat Backend / Thin Client bleibt durchgängig — FE rendert nur pre-computed DTO-Felder, keine Arithmetik.
-
-## Critical Synthesis Points (Divergenz zwischen Research-Files — nicht glätten)
-
-### Divergenz 1: Phase-Dekomposition (FEATURES vs. STACK vs. ARCHITECTURE)
-
-Alle drei schlagen unterschiedliche Phasen-Zerlegungen vor. Der Roadmapper entscheidet.
-
-| Vorschlag | Quelle | Phasen-Count | Struktur | Rationale | Trade-off |
-|-----------|--------|--------------|----------|-----------|-----------|
-| **A (4 Phasen)** | FEATURES.md | 4 | (1) F1+F2 Read-Only + DTO; (2) Migrations + `RebookingService`-Skeleton + F3; (3) F5; (4) F4 + Backfill | Cheapest-first, F4 zuletzt weil highest-blast-radius nach validierter F1..F3+F5-Realität | Migrations spät → risiko dass Schema-Entscheidung durch später auftauchende F4-Anforderung nachgezogen werden muss |
-| **B (6 Phasen)** | STACK.md | 6 | Migration/DAO → Service-Core → F3 → F1+F2 parallel → F4 → F5 | Kleinste Waves; DAO+Basic-Service zuerst gibt sauberen Fundament-Sprint; F1+F2 parallelisierbar | Overhead durch viele Phasen-Handoffs; parallele F1+F2 braucht Koordination |
-| **C (3 Phasen)** | ARCHITECTURE.md | 3 | (Ph 54) Data-model + F1+F2 Stats; (Ph 55) F3 + F5 ohne Cron; (Ph 56) F4 + Backfill | Jede Phase ist ein UAT-anchorbarer Vertikal-Slice (SPIDR-artig); Data-Model + Stats in einer Phase weil Toggle-Seed + Table-Migration + F1/F2 read-only alle klein sind | Ph 54 vermischt Migrations (Schema-Locked) + Read-Aggregat (Compute-Locked); Reviewer-Load pro Phase höher |
-
-**Konvergenz zwischen A und C:** F4 zuletzt, F1+F2 zuerst, F3+F5 in der Mitte. **B ist der Ausreißer** mit F3 vor F1+F2 — Argument: Rebooking-Primitive vor Read-Aggregat, damit F1/F2 die Rebooking-Marker-Filter direkt konsumieren. Roadmapper sollte in discuss-phase klären, ob F3 wirklich vor F1/F2 muss (STACK-Argument) oder ob die Marker-Filter-Semantik aus Migration+DAO allein reicht (A/C-Annahme).
-
-### Divergenz 2: Snapshot-Schema-Version 12→13 — Bump ja/nein (TOP OPEN DISCUSS-PHASE DECISION)
-
-**FEATURES.md, ARCHITECTURE.md, STACK.md sagen alle drei: „kein Bump, default = 12 bleibt".**
-
-Begründung dort:
-- F3/F4/F5 schreiben nur zwei ExtraHours-Zeilen (`VolunteerWork −N` / `ExtraWork +N`) plus 1× `rebooking_batch(_entry)`. ExtraHours fließen bereits in existierende `BillingPeriodValueType`-Terms (`working_hours`, `absense_hours`), also **kein neuer** `value_type`.
-- Präzedenz v1.4 CVC-05: derive-on-read wins → kein Persist eines neuen `VoluntaryReconciled`-value_type.
-- F1/F2 sind reine Read-Aggregate, schreiben nichts.
-
-**PITFALLS.md widerspricht explizit — Pitfall 2:**
-
-Zitat: „Wenn F4 einen Stichtag-guarded change of `reporting.rs`-input-set (F4 rebookings are visible to `balance`) einführt, triggert das `CLAUDE.md`-Klausel *„Change the input set the computation reads from"* — YES → **Bump 12→13 anyway.**"
-
-Argumente PRO Bump (PITFALLS-Sicht):
-1. F4-Cron schreibt neue ExtraHours-Rows, die zwischen Reporting-Woche und Billing-Period-Close in das persistente Snapshot fließen. Alte Snapshots (vor F4-Rollout) unterscheiden sich systematisch von Neu-Rechnungen → Validator kann nicht mehr zwischen echtem Data-Bug und Regel-Change unterscheiden.
-2. Präzedenz v1.5 UV/YV: Bump 9→10, weil derived-absences-Merge den Input-Set für `vacation_days` änderte — **ohne** neuen value_type.
-3. Präzedenz v1.8 VAC-OFFSET-01: Bump 11→12 für neuen value_type — aber die *Klausel* triggert auch ohne neuen value_type.
-4. CLAUDE.md-Kontrakt explizit: *„Change the input set the computation reads from (e.g., starting/stopping to include a category of extra_hours)"* — F4 startet, eine neue *Quelle* von ExtraHours-Rows für existing categories zu schreiben. Das ist ein Input-Set-Change.
-
-Argumente CONTRA Bump (FEATURES/ARCHITECTURE/STACK-Sicht):
-1. Die *Kategorien* der ExtraHours-Rows sind unverändert (`VolunteerWork`, `ExtraWork`). Die Formel liest dieselben Kategorien wie vor v2.6.
-2. Rebooking ist balance-neutral per Definition (`−N` + `+N` in derselben Person, derselben Woche) — Snapshots vor und nach Rebooking müssen identisch bleiben, sonst ist der Rebooking-Contract gebrochen.
-3. Stichtag-Guard verhindert historische Divergenz: F4 läuft nur für Wochen ≥ `active_from`, alte Snapshots sind reproduzierbar.
-4. Bump „vorsorglich" ohne neuen value_type invalidiert jede historische Snapshot-Validierung ohne inhaltlichen Grund (STACK-Anti-Pattern).
-
-**Empfehlung an discuss-phase:** Nicht in SUMMARY.md pinnen. Frage explizit auf F4-DISCUSS-Agenda: „Ist die Introduction einer neuen ExtraHours-Quelle (F4-Cron-schreibende Rebooking-Pair-Rows) ein Input-Set-Change im Sinne der CLAUDE.md-Klausel — auch wenn die Kategorien und die Balance-Neutralität invariant bleiben?" Beweislast beim „Nein"-Zweig: Golden-Snapshot-Fixture, die eine Periode strikt vor + strikt nach + straddling F4-Stichtag durchrechnet und byte-identisch bleibt. Wenn die nicht liefert, muss gebumpt werden.
+The single biggest risk, flagged explicitly by PITFALLS and echoed by ARCHITECTURE, is repeating v2.6's most expensive mistake (VOL-ACCT-03): writing a requirement shaped as "X stays neutral/unchanged" that is trivially easy to keep green while quietly blocking the actual feature. Two exact shapes of this trap exist in v2.7 — a person-merge requirement broad enough to freeze the self-permission-check query, and a Planungs-Soll requirement that could be misread as "must equal `expected_hours`" or "must equal `dynamic_hours`" (both wrong). This must be caught at requirements-drafting time, not at milestone audit.
 
 ## Key Findings
 
 ### Recommended Stack
 
-Zero neue harte Cargo-Dependencies. v2.6 baut auf bereits gepinnter Baseline auf.
+No new packages needed for either feature (STACK.md, HIGH confidence). `sqlx 0.8.2`, `uuid 1.8`, `serde 1.0`, `utoipa 5` already cover everything. Nullable FK columns are added via plain `ALTER TABLE ADD COLUMN ... REFERENCES` (precedent: `slot.shiftplan_id`, `user_invitation.session_id`) — no table rebuild needed because `person_id` is permanently nullable (not a transitional state; two of the three "shapes" never get a link). The `person` backfill belongs in the "simple SQL-in-migration" camp, not the heavier Rust-cutover-service + quarantine-table camp used for the `extra_hours`→`absence_period` migration, because the old `sales_person_user`'s double `UNIQUE` constraint already proves every pair is unambiguous — no fuzzy matching, no manual-review case. Use `randomblob(16)` for new `person.id` values in the migration, not the dead/unused `V_UUID_V4` view. `planning_target_hours` follows the exact additive-field recipe already used for `has_pending_rebooking`/`pending_rebooking_id` on `ShortEmployeeReportTO` (`#[serde(default)]`, computed in the `From` impl). No `CURRENT_SNAPSHOT_SCHEMA_VERSION` bump applies to either feature (confirmed against `.planning/PROJECT.md`'s own decision log — stays at 13).
 
-**Kern-Technologien (alle reuse):**
-- `tokio-cron-scheduler 0.15.1` — F4 Wochen-Cron; identisches Pattern wie `PdfExportSchedulerImpl` (v2.2/v2.3), 6-Feld-Cron, `Arc<Mutex<Option<JobScheduler>>>` + dormant-boot + `reload_from_db`.
-- `sqlx 0.8.6` (workspace 0.8.2) — 2 additive Migrationen (`rebooking_batch`, `rebooking_batch_entry`), evtl. 3. für Toggle-Seed. `cargo sqlx prepare --workspace` nach jeder neuen `query!`, `.sqlx/*.json` committen (CI läuft `SQLX_OFFLINE=true`).
-- `ExtraHoursService::create` + `TransactionDao` — Doppel-Eintrag-Pair (`−N VolunteerWork` / `+N ExtraWork`) atomar in einer Tx via `use_transaction`. Kein Saga, kein Outbox.
-- `ToggleService` (`voluntary_rebooking_auto_active_from`) — Stichtag-Gate analog HCFG-02 (v1.7) und SHC-04 (v2.4). Toggle-off = raw Legacy-Semantik pro Chain (siehe Pitfall 3).
-- `time 0.3.36` + `ShiftyDate`/`ShiftyWeek` — ISO-Wochen-Arithmetik (KEIN `chrono`), v2.5-WOP-Follow-up-#3-`_iso_year`-Helper wiederverwenden für F4-„Vorwoche".
-
-**Explizit ausgeschlossen:** kein `clap` (Backfill = HR-gated REST-Endpoint), kein zweites Scheduler-Framework, kein SSE/WebSocket für F5-Alerts (REST-Poll reicht), kein neuer FE-State-Store, kein Job-Queue-Substrat, keine Config-File.
-
-Details: `.planning/research/STACK.md`.
+**Core technologies (all already present, zero installs):**
+- `sqlx 0.8.2` + `sqlx::migrate!` — migration mechanism, unchanged; a new `PersonDao` follows existing `query!`/`query_as!` + manual `Uuid::from_slice`/`.as_bytes()` conversion style (this repo does NOT use sqlx's native `uuid` feature — stay consistent).
+- `uuid 1.8` — `Uuid::new_v4()` for runtime `person` creation; `randomblob(16)` for migration-time backfill IDs.
+- `serde` + `#[serde(default)]` — additive-field wire-compat convention, reused verbatim for `planning_target_hours`.
+- `utoipa 5` — `ToSchema` already covers `f32`/`Option<Uuid>`, no new feature flags.
 
 ### Expected Features
 
-Fünf Features (F1..F5) plus Backfill-CLI-als-REST-Endpoint. F1+F2 = Read-Aggregate; F3 = manuelle Doppel-Eintrag-Umbuchung; F4 = wöchentlicher Auto-Cron; F5 = HR-Alert + Vorschlags-Modal mit approve/reject.
+FEATURES.md (MEDIUM confidence — no live web-search tooling available, so external precedents are vendor-docs/issue-tracker-sourced; current-app claims are HIGH, verified by reading code directly) frames this as a merged identity-admin screen for a handful of internal staff — small-scale, not enterprise identity management.
 
-**Must-have (table stakes):**
-- **F1 Ø freiwillig geleistete Stunden / Vertragswoche / Jahr** — HR-only Read-Aggregat, Zähler = Σ `VolunteerWork` ExtraHours pro Jahr, Nenner = Wochen mit gültiger `working_hours`-Zeile (D-F1-01: exakte Definition analog AVG-01 A-22-1 in discuss-phase).
-- **F2 Freiwilliges Stundenkonto (Soll/Ist/Delta)** — HR-only. Soll = Σ (`WorkingHours(week).committed_voluntary × Wochen-in-Kraft`), Ist = F1-Zähler. Rendert unter Balance-Block in existierendem `/employees/:id`-Report.
-- **F3 Manuelle Umbuchung Freiwillig ↔ Bezahlt (1-Click)** — atomarer Doppel-Eintrag via `RebookingReconciliationService::rebook_manual`; Modal im Employee-Year-Report.
-- **F5 HR-Alert bei gedeckeltem Mitarbeiter mit negativem Konto** — persistenter Warn-Banner in Employee-Overview; Predicate: `cap_planned_hours_to_expected = true` AND `balance < 0` AND `voluntary_ist > 0`. Klick öffnet Vorschlags-Modal mit IST / DANN-Spalten (alle Zahlen backend-computed, Fat-Backend-Prinzip). Approve/Reject persistiert als `rebooking_batch(kind=hr_suggestion, state=approved|rejected)`.
+**Must have (table stakes):**
+- Single flat list, one row per entry, with a shape badge/column ("Login only" / "Roster only" / "Login + Roster") replacing today's two-tab split (`UserMgmtTab::SalesPersons`/`Users`).
+- Backend-computed display name per entry (Fat Backend, Thin Client — already flagged as an open DTO question in the seed).
+- Filter by shape; search spanning whichever name(s) an entry has.
+- A real picker/search for linking existing unlinked users/sales-persons, replacing today's raw-`TextInput`-typed-ID flow (`ConnectUserAccount`/`UpdateSalesPersonUser` in `sales_person_details.rs:189-222`) — explicitly the single biggest UX upgrade.
+- Explicit, separately-labelled "link existing" vs "create new" actions (not one ambiguous field) — Keycloak's own admin-UI backlog names this exact ambiguity as a bug class to avoid.
+- Confirmation copy before unlink/delete that states what disappears, and that differs by which half is being deleted (SalesPerson-side deletion risk >> User-side, given the 12-table fan-out onto `sales_person.id` including write-once billing snapshots).
+- Section-level (not page-level) role gating on the merged detail view — locked as "must decide," not optional, per the seed's own open question.
 
-**Should-have (Differentiator):**
-- **F4 Automatische Umbuchung (Wochen-Cron)** — Vorwoche = letzte abgeschlossene ISO-Woche; für jeden `cap=true`-SalesPerson: wenn `Ist > Soll + committed_voluntary`, umbuche `excess` als Pair-ExtraHours in `rebooking_batch(kind=auto_cron)`. Stichtag-Guard via `voluntary_rebooking_auto_active_from`.
-- **F4 Rollout-Backfill (als REST, nicht CLI)** — `POST /rebooking/backfill?from=YYYY-Www&dry_run=true`, HR-Admin-gated, iteriert historische Wochen, schreibt `kind=auto_cron_backfill`. UNIQUE-Constraint aus Pitfall-4 fängt Doppel-Backfill ab.
+**Should have / correctly deferred (not this milestone, explicitly named to avoid scope creep):**
+- Folding `/employees/:id` (HR report view) into the same entry — seed defers pending real usage feedback.
+- Bulk actions on the roster — only relevant if roster size grows.
 
-**Defer (v2.7+):**
-- Employee-Self-Service-View des Freiwilligen-Kontos (bleibt HR-only in v2.6).
-- Notifications (Email / iCal / Push) auf F4-Completion oder F5-Alert.
-- Multi-Role-Approval-Workflow auf F5-Batches (single-step approve/reject genügt).
-- Undo/Rollback applied Batches (Schema unterstützt spätere Extension via stable batch.id).
-- UI zur Visualisierung der Rebooking-Batch-Historie.
-- Alerts für nicht-gedeckelte Mitarbeiter mit Voluntary-Überschuss (nicht zielgruppen-relevant).
-
-**MVP-Fallback wenn Scope schrumpfen muss:** F1 + F2 + F3 als Reduktion — F4/F5 auf v2.7 vertagen, Tabellen dann auch nicht vorab anlegen (leere Tabellen = drift-fuel).
-
-Details: `.planning/research/FEATURES.md`.
+**Defer indefinitely (v2+, likely never at this shop's scale):**
+- Automatic fuzzy link-suggestion, full merge/audit-history UI, bulk-import wizard, multi-account linking (explicitly excluded — Variant A keeps the 1:1 shape), profile-completeness gamification, `person`-level profile fields (email/phone/DOB — seed keeps `person` identity-only by design).
 
 ### Architecture Approach
 
-Fat Backend / Thin Client (jeder Wert im DTO backend-berechnet), strenge Basic-vs-Business-Logic-Tier-Konvention, zwei additive SQLite-Tabellen mit Marker-Spalte + UNIQUE-Index. Kein neuer Cargo-Dep, keine neue Framework-Familie.
+ARCHITECTURE.md (HIGH confidence) recommends a tier-respecting build order: migration+backfill → `PersonDao`/`PersonService` (Basic tier, thin CRUD only — must NOT depend on `SalesPersonService` or `UserService`) → DAO-internal rewrite of the six `sales_person_user`-backed methods (service/REST contracts frozen, so this is a two-layer change, not an N-layer one, PROVIDED the contract is genuinely kept stable) → a new Business-Logic-tier read aggregate (`PersonDirectoryService` or similar) for the merged list/detail, consuming `PersonService` + `SalesPersonService` + user/role reads, one tier above everything it unions — mirroring `ShiftplanViewService`. Planungs-Soll is a separate vertical slice entirely inside `reporting.rs`/`rest-types`/one frontend file, with no `person` involvement, and is architecturally independent of the Person work.
 
-**Major components (neu):**
-1. **`RebookingBatchService`** (Basic, Entity-Manager) — CRUD auf `rebooking_batch` + `rebooking_batch_entry`, state-transitions (`pending → approved | rejected | skipped_locked`), pure list/find. Konsumiert nur `RebookingBatchDao` + `PermissionService` + `TransactionDao`.
-2. **`RebookingReconciliationService`** (BL) — orchestriert: compute account → decide rebooking → in einer Tx: 2× ExtraHours-Create + Batch-Entry-Write. Einziger Schreib-Pfad für alle drei Trigger (F3 manual, F4 auto-cron, F5 approve). Konsumiert `RebookingBatchService`, `ExtraHoursService`, `ReportingService`, `WorkingHoursService`, `SalesPersonService`.
-3. **`VoluntaryStatsService`** (BL, read-only) — HR-gated pure fn `voluntary_hours_per_contract_week(sp_id, year)` + `committed_voluntary_target_for_year(&[EmployeeWorkDetails], year)`. Ist/Soll/Delta für F1+F2. Getrennt vom bereits fetten `ReportingService` (8 Deps).
-4. **`VoluntaryRebookingScheduler`** (BL) — 1:1-Spiegel von `PdfExportSchedulerImpl`; `start()` lazy-init, `reload_from_db()`, per-Tick delegiert an `RebookingReconciliationService::run_for_week(prev_iso_year, prev_iso_week)`. Boot am Ende von `main()` nach dem PDF-Scheduler.
-5. **`RebookingBatchDao`** (DAO) — SQL gegen die zwei neuen Tabellen. Soft-Delete-Konvention (`WHERE deleted IS NULL`) + optimistic-lock-`version` + `update_process`-Audit.
-
-**Data model (additive):**
-
-```
-rebooking_batch (id BLOB PK, kind TEXT, state TEXT, booking_year INT?, booking_week INT?,
-                 created TIMESTAMP, approved TIMESTAMP?, approved_by TEXT?,
-                 deleted TIMESTAMP?, version BLOB, update_process TEXT)
-rebooking_batch_entry (id BLOB PK, batch_id BLOB FK, sales_person_id BLOB, hours REAL,
-                       balance_before REAL, voluntary_actual REAL, voluntary_committed REAL,
-                       extra_hours_out_id BLOB?, extra_hours_in_id BLOB?,
-                       deleted TIMESTAMP?, version BLOB, update_process TEXT)
-UNIQUE INDEX (sales_person_id, iso_year, iso_week) WHERE deleted IS NULL
-INDEX (state) WHERE deleted IS NULL
-INDEX (sales_person_id) WHERE deleted IS NULL
-```
-
-**Modified DTOs (alle additive, `#[serde(default)]` guarded per v2.5-Präzedenz):**
-- `EmployeeReportTO` +Felder `voluntary_hours_per_contract_week: f32`, `committed_voluntary_target: Option<f32>` (HR-only, None für Self-View), `voluntary_balance: Option<f32>`.
-- `ShortEmployeeReportTO` +Felder `has_pending_rebooking: bool`, `pending_rebooking_id: Option<Uuid>` (F5-Banner).
-- Neu: `VoluntaryStatsTO`, `RebookingSuggestionTO`, `ManualRebookingRequestTO`, `RebookingBatchTO`, `RebookingBatchEntryTO`.
-
-**Zyklen-Check:** Keine neuen BL→BL-Kanten außer `RebookingReconciliationService → ReportingService` (BL-liest-BL, präzedent-kompatibel mit `BookingInformationService → ReportingService`). Kompiliert unter `gen_service_impl!`-DI-Graph.
-
-**Docs-Freshness-Trigger (CLAUDE.md-Gate):**
-- Neu: `docs/features/F14-rebooking.md` + `_de.md` (beide Sprachen synchron im gleichen Commit).
-- Update: `docs/features/F07-reporting-balance.md` + `_de.md` (Balance-Chain sieht keine Rebooking-Marker).
-- Update: `docs/features/F08-billing-period.md` + `_de.md` (narrative Note zu ExtraWork-aus-Rebooking, plus ggf. Snapshot-Version-Bump-Historie).
-- Update: `docs/architecture/02-service-tiers.md` + `docs/architecture/diagrams/service-graph-runtime.mmd` (drei neue BL-Services + Scheduler).
-- Update: `docs/architecture/03-data-model.md` + `db-schema-er.mmd` (2 neue Tabellen).
-
-Details: `.planning/research/ARCHITECTURE.md`.
+**Major components:**
+1. **`PersonDao`/`PersonService` (Basic tier)** — new `person` CRUD + link/unlink primitives only; does not know about `SalesPersonService` or `UserService` to avoid a DI cycle through `PermissionService`.
+2. **`sales_person_user`-dissolution inside existing DAO methods** — six methods rewritten to join through `person_id`; `assign_to_user`/`discard_assigned_user` are the one place with genuinely new business logic (resolve-or-create person, reject on ambiguous double-link).
+3. **New Business-Logic read aggregate (e.g. `PersonDirectoryService`)** — merged list/detail DTOs (`PersonEntryTO`, small and purpose-built like `SalesPersonAbsenceTO`, NOT a reuse of `SalesPersonTO`/`UserTO`), one aggregate GET endpoint replacing today's two-load pattern, section-level `Option`-redaction for role gating.
+4. **Planungs-Soll computation in `reporting.rs`** — extends `weight_for_week`'s return with a structurally decoupled 5th value, applied at both `assemble_weeks` and `get_reports_for_all_employees` (two independently-duplicated call sites — both must be fixed together), added to `ShortEmployeeReport`/`ShortEmployeeReportTO` with `#[serde(default)]`.
 
 ### Critical Pitfalls
 
-1. **Doppel-Zählung durch F4-Rebooking-ExtraHours in F1-Ist / F2-Soll-Nutz / Balance** — F4 schreibt zwei ExtraHours-Zeilen; ohne Marker-Filter zählt F1 die `−N`-Korrektur als „weniger volunteer geleistet", das „verbleibende freiwillige Konto" widens jede Reconciliation. **Prevention:** Marker-Spalte `rebooking_batch_entry_id` (oder `source: 'rebooking'`) auf `extra_hours`, jeder Aggregat-Reader (F1, F2, `reporting.rs::balance`, `booking_information::get_weekly_summary`) filtert explizit. Drei Property-Tests: `balance_before == balance_after`, `F1_Ist_before == F1_Ist_after`, `F2_Soll_before == F2_Soll_after`. Golden-Snapshot-Re-Run über alle 8 WOP-03-Fixtures byte-identisch, wenn keine Rebookings existieren.
-2. **Snapshot-Schema-Version 12→13 — Bump ja/nein (TOP OPEN DECISION, siehe Divergenz 2 oben)** — FEATURES/ARCHITECTURE/STACK sagen „nein"; PITFALLS warnt „wahrscheinlich ja per CLAUDE.md-Input-Set-Klausel". Nicht in SUMMARY.md pinnen — in F4-discuss-phase entscheiden, Beweislast beim „Nein"-Zweig ist ein Straddling-Golden-Snapshot.
-3. **Stichtag-Rollout mit falscher Legacy-Semantik pro Chain** — analog HCFG-02 (v1.7), SHC-04 (v2.4), D-51-07: pro Konsum-Kette (Balance-Chain, F1-Ist-Statistik, F2-Soll/Nutz-Anzeige, F4-Cron-Self-Guard) explizite pre-Stichtag-Semantik rekonstruieren, nicht blind „None → raw" annehmen. Property-Test: `active_from = None` → byte-identisch mit v2.5-Baseline.
-4. **Cron-Idempotenz + TOCTOU zwischen F3-manual / F4-auto / F5-approve** — UNIQUE-Index `(sales_person_id, iso_year, iso_week)` (ohne `kind`!) als kombinierter Idempotenz- + Race-Guard. INSERT ... ON CONFLICT DO NOTHING; zweiter Klick / Cron-Restart / Backfill über bereits-verarbeitete-Wochen bekommt 409 `week-already-reconciled`. State-conditional UPDATE für approve/reject (`WHERE state = 'pending'`, affected-rows == 1).
-5. **ISO-Woche vs. Kalender-Woche im Cron-"Vorwoche"** — `Date::iso_week_year()` ≠ `Date::year()` um Jan 1; die exakte Bug-Klasse aus WOP-Follow-up #3 (v2.5). F4 nutzt `ShiftyWeek::previous()` + `_iso_year`-Helper, nicht `chrono::Datelike::year()`. Regressionstest am Jahresrand.
+PITFALLS.md (HIGH confidence, grounded in this repo's own migrations, code, and `RETROSPECTIVE.md`) surfaces ten pitfalls; the five most load-bearing for phase-cut decisions:
 
-Weitere moderate/minor Pitfalls (F5-Stale-Vorschlag, HR-Only-DTO-Leak, mid-week-Contract-Change, Dioxus-Testability, Dioxus.toml-Proxy, Docs-Drift) siehe `.planning/research/PITFALLS.md` — insgesamt 17 durchnummerierte Pitfalls plus Phase-spezifische Warnung-Tabelle.
+1. **Backfill migration must be idempotent** — this repo's own precedent for comparable backfills (`absence_period_migration_source`) used an idempotency-key pattern specifically because a raw SQL script that partially fails and gets hand-re-run will create duplicate `person` rows. Guard every INSERT/UPDATE with `WHERE NOT EXISTS`/`WHERE person_id IS NULL`, test apply-twice for stable row counts.
+2. **Backfill must include soft-deleted `sales_person` rows** — `sales_person.deleted` exists, `user` has no soft-delete at all; the everyday DAO reflex `WHERE deleted IS NULL` is wrong here because soft-deleted sales persons can still own write-once `billing_period_sales_person` history that later needs to resolve back to a `Person`.
+3. **The dissolved link table's `UNIQUE(sales_person_id)` + `UNIQUE(user_id)` invariant must be rebuilt as `UNIQUE(person_id)` on both new FK columns** — otherwise nothing stops two different `sales_person` rows (or an unrelated user) from silently sharing one identity; needs a DB-level rejection test, not just an application check (which races under concurrency).
+4. **`find_sales_person_by_user_id` is an authorization check, not just CRUD** (`service_impl/src/sales_person.rs:356-401`, backing self-vs-HR permission gating on sales-person mutation) — it must be rewritten in the *same* phase as the schema swap, with an explicit before/after "self can edit own record, cannot edit another's" test matrix. A sloppy nullable-`Option` comparison here can fail open (security) or fail closed (lockout).
+5. **Neutrality-shaped requirements repeat the exact v2.6 VOL-ACCT-03 failure** — a requirement worded "person merge changes nothing" or "planning_target_hours never affects the balance" is trivially testable and permanently green even when it silently blocks the milestone's actual goal (freezing the self-permission query that must be rewritten; or being satisfied by literally reusing `expected_hours`/`dynamic_hours`, both of which are wrong per the underlying bug analysis). Must be caught in REQUIREMENTS.md drafting, before Phase 60 is planned — this is explicitly a pre-phase gate, not a phase deliverable.
+
+Also flagged, lower-severity but real: new `/person`-prefixed REST routes need a same-commit `Dioxus.toml` `[[web.proxy]]` entry (3rd occurrence of this exact bug class in this repo if missed — v1.6, v1.8 both missed it); this milestone touches an unusually large number of Docs-Freshness-Gate trigger files at once (migrations, service/dao traits, `permission.rs`, `reporting.rs`) so the doc-diff check should run after every phase, not just at close; the merged UI's per-Ausprägung/per-role section visibility is DOM-rendering logic that Dioxus-WASM signal propagation makes unreliable to test headlessly — push decision logic into pure, unit-tested helpers and plan an explicit human-UAT pass up front.
+
+## Convergence and Divergence Across Researchers
+
+**Strong convergence (raises confidence):**
+- **STACK and ARCHITECTURE independently agree** the `sales_person_user` dissolution is safe to do as a DAO-internal rewrite with the service/REST contract frozen — STACK from the "no new tooling needed, additive migration" angle, ARCHITECTURE from the "~50+ call sites into stable `SalesPersonService` trait methods are unaffected" angle (grep-verified across `absence.rs`, `extra_hours.rs`, `booking.rs`, `shiftplan.rs`, etc.).
+- **ARCHITECTURE and PITFALLS independently flag the exact same three sharp edges**: the `find_sales_person_by_user_id` authorization query (ARCHITECTURE calls it "the one place that is NOT a pure pass-through"; PITFALLS names it Pitfall 4 with a security-mistake writeup), the lost `UNIQUE` invariant on link/unlink, and the need to compute Planungs-Soll via the *same* holiday/absence reduction pipeline as `expected_hours` rather than reusing `dynamic_hours` (both independently trace this through `weight_for_week`/`assemble_weeks` and land on the identical conclusion).
+- **FEATURES and ARCHITECTURE independently converge** on backend-computed display name + section-level `Option`-redaction (not page-level 403) as the correct DTO shape — FEATURES from a UX-precedent angle (GitLab/Salesforce), ARCHITECTURE from a direct code-precedent angle (`VoluntaryStatsService`'s existing None-redaction pattern).
+- **STACK and PITFALLS agree** that a lightweight raw-SQL backfill (not the heavier Rust-cutover-service pattern used for `absence_period`) is the right proportional choice, both citing the same `UNIQUE`-constraint-guarantees-unambiguity argument — but PITFALLS adds the sharper caveat STACK doesn't: "structurally simple to migrate" is not "safe to run twice," so idempotency guards are still mandatory even without the heavier apparatus.
+
+**Divergence / tension worth naming explicitly, not smoothing over:**
+- **STACK's "Alternatives Considered" table treats the pure-SQL backfill as basically risk-free** ("zero risk" language for the `ALTER TABLE ADD COLUMN` step; the backfill section reads as low-ceremony). **PITFALLS treats the same backfill as the source of two of its ten pitfalls** (non-idempotency, soft-delete exclusion) and explicitly warns that "structurally simple" from STACK's framing does not imply "safe to run twice." Read STACK's stack-selection confidence (right tool, no new dependencies) as separate from PITFALLS' execution-discipline warning (still needs idempotency guards and soft-delete coverage) — these are not contradictory, but a roadmapper skimming only STACK could underestimate the backfill phase's care requirements that PITFALLS insists on.
+- **ARCHITECTURE's suggested build order lists Planungs-Soll as sequenceable "in parallel or before/after" the Person work, calling it "the smaller, better-understood change."** PITFALLS' Pitfall 6 and Pitfall 7 push back on "better-understood" specifically — the todo's own history shows the "naheliegender Fix" (reuse `dynamic_hours`) is proven wrong, and the neutrality-requirement trap (Pitfall 7) is named as being just as live a risk for Planungs-Soll as for the Person merge. Treat "architecturally independent/parallelizable" (true) as distinct from "low-risk to get the requirement wording right" (not true) — these are different axes and both researchers are correct on their own axis.
+- **FEATURES' MVP list scopes "Add-login/add-person actions + real picker" as P1**, explicitly requiring "Backend endpoint listing 'unlinked' candidates of the other kind." **This endpoint does not exist today and is not mentioned as in-scope by STACK or ARCHITECTURE's phase breakdowns** — see Unscoped Work below. This is a real gap between FEATURES' feature-completeness framing and the other three researchers' phase-structuring, not a disagreement about facts.
+
+## Hard Constraints Carried Forward Verbatim
+
+These must reach REQUIREMENTS.md and phase planning unmodified — they are not researcher opinions, they are code-verified facts with file:line citations.
+
+- **`WorkingHoursPerSalesPerson.available_hours` must keep reading `expected_hours` (zeroed for dynamic contracts), never `planning_target_hours`.** `service_impl/src/booking_information.rs:641-651` and `:815-826` — this is the exact "Bezahlten-Vertrag" band the v2.5 ship notes locked as a regression guard (`.planning/PROJECT.md:275-276`: "unangetastet — Regression-Lock"). Single highest-risk regression site for the Planungs-Soll feature.
+- **`find_sales_person_by_user_id` backs a live authorization check, not just CRUD.** `service_impl/src/sales_person.rs:356-401` resolves "is the current user allowed to touch this sales person because it's their own" via this DAO method (`dao_impl_sqlite/src/sales_person.rs:226-233`, joins through `sales_person_user`). Must be rewritten in the same phase as the schema swap, with an explicit before/after self-vs-not-self permission test matrix — not deferred as a "frontend follow-up."
+- **`user` has no soft-delete column; `sales_person` does.** `sales_person.deleted TEXT` (`migrations/sqlite/20240506114107_add_sales_person.sql`) vs. `user` (`migrations/sqlite/20240426150045_user-roles.sql`) — hard-delete only. The backfill must include soft-deleted `sales_person` rows (they can still own write-once `billing_period_sales_person` history); `user` rows can't be soft-deleted so this asymmetry only cuts one way.
+- **The 1:1 invariant currently enforced by `UNIQUE(sales_person_id)` + `UNIQUE(user_id)` on `sales_person_user`** (`migrations/sqlite/20240506114107_add_sales_person.sql:14-22`) **disappears when the table is dropped and must be rebuilt as `UNIQUE(person_id)` on both new FK columns**, plus a DB-level (not just application-level) rejection test for double-linking — application-level checks race under concurrent requests exactly the way the old table's `UNIQUE` would have prevented.
+- **Two structurally different `expected_hours` fields exist in this codebase** — one on `EmployeeWorkDetails` (raw contract row, read by `voluntary_stats.rs`/`booking_information.rs:504,518,545,872` and unaffected either way) and one on `ShortEmployeeReport`/`GroupedReportHours` (the computed report aggregate, the one in scope for Planungs-Soll). Do not conflate these during implementation or review.
+- **No `CURRENT_SNAPSHOT_SCHEMA_VERSION` bump applies to either v2.7 feature** — confirmed against `.planning/PROJECT.md`'s own decision log (stays at 13); Planungs-Soll is a display-only field computed from already-live logic and does not touch `billing_period_sales_person`/`BillingPeriodValueType`.
+
+## Explicit Warning: Neutrality-Shaped Requirements
+
+**This must reach REQUIREMENTS.md drafting as a named gate, not be buried in a pitfalls appendix.** PITFALLS.md identifies this as v2.6's single most expensive mistake (VOL-ACCT-03: a requirement that literally forced "balance-neutral" — the opposite of the milestone's goal — and survived three phases of clean, green verification because "stays neutral" is trivially easy to keep green forever, even when wrong). v2.7 has two requirement shapes that could repeat this exact failure:
+
+1. A person-merge requirement phrased broadly as "linking/unlinking must not change any existing sales_person/user/auth behavior" — correct if scoped to unrelated behavior, but if it also freezes the self-permission-check query rewrite (a required change) or the display-name fallback logic, it blocks the very rewrite the migration requires.
+2. A Planungs-Soll requirement phrased as "`planning_target_hours` must never affect the balance" — correct in intent, but if read/tested as "must equal `expected_hours`" or "must equal `dynamic_hours`," both readings are wrong (per the underlying bug's own root-cause analysis) yet both would pass a naive "value doesn't change existing balance tests" check.
+
+**Action for requirements drafting:** any requirement worded "X stays unchanged"/"X is neutral with respect to Y" must carry an explicit one-line milestone-goal cross-check written into REQUIREMENTS.md itself before the first dependent phase is planned — e.g., "does this requirement, read literally, still allow a user to see a Planungs-Soll number at dynamic contracts?" Prefer requirements phrased as "computed via [specific named mechanism]" over bare "unchanged"/"neutral."
+
+## Open Questions — Single Consolidated List
+
+| # | Question | Status |
+|---|---|---|
+| 1 | Nullable `person_id` FK shape, "Variante A," names stay put (`sales_person.name`/`user.name`), no snapshot bump | **Settled by the seed** (`.planning/seeds/personenverwaltung-zusammenlegen.md`) — not reopened by any researcher |
+| 2 | `person` is identity-only (no email/phone/DOB) for this milestone | **Settled by the seed** — explicit decision, revisit only when a concrete attribute is needed |
+| 3 | `PersonService` is Basic tier, must not depend on `SalesPersonService`/`UserService`; merged-list aggregation lives in a new Business-Logic service one tier up | **Settled by ARCHITECTURE research**, consistent with `CLAUDE.md`'s own tier rule — recommend treating as decided unless discuss-phase surfaces a reason not to |
+| 4 | Whether unlink-to-zero-children deletes the `person` row, garbage-collects it, or surfaces it in an admin view | **Needs a discuss-phase decision** — PITFALLS recommends "last unlink deletes the person row" as simplest/cheapest but flags this as a product decision belonging in that phase's CONTEXT, not left to the executor |
+| 5 | Whether re-linking to an already-linked `sales_person`/`user` is rejected (409) vs. silently reassigned | **Needs a discuss-phase decision**, though PITFALLS strongly recommends reject-with-409 as the only safe default given the 12-table blast radius on `sales_person.id` |
+| 6 | Whether `/employees/:id` (HR report view) folds into the merged entry this milestone or stays separate | **Settled as deferred** by the seed (open question explicitly deferred pending usage feedback) — do not scope into v2.7 |
+| 7 | Section-level (not page-level) role gating mechanism/DTO shape for the merged detail view | **Needs a discuss-phase decision** — locked as "must exist," not optional, but the exact DTO shape (explicit `kind` enum vs. `Option`-populated fields as signal) is explicitly flagged uncertain by ARCHITECTURE |
+| 8 | Whether the list DTO needs an explicit `kind: PersonEntryKindTO` enum or whether `Option`-populated fields are sufficient signal | **Needs a discuss-phase decision** — minor DTO-shape call, not a blocker |
+| 9 | Exact formula for the "unconditional" Planungs-Soll raw value — does `get_reports_for_all_employees`'s reduction pipeline (`:1340-1420` region) apply the *same* reductions in the *same* order as `assemble_weeks` (`:1080-1101`)? | **Needs a line-by-line code check during planning** — the two loops are independently written and could have subtly diverged since the WOP-01 refactor split them |
+| 10 | Whether `get_year`'s `ShortEmployeeReport` rows should also expose `planning_target_hours`, or whether that's out of scope since the annual view doesn't render this column today | **Needs a discuss-phase decision** — this research did not check `get_year`'s frontend consumer |
+| 11 | Whether `hours_text_class`/`progress_bar_class` color thresholds and `total_target` in `working_hours_mini_overview.rs` get rebound from `expected_hours` to `planning_target_hours` | **Needs a discuss-phase decision per the todo's own framing** ("bewusste Entscheidung pro Stelle") — must NOT be a blanket find-and-replace |
+| 12 | Whether strict RFC 4122 UUID conformance matters for `randomblob(16)`-generated `person.id` values in the migration (vs. the workspace's normal `Uuid::new_v4()`) | **Needs a discuss-phase decision**, though STACK assesses it as low-stakes — nothing in the DAO layer validates version/variant bits, only length |
+
+## Unscoped Work Flagged by Research
+
+These are real, load-bearing pieces of work that FEATURES/ARCHITECTURE/PITFALLS surface as necessary for the milestone's own stated goal but that do not appear accounted for in any researcher's phase-cut hypothesis as a named deliverable:
+
+- **A backend endpoint listing "unlinked candidates of the other kind"** (e.g. "all users with no `person_id`" / "all sales_persons with no `person_id`") does not exist today. `SalesPersonDao::find_sales_person_by_user_id` finds an *existing* pairing but there is no query for *unlinked* rows. FEATURES.md names this explicitly as "new, small, backend work that unlocks replacing the raw-text-field linking flow" and calls out to the roadmapper that it is required-but-not-yet-scoped. Without it, the P1 "real picker" feature (replacing the raw `TextInput` flow, itself table-stakes per FEATURES) cannot be built.
+- **Section-level role gating is a bigger permission-model change than it first looks.** Today `/user_details` is implicitly whole-page admin-territory and `/sales_person_details` is implicitly whole-page shiftplanner-territory; merging them means the *same* detail response must show/hide/disable individual sections per caller role. ARCHITECTURE recommends the API-level `Option`-redaction pattern (reusing `VoluntaryStatsService`'s precedent) but flags this should get "its own explicit design decision in discuss-phase rather than being assumed 'just render less.'" This is plumbing work beyond a simple DTO field addition and should be sized as such, not folded silently into the "merged detail view" phase's estimate.
+- **A regression/compatibility test suite for the `sales_person_user` dissolution's authorization path** — an explicit before/after "self can edit own record, cannot edit another's" permission test matrix — is a named deliverable in PITFALLS but is not mentioned in STACK's or ARCHITECTURE's phase-sizing; without it, this is silent scope that will surface as unplanned work mid-phase.
 
 ## Implications for Roadmap
 
-**Agreed baseline (alle drei Vorschläge konvergieren darauf):**
-- F1+F2 = Read-first (niedrigstes Regressions-Risiko), F4 = zuletzt (höchster Blast-Radius, profitiert von validiertem F1..F3+F5 als Ground-Truth).
-- Migrations + Marker-Spalte + UNIQUE-Constraint MÜSSEN in der ersten Backend-Phase landen, damit alle nachgelagerten Aggregate-Reads die Filter-Semantik von Anfang an haben.
-- Stichtag-Toggle-Seed (`voluntary_rebooking_auto_active_from`) in der ersten F4-berührenden Phase, vor jeder Rebooking-Logik.
-- Docs-Freshness (F07 + F08 + neue F14, jeweils EN+DE) im gleichen Commit wie Code-Diff — kein deferred_item.
+Based on combined research, a **four-phase structure**, data-model-first, tier-respecting, matches all four researchers' independent build-order recommendations (all converge on this shape; PITFALLS' provisional phase numbers Phase 60-63 are used below as a naming convention, not a commitment):
 
-**Empfohlener Start (Vorschlag C aus ARCHITECTURE, mit Fallback auf A/B je nach discuss-phase-Entscheidung):**
+### Phase 60: Person data model + backfill
+**Rationale:** Everything else depends on this; STACK/ARCHITECTURE/PITFALLS all place it first with no dissent. It is also the phase where the two highest-severity, easy-to-miss defects (non-idempotent backfill, soft-delete exclusion) must be caught, since they are invisible once the migration is marked applied.
+**Delivers:** `person` table, nullable `person_id` FK columns with `UNIQUE(person_id)` constraints on both `sales_person` and `user`, an idempotent SQL-only backfill covering ALL `sales_person` rows regardless of `deleted` status and all `user` rows.
+**Addresses:** Foundation for the entire Personenverwaltung feature set (FEATURES.md P1: "Person aggregate + backfill").
+**Avoids:** Pitfall 1 (non-idempotent backfill), Pitfall 2 (soft-deleted rows excluded), Pitfall 3 (lost 1:1 invariant).
+**Docs-Freshness-Gate trigger:** `docs/architecture/03-data-model.md` + `diagrams/db-schema-er.mmd`, same phase/PR.
 
-### Phase 54 — Data-model + Voluntary Stats (F1 + F2)
-**Rationale:** Migrations + `RebookingBatchDao` + `RebookingBatchService` (Basic-CRUD, noch keine Logik) etablieren die Marker-Spalte + UNIQUE-Constraint für alle folgenden Phasen. F1+F2 lieferen sichtbaren Wert (Statistik im Employee-Year-Report) ohne Schreib-Pfad.
-**Delivers:** Zwei additive Migrations, Toggle-Seed, `RebookingBatchService` (Basic), `RebookingBatchDao`, pure fn `committed_voluntary_target_for_year`, `VoluntaryStatsService` (BL, HR-gated), `GET /reporting/employee/{y}/{spid}/voluntary-stats`, FE-Row „Freiwillige Stunden — Ist / Soll / Konto" im Employee-Detail-Page.
-**Addresses:** F1, F2.
-**Uses:** existierender `ExtraHoursService`, `WorkingHoursService`, `ToggleService`, `sqlx`-Migration-Konvention.
-**Avoids:** Pitfall 1 (Marker-Spalte + Filter von Anfang an), Pitfall 8 (HR-Only DTO-Redaction via `Option<f32> = None` für Non-HR), Pitfall 9 (shared pure fn `voluntary_hours_for_person_in_range` als single-source-of-truth), Pitfall 10 (F2-Soll reuses `WorkingHoursService::get_working_hours_for_week`-Semantik statt eigenem code).
+### Phase 61: `PersonService` + `sales_person_user` dissolution + link/unlink service
+**Rationale:** Builds the Basic-tier `PersonService` and rewrites the six DAO methods that currently join through `sales_person_user`, keeping the `SalesPersonService`/`UserService` public contracts frozen so the ~50+ downstream call sites are unaffected. This phase also owns the one place with real new business logic (resolve-or-create person, reject-on-ambiguous-link) and the security-critical authorization query rewrite.
+**Delivers:** `PersonDao`/`PersonService` (Basic tier, DI-wired per the documented bottom-up order in `shifty_bin/src/main.rs`), rewritten `sales_person_user`-backed DAO queries joining through `person_id`, reject-with-409 on already-linked targets, the "unlinked candidates" endpoint(s) FEATURES flags as currently missing.
+**Uses:** `sqlx` query rewrite pattern, `Arc<...>` DI convention already established for Basic services.
+**Implements:** ARCHITECTURE's Basic-tier `PersonService` + DAO-internal-only schema swap.
+**Avoids:** Pitfall 4 (missed self-permission-check rewrite — explicit before/after test matrix required), Pitfall 5 (link/unlink orphans/re-target ambiguity — reject-on-linked check), Pitfall 8 partially (if `/person` REST routes are exposed here, add the `Dioxus.toml` proxy line in the same commit).
 
-### Phase 55 — Manuelle Umbuchung + HR-Alert + Vorschlags-Modal (F3 + F5 ohne Cron)
-**Rationale:** F5-Modal braucht F1/F2-Zahlen als „IST"-Spalte; F3-Rebooking-Primitive braucht `RebookingReconciliationService`, der auch F5-Approve konsumiert. Beide zusammen liefern einen manuellen End-to-End-Reconciliation-Flow, verifizierbar vor Cron-Automatisierung.
-**Delivers:** `RebookingReconciliationService.rebook_manual` (2× ExtraHours + 1× Batch in einer Tx), `POST /rebooking/manual`, `RebookingReconciliationService.suggest_for_sales_person` (pure decide-logic) + `.approve`, `RebookingBatchService.reject`, `GET /rebooking-suggestions?state=pending`, FE-Alert-Banner in `page/employees.rs` + Vorschlags-Modal mit IST/DANN-Spalten.
-**Addresses:** F3, F5.
-**Uses:** `ExtraHoursService::create` + `TransactionDao` (existierend), `RebookingBatchService` (aus Phase 54), `PermissionService`.
-**Avoids:** Pitfall 1 (atomarer Tx-Doppel-Eintrag über `Authentication::Full`), Pitfall 6 (UNIQUE-Constraint fängt F3/F5-TOCTOU), Pitfall 11 (F5-Alert-Predicate als pure fn + 8-Case-Truth-Table + INT-Sightcheck statt Dioxus-Browser-Test), Pitfall 12 (state-conditional UPDATE für approve/reject), Pitfall 14 (Dioxus.toml-`[[web.proxy]]` für neue Routes), Pitfall 15 (single write-path für alle drei Rebooking-Trigger).
+### Phase 62: Personenverwaltung UI — merged list + detail
+**Rationale:** Depends on Phase 61's aggregate-ready service layer; this is where the actual user-facing complaint ("extrem verwirrend") gets fixed. Section-visibility and role-gating decisions from the open-questions list must be resolved in this phase's discuss step, not discovered mid-implementation.
+**Delivers:** One merged list at `/user_management/` (no tabs) with shape badge/filter and backend-computed display name; one merged detail component blending sections in/out by shape with section-level role gating; "add login"/"add person" actions backed by a real picker over the unlinked-candidates endpoint; shape-aware unlink/delete confirmation copy.
+**Addresses:** FEATURES.md's full P1 list for the UI half of the milestone.
+**Avoids:** Pitfall 5 (list-view derivation from `sales_person`/`user` outer-join, never from `person` directly — makes ghost rows invisible regardless of the zero-children decision), Pitfall 8 (Dioxus.toml proxy entry for any new `/person` route), Pitfall 10 (push section-visibility decision logic into pure, unit-tested helpers; plan an explicit human-UAT pass up front, not discovered at close).
+**Note:** Section-level role gating here is flagged as unscoped-but-required work (see above) — size this phase accordingly, not as a thin UI-only phase.
 
-### Phase 56 — Wochen-Cron + Backfill-Endpoint (F4)
-**Rationale:** F4 wickelt F3-Logik in Cron-Automatisierung — keine neue Domain-Logik, nur Scheduler + Stichtag-Guard + Backfill. Ganz zuletzt, damit F1..F3+F5 als Ground-Truth für „was hätte F4 hier ausgerechnet?"-Validierung dienen.
-**Delivers:** `VoluntaryRebookingScheduler` (analog `PdfExportSchedulerImpl`), Wochen-Cron (Montag 03:00 für Vorwoche), `RebookingReconciliationService.run_for_week`, `POST /admin/rebooking/backfill?from=YYYY-Www&dry_run=true`, FE-Admin-Card analog `pdf_export_config`.
-**Addresses:** F4 + Rollout-Backfill.
-**Uses:** `tokio-cron-scheduler 0.15.1` (existierend), `ToggleService` (Stichtag), F3/F5-Rebooking-Primitive aus Phase 55.
-**Avoids:** Pitfall 2 (Snapshot-Bump-Entscheidung in DISCUSS + Straddling-Fixture), Pitfall 3 (Chain-Audit-Matrix + toggle-off Golden-Snapshot), Pitfall 4 (UNIQUE-Constraint aus Phase 54), Pitfall 5 (ISO-Wochen-Helper aus v2.5 WOP-Follow-up-#3), Pitfall 16 (6-Feld-Cron-Syntax analog v2.2 EXP nach v2.3.1-Fix), Pitfall 13 (Docs F07 + F08 + F14 synced).
+### Phase 63: Planungs-Soll DTO field
+**Rationale:** Architecturally independent of Phases 60-62 (no `person` involvement) — could in principle run earlier or in parallel, but sequencing it last keeps the milestone's riskiest requirements-wording trap (Pitfall 7) fresh in mind from Phase 60's own discuss-step precedent, and its smaller scope makes it a good buffer/closer.
+**Delivers:** `planning_target_hours: f32` computed via the same holiday/absence reduction pipeline as `expected_hours` (never via `dynamic_hours`), added to `ShortEmployeeReport`/`ShortEmployeeReportTO` at both `assemble_weeks` and `get_reports_for_all_employees` call sites, with `#[serde(default)]` wire-compat and a byte-identity regression test (`planning_target_hours == expected_hours` for every non-dynamic fixture).
+**Uses:** STACK's additive-DTO-field recipe (`has_pending_rebooking` precedent).
+**Implements:** ARCHITECTURE's traced injection point in `weight_for_week`.
+**Avoids:** Pitfall 6 (leak into balance/payroll, or silent consumer rebinding — each of `hours_text_class`/`progress_bar_class`/`total_target` treated as its own explicit per-site decision, not a blanket sweep), Pitfall 7 (neutrality-shaped requirement trap).
 
 ### Phase Ordering Rationale
-- **Data-model first (Phase 54):** Marker-Spalte + UNIQUE-Constraint MÜSSEN existieren, bevor irgendein Aggregat-Reader (F1, F2, Balance) drauf filtert. Verhindert nachträgliches „Filter überall retro-fitten" (Pitfall 1).
-- **Read-only vor Write (F1/F2 vor F3):** Regressionsrisiko null; Numerator-/Denominator-/Chain-Bugs sichtbar in Statistik ohne Schreib-Nebenwirkungen.
-- **Manual write vor Cron write (F3+F5 vor F4):** Der manuelle Pfad ist per-Aktion beobachtbar in UAT; sobald F4 automatisch schreibt, ist die Ground-Truth „das ist korrekt so" schwerer zu etablieren.
-- **Cron zuletzt:** Höchster Blast-Radius (Snapshot-Impact, Chain-Legacy-Semantik, ISO-Woche, Idempotenz) — profitiert von allen vorherigen Verifikationen als Ground-Truth.
 
-**Fallback bei Scope-Schrumpfung:** MVP = F1 + F2 + F3 (Phase 54 + F3-Teil aus Phase 55). F4 + F5 auf v2.7 vertagen; Tabellen dann NICHT vorab anlegen (leere Tabellen = drift-fuel — FEATURES.md-Empfehlung).
+- Data-model-first is not optional here — three of four researchers (STACK, ARCHITECTURE, PITFALLS) independently state the backfill's correctness proof (via the old `UNIQUE` constraints) is what makes the *rest* of the milestone safe; skipping ahead to UI work without the migration validated would mean building on an unverified foundation.
+- Splitting "DAO dissolution" (Phase 61) from "UI" (Phase 62) follows the tier-respecting principle in `CLAUDE.md` and lets the security-critical authorization-query rewrite get its own tight, low-risk plan and test matrix, isolated from UI churn.
+- Planungs-Soll last (Phase 63) is a sequencing choice, not a dependency — ARCHITECTURE explicitly notes it "can be sequenced in parallel or before/after the Person work without either blocking the other." Placing it last is a project-management choice (smaller/better-understood-but-not-risk-free change as a closing phase) rather than an architectural necessity; a roadmapper could equally sequence it first as a warm-up if that suits velocity.
+- Requirements drafting must happen as an explicit pre-Phase-60 gate specifically because of Pitfall 7 — this is not a phase itself but should appear on the roadmap as a checkpoint before Phase 60 is planned.
 
 ### Research Flags
 
-Phasen mit likely deeper-research-Bedarf während planning:
-- **Phase 54:** Denominator-Definition für F1 (AVG-01 A-22-1: „Wochen mit contract, absence-adjusted" vs. simpler „contract-weeks in Jahr") + Mid-Week-Vertragswechsel-Semantik für F2-Soll (Option A pro-rata / B latest-active / C split-week) sind offen. `/gsd-plan-phase --research-phase 54` empfohlen.
-- **Phase 56:** Snapshot-Bump-Entscheidung (Divergenz 2), Chain-Audit-Matrix (welche Konsumketten lesen ExtraHours, welche Legacy-Semantik pro Chain), F5-Stale-Vorschlag-Strategie (fingerprint vs. claim-on-suggest). `/gsd-plan-phase --research-phase 56` dringend empfohlen.
+Phases likely needing deeper research during planning:
+- **Phase 61 (link/unlink service):** The `assign_to_user`/`discard_assigned_user` rewrite is real new business logic (resolve-or-create person, ambiguous-merge rejection) with no 1:1 precedent elsewhere in the codebase — needs its own test-matrix design during planning, not just "port the query."
+- **Phase 62 (UI):** Section-level role gating DTO shape and the zero-children product decision are both open per the consolidated questions list — needs a discuss-phase decision before planning can lock scope.
+- **Phase 63 (Planungs-Soll):** The exact reduction-pipeline formula must be verified line-by-line between `assemble_weeks` and `get_reports_for_all_employees` before implementation — flagged uncertain by ARCHITECTURE itself, not just a pitfall.
 
-Phasen mit standard patterns (skip research-phase):
-- **Phase 55:** Manuelle Umbuchung + Alert-Banner + Modal folgen etablierten Präzedenzen (v1.5 UV-Modal, v1.8 VAC-OFFSET-Editor, v2.5 VAA-Banner). Pure-Predicate-Tests + INT-Sightcheck sind gesetzte Konvention (D-25-06, D-49-13).
+Phases with standard patterns (skip research-phase):
+- **Phase 60 (migration + backfill):** Every technique has a direct, cited precedent already in this repo (nullable `ALTER TABLE ADD COLUMN`, SQL-only backfill, `randomblob(16)`) — standard, well-documented pattern for this codebase specifically.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | Alle Reuse-Punkte an im Repo bereits gelieferten Präzedenzen (v1.0/1.4/1.7/1.8/2.1/2.2/2.4/2.5); crates.io-Verifikation für `tokio-cron-scheduler 0.15.1` + `clap 4.6.1`. |
-| Features | HIGH | Alle Upstream-Services + DTOs direkt aus Repo gelesen, gegen PROJECT.md + v2.5-REQUIREMENTS cross-checked. |
-| Architecture | HIGH | Jede Design-Entscheidung an einem konkreten shipped-precedent gegroundet (`PdfExportSchedulerImpl`, `BillingPeriodService`/`BillingPeriodReportService`, `BookingInformationService`, `committed_voluntary_for_calendar_week`). Kein invention-cost. |
-| Pitfalls | HIGH | 17 durchnummerierte Pitfalls, jeder mit konkretem Repo-Präzedenzfall + benannter Requirement + Success-Criterion. Nur Pitfall 2 (Snapshot-Bump) bleibt bewusst offen. |
+| Stack | HIGH | Every claim cites a specific file/line read directly in this repo; no ecosystem research needed since the question was "what does this repo already do." |
+| Features | MEDIUM | Current-app claims are HIGH (verified by reading code); external UX precedents (Salesforce, Auth0, Keycloak, GitLab) are vendor-docs/issue-tracker sourced, self-assessed without the usual `gsd-tools` confidence-classification tooling (Node runtime unavailable this session). |
+| Architecture | HIGH | All findings grounded in code read this session (`main.rs`, service/DAO traits, `reporting.rs` call chains fully traced); two items explicitly flagged MEDIUM/uncertain within the doc itself (DTO `kind`-enum decision, whether a new service is truly needed vs. an added method). |
+| Pitfalls | HIGH | Grounded entirely in this repo's own migrations, code, and `RETROSPECTIVE.md` cross-milestone lessons — no external/generic pitfall sources used. |
 
-**Overall confidence:** HIGH — mit einer expliziten Ausnahme (Snapshot-Bump-Entscheidung, siehe Divergenz 2).
+**Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **Snapshot-Schema-Version 12→13 Bump ja/nein** (Divergenz 2 oben): in F4-discuss-phase pinnen. Beweislast beim „Nein"-Zweig = Straddling-Golden-Snapshot-Fixture.
-- **F1-Denominator-Definition** (D-F1-01): „Wochen mit gültiger `working_hours`-Zeile absence-adjusted" (AVG-01 A-22-1) vs. simpler „contract-weeks in Jahr". In Phase 54 discuss-phase pinnen.
-- **F2-Soll-Berechnung bei Mid-Week-Vertragswechsel** (D-F2-XX): Optionen A/B/C, Empfehlung: reuse `WorkingHoursService::get_working_hours_for_week`-Semantik.
-- **F5-Stale-Vorschlag-Strategie**: Fingerprint (`state_fingerprint` auf Suggestion + 409 bei Divergenz) vs. Claim-on-Suggest (`rebooking_batch(kind=hr_suggestion, state=pending)` beansprucht die UNIQUE-Slot sofort, F4 skipt). Empfehlung: Claim-on-Suggest — löst zusätzlich Pitfall 6 „von der anderen Seite".
-- **F4-Cron-Cadence + Uhrzeit**: ARCHITECTURE schlägt Montag 03:00 vor. Konflikt mit `PdfExportScheduler` (welche Uhrzeit?) in discuss-phase klären.
-- **UNIQUE-Constraint-Shape**: `(sales_person_id, iso_year, iso_week)` (globale Wochen-Sperre für alle Kinds) vs. `(kind, sales_person_id, iso_year, iso_week)` (HR-Suggestion kann Auto-Cron ersetzen). Empfehlung: erstere, klarer Fehler-Fall + einfachere Idempotenz.
-- **F5-Alert-Edge-Case bei balance ≈ 0**: F5 alertet ab „negativer Balance" — Threshold-Frage: `balance < 0` (strikt) oder `balance <= -0.5h` (Rundungs-Toleranz)? Pure-fn-Predicate-Test-Matrix in Phase 55 discuss-phase.
+- **The "unlinked candidates" backend endpoint is unscoped** — flagged above under Unscoped Work; must be sized into Phase 61 explicitly, not discovered mid-implementation.
+- **Section-level role gating's exact DTO/permission mechanism is undecided** — flagged as needing a discuss-phase decision, not resolvable from research alone.
+- **The reduction-pipeline formula equivalence between `assemble_weeks` and `get_reports_for_all_employees` was not verified line-by-line** — ARCHITECTURE itself flags this as "should be re-read during planning to confirm... the two loops are independently written and could have subtly diverged."
+- **FEATURES.md's confidence is MEDIUM rather than HIGH** due to unavailable tooling this session (no Node/`gsd-tools` runtime) — the external-precedent citations should be treated as directional (badge+filter pattern, modal-with-two-actions pattern) rather than as strong evidence; the current-app analysis within the same document is fully reliable.
 
 ## Sources
 
-### Primary (HIGH confidence)
-- Repo-internal: `.planning/PROJECT.md` §„Current Milestone: v2.6" (F1..F5-Charter, Fat-Backend-Prinzip, Snapshot-Version=12).
-- Repo-internal: `shifty-backend/CLAUDE.md` (Service-Tier-Konvention, Snapshot-Bump-Kontrakt, Docs-Freshness-Gate, `gen_service_impl!`-Muster, sqlx-prepare-Gate).
-- Repo-internal: `.planning/milestones/v1.4-REQUIREMENTS.md` (committed_voluntary, CVC-05 no-bump precedent, CVC-06 no-leak precedent).
-- Repo-internal: `.planning/milestones/v1.5-REQUIREMENTS.md` (Employee-Year-Report YV-01..03, STAT-01/02, A-22-1 Formel, UV-04/05 double-count Snapshot 9→10).
-- Repo-internal: `.planning/milestones/v1.7-REQUIREMENTS.md` (HCFG-01/02/03 Stichtag-Präzedenz, HSNAP-01 Snapshot-Bump 10→11, HOL-03/VFA-02 Asymmetry-Regression-Guard).
-- Repo-internal: `.planning/milestones/v1.8-REQUIREMENTS.md` (VAC-OFFSET-01 HR-Only-API-Level-Redaction, Snapshot 11→12).
-- Repo-internal: `.planning/milestones/v2.1-REQUIREMENTS.md` (AVG-01 Read-Aggregate + HR-Gate + `is_dynamic`-Filter, WeekStatus TOCTOU-Präzedenz).
-- Repo-internal: `.planning/milestones/v2.2-REQUIREMENTS.md` (EXP-01/02/03 `tokio_cron_scheduler` + Admin-Gate, RPT-01..03 Compute-Pattern, v2.3.1 Cron-Syntax-Hotfix 5→6-Feld).
-- Repo-internal: `.planning/milestones/v2.4-REQUIREMENTS.md` (SHC-04 `shortday_slot_clipping_active_from` Stichtag mit Chain-A'/B/C/D-Matrix).
-- Repo-internal: `.planning/milestones/v2.5-REQUIREMENTS.md` (VAA-01..04 D-53-02 cap-gated Formel, `find_by_iso_year`-Pattern, WOP-Follow-up #3 `_iso_year`-Helper, additive DTO + `#[serde(default)]`).
-- Repo-internal: `service_impl/src/pdf_export_scheduler.rs` (Blueprint für `VoluntaryRebookingScheduler`).
-- Repo-internal: `service_impl/src/reporting.rs` (Standort für neue pure fn `committed_voluntary_target_for_year`; Präzedenz-Helper).
-- Repo-internal: `service_impl/src/extra_hours.rs` (`Authentication::Full` internal-caller pattern).
-- Repo-internal: `service_impl/src/booking_information.rs` (BL-liest-BL-Präzedenz).
-- Repo-internal: `service/src/extra_hours.rs` (`ExtraHoursCategory::VolunteerWork` + `::ExtraWork` als Pair-Ziel).
-- Repo-internal: `service_impl/src/billing_period_report.rs::CURRENT_SNAPSHOT_SCHEMA_VERSION` (aktuell 12).
-- Repo-internal: `Cargo.lock` (verified `tokio-cron-scheduler 0.15.1`, `sqlx 0.8.6`, `time 0.3.36`, `mockall 0.13`).
+### Primary (HIGH confidence — code/docs read directly in this repo)
+- `Cargo.toml`, `dao/Cargo.toml`, `dao_impl_sqlite/Cargo.toml`, `rest-types/Cargo.toml`, `service_impl/Cargo.toml`, `shifty_bin/Cargo.toml` — dependency versions.
+- `migrations/sqlite/20240506114107_add_sales_person.sql`, `20240426150045_user-roles.sql`, `20260330000000_add-shiftplan-table.sql`, `20251017044013_add-session-tracking-to-user-invitation.sql`, `20260428101456_add-logical-id-to-extra-hours.sql`, `20260707000001_add-source-column-to-extra-hours.sql`, `20260503000000_create-absence-migration-quarantine.sql`, `20260503000001_create-absence-period-migration-source.sql` — schema precedents and backfill-pattern precedents.
+- `dao_impl_sqlite/src/sales_person.rs`, `dao/src/sales_person.rs`, `service/src/sales_person.rs`, `service_impl/src/sales_person.rs`, `rest/src/sales_person.rs`, `dao_impl_sqlite/src/lib.rs` — full `sales_person_user` blast-radius enumeration.
+- `service_impl/src/reporting.rs` (`weight_for_week`, `assemble_weeks`, `get_reports_for_all_employees`, `hours_per_week`, `get_week`), `service/src/reporting.rs`, `rest-types/src/lib.rs`, `rest/src/report.rs`, `service_impl/src/booking_information.rs`, `shifty-dioxus/src/loader.rs` — Planungs-Soll injection-point trace.
+- `shifty_bin/src/main.rs`, `docs/architecture/02-service-tiers.md`, `CLAUDE.md` — DI ordering and service-tier convention.
+- `shifty-dioxus/src/page/user_management.rs`, `user_details.rs`, `sales_person_details.rs`, `Dioxus.toml` — current-UI state and dev-proxy allowlist.
+- `.planning/RETROSPECTIVE.md`, `.planning/PROJECT.md`, `.planning/seeds/personenverwaltung-zusammenlegen.md`, `.planning/todos/pending/2026-09-15-sollstunden-fehlen-bei-dynamischen-vertraegen-unter-schichtplan.md`, `.planning/milestones/v2.6-MILESTONE-AUDIT.md` — cross-milestone lessons, locked seed decisions, bug-report root cause.
 
-### Secondary (HIGH confidence, MEMORY.md-verankert)
-- MEMORY `feedback_atomic_repoint_no_double_count.md`.
-- MEMORY `feedback_stichtag_rollout_legacy_semantics.md`.
-- MEMORY `reference_toggle_service_full_context_bypass.md`.
-- MEMORY `feedback_docs_always_current_no_followup.md`.
-- MEMORY `feedback_dioxus_proxy_for_new_backend_endpoints.md`.
-- MEMORY `reference_dioxus_browser_test_date_inputs.md` + `reference_dioxus_browser_verify_reports.md`.
-- MEMORY `feedback_verify_backend_roundtrip_e2e.md`.
-- MEMORY `feedback_fat_backend_thin_client.md`.
-- MEMORY `reference_sqlx_prepare_after_new_query.md`.
-
-### Tertiary (LOW confidence)
-- Keine Web-only-Behauptungen ohne Repo-Präzedenz.
+### Secondary (MEDIUM confidence)
+- Salesforce Help — Person Accounts / Account Fields — "one UI record, blended fields by shape" pattern.
+- Auth0 Docs — User Account Linking — unlink-confirmation-copy recommendation.
+- PingIdentity — Multi-Account Linking — used to confirm multi-linking is enterprise-scale, not needed here.
+- Keycloak GitHub Issue #45704 — "create new vs link existing" ambiguity, basis for modal-with-two-actions recommendation.
+- GitLab Docs/Work Item #262876, GitHub REST API org-members docs — badge+filter pattern, "pending/no-account" as first-class filterable state.
 
 ---
-*Research completed: 2026-07-06*
-*Ready for roadmap: yes (mit zwei explizit offenen DISCUSS-Decisions: Snapshot-Bump + Phase-Dekomposition-Wahl)*
+*Research completed: 2026-09-16*
+*Ready for roadmap: yes*
