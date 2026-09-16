@@ -1,7 +1,7 @@
 ---
 phase: 60
 slug: person-datenmodell-backfill
-status: draft
+status: planned
 nyquist_compliant: false
 wave_0_complete: false
 created: 2026-09-16
@@ -78,19 +78,24 @@ Der Executor trägt Task-IDs und Status nach.*
 
 | Task ID | Plan | Wave | Requirement | Invariante | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------|-------------------|-------------|--------|
-| TBD | 01 | 1 | PERS-01 | I-12 | schema | `person_backfill::person_table_has_no_deleted_column` (PRAGMA `table_info`) | ❌ neu | ⬜ pending |
-| TBD | 01 | 1 | PERS-04 | I-7 | schema | `person_backfill::sales_person_index_is_not_partial` (`sqlite_master`-SQL enthält **kein** `WHERE`) | ❌ neu | ⬜ pending |
-| TBD | 01 | 1 | PERS-01 | I-1, I-2 | integration | `SQLX_OFFLINE=true cargo test -p service_impl person_backfill::full_identity_coverage` | ❌ neu | ⬜ pending |
-| TBD | 01 | 1 | PERS-01 | I-3 | integration | `person_backfill::count_identity_holds` (Zählprobe nach `sqlx::migrate!`) | ❌ neu | ⬜ pending |
-| TBD | 01 | 1 | PERS-01 | I-3 | integration (negativ) | `person_backfill::migration_aborts_on_count_mismatch` — Selbst-Assertion aus D-60-07 muss bei manipulierter Fixture **fehlschlagen** | ❌ neu | ⬜ pending |
-| TBD | 01 | 1 | PERS-03 | I-5 | integration + Fixture | `SQLX_OFFLINE=true cargo test -p service_impl person_backfill::soft_deleted_sales_person_gets_person_id` | ❌ neu | ⬜ pending |
-| TBD | 01 | 1 | PERS-01 | I-8 | integration + Fixture | `person_backfill::hr_user_without_sales_person` und `person_backfill::volunteer_without_user` — je eigene Person, **kein** automatisches Anlegen der Gegenseite | ❌ neu | ⬜ pending |
-| TBD | 01 | 1 | PERS-02 | I-4 | integration (Apply-twice via `sqlx::raw_sql`) | `SQLX_OFFLINE=true cargo test -p service_impl person_backfill::apply_twice_is_noop` | ❌ neu | ⬜ pending |
-| TBD | 01 | 1 | PERS-04 | I-6 | integration (DB-Level-Ablehnung) | `SQLX_OFFLINE=true cargo test -p service_impl person_backfill::duplicate_person_id_rejected_by_db` (beide Seiten: `sales_person` **und** `user`) | ❌ neu | ⬜ pending |
-| TBD | 01 | 1 | PERS-06 | I-9 | regression | `SQLX_OFFLINE=true cargo test --workspace` — bestehende Suite bleibt grün | ✅ | ⬜ pending |
-| TBD | 01 | 1 | PERS-06 | I-10 | grep-Lock | `grep -n "CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 13" service_impl/src/billing_period_report.rs` | ✅ (Check neu) | ⬜ pending |
-| TBD | 01 | 1 | PERS-06 | I-11 | schema | `grep -L "DROP TABLE.*sales_person_user" migrations/sqlite/*.sql` bzw. `sqlite_master`-Assertion im Testmodul | ✅ | ⬜ pending |
-| TBD | 02 | 2 | PERS-01 … PERS-06 | I-1 … I-12 | docs-gate | `docs/architecture/03-data-model.md` + `03-data-model_de.md` + `diagrams/db-schema-er.mmd` + passende `docs/features/F*.md` (EN **und** DE) im selben Commit aktualisiert | ✅ (Dateien existieren) | ⬜ pending |
+| 60-01-T2 | 01 | 1 | PERS-01..03 | I-1..I-8 | RED-Gate | `SQLX_OFFLINE=true cargo test -p service_impl person_backfill` meldet `test result: FAILED` (Tests kompilieren, scheitern inhaltlich) | ❌ neu | ⬜ pending |
+| 60-01-T3 | 01 | 1 | PERS-01 | I-1, I-2 | integration | `SQLX_OFFLINE=true cargo test -p service_impl person_backfill::full_identity_coverage` | ✅ (60-01-T2) | ⬜ pending |
+| 60-01-T3 | 01 | 1 | PERS-01 | I-3 | integration | `SQLX_OFFLINE=true cargo test -p service_impl person_backfill::count_identity_holds` | ✅ (60-01-T2) | ⬜ pending |
+| 60-01-T3 | 01 | 1 | PERS-01 | I-3 | integration (negativ) | `SQLX_OFFLINE=true cargo test -p service_impl person_backfill::migration_aborts_on_count_mismatch` — Selbst-Assertion (D-60-07) muss bei manipulierter Fixture `Err` liefern | ✅ (60-01-T2) | ⬜ pending |
+| 60-01-T3 | 01 | 1 | PERS-03 | I-5 | integration + Fixture | `SQLX_OFFLINE=true cargo test -p service_impl person_backfill::soft_deleted_sales_person_gets_person_id` | ✅ (60-01-T2) | ⬜ pending |
+| 60-01-T3 | 01 | 1 | PERS-01 | I-8 | integration + Fixture | `person_backfill::hr_user_without_sales_person` und `person_backfill::volunteer_without_user` — je eigene Person, **kein** automatisches Anlegen der Gegenseite | ✅ (60-01-T2) | ⬜ pending |
+| 60-01-T3 | 01 | 1 | PERS-02 | I-4 | integration (Apply-twice via `sqlx::raw_sql`) | `SQLX_OFFLINE=true cargo test -p service_impl person_backfill::apply_twice_is_noop` | ✅ (60-01-T2) | ⬜ pending |
+| 60-01-T3 | 01 | 1 | PERS-01 | RESEARCH Frage 4 | integration | `SQLX_OFFLINE=true cargo test -p service_impl person_backfill::person_id_parses_as_uuid` — `randomblob(16)` ist bitkompatibel mit `Uuid::from_slice` | ✅ (60-01-T2) | ⬜ pending |
+| 60-02-T1 | 02 | 2 | PERS-04 | I-6 | integration (DB-Level-Ablehnung) | `person_backfill::duplicate_person_id_rejected_by_db_sales_person` und `::duplicate_person_id_rejected_by_db_user` (beide Seiten) | ❌ neu | ⬜ pending |
+| 60-02-T1 | 02 | 2 | PERS-04 | I-8 | integration (Gegenprobe) | Mehrere Zeilen mit leerem `person_id` koexistieren weiterhin — der Unique-Index bricht D-60-03 nicht | ❌ neu | ⬜ pending |
+| 60-02-T2 | 02 | 2 | PERS-04 | I-7 | schema | `person_backfill::sales_person_index_is_not_partial` und `::user_index_is_not_partial` (`sqlite_master`-SQL enthält **kein** `WHERE`) | ❌ neu | ⬜ pending |
+| 60-02-T2 | 02 | 2 | PERS-01 | I-12 | schema | `person_backfill::person_table_has_no_deleted_column` und `::person_table_has_only_identity_and_audit_columns` (PRAGMA `table_info`) | ❌ neu | ⬜ pending |
+| 60-02-T2 | 02 | 2 | PERS-06 | I-9 | integration | `person_backfill::legacy_keys_are_bit_identical_after_backfill` — `sales_person.id` bytegleich, `user.name` zeichengleich, Snapshot-Zeile löst unverändert auf | ❌ neu | ⬜ pending |
+| 60-02-T2 | 02 | 2 | PERS-06 | I-11 | schema | `person_backfill::sales_person_user_table_survives_migration` (Tabelle + beide UNIQUE-Klauseln aus `sqlite_master`) | ❌ neu | ⬜ pending |
+| 60-02-T2 | 02 | 2 | PERS-06 | I-9 | regression | `SQLX_OFFLINE=true cargo test --workspace` — bestehende Suite bleibt grün | ✅ | ⬜ pending |
+| 60-02-T2 | 02 | 2 | PERS-06 | I-10 | grep-Lock | `grep -c "CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 13" service_impl/src/billing_period_report.rs` == 1 | ✅ (Check neu) | ⬜ pending |
+| 60-03-T1 | 03 | 2 | PERS-01, PERS-04, PERS-06 | I-1 … I-12 | docs-gate | `docs/architecture/03-data-model.md` + `03-data-model_de.md` + `diagrams/db-schema-er.mmd` aktualisiert; `grep -q 'PERSON ||--o| SALES_PERSON'` und `grep -q 'PERSON ||--o| USER'` | ✅ (Dateien existieren) | ⬜ pending |
+| 60-03-T2 | 03 | 2 | PERS-01, PERS-04, PERS-06 | I-1 … I-12 | docs-gate | `docs/features/F01-employee-management.md` + `_de.md` **und** `docs/features/F12-auth-session.md` + `_de.md` im selben Commit-Bereich (`git diff --name-only`) | ✅ (Dateien existieren) | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -105,8 +110,9 @@ Diese Phase hat echte Wave-0-Lücken — das Testmodul existiert noch nicht:
 
 - [ ] `migrations/sqlite/<ts>_create-person-backfill.sql` — die Migration selbst
       (Dateiname + Zeitstempel sind Planer-Ermessen, CONTEXT.md „Claude's Discretion")
-- [ ] `service_impl/src/test/person_backfill.rs` — neues Testmodul; deckt alle
-      Testfälle der Verification Map ab. Kein bestehendes File deckt das ab.
+- [x] Ablage entschieden: `service_impl/src/test/person_backfill.rs` — neues Testmodul
+      (Plan 60-01 Task 2 legt es mit acht Tests an, Plan 60-02 ergänzt acht weitere).
+      Kein bestehendes File deckt das ab.
 - [ ] Registrierung des Moduls dort, wo `rebooking_batch_state` registriert ist
       (`service_impl/src/test/mod.rs` — Muster übernehmen)
 - [ ] Fixture-Helfer für die drei Ausprägungen, roh per SQL nach dem Muster von
@@ -145,4 +151,4 @@ und Backfill-Phase ohne API-Wirkung"), daher keine UI-Verifikation.*
 - [ ] Docs-Freshness-Gate erfüllt (EN **und** DE im selben Commit)
 - [ ] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** geplant 2026-09-16 — Task-IDs vergeben (3 Pläne, 2 Wellen, 7 Tasks)

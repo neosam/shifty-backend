@@ -263,7 +263,12 @@ API-Wirkung (GSD-Scope-Regel, begründete Ausnahme).
 Präzedenz in diesem Repo (nullable `ALTER TABLE ADD COLUMN`, SQL-only-Backfill,
 `randomblob(16)`).
 
-**Plans:** TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 60-01-PLAN.md — Migration `20260916000000_create-person-backfill.sql`: `person`-Tabelle, beide nullable `person_id`-Spalten, beide vollständigen Unique-Indizes, idempotenter Backfill inkl. soft-gelöschter Sales Persons, Selbst-Assertion (TDD: RED→GREEN; Entscheidungs-Gate für D-60-01 one-way)
+- [ ] 60-02-PLAN.md — DB-Level-Ablehnungstests für die 1:1-Garantie plus Schema- und Erhaltungs-Locks (Index vollständig, `person`-Spaltensatz, `sales_person_user` unangetastet, Legacy-Schlüssel bitgleich, Snapshot-Version 13)
+- [ ] 60-03-PLAN.md — Docs-Freshness-Gate: `03-data-model.md` + `_de.md`, `diagrams/db-schema-er.mmd`, `F01-employee-management` und `F12-auth-session` je EN + DE
 
 ---
 
