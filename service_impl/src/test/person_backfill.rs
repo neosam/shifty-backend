@@ -561,3 +561,175 @@ async fn person_id_parses_as_uuid() {
         Uuid::from_slice(&bytes).expect("person.id muss mit Uuid::from_slice parsebar sein");
     }
 }
+
+// ─── Plan 60-02, Task 1: DB-Level-Ablehnung der Doppel-Identitaet ───────────
+
+/// I-6 (PERS-04 / SC4), Seite Sales Person.
+///
+/// Der Angriff wird als direkter `UPDATE` gefahren — nicht ueber eine
+/// Applikationspruefung, denn in Phase 60 gibt es dorthin gar keinen
+/// Applikationspfad (D-60-10). Bewusst NICHT ueber eine
+/// Fremdschluessel-Verletzung: die Fremdschluessel-Durchsetzung ist in diesem
+/// Repo nirgends eingeschaltet, ein FK-basierter Test wuerde lautlos bestehen
+/// und nichts beweisen (D-60-06).
+#[tokio::test]
+async fn duplicate_person_id_rejected_by_db_sales_person() {
+    let pool = setup_pool().await;
+
+    let first = Uuid::new_v4();
+    let second = Uuid::new_v4();
+    seed_sales_person(pool.as_ref(), first, "Erste Verkaeuferin", None).await;
+    seed_sales_person(pool.as_ref(), second, "Zweite Verkaeuferin", None).await;
+
+    run_backfill_section(pool.as_ref())
+        .await
+        .expect("Backfill-Abschnitt muss durchlaufen");
+
+    let first_person_id = person_id_of_sales_person(pool.as_ref(), first)
+        .await
+        .expect("Vorbedingung I-6: die erste Sales Person muss eine person_id tragen");
+    let second_person_id = person_id_of_sales_person(pool.as_ref(), second)
+        .await
+        .expect("Vorbedingung I-6: die zweite Sales Person muss eine person_id tragen");
+    assert_ne!(
+        first_person_id, second_person_id,
+        "Vorbedingung I-6: zwei unverknuepfte Sales Persons muessen auf zwei verschiedene \
+         Personen zeigen — sonst waere der Doppel-Link-Versuch unten gar kein Versuch"
+    );
+
+    let result = sqlx::query("UPDATE sales_person SET person_id = ?1 WHERE id = ?2")
+        .bind(first_person_id.clone())
+        .bind(second.as_bytes().to_vec())
+        .execute(pool.as_ref())
+        .await;
+
+    assert!(
+        result.is_err(),
+        "I-6/PERS-04: die Datenbank muss zwei sales_person-Zeilen auf derselben person.id \
+         ablehnen — Ergebnis war: {result:?}"
+    );
+    let err = result.unwrap_err();
+    let is_database_error = matches!(err, sqlx::Error::Database(_));
+    assert!(
+        is_database_error,
+        "I-6: die Ablehnung muss von der Datenbank kommen (sqlx::Error::Database), \
+         nicht von einer Applikationsschicht — Fehler war: {err:?}"
+    );
+    assert!(
+        err.to_string().to_lowercase().contains("unique"),
+        "I-6/D-60-05: die Ablehnung muss aus dem UNIQUE-Index stammen — Fehlertext war: {err}"
+    );
+
+    let unchanged = person_id_of_sales_person(pool.as_ref(), second).await;
+    assert_eq!(
+        unchanged,
+        Some(second_person_id),
+        "I-6: die abgelehnte Schreibung darf nichts halb geschrieben haben — die zweite \
+         Zeile muss ihre urspruengliche person_id behalten"
+    );
+
+    // Gegenprobe (D-60-03 / T-60-12): der vollstaendige UNIQUE-Index verbietet
+    // NICHT mehrere Zeilen ohne Person-Zuordnung. SQLite behandelt leere Werte
+    // in einem UNIQUE-Index als verschieden. Genau darauf beruht die dauerhafte
+    // Optionalitaet beider Spalten — und es deckt D-60-10 ab: Zeilen, die nach
+    // der Migration entstehen, bekommen in Phase 60 bewusst noch keine Person.
+    let third = Uuid::new_v4();
+    let fourth = Uuid::new_v4();
+    seed_sales_person(pool.as_ref(), third, "Dritte ohne Person", None).await;
+    seed_sales_person(pool.as_ref(), fourth, "Vierte ohne Person", None).await;
+
+    assert_eq!(
+        person_id_of_sales_person(pool.as_ref(), third).await,
+        None,
+        "D-60-10: eine nach der Migration angelegte sales_person bekommt keine person_id"
+    );
+    let unassigned = count(
+        pool.as_ref(),
+        "SELECT COUNT(*) FROM sales_person WHERE person_id IS NULL",
+    )
+    .await;
+    assert_eq!(
+        unassigned, 2,
+        "D-60-03: zwei sales_person-Zeilen ohne Person-Zuordnung muessen gleichzeitig \
+         existieren duerfen — der vollstaendige UNIQUE-Index darf die Optionalitaet nicht brechen"
+    );
+}
+
+/// I-6b (PERS-04 / SC4, D-60-02), Seite Benutzer.
+#[tokio::test]
+async fn duplicate_person_id_rejected_by_db_user() {
+    let pool = setup_pool().await;
+
+    let first = "erster-benutzer";
+    let second = "zweiter-benutzer";
+    seed_user(pool.as_ref(), first).await;
+    seed_user(pool.as_ref(), second).await;
+
+    run_backfill_section(pool.as_ref())
+        .await
+        .expect("Backfill-Abschnitt muss durchlaufen");
+
+    let first_person_id = person_id_of_user(pool.as_ref(), first)
+        .await
+        .expect("Vorbedingung I-6b: der erste Benutzer muss eine person_id tragen");
+    let second_person_id = person_id_of_user(pool.as_ref(), second)
+        .await
+        .expect("Vorbedingung I-6b: der zweite Benutzer muss eine person_id tragen");
+    assert_ne!(
+        first_person_id, second_person_id,
+        "Vorbedingung I-6b: zwei unverknuepfte Benutzer muessen auf zwei verschiedene \
+         Personen zeigen"
+    );
+
+    let result = sqlx::query("UPDATE user SET person_id = ?1 WHERE name = ?2")
+        .bind(first_person_id.clone())
+        .bind(second)
+        .execute(pool.as_ref())
+        .await;
+
+    assert!(
+        result.is_err(),
+        "I-6b/PERS-04/D-60-02: die Datenbank muss zwei user-Zeilen auf derselben person.id \
+         ablehnen — Ergebnis war: {result:?}"
+    );
+    let err = result.unwrap_err();
+    let is_database_error = matches!(err, sqlx::Error::Database(_));
+    assert!(
+        is_database_error,
+        "I-6b: die Ablehnung muss von der Datenbank kommen (sqlx::Error::Database) — \
+         Fehler war: {err:?}"
+    );
+    assert!(
+        err.to_string().to_lowercase().contains("unique"),
+        "I-6b/D-60-05: die Ablehnung muss aus dem UNIQUE-Index stammen — Fehlertext war: {err}"
+    );
+
+    let unchanged = person_id_of_user(pool.as_ref(), second).await;
+    assert_eq!(
+        unchanged,
+        Some(second_person_id),
+        "I-6b: die abgelehnte Schreibung darf nichts halb geschrieben haben"
+    );
+
+    // Gegenprobe (D-60-03 / T-60-12): reine HR-/Admin-Accounts ohne Sales
+    // Person bleiben dauerhaft anlegbar, auch mehrere gleichzeitig ohne
+    // Person-Zuordnung.
+    seed_user(pool.as_ref(), "dritter-benutzer-ohne-person").await;
+    seed_user(pool.as_ref(), "vierter-benutzer-ohne-person").await;
+
+    assert_eq!(
+        person_id_of_user(pool.as_ref(), "dritter-benutzer-ohne-person").await,
+        None,
+        "D-60-10: ein nach der Migration angelegter user bekommt keine person_id"
+    );
+    let unassigned = count(
+        pool.as_ref(),
+        "SELECT COUNT(*) FROM user WHERE person_id IS NULL",
+    )
+    .await;
+    assert_eq!(
+        unassigned, 2,
+        "D-60-03: zwei user-Zeilen ohne Person-Zuordnung muessen gleichzeitig existieren \
+         duerfen — Freiwillige ohne Login und HR-Accounts ohne Sales Person bleiben anlegbar"
+    );
+}
