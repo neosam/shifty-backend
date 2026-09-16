@@ -1,5 +1,5 @@
-//! Phase 60 Plan 01 (PERS-01 / PERS-02 / PERS-03) — Integrationstests fuer die
-//! Migration `20260916000000_create-person-backfill.sql`.
+//! Phase 60 Plan 01 + 02 (PERS-01 … PERS-04, PERS-06) — Integrationstests fuer
+//! die Migration `20260916000000_create-person-backfill.sql`.
 //!
 //! Die Tests fahren gegen eine echte SQLite-in-memory-DB (`sqlx::migrate!`) und
 //! gegen rohes SQL — bewusst ohne Service/DAO, weil Phase 60 laut D-60-10 keinen
@@ -30,6 +30,36 @@
 //! - **RESEARCH Frage 4:** Jeder erzeugte `person.id`-Wert ist mit
 //!   `Uuid::from_slice()` parsebar — Vorab-Absicherung fuer den `PersonDao` in
 //!   Phase 61 (`person_id_parses_as_uuid`).
+//!
+//! Ergaenzt in Plan 60-02 (Regressionsschutz fuer die von der Datenbank
+//! erzwungenen Invarianten):
+//!
+//! - **I-6 / I-6b** (PERS-04/SC4): Ein direkter SQL-Schreibversuch, zwei
+//!   `sales_person`- bzw. zwei `user`-Zeilen auf dieselbe `person.id` zeigen zu
+//!   lassen, wird **von der Datenbank** abgelehnt — ueber den eindeutigen Index,
+//!   nicht ueber einen Fremdschluessel und nicht ueber eine Applikationspruefung
+//!   (D-60-05, D-60-06). Die Gegenprobe in denselben Tests zeigt, dass mehrere
+//!   Zeilen ohne Person-Zuordnung weiterhin koexistieren duerfen (D-60-03,
+//!   D-60-10) — `duplicate_person_id_rejected_by_db_sales_person`,
+//!   `duplicate_person_id_rejected_by_db_user`.
+//! - **I-7 / I-7b** (D-60-01, D-60-02): Beide eindeutigen Indizes sind
+//!   **vollstaendig**, nicht partiell — gelesen aus der gespeicherten Definition,
+//!   nicht aus dem Quelltext der Migration (`sales_person_index_is_not_partial`,
+//!   `user_index_is_not_partial`).
+//! - **I-9** (PERS-06/SC5): `sales_person.id` bleibt bytegleich, `user.name`
+//!   zeichengleich, und ein bestehender Abrechnungs-Snapshot loest unveraendert
+//!   auf (`legacy_keys_are_bit_identical_after_backfill`).
+//! - **I-11** (PERS-06): `sales_person_user` ueberlebt die Migration inklusive
+//!   beider UNIQUE-Klauseln (`sales_person_user_table_survives_migration`).
+//! - **I-12** (D-60-04): `person` traegt genau `id`, `created`,
+//!   `update_process`, `update_version` — keine Soft-Delete- und keine
+//!   Namensspalte (`person_table_has_no_deleted_column`,
+//!   `person_table_has_only_identity_and_audit_columns`).
+//!
+//! **I-10** (`CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt 13) ist bewusst KEIN
+//! Rust-Test: eine Konstante gegen sich selbst zu pruefen beweist nichts. Der
+//! Lock sitzt in den Acceptance Criteria und im Phasen-Gate; die Datei
+//! `billing_period_report.rs` wird in Phase 60 gar nicht angefasst.
 
 use std::sync::Arc;
 
@@ -731,5 +761,276 @@ async fn duplicate_person_id_rejected_by_db_user() {
         unassigned, 2,
         "D-60-03: zwei user-Zeilen ohne Person-Zuordnung muessen gleichzeitig existieren \
          duerfen — Freiwillige ohne Login und HR-Accounts ohne Sales Person bleiben anlegbar"
+    );
+}
+
+// ─── Plan 60-02, Task 2: Schema- und Erhaltungs-Locks ──────────────────────
+
+/// Liest die Spaltennamen einer Tabelle ueber `PRAGMA table_info`.
+async fn table_columns(pool: &sqlx::SqlitePool, table: &str) -> Vec<String> {
+    sqlx::query(format!("PRAGMA table_info({table})").as_str())
+        .fetch_all(pool)
+        .await
+        .expect("read table_info")
+        .into_iter()
+        .map(|row| row.get::<String, _>("name"))
+        .collect()
+}
+
+/// Liest die vom Datenbankmodul tatsaechlich gespeicherte DDL eines Objekts aus
+/// `sqlite_master`.
+///
+/// Bewusst NICHT per Quelltext-Suche in der Migrationsdatei: deren
+/// Kopfkommentar erklaert die Abweichung vom dominanten Repo-Muster in Prosa
+/// und enthaelt dabei Woerter wie `WHERE deleted IS NULL`, an denen eine naive
+/// Textsuche haengenbleiben wuerde. Die hier gelesene Definition ist dagegen
+/// exakt die Klausel, die SQLite durchsetzt.
+async fn stored_ddl(pool: &sqlx::SqlitePool, kind: &str, name: &str) -> String {
+    sqlx::query("SELECT sql FROM sqlite_master WHERE type = ?1 AND name = ?2")
+        .bind(kind)
+        .bind(name)
+        .fetch_optional(pool)
+        .await
+        .expect("read sqlite_master")
+        .unwrap_or_else(|| panic!("{kind} '{name}' existiert nach dem Migrationslauf nicht"))
+        .get::<Option<String>, _>("sql")
+        .unwrap_or_else(|| panic!("{kind} '{name}' hat keine gespeicherte Definition"))
+}
+
+/// Normalisiert eine DDL auf einfache Leerzeichen, damit Praefix-Vergleiche
+/// unabhaengig von Zeilenumbruechen und Einrueckung sind.
+fn normalized_ddl(ddl: &str) -> String {
+    ddl.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// I-12 (D-60-04): `person` traegt keine Soft-Delete-Spalte.
+///
+/// Eine ungenutzte `deleted`-Spalte laedt zu halb implementierter Semantik ein;
+/// in v2.7 wird keine Person geloescht.
+#[tokio::test]
+async fn person_table_has_no_deleted_column() {
+    let pool = setup_pool().await;
+
+    let columns = table_columns(pool.as_ref(), "person").await;
+
+    assert!(
+        !columns.is_empty(),
+        "Vorbedingung I-12: die Tabelle person muss nach dem Migrationslauf existieren"
+    );
+    assert!(
+        !columns.iter().any(|name| name == "deleted"),
+        "I-12/D-60-04: person darf KEINE deleted-Spalte tragen — gefunden: {columns:?}"
+    );
+}
+
+/// I-12 (D-60-04): `person` traegt genau Identitaet plus die 2026er
+/// Audit-Spalten — insbesondere keine Namensspalten (PERS-F-01 ist Future).
+#[tokio::test]
+async fn person_table_has_only_identity_and_audit_columns() {
+    let pool = setup_pool().await;
+
+    let mut columns = table_columns(pool.as_ref(), "person").await;
+    columns.sort();
+
+    let mut expected = vec![
+        "created".to_string(),
+        "id".to_string(),
+        "update_process".to_string(),
+        "update_version".to_string(),
+    ];
+    expected.sort();
+
+    assert_eq!(
+        columns, expected,
+        "I-12/D-60-04: person traegt genau id, created, update_process, update_version — \
+         keine Soft-Delete- und keine Namensspalte"
+    );
+}
+
+/// I-7 (D-60-01): Der eindeutige Index auf `sales_person.person_id` ist
+/// **vollstaendig**, nicht partiell.
+///
+/// Ein Fehlschlag hier verletzt eine one-way-Produktentscheidung, keine
+/// Stilfrage: soft-geloeschte Sales Persons behalten ihre Person-Identitaet
+/// dauerhaft. Eine spaetere Umstellung auf einen partiellen Index wuerde bereits
+/// vergebene Identitaeten neu binden und historische
+/// `billing_period_sales_person`-Snapshots einer anderen Person zuordnen.
+/// Gelesen wird die von `sqlite_master` gespeicherte Definition.
+#[tokio::test]
+async fn sales_person_index_is_not_partial() {
+    let pool = setup_pool().await;
+
+    let ddl = stored_ddl(pool.as_ref(), "index", "sales_person_person_id_unique_idx").await;
+    let upper = ddl.to_uppercase();
+
+    // Bewusst der Praefix und nicht `contains("UNIQUE")`: der Indexname selbst
+    // enthaelt `unique_idx`, eine blosse Teilstring-Suche waere damit vakuum-gruen
+    // und wuerde einen zu `CREATE INDEX` degradierten Index durchwinken.
+    assert!(
+        normalized_ddl(&upper).starts_with("CREATE UNIQUE INDEX"),
+        "I-7/D-60-05: der Index muss UNIQUE sein — Definition war: {ddl}"
+    );
+    assert!(
+        !upper.contains("WHERE"),
+        "I-7/D-60-01: der Index muss vollstaendig bleiben und darf KEINE Filterklausel \
+         tragen (one-way-Produktentscheidung, kein Aufraeum-Kandidat) — Definition war: {ddl}"
+    );
+}
+
+/// I-7b (D-60-02): dasselbe fuer `user_person_id_unique_idx`, gelesen aus
+/// `sqlite_master`.
+#[tokio::test]
+async fn user_index_is_not_partial() {
+    let pool = setup_pool().await;
+
+    let ddl = stored_ddl(pool.as_ref(), "index", "user_person_id_unique_idx").await;
+    let upper = ddl.to_uppercase();
+
+    // Siehe `sales_person_index_is_not_partial`: der Praefix ist die Aussage,
+    // nicht das Vorkommen des Wortes UNIQUE irgendwo in der Definition.
+    assert!(
+        normalized_ddl(&upper).starts_with("CREATE UNIQUE INDEX"),
+        "I-7b/D-60-05: der Index muss UNIQUE sein — Definition war: {ddl}"
+    );
+    assert!(
+        !upper.contains("WHERE"),
+        "I-7b/D-60-02: der Index muss vollstaendig bleiben und darf KEINE Filterklausel \
+         tragen — Definition war: {ddl}"
+    );
+}
+
+/// I-11 (PERS-06): `sales_person_user` ueberlebt die Migration unveraendert.
+///
+/// Die Tabelle ist die laufende Wahrheit, aus der der Backfill die Paare liest;
+/// ihre Aufloesung ist Phase-61-Scope. Bis die neuen Indizes die 1:1-Garantie
+/// nachweislich uebernommen haben, darf die alte Quelle nicht verschwinden
+/// (T-60-09). Gelesen aus `sqlite_master`.
+#[tokio::test]
+async fn sales_person_user_table_survives_migration() {
+    let pool = setup_pool().await;
+
+    let ddl = stored_ddl(pool.as_ref(), "table", "sales_person_user").await;
+    let normalized = ddl
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect::<String>()
+        .to_uppercase();
+
+    assert!(
+        normalized.contains("UNIQUE(SALES_PERSON_ID)"),
+        "I-11: die UNIQUE-Klausel auf sales_person_id muss erhalten bleiben — \
+         Definition war: {ddl}"
+    );
+    assert!(
+        normalized.contains("UNIQUE(USER_ID)"),
+        "I-11: die UNIQUE-Klausel auf user_id muss erhalten bleiben — Definition war: {ddl}"
+    );
+}
+
+/// I-9 (PERS-06 / SC5): Der Backfill schluesselt nichts um.
+///
+/// `sales_person.id` bleibt bytegleich und `user.name` zeichengleich; eine
+/// bestehende `billing_period_sales_person`-Zeile loest danach unveraendert auf
+/// dieselbe Sales Person auf. Eine Umschluesselung wuerde write-once-Snapshots
+/// neu binden (T-60-10).
+#[tokio::test]
+async fn legacy_keys_are_bit_identical_after_backfill() {
+    let pool = setup_pool().await;
+
+    let sales_person_id = Uuid::new_v4();
+    let user_name = "legacy-schluessel-benutzer";
+    seed_sales_person(pool.as_ref(), sales_person_id, "Legacy-Verkaeuferin", None).await;
+    seed_user(pool.as_ref(), user_name).await;
+    seed_link(pool.as_ref(), sales_person_id, user_name).await;
+    seed_billing_period_row(pool.as_ref(), sales_person_id).await;
+
+    let sales_person_ids_before = sqlx::query("SELECT id FROM sales_person ORDER BY id")
+        .fetch_all(pool.as_ref())
+        .await
+        .expect("read sales_person ids before")
+        .into_iter()
+        .map(|row| row.get::<Vec<u8>, _>("id"))
+        .collect::<Vec<_>>();
+    let user_names_before = sqlx::query("SELECT name FROM user ORDER BY name")
+        .fetch_all(pool.as_ref())
+        .await
+        .expect("read user names before")
+        .into_iter()
+        .map(|row| row.get::<String, _>("name"))
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        sales_person_ids_before,
+        vec![sales_person_id.as_bytes().to_vec()],
+        "Vorbedingung I-9: die Fixture muss genau die geseedete Sales Person enthalten"
+    );
+    assert_eq!(
+        user_names_before,
+        vec![user_name.to_string()],
+        "Vorbedingung I-9: die Fixture muss genau den geseedeten Benutzer enthalten"
+    );
+
+    run_backfill_section(pool.as_ref())
+        .await
+        .expect("Backfill-Abschnitt muss durchlaufen");
+
+    let sales_person_ids_after = sqlx::query("SELECT id FROM sales_person ORDER BY id")
+        .fetch_all(pool.as_ref())
+        .await
+        .expect("read sales_person ids after")
+        .into_iter()
+        .map(|row| row.get::<Vec<u8>, _>("id"))
+        .collect::<Vec<_>>();
+    let user_names_after = sqlx::query("SELECT name FROM user ORDER BY name")
+        .fetch_all(pool.as_ref())
+        .await
+        .expect("read user names after")
+        .into_iter()
+        .map(|row| row.get::<String, _>("name"))
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        sales_person_ids_before, sales_person_ids_after,
+        "I-9/PERS-06: sales_person.id muss nach dem Backfill bitgleich sein — der Backfill \
+         schreibt ausschliesslich person_id, niemals den Primaerschluessel"
+    );
+    assert_eq!(
+        user_names_before, user_names_after,
+        "I-9/PERS-06: user.name muss nach dem Backfill zeichengleich sein"
+    );
+
+    // Vorbedingung: der Backfill hat ueberhaupt etwas getan — sonst waere der
+    // Bitgleichheits-Vergleich oben trivial.
+    assert!(
+        person_id_of_sales_person(pool.as_ref(), sales_person_id)
+            .await
+            .is_some(),
+        "Vorbedingung I-9: der Backfill muss der Sales Person eine person_id gegeben haben"
+    );
+
+    // Der write-once-Snapshot loest unveraendert auf dieselbe Sales Person auf.
+    let resolved = count(
+        pool.as_ref(),
+        "SELECT COUNT(*) FROM billing_period_sales_person bpsp \
+         JOIN sales_person sp ON sp.id = bpsp.sales_person_id",
+    )
+    .await;
+    assert_eq!(
+        resolved, 1,
+        "I-9/SC5: die bestehende billing_period_sales_person-Zeile muss weiterhin auf \
+         dieselbe sales_person aufloesen"
+    );
+
+    let snapshot_owner = sqlx::query(
+        "SELECT sales_person_id FROM billing_period_sales_person LIMIT 1",
+    )
+    .fetch_one(pool.as_ref())
+    .await
+    .expect("read snapshot owner")
+    .get::<Vec<u8>, _>("sales_person_id");
+    assert_eq!(
+        snapshot_owner,
+        sales_person_id.as_bytes().to_vec(),
+        "I-9/SC5: der Snapshot zeigt unveraendert auf denselben Schluesselwert"
     );
 }
