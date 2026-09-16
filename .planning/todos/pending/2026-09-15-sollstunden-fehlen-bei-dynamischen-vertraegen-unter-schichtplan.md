@@ -2,6 +2,7 @@
 created: 2026-09-15T00:00:00.000Z
 title: Sollstunden fehlen bei dynamischen Verträgen in der Übersicht unterhalb des Schichtplans
 area: backend / reporting (+ frontend Anzeige)
+resolves_phase: 64
 files:
   - service_impl/src/reporting.rs:2184-2188 (weight_for_week — Ursache)
   - rest-types (ShortEmployeeReportTO — expected_hours / dynamic_hours)
