@@ -124,3 +124,5 @@ pub mod special_days;
 pub mod week_status;
 #[cfg(test)]
 pub mod shiftplan_report;
+#[cfg(test)]
+pub mod person_backfill;
