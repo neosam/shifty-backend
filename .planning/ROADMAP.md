@@ -281,7 +281,7 @@ Präzedenz in diesem Repo (nullable `ALTER TABLE ADD COLUMN`, SQL-only-Backfill,
 Plans:
 **Wave 1**
 
-- [ ] 60-01-PLAN.md — Migration `20260916000000_create-person-backfill.sql`: `person`-Tabelle, beide nullable `person_id`-Spalten, beide vollständigen Unique-Indizes, idempotenter Backfill inkl. soft-gelöschter Sales Persons, Selbst-Assertion (TDD: RED→GREEN; Entscheidungs-Gate für D-60-01 one-way)
+- [x] 60-01-PLAN.md — Migration `20260916000000_create-person-backfill.sql`: `person`-Tabelle, beide nullable `person_id`-Spalten, beide vollständigen Unique-Indizes, idempotenter Backfill inkl. soft-gelöschter Sales Persons, Selbst-Assertion (TDD: RED→GREEN; Entscheidungs-Gate für D-60-01 one-way)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 

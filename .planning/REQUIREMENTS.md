@@ -21,9 +21,9 @@ defined: 2026-09-16
 
 ### Person-Datenmodell (PERS)
 
-- [ ] **PERS-01**: Nach der Migration ist jede bestehende Sales Person und jeder bestehende Benutzer genau einer Person zugeordnet; wer heute über `sales_person_user` verknüpft ist, teilt sich danach dieselbe Person.
-- [ ] **PERS-02**: Die Backfill-Migration ist wiederholbar — ein zweiter Lauf erzeugt keine zusätzlichen `person`-Zeilen und keine Doppelzuordnung.
-- [ ] **PERS-03**: Der Backfill erfasst auch soft-gelöschte Sales Persons, damit Personen, die noch Abrechnungs-Snapshots besitzen, nicht ohne Person dastehen.
+- [x] **PERS-01**: Nach der Migration ist jede bestehende Sales Person und jeder bestehende Benutzer genau einer Person zugeordnet; wer heute über `sales_person_user` verknüpft ist, teilt sich danach dieselbe Person.
+- [x] **PERS-02**: Die Backfill-Migration ist wiederholbar — ein zweiter Lauf erzeugt keine zusätzlichen `person`-Zeilen und keine Doppelzuordnung.
+- [x] **PERS-03**: Der Backfill erfasst auch soft-gelöschte Sales Persons, damit Personen, die noch Abrechnungs-Snapshots besitzen, nicht ohne Person dastehen.
 - [ ] **PERS-04**: Die Datenbank erzwingt weiterhin, dass eine Person höchstens einen Benutzer und höchstens eine Sales Person hat — die heute von `sales_person_user` getragene 1:1-Garantie geht nicht verloren.
 - [ ] **PERS-05**: Ein Mitarbeiter sieht und bucht nach der Umstellung genau dieselben eigenen Daten wie vorher — die Selbst-Zugriffs-Prüfung arbeitet über die neue Person-Verknüpfung statt über `sales_person_user`.
 - [ ] **PERS-06**: Bestehende Abrechnungs-Snapshots und Schichtplan-Daten referenzieren nach der Migration dieselben Sales Persons wie vorher (`sales_person.id` und `user.name` bleiben unverändert).
@@ -81,9 +81,9 @@ Gefüllt bei der Roadmap-Erstellung am 2026-09-16 (`.planning/ROADMAP.md`, Miles
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PERS-01 | Phase 60 | Pending |
-| PERS-02 | Phase 60 | Pending |
-| PERS-03 | Phase 60 | Pending |
+| PERS-01 | Phase 60 | Complete |
+| PERS-02 | Phase 60 | Complete |
+| PERS-03 | Phase 60 | Complete |
 | PERS-04 | Phase 60 | Pending |
 | PERS-05 | Phase 61 | Pending |
 | PERS-06 | Phase 60 | Pending |
@@ -101,6 +101,7 @@ Gefüllt bei der Roadmap-Erstellung am 2026-09-16 (`.planning/ROADMAP.md`, Miles
 | PSOLL-04 | Phase 64 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 18 total
 - Mapped to phases: 18 ✓
 - Unmapped: 0

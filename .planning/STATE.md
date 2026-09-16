@@ -1,15 +1,19 @@
 ---
 gsd_state_version: 1.0
 milestone: v2.7
-milestone_name: Personenverwaltung & Planungs-Soll
-status: planning
-last_updated: "2026-09-16T12:00:00.000Z"
+milestone_name: — Personenverwaltung & Planungs-Soll
+current_phase: 60
+current_phase_name: person-datenmodell-backfill
+status: executing
+stopped_at: Completed 60-01-PLAN.md
+last_updated: "2026-09-16T06:01:58.435Z"
 last_activity: 2026-09-16
+last_activity_desc: Plan 60-01 abgeschlossen (person-Datenmodell + Backfill)
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 3
-  completed_plans: 0
+  completed_plans: 1
   percent: 0
 ---
 
@@ -29,11 +33,11 @@ progress:
 
 ## Current Position
 
-Phase: 60 (Person-Datenmodell + Backfill) — planned
-Plan: 0/3 (Wave 1: `60-01`; Wave 2: `60-02`, `60-03`)
-Status: Ready to execute — `/gsd-execute-phase 60`
-Last activity: 2026-09-16 — Phase 60 geplant: RESEARCH + VALIDATION + PATTERNS + 3 Pläne (7 Tasks, 2 Waves); Plan-Checker `VERIFICATION PASSED`, Requirements 5/5, Decision-Coverage 10/10
-Resume file: `.planning/phases/60-person-datenmodell-backfill/60-01-PLAN.md`
+Phase: 60 (person-datenmodell-backfill) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-09-16 — Plan 60-01 abgeschlossen (person-Tabelle, person_id-Spalten, idempotenter Backfill; 8/8 Tests grün)
+Resume file: `.planning/phases/60-person-datenmodell-backfill/60-02-PLAN.md`
 
 ## Quick Tasks Completed
 
@@ -267,8 +271,8 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-09-16
-**Stopped at:** Roadmap v2.7 erstellt (ROADMAP.md + REQUIREMENTS.md-Traceability)
+**Last session:** 2026-09-16T06:01:58.428Z
+**Stopped at:** Completed 60-01-PLAN.md
 **Resume file:** None
 
 **To resume work in a new session:**
@@ -360,6 +364,8 @@ D-63-01/02, D-64-01/02/03).
 - [Phase ?]: D-57-06 dokumentiert: F14 §3 / F07 §2.6 beschreiben die Kategorie-Semantik statt des Marker-Filters, mit der einen assemble_weeks-Ausnahme
 - [Phase ?]: Widerrufene Entscheidungen werden als HISTORISCH markiert und mit Umschlagpunkt versehen statt geloescht (F08 §7.4, T-57-18)
 - [Phase ?]: Die F08-Bump-Historie nennt VIER betroffene value_types (Overall, Balance, ExtraWork, Volunteer) — Messbefund aus Plan 05
+- [Phase 60]: D-60-01 bestaetigt (60-01 Checkpoint, auto-mode): UNIQUE-Index auf sales_person.person_id bleibt vollstaendig statt partiell — soft-geloeschte Sales Persons behalten ihre Person-Identitaet dauerhaft (one-way).
+- [Phase 60]: Apply-twice-Nachweis via Marker-Split (BACKFILL-START/END-Kommentare + sqlx::raw_sql) statt vollem Datei-Replay — SQLite kennt fuer ALTER TABLE ADD COLUMN keine Existenz-Guard-Klausel.
 
 ## Performance Metrics
 
@@ -406,3 +412,4 @@ D-63-01/02, D-64-01/02/03).
 | Phase 57 P04 | 15min | 2 tasks | 2 files |
 | Phase 57 P05 | 25min | 2 tasks | 7 files |
 | Phase 57 P06 | ~35min | 3 tasks | 10 files |
+| Phase 60 P01 | 12min | 3 tasks | 3 files |
