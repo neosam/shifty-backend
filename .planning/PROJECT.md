@@ -1,8 +1,8 @@
 ---
 type: project_charter
 last_updated: 2026-09-15
+current_milestone: v2.7 Personenverwaltung & Planungs-Soll (planning — Phasen ab 60)
 last_milestone: v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter (shipped 2026-07-31, deployed; Phasen 54-57, 19/19 Requirements, Audit passed, override_closeout)
-current_milestone: (keiner — zwischen Milestones, nächste Iteration via /gsd-new-milestone)
 ---
 
 # Shifty — Project Charter
@@ -512,54 +512,62 @@ Debug-Session `working-hours-wrong-employee` obsolet.
 
 </details>
 
-## Zwischen Milestones — Kandidaten für die nächste Iteration
+## Current Milestone: v2.7 Personenverwaltung & Planungs-Soll
 
-Kein aktiver Milestone. Nächste Iteration via `/gsd-new-milestone`.
+**Goal:** Benutzer- und Sales-Person-Verwaltung werden zu einer Personen-Sicht
+zusammengeführt, getragen von einem neuen Fachobjekt `Person`; zusätzlich zeigt
+die Schichtplan-Übersicht auch bei dynamischen Verträgen ein Soll für die
+Planung.
 
-**Bereits ausgearbeitete Phasen-Entwürfe** (in `.hermes/plans/`, noch nicht in
-der ROADMAP):
+**Target features:**
 
-- **Phase 58 (Feature) — Optionale Stundenverteilung pro Werktag.** Sieben
-  optionale `REAL`-Spalten auf der bestehenden, bereits versionierten
-  `employee_work_details`-Vertragszeile; der Vertragswechsel-Mechanismus liefert
-  "gültig ab KW" gratis. Betrifft beide heutigen Ableitungen der Tagesstunde
-  (`hours_per_day`, `holiday_hours`) und damit Holiday-Derivation und
-  Absence-Zählung. **Zieht einen Snapshot-Bump 13→14 nach sich.** Enabler für
-  die Vertragszeit-Warnung.
-- **Phase 59 (Maintenance, off-theme) — E2E-Browser-Tests mit Playwright.**
-  Kein Milestone-Goal, kein REQUIREMENTS-Eintrag; Abnahmemessstab ist der
-  Scope aus dem Origin-Todo. Würde genau die Klasse von Invarianten abdecken,
-  die in v2.6 zweimal als `human_needed` stehenblieb (DOM-Rendering) und die
-  wiederkehrende Dev-Proxy-Bug-Klasse (fehlender `[[web.proxy]]`-Eintrag → 405).
-  Plan liegt fertig unter `.planning/phases/59-e2e-browser-testinfra/`.
+- **Fachobjekt `Person`** als Aggregat über User und SalesPerson — Variante A:
+  neue Tabelle `person`, nullable `person_id`-FKs auf `sales_person` und `user`,
+  `sales_person_user` wird aufgelöst. Inklusive Backfill-Migration, die
+  bestehende Paare zu je einer gemeinsamen Person zusammenführt.
+- **Eine Eintrags-Komponente für alle drei Ausprägungen** — User+SalesPerson
+  (Regelfall), nur User (reiner HR-/Admin-Account), nur SalesPerson
+  (Freiwillige ohne Login). Abschnitte werden je Ausprägung ein- und
+  ausgeblendet, statt auf verschiedene Seiten zu verzweigen.
+- **Eine Liste statt Tabs** unter `/user_management/`, mit erkennbarer
+  Ausprägung; „Login hinzufügen" und „Person hinzufügen" werden Aktionen auf
+  dem Eintrag, die eine Ausprägung in die andere überführen.
+- **Planungs-Soll im DTO** — ein Soll-Feld, das auch bei dynamischen Verträgen
+  gefüllt ist, damit die Übersicht unterhalb des Schichtplans ein Planungsziel
+  zeigt. `expected_hours` bleibt als bilanzrelevantes Feld unverändert.
 
-**Offener Tech-Debt aus v2.6** (nicht-blockierend, siehe
-`milestones/v2.6-MILESTONE-AUDIT.md`):
+**Key context:**
 
-- Phase 55: WR-01 (Banner-Prädikat jahres-kumulativ vs. Suggest-Vorschau
-  wochen-scoped), WR-03 (`iso_week`/`iso_year` ohne Bereichsprüfung), WR-05
-  (`suggest()` committet vor der DANN-Berechnung).
-- Phase 57: WR-06 bewusst teilweise offen (Doppel-Read im Backfill-Apply-Zweig;
-  Auflösung würde einen zweiten Eingang in den Schreibpfad bauen).
-- utoipa-Nesting: `RebookingApiDoc` hängt an zwei Nests, die
-  `/rebooking-suggestions`-Routen werden dadurch in Swagger unter falschem
-  Präfix dokumentiert.
-- Nyquist-VALIDATION der Phasen 55/56/57 steht auf `draft` (Checklisten nach
-  Ausführung nicht zurückgepflegt; die geforderten Tests existieren).
+- **Unantastbar:** `sales_person.id` wird von zwölf Tabellen referenziert,
+  darunter `billing_period_sales_person` (write-once-Snapshots); `user.name`
+  ist PK für `user_role`, `user_invitation` und die Auth-Schicht. `Person`
+  kommt obendrauf, nicht an deren Stelle.
+- **Namen bleiben, wo sie sind:** `user.name` ist die Login-Kennung,
+  `sales_person.name` der Name des Verkäufers. `person` trägt zunächst nur
+  Identität und Audit-Spalten.
+- **Kein Snapshot-Bump:** `person` ist rein administrativ — kein neuer
+  persistierter `value_type`, keine geänderte Computation, kein geändertes
+  Input-Set. `CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt **13**.
+- **Data-Model-first:** Migration und Backfill vor der UI.
+- **Docs-Freshness-Gate greift:** die Migration zieht
+  `docs/architecture/03-data-model.md` + `diagrams/db-schema-er.mmd` + die
+  passenden `docs/features/F*.md` nach sich, jeweils EN und DE.
+- **Phasennummerierung startet bei 60.** Die Nummern 58 und 59 bleiben für die
+  vorbereiteten, nicht promoteten Phasen reserviert.
 
-**Weiterhin offen aus v2.5** (unverändert gültig):
+**Quellen:** [`seeds/personenverwaltung-zusammenlegen.md`](seeds/personenverwaltung-zusammenlegen.md),
+[`todos/pending/2026-09-15-sollstunden-fehlen-bei-dynamischen-vertraegen-unter-schichtplan.md`](todos/pending/2026-09-15-sollstunden-fehlen-bei-dynamischen-vertraegen-unter-schichtplan.md).
 
-- SDF-03-Semantik-Cleanup: `SpecialDayService::get_by_iso_year` würde die 55
-  `special_day.get_by_week`-Calls in `assemble_weeks` auf konstant 2 reduzieren.
-  Nicht latenz-relevant.
-- DB-Indices: `booking(year, calendar_week)`, `extra_hours(date_time)`,
-  `working_hours(from_year, to_year)`. Kein Bottleneck mehr nach Follow-up #2.
-- F07-Doku: die Pure-Helper `derive_hours_for_week_pure` +
-  `build_derived_holiday_map_for_week_pure` sind in
-  `docs/features/F07-reporting-balance.{md,_de.md}` noch nicht dokumentiert.
+## Nicht in v2.7 (vorbereitet, bewusst liegen gelassen)
 
-Die off-theme **Backlog-Phase 999.1 (Breaking/Major Dependency-Migration)** bleibt
-separat via `/gsd-plan-phase 999.1`.
+- **Phase 58: Optionale Stundenverteilung pro Werktag** — würde denselben
+  Vertragsdatensatz berühren wie das Planungs-Soll, zieht aber einen
+  Snapshot-Bump 13→14 nach sich. Entwurf:
+  `.hermes/plans/2026-08-24_feature-phase-optionale-stundenverteilung-pro-werktag-snapshot-bump-13-14.md`.
+- **Phase 59: E2E-Browser-Test-Infrastruktur (Playwright)** — Plan liegt fertig
+  unter `.planning/phases/59-e2e-browser-testinfra/`. Deckt die
+  DOM-Rendering-Invarianten ab, die in v2.6 zweimal als `human_needed`
+  stehenblieben.
 
 ## Current State
 

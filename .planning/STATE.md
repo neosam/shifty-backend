@@ -1,20 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: (keiner — zwischen Milestones)
-last_milestone: v2.6 — Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter
-current_phase: —
-status: Awaiting next milestone
-closeout_type: override_closeout
-stopped_at: Milestone v2.6 archiviert
-last_updated: "2026-09-15T12:51:40.945Z"
-last_activity: 2026-09-15
-last_activity_desc: Milestone v2.6 completed and archived
+milestone: v2.7
+milestone_name: Personenverwaltung & Planungs-Soll
+status: planning
+last_updated: "2026-09-16T03:54:09.815Z"
+last_activity: 2026-09-16
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 29
-  completed_plans: 29
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State: Shifty Backend
@@ -33,10 +29,10 @@ progress:
 
 ## Current Position
 
-Phase: — (zwischen Milestones)
+Phase: Not started (defining requirements)
 Plan: —
-Status: v2.6 geschlossen und archiviert; kein aktiver Milestone
-Last activity: 2026-09-15 — Milestone v2.6 completed and archived
+Status: Defining requirements
+Last activity: 2026-09-16 — Milestone v2.7 started
 
 ## Quick Tasks Completed
 
@@ -93,7 +89,6 @@ sind historischer Ballast aus v1.4–v2.1, beim v2.2- und v2.5-Close bereits
 acknowledged.
 
 ### Historisch (v1.4–v2.5)
-
 
 Erneut acknowledged + deferred beim **v2.2-Milestone-Close am 2026-07-03**
 (User-Entscheidung override_closeout — Pre-Close-Audit meldete 13 offene Items: 1 Debug-
