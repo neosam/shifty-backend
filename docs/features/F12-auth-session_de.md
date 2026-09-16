@@ -96,7 +96,7 @@ darf er das gefragte Aggregat sehen oder ändern?*
 
 | Tabelle | Zweck | Wichtige Spalten |
 | --- | --- | --- |
-| `user` | Nutzer-Stamm (Username = PK) | `name`, `update_timestamp`, `update_process` |
+| `user` | Nutzer-Stamm (Username = PK) | `name`, `update_timestamp`, `update_process`, `person_id` (v2.7 — nullable, `UNIQUE` über `user_person_id_unique_idx`; Verweis auf die Identitäts-Elterntabelle `person`, vollständig beschrieben in [`../architecture/03-data-model_de.md`](../architecture/03-data-model_de.md) und in [F01](./F01-employee-management_de.md)) |
 | `role` | Rollen (Name = PK) | `name`, `update_process` |
 | `privilege` | Privilegien (Name = PK) | `name`, `update_process` |
 | `user_role` | N:M Nutzer↔Rolle | `user_name`, `role_name` (UNIQUE) |
@@ -120,6 +120,15 @@ darf er das gefragte Aggregat sehen oder ändern?*
 - `20260401000000_add-impersonate-to-session.sql` — `ALTER TABLE session ADD
   COLUMN impersonate_user_id TEXT NULL`. Ermöglicht Support-Impersonation ohne
   Session-Neuaufbau.
+- `20260916000000_create-person-backfill.sql` (v2.7, Phase 60) — legt die
+  Identitäts-Elterntabelle `person` an und ergänzt die nullable Spalte
+  `user.person_id`, eindeutig gemacht durch den **vollständigen** Index
+  `user_person_id_unique_idx` (`user` hat keine Soft-Delete-Spalte, die Frage
+  nach einem partiellen Index stellt sich hier also nicht [D-60-02]). Ein
+  einmaliger, idempotenter Backfill gibt jedem Bestands-Benutzer eine
+  Identität; Benutzer, die über `sales_person_user` an einer Sales Person
+  hängen, teilen deren Identität. Reine Schema- + Backfill-Arbeit — die
+  Auth-Schicht bleibt unberührt.
 
 Weitere Migrations zu User-Invitation liegen im Cluster **F13 (User Invitation)**
 und sind hier bewusst nicht aufgeführt.
@@ -136,6 +145,35 @@ Alle FKs sind `ON DELETE CASCADE` in den Join-Tables, sodass Löschen eines
 Users seine Rollenzuweisungen mit entfernt. Die `session`-FK auf `user` ist
 nicht CASCADE — ein User-Delete bei aktiver Session würde fehlschlagen.
 **[Zu prüfen]** ob das im Prod-Betrieb je auftritt.
+
+### Person-Identität (v2.7, Phase 60)
+
+Ab Phase 60 hängt ein `user` zusätzlich über die nullable, eindeutige Spalte
+`user.person_id` an der Identitäts-Elterntabelle `person`:
+
+```
+person ─┬─ 0..1 ─ user          (user.person_id — nullable, UNIQUE)
+        └─ 0..1 ─ sales_person  (sales_person.person_id — nullable, UNIQUE)
+```
+
+- **`user.name` bleibt der Primärschlüssel.** Es wird nichts umgeschlüsselt,
+  die Auth-Schicht ist damit unberührt: Login, Session, Rollen und Privilegien
+  lösen weiterhin genau wie bisher über `user.name` auf (PERS-06).
+- **Ein reiner HR-/Admin-Benutzer ohne Sales Person ist eine dauerhaft
+  unterstützte Ausprägung** [D-60-03], keine Altlast. `person_id` ist bewusst
+  nullable, und es wird **nirgends** automatisch eine Sales Person zu einem
+  Benutzer angelegt — genauso wie umgekehrt eine Freiwillige ohne Login
+  gleichwertig ist (siehe [F01](./F01-employee-management_de.md)). Der
+  Unique-Index verbietet ausschließlich *zwei* Benutzer an einer Person.
+- **`sales_person_user` bleibt** in Phase 60 bestehen und ist weiterhin die
+  laufende Wahrheit der 1:1-Kopplung; die Auflösung ist Phase 61. Die
+  Umschreibung der Selbst-Zugriffs-Prüfung (`find_sales_person_by_user_id`,
+  §4.2) auf `person_id`-Joins ist ebenfalls Phase-61-Scope — Phase 60 ändert
+  weder DAO noch Service [D-60-10], Zeilen nach der Migration tragen daher noch
+  kein `person_id`.
+- Die Durchsetzung der 1:1-Garantie läuft über diesen Unique-Index, **nicht**
+  über Fremdschlüssel: die FK-Durchsetzung ist in diesem Repo ausgeschaltet
+  [D-60-06], siehe die Anmerkung oben.
 
 ## 4. Service-API
 

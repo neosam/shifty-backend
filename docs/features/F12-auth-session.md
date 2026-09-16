@@ -106,7 +106,7 @@ see or change the requested aggregate?*
 
 | Table | Purpose | Important columns |
 | --- | --- | --- |
-| `user` | User master (username = PK) | `name`, `update_timestamp`, `update_process` |
+| `user` | User master (username = PK) | `name`, `update_timestamp`, `update_process`, `person_id` (v2.7 — nullable, `UNIQUE` via `user_person_id_unique_idx`; FK-style reference to the identity parent table `person`, fully described in [`../architecture/03-data-model.md`](../architecture/03-data-model.md) and in [F01](./F01-employee-management.md)) |
 | `role` | Roles (name = PK) | `name`, `update_process` |
 | `privilege` | Privileges (name = PK) | `name`, `update_process` |
 | `user_role` | N:M user↔role | `user_name`, `role_name` (UNIQUE) |
@@ -131,6 +131,14 @@ see or change the requested aggregate?*
 - `20260401000000_add-impersonate-to-session.sql` — `ALTER TABLE session
   ADD COLUMN impersonate_user_id TEXT NULL`. Enables support
   Impersonation without rebuilding Sessions.
+- `20260916000000_create-person-backfill.sql` (v2.7, Phase 60) — creates the
+  identity parent table `person` and adds the nullable column
+  `user.person_id`, made unique by the **full** index
+  `user_person_id_unique_idx` (`user` has no soft-delete column, so the
+  partial-index question does not arise here [D-60-02]). A one-off, idempotent
+  backfill gives every existing user an identity; users linked to a Sales
+  Person via `sales_person_user` share that person's identity. Schema +
+  backfill only — the auth layer is untouched.
 
 Further migrations for user invitation live in cluster **F13 (User
 Invitation)** and are deliberately not listed here.
@@ -147,6 +155,34 @@ All FKs are `ON DELETE CASCADE` in the join tables, so deleting a user
 also removes their role assignments. The `session` FK on `user` is
 **not** CASCADE — deleting a user with an active Session would fail.
 **[To verify]** whether this ever happens in production.
+
+### Person identity (v2.7, Phase 60)
+
+From Phase 60 a `user` additionally hangs off the identity parent table
+`person` through the nullable, unique column `user.person_id`:
+
+```
+person ─┬─ 0..1 ─ user          (user.person_id — nullable, UNIQUE)
+        └─ 0..1 ─ sales_person  (sales_person.person_id — nullable, UNIQUE)
+```
+
+- **`user.name` stays the primary key.** Nothing is re-keyed, and the auth
+  layer is therefore untouched: login, session, roles and privileges keep
+  resolving over `user.name` exactly as before (PERS-06).
+- **A pure HR/admin user without a Sales Person is a permanently supported
+  shape** [D-60-03], not a leftover. `person_id` is nullable on purpose, and
+  **nowhere** is a Sales Person created automatically alongside a user — just
+  as a volunteer without a login is equally valid on the other side (see
+  [F01](./F01-employee-management.md)). The unique index only forbids *two*
+  users on one person.
+- **`sales_person_user` stays** in Phase 60 and remains the running truth of
+  the 1:1 link; dissolving it is Phase 61. Rewriting the self-access check
+  (`find_sales_person_by_user_id`, §4.2) onto `person_id` joins is likewise
+  Phase-61 scope — Phase 60 changes no DAO and no service [D-60-10], so rows
+  created after the migration carry no `person_id` yet.
+- Enforcement of the 1:1 guarantee runs through that unique index, **not**
+  through foreign keys: FK enforcement is switched off in this repo
+  [D-60-06], see the note above.
 
 ## 4. Service API
 

@@ -183,8 +183,9 @@ the balance history and FK consistency with Bookings/Extra Hours.
 
 | Table | Purpose | Important columns |
 | --- | --- | --- |
-| `sales_person` | Employee master data | `id`, `name`, `background_color`, `is_paid`, `inactive`, `deleted`, `update_version` |
-| `sales_person_user` | 1:1 link Sales Person ↔ login user | `sales_person_id`, `user_id` (both `UNIQUE`), FK to `sales_person(id)` and `user(name)` |
+| `person` (v2.7, Phase 60) | Identity parent above Sales Person and login user — one row per real human | `id` (BLOB(16) PK), `created`, `update_process`, `update_version`. That is the complete set: **no `deleted` column** [D-60-04] and **no name columns** (names stay on `sales_person.name` / `user.name`) |
+| `sales_person` | Employee master data | `id`, `name`, `background_color`, `is_paid`, `inactive`, `deleted`, `update_version`, `person_id` (v2.7 — nullable, `UNIQUE` via `sales_person_person_id_unique_idx`) |
+| `sales_person_user` | 1:1 link Sales Person ↔ login user | `sales_person_id`, `user_id` (both `UNIQUE`), FK to `sales_person(id)` and `user(name)`. From v2.7 Phase 60 this table exists **alongside** the new `person_id` link — it stays the running truth and is dissolved only in Phase 61 |
 | `employee_work_details` (formerly `working_hours`) | Employment contract with time range, weekly hours, Vacation | `id`, `sales_person_id`, `expected_hours`, `from_/to_year/calendar_week/day_of_week`, `workdays_per_week`, `monday`..`sunday`, `vacation_days`, `is_dynamic`, `cap_planned_hours_to_expected`, `committed_voluntary`, `created`, `deleted`, `update_version` |
 | `sales_person_unavailable` | Recurring availability blocks at day-of-week granularity | `id`, `sales_person_id`, `year`, `calendar_week`, `day_of_week`, `created`, `deleted` |
 | `sales_person_shiftplan` | M:N Sales Person ↔ Shiftplan with permission level | `sales_person_id`, `shiftplan_id`, `permission_level` ∈ {`available`,`planner_only`} |
@@ -227,6 +228,16 @@ relevant to this cluster):
   `cap_planned_hours_to_expected`.
 - `20260623120000_add-committed-voluntary-to-employee-work-details.sql` —
   field `committed_voluntary` (v2.4).
+- `20260916000000_create-person-backfill.sql` (v2.7, Phase 60) — creates the
+  identity parent table `person`, adds the nullable column
+  `sales_person.person_id` (plus `user.person_id`, see
+  [F12](./F12-auth-session.md)) and enforces the 1:1 guarantee through the
+  **full** unique index `sales_person_person_id_unique_idx` — deliberately
+  without a `WHERE deleted IS NULL` filter, so a soft-deleted sales person
+  keeps its identity permanently [D-60-01, one-way]. A one-off, idempotent
+  backfill gives every existing row an identity (soft-deleted ones included)
+  and verifies itself through a count check inside the migration transaction.
+  Schema + backfill only — no DAO and no service change in this phase.
 
 ### Relationships
 
@@ -237,7 +248,16 @@ active — the soft-delete semantics (`WHERE deleted IS NULL`) make the FK
 check only partially meaningful anyway (see
 `docs/domain/edge-cases.md` §8).
 
+The identity parent `person` (v2.7, Phase 60) sits above both carriers.
+Both edges are optional and unique: a person may have a user **or** a sales
+person **or** both, and nothing auto-creates the missing counterpart
+[D-60-03]. Details in
+[`../architecture/03-data-model.md`](../architecture/03-data-model.md).
+
 ```
+person ─┬─ 0..1 ─ user          (user.person_id — nullable, UNIQUE)
+        └─ 0..1 ─ sales_person  (sales_person.person_id — nullable, UNIQUE)
+
 user ────────────< sales_person_user >──── sales_person ──┬──< employee_work_details
                                                           ├──< sales_person_unavailable
                                                           └──< sales_person_shiftplan >── shiftplan
@@ -600,6 +620,20 @@ edges for this cluster:
   list also shows inactive but not deleted persons. Anyone needing
   a Sales Person list of "really all ever created" has to build a
   special read — no such endpoint exists at the moment.
+- **A soft-deleted Sales Person keeps its person identity forever.** The
+  unique index on `sales_person.person_id` is full, not partial — deletion
+  does **not** release the identity [D-60-01]. Consequence: an employee who
+  leaves and comes back appears as a *second* person, because the new Sales
+  Person row gets a new identity. That is deliberate — releasing the identity
+  would let two different humans occupy the same one over time and would make
+  write-once `billing_period_sales_person` snapshots resolve to the wrong
+  person. Merging two persons is not v2.7 scope.
+- **A Sales Person without a login is a permanently supported shape.**
+  Volunteers without a user account are as valid as HR/admin users without a
+  Sales Person (see [F12](./F12-auth-session.md)). `person_id` stays nullable
+  on purpose, and **nowhere** is a user created automatically alongside a
+  Sales Person [D-60-03]. Rows created after the Phase-60 migration get no
+  `person_id` at all yet — assignment on creation is Phase-61 scope [D-60-10].
 
 ## 8. Tests
 

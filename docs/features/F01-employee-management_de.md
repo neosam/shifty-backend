@@ -179,8 +179,9 @@ FK-Konsistenz mit Bookings/Extra Hours zu erhalten.
 
 | Tabelle | Zweck | Wichtige Spalten |
 | --- | --- | --- |
-| `sales_person` | Stammdaten des Angestellten | `id`, `name`, `background_color`, `is_paid`, `inactive`, `deleted`, `update_version` |
-| `sales_person_user` | 1:1 Verknüpfung Sales-Person ↔ Login-User | `sales_person_id`, `user_id` (beide `UNIQUE`), FK auf `sales_person(id)` und `user(name)` |
+| `person` (v2.7, Phase 60) | Identitäts-Elterntabelle über Sales Person und Login-User — eine Zeile pro realem Menschen | `id` (BLOB(16) PK), `created`, `update_process`, `update_version`. Das ist der vollständige Satz: **keine `deleted`-Spalte** [D-60-04] und **keine Namensspalten** (Namen bleiben an `sales_person.name` / `user.name`) |
+| `sales_person` | Stammdaten des Angestellten | `id`, `name`, `background_color`, `is_paid`, `inactive`, `deleted`, `update_version`, `person_id` (v2.7 — nullable, `UNIQUE` über `sales_person_person_id_unique_idx`) |
+| `sales_person_user` | 1:1 Verknüpfung Sales-Person ↔ Login-User | `sales_person_id`, `user_id` (beide `UNIQUE`), FK auf `sales_person(id)` und `user(name)`. Ab v2.7 Phase 60 existiert die Tabelle **zusätzlich** zur neuen `person_id`-Verknüpfung — sie bleibt die laufende Wahrheit und wird erst in Phase 61 aufgelöst |
 | `employee_work_details` (früher `working_hours`) | Arbeitsvertrag mit Zeitraum, Wochenstunden, Urlaub | `id`, `sales_person_id`, `expected_hours`, `from_/to_year/calendar_week/day_of_week`, `workdays_per_week`, `monday`..`sunday`, `vacation_days`, `is_dynamic`, `cap_planned_hours_to_expected`, `committed_voluntary`, `created`, `deleted`, `update_version` |
 | `sales_person_unavailable` | Wiederkehrende Verfügbarkeits-Sperren auf Wochentagsebene | `id`, `sales_person_id`, `year`, `calendar_week`, `day_of_week`, `created`, `deleted` |
 | `sales_person_shiftplan` | M:N Sales-Person ↔ Shiftplan mit Berechtigungslevel | `sales_person_id`, `shiftplan_id`, `permission_level` ∈ {`available`,`planner_only`} |
@@ -222,6 +223,17 @@ Chronologische Historie (nur die für dieses Cluster relevanten Files aus
   `cap_planned_hours_to_expected`.
 - `20260623120000_add-committed-voluntary-to-employee-work-details.sql` —
   Feld `committed_voluntary` (v2.4).
+- `20260916000000_create-person-backfill.sql` (v2.7, Phase 60) — legt die
+  Identitäts-Elterntabelle `person` an, ergänzt die nullable Spalte
+  `sales_person.person_id` (dazu `user.person_id`, siehe
+  [F12](./F12-auth-session_de.md)) und setzt die 1:1-Garantie über den
+  **vollständigen** Unique-Index `sales_person_person_id_unique_idx` durch —
+  bewusst ohne `WHERE deleted IS NULL`-Filter, damit eine soft-gelöschte Sales
+  Person ihre Identität dauerhaft behält [D-60-01, one-way]. Ein einmaliger,
+  idempotenter Backfill gibt jeder Bestandszeile eine Identität (einschließlich
+  der soft-gelöschten) und verifiziert sich über eine Zählprobe innerhalb der
+  Migrations-Transaktion selbst. Reine Schema- + Backfill-Arbeit — kein DAO-
+  und kein Service-Eingriff in dieser Phase.
 
 ### Beziehungen
 
@@ -231,7 +243,16 @@ SQLite prüft FKs nur, wenn `PRAGMA foreign_keys=ON` aktiv ist — die
 Soft-Delete-Semantik (`WHERE deleted IS NULL`) macht die FK-Prüfung ohnehin
 nur bedingt aussagekräftig (siehe `docs/domain/edge-cases.md` §8).
 
+Die Identitäts-Elterntabelle `person` (v2.7, Phase 60) sitzt über beiden
+Trägern. Beide Kanten sind optional und eindeutig: eine Person darf einen
+Benutzer **oder** eine Sales Person **oder** beides haben, und es wird
+nirgends automatisch die fehlende Gegenseite angelegt [D-60-03]. Details in
+[`../architecture/03-data-model_de.md`](../architecture/03-data-model_de.md).
+
 ```
+person ─┬─ 0..1 ─ user          (user.person_id — nullable, UNIQUE)
+        └─ 0..1 ─ sales_person  (sales_person.person_id — nullable, UNIQUE)
+
 user ────────────< sales_person_user >──── sales_person ──┬──< employee_work_details
                                                           ├──< sales_person_unavailable
                                                           └──< sales_person_shiftplan >── shiftplan
@@ -592,6 +613,22 @@ Kanten dieses Clusters:
   auch inaktive, aber nicht gelöschte Personen. Wer eine
   Sales-Person-Liste "wirklich alle je angelegten" braucht, muss ein
   Sonder-Reading einbauen — es gibt derzeit keinen solchen Endpoint.
+- **Eine soft-gelöschte Sales Person behält ihre Person-Identität dauerhaft.**
+  Der Unique-Index auf `sales_person.person_id` ist vollständig, nicht
+  partiell — die Löschung gibt die Identität **nicht** frei [D-60-01]. Folge:
+  ein Mitarbeiter, der geht und zurückkommt, erscheint als *zweite* Person,
+  weil die neue Sales-Person-Zeile eine neue Identität bekommt. Das ist
+  gewollt — gäbe die Löschung die Identität frei, könnten zwei verschiedene
+  Menschen über die Zeit dieselbe belegen und write-once-Snapshots in
+  `billing_period_sales_person` würden auf die falsche Person auflösen. Ein
+  Zusammenführen zweier Personen ist kein v2.7-Scope.
+- **Eine Sales Person ohne Login ist eine dauerhaft unterstützte Ausprägung.**
+  Freiwillige ohne Benutzerkonto sind genauso gültig wie HR-/Admin-Benutzer
+  ohne Sales Person (siehe [F12](./F12-auth-session_de.md)). `person_id` bleibt
+  bewusst nullable, und es wird **nirgends** automatisch ein Benutzer zu einer
+  Sales Person angelegt [D-60-03]. Zeilen, die nach der Phase-60-Migration
+  entstehen, bekommen noch gar kein `person_id` — die Vergabe beim Anlegen ist
+  Phase-61-Scope [D-60-10].
 
 ## 8. Tests
 
