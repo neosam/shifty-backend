@@ -180,7 +180,11 @@ person ─┬─ 0..1 ─ user          (user.person_id — nullable, UNIQUE)
   `person_id`, und die frühere Verknüpfungstabelle ist von
   `migrations/sqlite/20260917000000_drop-sales-person-user.sql` entfernt
   worden [D-61-07]. `person_id` ist damit die einzige Wahrheit der
-  Selbst-Zugriffs-Prüfung.
+  Selbst-Zugriffs-Prüfung. Die vollständige Beschreibung des Gates —
+  einschließlich der Begründung, warum der Vergleich im SQL bleiben muss, und
+  der absichernden Regressionstests — steht in
+  [`../architecture/04-auth_de.md` §Selbst-Zugriffs-Gate auf Sales-Person-Daten](../architecture/04-auth_de.md#selbst-zugriffs-gate-auf-sales-person-daten).
+  Abgesichert durch `service_impl/src/test/person_self_gate.rs`.
 - **Die Login-Auto-Anlage vergibt `person_id` mit** (v2.7, Phase 61
   [D-61-01]). `PermissionDaoImpl::create_user`
   (`dao_impl_sqlite/src/lib.rs`) öffnet dafür eine **methoden-interne**
@@ -202,8 +206,14 @@ person ─┬─ 0..1 ─ user          (user.person_id — nullable, UNIQUE)
   und kein Rowid-Alias ist. Eine Sales Person wird dabei **nicht** mit angelegt
   [D-60-03].
 - Die Durchsetzung der 1:1-Garantie läuft über diesen Unique-Index, **nicht**
-  über Fremdschlüssel: die FK-Durchsetzung ist in diesem Repo ausgeschaltet
-  [D-60-06], siehe die Anmerkung oben.
+  über einen Fremdschlüssel — `user.person_id` trägt **keine**
+  `FOREIGN KEY`-Deklaration, SQLite hat auf dieser Kante also nichts
+  durchzusetzen. (Die FK-Durchsetzung als solche *ist* in diesem Repo aktiv:
+  sqlx setzt `PRAGMA foreign_keys = ON` auf jeder Verbindung. Eine frühere
+  Fassung dieses Bullets behauptete das Gegenteil; D-60-06 — in Phase 60
+  keinen FK auf `person_id` zu ergänzen — bleibt als Scope-Entscheidung
+  gültig, seine Annahme über den Ist-Zustand war aber falsch. Siehe
+  [`../architecture/03-data-model_de.md` §Foreign Keys](../architecture/03-data-model_de.md#foreign-keys).)
 
 ## 4. Service-API
 

@@ -194,6 +194,15 @@ graph TD
     %% (F3/F5 lifecycle) and Reporting (reads pending batch for the HR-alert).
     Reporting --> RebookingBatch
 
+    %% Person Service (Phase 61 — Basic-Tier, keine Domain-Service-Dependency).
+    %% Deps sind ausschliesslich PersonDao + PermissionService + ClockService +
+    %% UuidService + TransactionDao; die sind nach der Konvention oben
+    %% ausgeblendet, deshalb hat der Knoten bewusst KEINE Kante. Insbesondere
+    %% gibt es KEINE Kante zu oder von SalesPerson — genau deren Abwesenheit
+    %% ist die Tier-Eigenschaft: eine Domain-Service-Dependency wuerde ueber
+    %% PermissionService einen DI-Zyklus schliessen. Erster Konsument folgt in
+    %% Phase 62/63 (Personenverwaltung).
+
     %% Rebooking Reconciliation Service (Phase 55 — BL-Tier, F3/F5 write
     %% orchestrator; single pair-write-path shared by F3 + F5-approve)
     RebookingReconciliation --> ExtraHours

@@ -92,6 +92,58 @@ The role definitions evolve across multiple migrations:
 privileges they carry. See
 [`../features/F12-auth-session.md`](../features/F12-auth-session.md).
 
+## Self-access gate for sales-person data
+
+Most employee-facing reads and writes are gated as **HR ∨ self**: either the
+caller holds `HR_PRIVILEGE`, or the caller *is* the sales person the request
+is about. The "self" half is
+`SalesPersonService::verify_user_is_sales_person(sales_person_id, ctx, tx)`
+(`service_impl/src/sales_person.rs`). Callers combine the two halves with
+`tokio::join!` and `hr.or(sp)?` — an HR user therefore bypasses the self gate
+through their privilege, and only a non-HR caller actually depends on it
+(e.g. `service_impl/src/absence.rs:109-119`).
+
+`verify_user_is_sales_person` resolves the sales person's login through
+`SalesPersonDao::get_assigned_user` and compares it against
+`PermissionService::current_user_id`. If either side is `None`, the call
+returns `ServiceError::Forbidden` — fail-closed.
+
+**The match itself happens in SQL, over `person_id`** (v2.7, Phase 61
+[D-61-08]). Since the 1:1 link table was dissolved by
+`migrations/sqlite/20260917000000_drop-sales-person-user.sql`, all four
+reading link paths (`find_by_user`, `find_sales_person_by_user_id`,
+`get_assigned_user`, `get_all_user_assignments` in
+`dao_impl_sqlite/src/sales_person.rs`) resolve through one join:
+
+```sql
+SELECT u.name AS user_id
+FROM sales_person sp
+JOIN user u ON u.person_id = sp.person_id
+WHERE sp.id = ?
+```
+
+**Convention — the identity comparison belongs in SQL, not in Rust.** This is
+a permanent rule, not a phase note. Both `sales_person.person_id` and
+`user.person_id` are nullable at the schema level, so a Rust-side comparison
+of the two values would be an `Option<Uuid>` comparison, and `None == None`
+evaluates to `true`. Two *unlinked* rows would then match each other and the
+gate would go **fail-open** — a stranger reading someone else's bookings and
+pay data. SQL's three-valued logic never lets `NULL = NULL` be true, so the
+join simply yields no row and the gate closes. Any future rework of these
+paths must keep the decision inside the query.
+
+Regression guards: `service_impl/src/test/person_self_gate.rs` runs against a
+real in-memory SQLite database (deliberately **not** a DAO mock — a mock
+executes no SQL and could not test this property at all). The three core
+cases are `self_may_access_own_sales_person` (self may),
+`foreign_sales_person_rejected` (a stranger may not) and
+`unlinked_user_rejected` (an unlinked user may not); the fail-open case above
+is locked by `null_person_id_does_not_match_null_person_id`.
+
+Note that **none** of the four paths filters `deleted IS NULL`, and none may
+start to: a soft-deleted sales person keeps self-access to their own history
+(`soft_geloeschte_sales_person_behaelt_selbstzugriff`).
+
 ## Session management
 
 - **Session table:** migration `20241116224840_add-session.sql`,

@@ -190,7 +190,10 @@ person ─┬─ 0..1 ─ user          (user.person_id — nullable, UNIQUE)
   former link table has been removed by
   `migrations/sqlite/20260917000000_drop-sales-person-user.sql` [D-61-07].
   `person_id` is therefore the single source of truth for the self-access
-  check.
+  check. Full description of the gate — including why the comparison must stay
+  in SQL and which regression guards lock it — in
+  [`../architecture/04-auth.md` §Self-access gate for sales-person data](../architecture/04-auth.md#self-access-gate-for-sales-person-data).
+  Guarded by `service_impl/src/test/person_self_gate.rs`.
 - **Login auto-creation assigns `person_id`** (v2.7, Phase 61 [D-61-01]).
   `PermissionDaoImpl::create_user` (`dao_impl_sqlite/src/lib.rs`) opens a
   **method-internal** transaction (`self.pool.begin()`), inserts the `person`
@@ -210,8 +213,14 @@ person ─┬─ 0..1 ─ user          (user.person_id — nullable, UNIQUE)
   SQLite row number would be wrong because `person.id` is a `blob(16) PRIMARY
   KEY`, not a rowid alias. No Sales Person is created alongside [D-60-03].
 - Enforcement of the 1:1 guarantee runs through that unique index, **not**
-  through foreign keys: FK enforcement is switched off in this repo
-  [D-60-06], see the note above.
+  through a foreign key — `user.person_id` carries no `FOREIGN KEY`
+  declaration, so there is nothing for SQLite to enforce on that edge. (FK
+  enforcement as such *is* active in this repo: sqlx sets
+  `PRAGMA foreign_keys = ON` on every connection. An earlier version of this
+  bullet claimed the opposite; D-60-06 — not adding an FK on `person_id`
+  inside Phase 60 — stands as a scope decision, but its premise about the
+  current state was wrong. See
+  [`../architecture/03-data-model.md` §Foreign keys](../architecture/03-data-model.md#foreign-keys).)
 
 ## 4. Service API
 

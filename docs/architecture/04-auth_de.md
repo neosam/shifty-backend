@@ -92,6 +92,60 @@ Die Rollen-Definition entwickelt sich über mehrere Migrations:
 Privilegien sie tragen. Siehe
 [`../features/F12-auth-session.md`](../features/F12-auth-session.md).
 
+## Selbst-Zugriffs-Gate auf Sales-Person-Daten
+
+Die meisten mitarbeiterbezogenen Lese- und Schreibpfade sind als **HR ∨ self**
+abgesichert: entweder der Aufrufer trägt `HR_PRIVILEGE`, oder der Aufrufer
+*ist* die Sales Person, um die es geht. Die „self"-Hälfte ist
+`SalesPersonService::verify_user_is_sales_person(sales_person_id, ctx, tx)`
+(`service_impl/src/sales_person.rs`). Die Aufrufer verbinden beide Hälften mit
+`tokio::join!` und `hr.or(sp)?` — ein HR-Benutzer umgeht das Gate also über
+sein Privileg, und nur ein Nicht-HR-Aufrufer hängt tatsächlich daran
+(z. B. `service_impl/src/absence.rs:109-119`).
+
+`verify_user_is_sales_person` löst den Login der Sales Person über
+`SalesPersonDao::get_assigned_user` auf und vergleicht ihn mit
+`PermissionService::current_user_id`. Ist eine der beiden Seiten `None`,
+liefert der Aufruf `ServiceError::Forbidden` — fail-closed.
+
+**Der Abgleich selbst fällt im SQL, über `person_id`** (v2.7, Phase 61
+[D-61-08]). Seit die 1:1-Verknüpfungstabelle von
+`migrations/sqlite/20260917000000_drop-sales-person-user.sql` aufgelöst wurde,
+lösen alle vier lesenden Verknüpfungs-Pfade (`find_by_user`,
+`find_sales_person_by_user_id`, `get_assigned_user`,
+`get_all_user_assignments` in `dao_impl_sqlite/src/sales_person.rs`) über
+einen Join auf:
+
+```sql
+SELECT u.name AS user_id
+FROM sales_person sp
+JOIN user u ON u.person_id = sp.person_id
+WHERE sp.id = ?
+```
+
+**Konvention — der Identitätsvergleich gehört ins SQL, nicht nach Rust.** Das
+ist eine dauerhafte Regel, keine Phasen-Notiz. Sowohl `sales_person.person_id`
+als auch `user.person_id` sind schema-seitig nullable, ein Rust-seitiger
+Vergleich wäre also ein `Option<Uuid>`-Vergleich — und `None == None` ergibt
+`true`. Zwei *unverknüpfte* Zeilen würden damit aufeinander matchen und das
+Gate ginge **fail-open**: ein Fremder läse fremde Buchungs- und Lohndaten.
+SQLs Drei-Werte-Logik lässt `NULL = NULL` nie wahr werden, der Join liefert
+dann schlicht keine Zeile und das Gate schließt. Jede künftige Überarbeitung
+dieser Pfade muss die Entscheidung in der Query belassen.
+
+Regressionstests: `service_impl/src/test/person_self_gate.rs` fährt gegen eine
+echte In-Memory-SQLite-Datenbank (bewusst **kein** DAO-Mock — ein Mock führt
+kein SQL aus und könnte diese Eigenschaft gar nicht prüfen). Die drei
+Kernfälle sind `self_may_access_own_sales_person` (self darf),
+`foreign_sales_person_rejected` (fremd darf nicht) und
+`unlinked_user_rejected` (unverknüpft darf nicht); den oben beschriebenen
+fail-open-Fall sichert `null_person_id_does_not_match_null_person_id`.
+
+Zu beachten: **keiner** der vier Pfade filtert `deleted IS NULL`, und keiner
+darf damit anfangen — eine soft-gelöschte Sales Person behält den
+Selbstzugriff auf ihre eigene Historie
+(`soft_geloeschte_sales_person_behaelt_selbstzugriff`).
+
 ## Session-Management
 
 - **Session-Tabelle:** Migration `20241116224840_add-session.sql`,
