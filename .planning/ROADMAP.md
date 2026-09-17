@@ -605,7 +605,7 @@ als unsicher).
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 60. Person-Datenmodell + Backfill | 0/? | Not started | — |
-| 61. PersonService + Auflösung `sales_person_user` | 9/10 | In Progress | — |
+| 61. PersonService + Auflösung `sales_person_user` | 10/10 | Complete | 2026-09-17 |
 | 62. Personen-Verzeichnis — eine Liste statt Tabs | 0/? | Not started | — |
 | 63. Personen-Detailansicht + Ausprägungs-Aktionen | 0/? | Not started | — |
 | 64. Planungs-Soll für dynamische Verträge | 0/? | Not started | — |

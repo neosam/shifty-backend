@@ -5,15 +5,15 @@ milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 61
 current_phase_name: personservice-aufl-sung-von-sales-person-user
 status: executing
-stopped_at: Completed 61-09-PLAN.md
-last_updated: "2026-09-17T11:00:10.269Z"
+stopped_at: Completed 61-10-PLAN.md
+last_updated: "2026-09-17T12:30:00.000Z"
 last_activity: 2026-09-17
-last_activity_desc: "Plan 61-09 ausgefuehrt (Gap Closure WR-04: Split-Konflikt in set_user wird wie der Merge-Konflikt nach 409 uebersetzt; F01-Statustabelle EN + DE nachgezogen)"
+last_activity_desc: "Plan 61-10 ausgefuehrt (Gap Closure WR-06: AUTHENTICATION.md auf den Schema-Stand nach Phase 61 gebracht — person_id auf user, person-Tabelle, Verweis-Banner auf docs/architecture/; Repo-Sweep dokumentiert). Alle 10 Plaene der Phase 61 fertig."
 progress:
   total_phases: 5
   completed_phases: 1
-  total_plans: 13
-  completed_plans: 13
+  total_plans: 14
+  completed_plans: 14
   percent: 20
 ---
 
@@ -33,13 +33,14 @@ progress:
 
 ## Current Position
 
-Phase: 61 (personservice-aufl-sung-von-sales-person-user) — EXECUTING
-Plan: 9 of 10
-Status: Gap-Closure-Wellen laufen (61-07 bis 61-10 schliessen die Review-Befunde CR-01, CR-02, WR-04, WR-05, WR-06)
+Phase: 61 (personservice-aufl-sung-von-sales-person-user) — ALLE PLAENE AUSGEFUEHRT
+Plan: 10 of 10
+Status: Gap-Closure-Wellen abgeschlossen (61-07 bis 61-10 haben die Review-Befunde CR-01, CR-02, WR-04, WR-05, WR-06 geschlossen)
 Code-Review 61-REVIEW.md: 2 critical, 7 warning, 7 info. CR-01 + WR-05 sind mit 61-07,
-CR-02 mit 61-08 und WR-04 mit 61-09 geschlossen; CR-02 (Pre-Flight-Query) bleibt Deploy-Gate, siehe **v2.7 Deploy-Gates** unten.
-Last activity: 2026-09-17 — Plan 61-09 ausgefuehrt (Gap Closure WR-04: Split-Konflikt in set_user wird wie der Merge-Konflikt nach 409 uebersetzt; F01-Statustabelle EN + DE nachgezogen)
-Next: Plan 61-10 ausfuehren (Gap Closure WR-06)
+CR-02 mit 61-08, WR-04 mit 61-09 und WR-06 mit 61-10 geschlossen; CR-02 (Pre-Flight-Query) bleibt Deploy-Gate, siehe **v2.7 Deploy-Gates** unten.
+Weiterhin aufgeschoben: WR-02 (Phase 62), WR-01, WR-03, WR-07 und IN-01..IN-07 (Backlog).
+Last activity: 2026-09-17 — Plan 61-10 ausgefuehrt (Gap Closure WR-06: AUTHENTICATION.md zeigt `user` mit `person_id` und `person` als eigene Tabelle, verweist auf die kanonischen Dokumente unter `docs/architecture/`, und die Login-Auto-Anlage ist mit ihrer Identitaetsvergabe dokumentiert)
+Next: Phase 61 verifizieren (`/gsd-verify-work`), danach Phase 62
 Resume file: None
 
 ## Quick Tasks Completed
@@ -64,6 +65,18 @@ verwaisten `sales_person_user`-Zeilen mit einer nicht-diagnostischen
 laufende Anwendung sind solche Zeilen nicht erzeugbar (`PRAGMA foreign_keys = ON`,
 `sales_person` wird nur soft-geloescht); Restrisiko sind Altbestaende aus manuellen
 Eingriffen, Restores oder aelteren Tools. Kein Test kann die reale Datenlage pruefen.
+
+### Doku-Drift-Befunde aus dem Phase-61-Sweep (2026-09-17, Plan 61-10)
+
+Alle drei wurden beim Sweep fuer WR-06 gefunden, liegen aber ausserhalb des
+Gap-Scopes dieses Plans (`files_modified: [AUTHENTICATION.md]`). Sie sind
+bewusst **nicht** stillschweigend mitrepariert worden.
+
+| Item | Fundstelle | Status |
+|------|------------|--------|
+| **arc42 D3, zweiter Drift-Befund zu `AUTHENTICATION.md`**: die Datei beschreibt weiter einen `MockContext`-Context-Typ hinter `#[cfg(feature = "mock_auth")]`. Im Code existiert `MockContext` nicht mehr (`grep -rn "MockContext" --include="*.rs" .` → 0 Treffer); `rest/src/session.rs:12` fuehrt `pub type Context = Option<Arc<str>>` ohne `cfg`, und `service_impl/src/lib.rs:64` verwendet denselben Typ. | `docs/arc42/11-risks-and-technical-debt.md` Zeile D3 | offen — ausserhalb WR-06 (dort geht es um die Verknuepfungstabelle, nicht um den Context-Typ) |
+| **`openspec/specs/dev-seed/spec.md:79`** behauptet, der Dev-Seed-Reset loesche Zeilen aus der in Phase 61 aufgeloesten 1:1-Verknuepfungstabelle. `BasicDaoImpl::clear_all` tut das seit Phase 61 nicht mehr (die Tabelle existiert nicht). | `openspec/specs/dev-seed/spec.md` | offen — der `openspec/`-Baum ist laut arc42 D3 ohnehin als stillgelegtes Artefakt zum Loeschen/Markieren vorgemerkt |
+| **ROADMAP-Progress-Tabelle**: die Zeile fuer Phase 60 steht weiter auf `0/? | Not started`, obwohl die Phase abgeschlossen ist (STATE: `completed_phases: 1`). Plan 61-10 hat nur die Zeile fuer Phase 61 angefasst. | `.planning/ROADMAP.md` §Progress Table | offen — vorbestehende Drift, nicht durch diese Welle verursacht |
 
 ### Beim v2.6-Close acknowledged (2026-09-15)
 
@@ -405,6 +418,9 @@ D-63-01/02, D-64-01/02/03).
 - [Phase 61]: clear_all loescht nur traegerlose person-Zeilen — Loeschbedingung wortgleich zu Anweisung A7 der DROP-Migration — Review-Befund CR-02: ein pauschales DELETE FROM person liess jede ueberlebende user-Zeile (inkl. DEVUSER/admin) auf eine nicht mehr existierende Person zeigen; user.person_id traegt keine FK-Deklaration, die DB faengt das nicht ab.
 - [Phase 61]: D-61-09a: Split-Konflikt in set_user wird wie der Merge-Konflikt nach ServiceError::EntityAlreadyExists (409) uebersetzt; die Variante bleibt bewusst EntityAlreadyExists, weil 409 fuer einen Race-Verlierer der richtige Status ist und eine eigene Variante eine Vertragserweiterung ohne Bedarf waere (WR-04)
 - [Phase 61]: D-61-09b: Der rows_affected() != 1-Zweig eines DAO wird auf Service-Ebene gemockt statt integriert getestet — Vorab-Lesung und UPDATE laufen in derselben Transaktion, ein Nebenlaeufer kommt nicht dazwischen; die Begruendung steht im Doc-Kommentar der Tests
+- [Phase 61]: D-61-10a: AUTHENTICATION.md bleibt bestehen und wird NICHT durch docs/architecture/04-auth.md ersetzt (die zweite im Review angebotene Option) — die Datei traegt Setup-, OIDC- und Beispielstoff, den die kanonischen Dokumente nicht fuehren. Stattdessen legt ein Verweis-Banner am Dateianfang die Vorrangregel fest: bei Widerspruch gewinnen die zweisprachig gepflegten Dokumente unter docs/architecture/.
+- [Phase 61]: D-61-10b: Es wird KEIN AUTHENTICATION_de.md angelegt. Die EN/DE-Regel aus CLAUDE.md gilt fuer Paare, die es gibt; eine neue 600-Zeilen-Uebersetzung waere neuer Doku-Scope statt Gap-Closure.
+- [Phase 61]: D-61-10c: Der Repo-Sweep nach dem alten Tabellennamen kann nicht 0 liefern und soll es auch nicht — migrations/sqlite/*.sql bleiben byte-identisch (sqlx-Checksumme je Datei), shifty_bin/src/person_link_migration_test.rs baut den Vor-Phase-61-Zustand absichtlich nach, und die Treffer in rest/ und shifty-dioxus/ sind Bezeichner (get_sales_person_user, sales_person_user_links), keine Tabellenverweise. Die pruefbare Aussage ist 'kein Dokument beschreibt die Tabelle als aktuelles Schema', nicht 'kein Vorkommen des Strings'.
 
 ## Performance Metrics
 
@@ -463,3 +479,4 @@ D-63-01/02, D-64-01/02/03).
 | Phase 61 P07 | 35min | 3 tasks | 4 files |
 | Phase 61 P08 | 20 min | 2 tasks | 6 files |
 | Phase 61 P09 | ~25min | 2 tasks | 5 files |
+| Phase 61 P10 | ~30min | 2 tasks | 1 files |
