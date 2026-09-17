@@ -1454,57 +1454,408 @@ async fn nachzug_backfillt_unverknuepfte_zeilen() {
     );
 }
 
-/// D-61-06 / T-61-16: die Selbst-Assertion in Block B bricht ab, wenn nach dem
-/// Nachzug eine Verknuepfung ohne uebereinstimmendes `person_id`-Gegenstueck
-/// bliebe.
+/// CR-01 (Phase-61-Review): der **haeufigste** Zustand des Deploy-Fensters —
+/// beide Seiten tragen je eine eigene Person und werden im Fenster verknuepft.
 ///
-/// Fixture: ein verknuepftes Paar, dessen Seiten auf **verschiedene** Personen
-/// zeigen. Block A ueberspringt es (Idempotenz-Key ist `person_id IS NULL`),
-/// Block B erkennt den Widerspruch — und der `CHECK`-Constraint verhindert, dass
-/// Block C die Verknuepfung still wegwirft.
+/// Nach dem Phase-60-Backfill traegt JEDE Bestandszeile eine Person. Verknuepft
+/// HR im Fenster einen bestehenden Login mit einer bestehenden Sales Person, so
+/// schreibt der dort noch laufende alte `assign_to_user` ausschliesslich eine
+/// `sales_person_user`-Zeile — die beiden `person_id` bleiben verschieden. Das
+/// ist der Regelfall des Fensters, kein Sonderfall und kein Grund zum Abbruch:
+/// Block A muss den Widerspruch AUFLOESEN statt an ihm zu scheitern.
+///
+/// Dieser Test ersetzt die fruehere Fassung, die genau diese Fixture aufbaute
+/// und den Abbruch der Selbst-Assertion als Sollverhalten festhielt (gleiche
+/// Fixture, umgekehrte Erwartung). Der alte Test schuetzte damit den Defekt aus
+/// CR-01, statt ihn zu finden.
+///
+/// Gewinner-Richtung ist D-61-03: die Sales Person behaelt ihre Identitaet
+/// (`billing_period_sales_person` haengt an ihr), der Benutzer wandert auf sie.
 #[tokio::test]
-async fn selbst_assertion_bricht_bei_widerspruechlicher_verknuepfung_ab() {
+async fn nachzug_verschmilzt_im_fenster_verknuepftes_bestandspaar() {
     let pool = setup_pool().await;
 
     let sales_person = Uuid::new_v4();
-    const USER: &str = "widerspruechlich-verknuepfter-benutzer";
+    const USER: &str = "im-fenster-verknuepfter-benutzer";
     let person_a = Uuid::new_v4();
     let person_b = Uuid::new_v4();
 
     seed_person(pool.as_ref(), person_a).await;
     seed_person(pool.as_ref(), person_b).await;
-    seed_sales_person(
-        pool.as_ref(),
-        sales_person,
-        "Widerspruechliche Verkaeuferin",
-        None,
-    )
-    .await;
+    seed_sales_person(pool.as_ref(), sales_person, "Bestands-Verkaeuferin", None).await;
     seed_user(pool.as_ref(), USER).await;
     seed_link(pool.as_ref(), sales_person, USER).await;
     set_sales_person_person_id(pool.as_ref(), sales_person, person_a).await;
     set_user_person_id(pool.as_ref(), USER, person_b).await;
 
+    // Vorbedingung: die beiden Seiten laufen wirklich auseinander — sonst prueft
+    // der Test den Fenster-Zustand gar nicht.
+    assert_eq!(
+        person_id_of_sales_person(pool.as_ref(), sales_person).await,
+        Some(person_a.as_bytes().to_vec()),
+        "Vorbedingung: die Sales Person muss vor dem Nachzug ihre eigene Person tragen"
+    );
+    assert_eq!(
+        person_id_of_user(pool.as_ref(), USER).await,
+        Some(person_b.as_bytes().to_vec()),
+        "Vorbedingung: der Benutzer muss vor dem Nachzug eine ANDERE eigene Person tragen"
+    );
+
+    run_drop_migration(pool.as_ref()).await.expect(
+        "CR-01: der haeufigste Fenster-Zustand (HR verknuepft einen bestehenden Login mit \
+         einer bestehenden Sales Person) darf die Migration NICHT abbrechen lassen — ein \
+         Abbruch blockiert den Serverstart, und es gibt keinen Down-Pfad",
+    );
+
+    let sales_person_identity = person_id_of_sales_person(pool.as_ref(), sales_person).await;
+    let user_identity = person_id_of_user(pool.as_ref(), USER).await;
+
+    assert_eq!(
+        sales_person_identity, user_identity,
+        "CR-01: nach dem Nachzug muessen beide Seiten des Paars auf DIESELBE Person zeigen"
+    );
+    assert_eq!(
+        sales_person_identity,
+        Some(person_a.as_bytes().to_vec()),
+        "D-61-03: die Sales Person behaelt ihre Identitaet, der Benutzer wandert auf sie"
+    );
+
+    let person_b_hex = person_b.simple().to_string();
+    let absorbed = count(
+        pool.as_ref(),
+        &format!("SELECT COUNT(*) FROM person WHERE id = x'{person_b_hex}'"),
+    )
+    .await;
+    assert_eq!(
+        absorbed, 0,
+        "D-61-03: die absorbierte person-Zeile darf nicht traegerlos zurueckbleiben"
+    );
+
+    let persons = count(pool.as_ref(), "SELECT COUNT(*) FROM person").await;
+    assert_eq!(
+        persons, 1,
+        "CR-01: aus dem verschmolzenen Bestandspaar muss genau EINE person-Zeile werden"
+    );
+
+    assert!(
+        !table_exists(pool.as_ref(), LEGACY_LINK_TABLE).await,
+        "CR-01/D-61-07: nach dem aufgeloesten Widerspruch muss Block C tatsaechlich laufen"
+    );
+}
+
+/// CR-01, Pfad 2 des Reviews: Bestands-Benutzer trifft auf eine im Fenster neu
+/// angelegte Sales Person.
+///
+/// D-60-10 laesst eine frisch angelegte `sales_person`-Zeile ohne `person_id`
+/// ausdruecklich zu. Der Benutzer traegt dagegen seit dem Phase-60-Backfill eine
+/// eigene Person. Die alte A3 wuerfelte der Sales Person eine fabrikneue,
+/// davon verschiedene Identitaet — Block A stellte den Widerspruch also SELBST
+/// her, an dem Block B anschliessend abbrach.
+///
+/// Erwartung nach D-61-03: die Sales Person generiert, der Benutzer wandert auf
+/// sie; die verlassene Person des Benutzers wird aufgeraeumt.
+#[tokio::test]
+async fn nachzug_verschmilzt_bestands_user_mit_neuer_sales_person() {
+    let pool = setup_pool().await;
+
+    let sales_person = Uuid::new_v4();
+    const USER: &str = "bestands-benutzer-neue-sales-person";
+    let person_u = Uuid::new_v4();
+
+    seed_person(pool.as_ref(), person_u).await;
+    seed_sales_person(pool.as_ref(), sales_person, "Im Fenster angelegt", None).await;
+    seed_user(pool.as_ref(), USER).await;
+    seed_link(pool.as_ref(), sales_person, USER).await;
+    set_user_person_id(pool.as_ref(), USER, person_u).await;
+
+    // Vorbedingung: genau der D-60-10-Zustand — Sales Person ohne Identitaet,
+    // Benutzer mit Identitaet aus dem Phase-60-Backfill.
+    assert_eq!(
+        person_id_of_sales_person(pool.as_ref(), sales_person).await,
+        None,
+        "Vorbedingung: die im Fenster angelegte Sales Person darf keine person_id tragen"
+    );
+    assert_eq!(
+        person_id_of_user(pool.as_ref(), USER).await,
+        Some(person_u.as_bytes().to_vec()),
+        "Vorbedingung: der Bestands-Benutzer muss seine Phase-60-Person tragen"
+    );
+
+    run_drop_migration(pool.as_ref()).await.expect(
+        "CR-01 (Pfad 2): Block A darf den Widerspruch nicht selbst erzeugen — die Migration \
+         muss durchlaufen",
+    );
+
+    let sales_person_identity = person_id_of_sales_person(pool.as_ref(), sales_person).await;
+    let user_identity = person_id_of_user(pool.as_ref(), USER).await;
+
+    assert!(
+        sales_person_identity.is_some(),
+        "CR-01: die im Fenster angelegte Sales Person muss nach dem Nachzug eine person_id \
+         tragen"
+    );
+    assert_eq!(
+        sales_person_identity, user_identity,
+        "CR-01: beide Seiten der lebenden Verknuepfung muessen auf DIESELBE Person zeigen"
+    );
+    assert_ne!(
+        user_identity,
+        Some(person_u.as_bytes().to_vec()),
+        "D-61-03: die Sales Person generiert, der Benutzer wandert — die alte Person des \
+         Benutzers darf danach nicht mehr die getragene sein"
+    );
+
+    let persons = count(pool.as_ref(), "SELECT COUNT(*) FROM person").await;
+    assert_eq!(
+        persons, 1,
+        "D-61-03: die verlassene Person des Benutzers muss aufgeraeumt sein — genau EINE \
+         person-Zeile bleibt"
+    );
+}
+
+/// CR-01 im Re-Link-Fall, Benutzer-Seite verdraengt (D-61-05).
+///
+/// Fixture: die Sales Person `SP` teilte ihre Person `P` frueher mit Benutzer
+/// `U2`; im Fenster wurde sie auf Benutzer `U1` (eigene Person `P1`) umgehaengt.
+/// `seed_link` legt deshalb NUR die eine aktuelle Verknuepfungszeile `(SP, U1)`
+/// an — genau so hat der alte `assign_to_user`-Pfad im Fenster gearbeitet: erst
+/// `discard`, dann `assign`. Die verdraengte Seite hat per Konstruktion keine
+/// Verknuepfungszeile mehr, ihre veraltete `person_id` aber sehr wohl.
+///
+/// D-61-05: die Sales Person behaelt, der verdraengte Benutzer bekommt eine
+/// frische Person. Ohne diese Entkopplung VOR dem Merge liefe der Merge in
+/// `user_person_id_unique_idx` (der Index ist vollstaendig, nicht partiell).
+#[tokio::test]
+async fn nachzug_gibt_verdraengtem_benutzer_eine_frische_person() {
+    let pool = setup_pool().await;
+
+    let sales_person = Uuid::new_v4();
+    const OLD_USER: &str = "verdraengter-benutzer";
+    const NEW_USER: &str = "neu-verknuepfter-benutzer";
+    let person_shared = Uuid::new_v4();
+    let person_new_user = Uuid::new_v4();
+
+    seed_person(pool.as_ref(), person_shared).await;
+    seed_person(pool.as_ref(), person_new_user).await;
+    seed_sales_person(pool.as_ref(), sales_person, "Umgehaengte Verkaeuferin", None).await;
+    seed_user(pool.as_ref(), OLD_USER).await;
+    seed_user(pool.as_ref(), NEW_USER).await;
+    seed_link(pool.as_ref(), sales_person, NEW_USER).await;
+    set_sales_person_person_id(pool.as_ref(), sales_person, person_shared).await;
+    set_user_person_id(pool.as_ref(), OLD_USER, person_shared).await;
+    set_user_person_id(pool.as_ref(), NEW_USER, person_new_user).await;
+
+    // Vorbedingung: der verdraengte Benutzer haengt noch an der Person der
+    // Sales Person, ist aber nicht mehr mit ihr verknuepft.
+    assert_eq!(
+        person_id_of_user(pool.as_ref(), OLD_USER).await,
+        Some(person_shared.as_bytes().to_vec()),
+        "Vorbedingung: der verdraengte Benutzer muss noch die Person der Sales Person tragen"
+    );
+    assert_eq!(
+        person_id_of_sales_person(pool.as_ref(), sales_person).await,
+        Some(person_shared.as_bytes().to_vec()),
+        "Vorbedingung: die Sales Person muss die geteilte Person tragen"
+    );
+
+    run_drop_migration(pool.as_ref()).await.expect(
+        "D-61-05: ein Re-Link aus dem Deploy-Fenster darf die Migration nicht abbrechen \
+         lassen — weder ueber die Selbst-Assertion noch ueber user_person_id_unique_idx",
+    );
+
+    assert_eq!(
+        person_id_of_sales_person(pool.as_ref(), sales_person).await,
+        Some(person_shared.as_bytes().to_vec()),
+        "D-61-03: die Sales Person behaelt ihre Identitaet"
+    );
+    assert_eq!(
+        person_id_of_user(pool.as_ref(), NEW_USER).await,
+        Some(person_shared.as_bytes().to_vec()),
+        "D-61-03: der neu verknuepfte Benutzer wandert auf die Person der Sales Person"
+    );
+
+    let displaced = person_id_of_user(pool.as_ref(), OLD_USER)
+        .await
+        .expect("D-61-05: der verdraengte Benutzer braucht eine eigene Person");
+    assert_ne!(
+        displaced,
+        person_shared.as_bytes().to_vec(),
+        "T-61-25: der verdraengte Benutzer darf NICHT auf derselben Person bleiben — das \
+         oeffnete ueber den Self-Gate Zugriff auf fremde Buchungs- und Lohndaten"
+    );
+    assert_ne!(
+        displaced,
+        person_new_user.as_bytes().to_vec(),
+        "D-61-05: der verdraengte Benutzer bekommt eine FRISCHE Person, nicht die des \
+         neu verknuepften Benutzers"
+    );
+
+    let displaced_hex = Uuid::from_slice(displaced.as_slice())
+        .expect("person_id ist ein 16-Byte-Blob")
+        .simple()
+        .to_string();
+    let displaced_rows = count(
+        pool.as_ref(),
+        &format!("SELECT COUNT(*) FROM person WHERE id = x'{displaced_hex}'"),
+    )
+    .await;
+    assert_eq!(
+        displaced_rows, 1,
+        "D-61-05: zur frischen Identitaet des verdraengten Benutzers muss eine person-Zeile \
+         existieren"
+    );
+
+    let persons = count(pool.as_ref(), "SELECT COUNT(*) FROM person").await;
+    assert_eq!(
+        persons, 2,
+        "D-61-05: zwei Traeger-Gruppen ergeben zwei person-Zeilen — die verlassene Person \
+         des neu verknuepften Benutzers wird aufgeraeumt"
+    );
+}
+
+/// CR-01 im Re-Link-Fall, Sales-Person-Seite verdraengt — der Regressionsschutz
+/// gegen die naheliegende Fehlreparatur.
+///
+/// Der Review schlaegt vor, eine verknuepfte Sales Person ohne Identitaet per
+/// `COALESCE` die Person ihres Benutzers uebernehmen zu lassen. Hier zeigt sich,
+/// warum das falsch ist: die verdraengte Sales Person `SPz` traegt diese Person
+/// noch, und `sales_person_person_id_unique_idx` ist vollstaendig — der
+/// `COALESCE`-Fix tauschte `CHECK constraint failed` gegen
+/// `UNIQUE constraint failed`.
+///
+/// Auch hier legt `seed_link` nur die eine aktuelle Verknuepfungszeile an: der
+/// alte Laufzeitpfad hat im Fenster erst `discard` und dann `assign` gefahren,
+/// die verdraengte Seite hat also keine Verknuepfungszeile mehr.
+#[tokio::test]
+async fn nachzug_verschmilzt_bei_verdraengter_sales_person() {
+    let pool = setup_pool().await;
+
+    let old_sales_person = Uuid::new_v4();
+    let new_sales_person = Uuid::new_v4();
+    const USER: &str = "umgehaengter-benutzer";
+    let person_shared = Uuid::new_v4();
+
+    seed_person(pool.as_ref(), person_shared).await;
+    seed_sales_person(
+        pool.as_ref(),
+        old_sales_person,
+        "Verdraengte Verkaeuferin",
+        None,
+    )
+    .await;
+    seed_sales_person(
+        pool.as_ref(),
+        new_sales_person,
+        "Neu verknuepfte Verkaeuferin",
+        None,
+    )
+    .await;
+    seed_user(pool.as_ref(), USER).await;
+    seed_link(pool.as_ref(), new_sales_person, USER).await;
+    set_sales_person_person_id(pool.as_ref(), old_sales_person, person_shared).await;
+    set_user_person_id(pool.as_ref(), USER, person_shared).await;
+
+    // Vorbedingung: die neu verknuepfte Sales Person ist identitaetslos
+    // (D-60-10), die verdraengte haelt die geteilte Person fest.
+    assert_eq!(
+        person_id_of_sales_person(pool.as_ref(), new_sales_person).await,
+        None,
+        "Vorbedingung: die im Fenster verknuepfte Sales Person darf keine person_id tragen"
+    );
+    assert_eq!(
+        person_id_of_sales_person(pool.as_ref(), old_sales_person).await,
+        Some(person_shared.as_bytes().to_vec()),
+        "Vorbedingung: die verdraengte Sales Person muss die geteilte Person weiter tragen"
+    );
+
+    run_drop_migration(pool.as_ref()).await.expect(
+        "T-61-26: der Nachzug darf die Person des Benutzers NICHT auf die neu verknuepfte \
+         Sales Person schreiben — das liefe in sales_person_person_id_unique_idx",
+    );
+
+    assert_eq!(
+        person_id_of_sales_person(pool.as_ref(), old_sales_person).await,
+        Some(person_shared.as_bytes().to_vec()),
+        "D-61-05: die verdraengte Sales Person behaelt ihre Person unveraendert"
+    );
+
+    let new_identity = person_id_of_sales_person(pool.as_ref(), new_sales_person)
+        .await
+        .expect("D-61-06: die verknuepfte Sales Person braucht nach dem Nachzug eine Person");
+    assert_eq!(
+        person_id_of_user(pool.as_ref(), USER).await,
+        Some(new_identity.clone()),
+        "D-61-03: der Benutzer wandert auf die Person seiner jetzt verknuepften Sales Person"
+    );
+    assert_ne!(
+        new_identity,
+        person_shared.as_bytes().to_vec(),
+        "T-61-25: die neu verknuepfte Sales Person darf nicht auf der Person der verdraengten \
+         landen — das zoege zwei verschiedene Menschen auf eine Identitaet"
+    );
+
+    let persons = count(pool.as_ref(), "SELECT COUNT(*) FROM person").await;
+    assert_eq!(
+        persons, 2,
+        "D-61-05: die verdraengte Sales Person und das neue Paar ergeben zwei person-Zeilen"
+    );
+}
+
+/// WR-05: eine Verknuepfungszeile mit fehlender Elternzeile muss die
+/// Selbst-Assertion abbrechen lassen.
+///
+/// Mit den beiden INNER JOINs fiel genau diese Zeile aus dem Ergebnis heraus,
+/// die Assertion ging gruen durch und Block C warf die Verknuepfung still weg —
+/// Datenverlust ohne Spur bei irreversibler Migration (T-61-27). Phase 60 hatte
+/// dieselbe Luecke als CR-01 gefunden und mit zwei globalen Deckungstermen
+/// geschlossen (`20260916000000_create-person-backfill.sql`, Block 4).
+///
+/// Wie bei `dangling_link_aborts_backfill` ist der Zustand ueber die
+/// Applikation nicht erreichbar (die FK-Deklaration plus `PRAGMA foreign_keys`
+/// verhindern ihn); der Test haertet die Assertion, er belegt keinen aktiven
+/// Datenzustand.
+#[tokio::test]
+async fn selbst_assertion_bricht_bei_verwaister_verknuepfung_ab() {
+    let pool = setup_pool().await;
+
+    const USER: &str = "benutzer-mit-verwaister-verknuepfung";
+    let missing_sales_person = Uuid::new_v4();
+
+    seed_user(pool.as_ref(), USER).await;
+    seed_dangling_link(pool.as_ref(), missing_sales_person, USER).await;
+
+    // Vorbedingung: die Verknuepfungszeile zeigt wirklich ins Leere.
+    let orphan_parents = count(
+        pool.as_ref(),
+        "SELECT COUNT(*) FROM sales_person_user spu \
+         WHERE NOT EXISTS (SELECT 1 FROM sales_person sp WHERE sp.id = spu.sales_person_id)",
+    )
+    .await;
+    assert_eq!(
+        orphan_parents, 1,
+        "Vorbedingung: die Fixture muss genau eine verwaiste Verknuepfungszeile fuehren"
+    );
+
     let err = run_drop_migration(pool.as_ref())
         .await
-        .expect_err("T-61-16: ein widerspruechliches Paar darf nicht als Erfolg durchgehen");
+        .expect_err("WR-05: eine verwaiste Verknuepfungszeile darf nicht als Erfolg durchgehen");
 
     assert!(
         matches!(err, sqlx::Error::Database(_)),
-        "D-61-06: die Ablehnung muss von der Datenbank kommen (sqlx::Error::Database) — \
+        "WR-05: die Ablehnung muss von der Datenbank kommen (sqlx::Error::Database) — \
          Fehler war: {err:?}"
     );
     assert!(
         err.to_string()
             .to_lowercase()
             .contains("check constraint failed"),
-        "D-61-06: der Abbruch muss aus der Selbst-Assertion in Block B stammen, nicht aus \
+        "WR-05: der Abbruch muss aus der Selbst-Assertion in Block B stammen, nicht aus \
          einem beliebigen anderen Datenbankfehler — Fehlertext war: {err}"
     );
 
     assert!(
         table_exists(pool.as_ref(), LEGACY_LINK_TABLE).await,
-        "T-61-16: Block C darf nach einem Abbruch in Block B NICHT gelaufen sein — die \
+        "T-61-27: Block C darf nach einem Abbruch in Block B NICHT gelaufen sein — die \
          Verknuepfung muss fuer die manuelle Bereinigung erhalten bleiben"
     );
 }
