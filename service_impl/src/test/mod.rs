@@ -132,3 +132,5 @@ pub mod person_candidates;
 pub mod person_creation;
 #[cfg(test)]
 pub mod person_self_gate;
+#[cfg(test)]
+pub mod person_merge;

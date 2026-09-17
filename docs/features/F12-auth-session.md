@@ -181,8 +181,10 @@ person ─┬─ 0..1 ─ user          (user.person_id — nullable, UNIQUE)
   `user.person_id = sales_person.person_id`; `sales_person_user` is no longer
   read on any of these paths. The decision deliberately lives in SQL, where
   `NULL = NULL` never matches — a Rust-side `Option<Uuid>` comparison would be
-  fail-open. The link table is still *written* (`assign_to_user` /
-  `discard_assigned_user`) until the dissolution migration later in Phase 61.
+  fail-open. Since Phase 61 the *write* paths (`assign_to_user` /
+  `discard_assigned_user`) also operate purely on `person_id` — the link table
+  is no longer touched at all and is removed by the dissolution migration later
+  in Phase 61.
 - **Login auto-creation assigns `person_id`** (v2.7, Phase 61 [D-61-01]).
   `PermissionDaoImpl::create_user` (`dao_impl_sqlite/src/lib.rs`) opens a
   **method-internal** transaction (`self.pool.begin()`), inserts the `person`

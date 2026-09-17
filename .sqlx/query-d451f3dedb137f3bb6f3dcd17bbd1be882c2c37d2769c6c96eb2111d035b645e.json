@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT person_id FROM sales_person WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "person_id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "d451f3dedb137f3bb6f3dcd17bbd1be882c2c37d2769c6c96eb2111d035b645e"
+}

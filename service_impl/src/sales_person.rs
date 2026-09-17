@@ -328,14 +328,30 @@ impl<Deps: SalesPersonServiceDeps> SalesPersonService for SalesPersonServiceImpl
             .discard_assigned_user(sales_person_id, tx.clone())
             .await?;
         if let Some(user) = user_id {
-            self.sales_person_dao
+            // Der Verknuepfungs-Konflikt (D-61-04) muss den Aufrufer als 409
+            // erreichen. `ServiceError` konvertiert `DaoError` per `#[from]`
+            // pauschal nach `DatabaseQueryError` → HTTP 500; ohne diese
+            // chirurgische Uebersetzung waere ein Konflikt vom Serverfehler
+            // nicht unterscheidbar und wuerde stillschweigend wiederholt
+            // (T-61-15). Muster: `rebooking_batch::create_pending_suggestion`.
+            match self
+                .sales_person_dao
                 .assign_to_user(
                     sales_person_id,
                     user.as_ref(),
                     SALES_PERSON_SERVICE_PROCESS,
                     tx.clone(),
                 )
-                .await?;
+                .await
+            {
+                Ok(()) => {}
+                Err(dao::DaoError::EntityAlreadyExists) => {
+                    // Kein Commit: die Transaktion wird verworfen und damit
+                    // auch das zuvor gelaufene Loesen zurueckgerollt (P-61-B).
+                    return Err(ServiceError::EntityAlreadyExists(sales_person_id));
+                }
+                Err(other) => return Err(other.into()),
+            }
         }
         self.transaction_dao.commit(tx).await?;
         Ok(())

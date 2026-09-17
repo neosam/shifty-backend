@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE user SET person_id = ?, update_process = ? WHERE name = ? AND person_id IS ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "26799022c4b755fcac0b857206d2a6187f196a04e50e907062d372b092ba5ee8"
+}

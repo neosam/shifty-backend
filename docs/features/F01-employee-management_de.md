@@ -78,11 +78,28 @@ FK-Konsistenz mit Bookings/Extra Hours zu erhalten.
 - **Create-Guards.** `id != Uuid::nil()` → `IdSetOnCreate`; `version !=
   Uuid::nil()` → `VersionSetOnCreate` (`sales_person.rs:177-183`). Sowohl
   `id` als auch `version` werden vom Service über `UuidService` erzeugt.
-- **User-Zuweisung ist 1:1.** `sales_person_user` hat
-  `UNIQUE(sales_person_id)` **und** `UNIQUE(user_id)`
-  (`migrations/sqlite/20240506114107_add_sales_person.sql:20-21`). Das
-  Ersetzen läuft in einer TX via `discard_assigned_user` + `assign_to_user`
-  (`sales_person.rs:316-342`), also atomar für den Umzug einer Zuordnung.
+- **User-Zuweisung ist 1:1.** Durchgesetzt wird sie von den beiden
+  `UNIQUE`-Indizes auf `person_id` (`sales_person_person_id_unique_idx`,
+  `user_person_id_unique_idx`,
+  `migrations/sqlite/20260916000000_create-person-backfill.sql`) in der
+  Datenbank. Das Ersetzen läuft in einer TX via `discard_assigned_user` +
+  `assign_to_user` (`sales_person.rs:316-342`), also atomar für den Umzug einer
+  Zuordnung.
+- **Verknüpfen ist ein Merge zweier Personen** (v2.7, Phase 61 [D-61-03]).
+  `SalesPersonDaoImpl::assign_to_user` hängt den Benutzer auf die `person_id`
+  der Sales Person um und löscht die absorbierte `person`-Zeile. Die Sales
+  Person behält ihre Identität — sie ist die Seite mit historischem Gewicht
+  (Buchungen, `extra_hours`, write-once-Snapshots in
+  `billing_period_sales_person`).
+- **Abgelehnt wird nur echte Mehrdeutigkeit** (v2.7, Phase 61 [D-61-04]). Vor
+  jedem Schreibvorgang fährt `assign_to_user` zwei Konflikt-`SELECT`s: hängt
+  bereits ein anderer Benutzer an der Person der Sales Person, und hängt
+  bereits eine andere Sales Person an der Person des Benutzers? Ein Treffer
+  liefert `DaoError::EntityAlreadyExists` — **ohne** irgendetwas zu schreiben;
+  `SalesPersonServiceImpl::set_user` übersetzt das in
+  `ServiceError::EntityAlreadyExists` → HTTP 409. Der häufige Bestandsfall nach
+  dem Backfill — beide Seiten tragen *je eine eigene* Person — ist
+  ausdrücklich **kein** Konflikt und geht durch.
 - **Alle vier lesenden Verknüpfungs-Pfade lösen über `person_id` auf** (v2.7,
   Phase 61 [D-61-08]). `SalesPersonDaoImpl::find_by_user`,
   `find_sales_person_by_user_id`, `get_assigned_user` und

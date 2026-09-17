@@ -11,6 +11,19 @@ use sqlx::{query, query_as};
 use time::{format_description::well_known::Iso8601, PrimitiveDateTime};
 use uuid::Uuid;
 
+/// `update_process`-Marker fuer die beim Verknuepfen geschriebene
+/// `user`-Zeile. Greift nur, wenn der Aufrufer keinen eigenen Prozessnamen
+/// mitgibt — siehe Methodenkommentar von `assign_to_user`.
+const PERSON_LINK_PROCESS: &str = "sales-person-dao::link";
+
+/// Erkennt eine SQLite-UNIQUE-Constraint-Verletzung im rohen `sqlx::Error`,
+/// bevor er via `map_db_error` in `DatabaseQueryError` geboxt wird. Ohne diese
+/// Unterscheidung wuerde aus dem Verlierer einer Race ein 500er statt eines
+/// 409ers (Muster: `rebooking_batch::is_unique_violation`).
+fn is_unique_violation(err: &sqlx::Error) -> bool {
+    matches!(err, sqlx::Error::Database(db_err) if db_err.is_unique_violation())
+}
+
 pub struct SalesPersonDaoImpl {
     pub _pool: Arc<sqlx::SqlitePool>,
 }
@@ -185,6 +198,32 @@ impl SalesPersonDao for SalesPersonDaoImpl {
         Ok(())
     }
 
+    /// Verknuepfen ist ein **Merge zweier Personen** (D-61-03): der Benutzer
+    /// wird auf die Person der Sales Person umgehaengt, seine bisherige Person
+    /// wird absorbiert und geloescht. Die Sales Person behaelt ihre Identitaet —
+    /// sie ist die Seite mit historischem Gewicht (Buchungen, `extra_hours`,
+    /// write-once-Snapshots in `billing_period_sales_person`).
+    ///
+    /// **Konflikt-Semantik (D-61-04):** abgelehnt wird nur echte
+    /// Mehrdeutigkeit, also wenn eine *dritte* Zeile betroffen waere — der
+    /// Ziel-Benutzer haengt schon an einer anderen Sales Person, oder die Sales
+    /// Person haengt schon an einem anderen Benutzer. Der haeufige Bestandsfall
+    /// „beide Seiten tragen je eine eigene Person" (Ergebnis des
+    /// Phase-60-Backfills) ist **kein** Konflikt und geht durch.
+    ///
+    /// **`update_process`:** der vom Aufrufer uebergebene `process` gewinnt,
+    /// weil er den fachlichen Ausloeser benennt (z. B. `sales-person-service`).
+    /// Nur wenn er leer ist, greift die dateilokale Konstante
+    /// [`PERSON_LINK_PROCESS`] — so bleibt die geschriebene `user`-Zeile in
+    /// jedem Fall zuordenbar.
+    ///
+    /// Alle Statements laufen auf der uebergebenen Transaktion. Der Aufrufer
+    /// entscheidet ueber Commit/Rollback; im Fehlerfall wurde nichts
+    /// geschrieben.
+    ///
+    /// Die frueher hier gepflegte separate Verknuepfungstabelle wird von
+    /// `migrations/sqlite/20260917000000_drop-sales-person-user.sql` entfernt;
+    /// die Verknuepfung lebt seither ausschliesslich in `person_id`.
     async fn assign_to_user(
         &self,
         sales_person_id: Uuid,
@@ -192,11 +231,114 @@ impl SalesPersonDao for SalesPersonDaoImpl {
         process: &str,
         tx: Self::Transaction,
     ) -> Result<(), DaoError> {
-        let sales_person_id = sales_person_id.as_bytes().to_vec();
-        query!("INSERT INTO sales_person_user (user_id, sales_person_id, update_process) VALUES (?, ?, ?)", user_id, sales_person_id, process)
+        let sales_person_id_vec = sales_person_id.as_bytes().to_vec();
+
+        // Schritt 1 — beide Ist-Identitaeten lesen.
+        let person_of_sales_person = query!(
+            "SELECT person_id FROM sales_person WHERE id = ?",
+            sales_person_id_vec
+        )
+        .fetch_optional(tx.tx.lock().await.as_mut())
+        .await
+        .map_db_error()?
+        .and_then(|row| row.person_id);
+
+        let person_of_user = query!("SELECT person_id FROM user WHERE name = ?", user_id)
+            .fetch_optional(tx.tx.lock().await.as_mut())
+            .await
+            .map_db_error()?
+            .and_then(|row| row.person_id);
+
+        // Schritt 2a — beide zeigen bereits auf dieselbe Person: No-Op.
+        if let (Some(p_s), Some(p_u)) = (&person_of_sales_person, &person_of_user) {
+            if p_s == p_u {
+                return Ok(());
+            }
+        }
+
+        // Fehlt der Sales Person eine Identitaet (Zeile nicht vorhanden oder
+        // `person_id` leer), gibt es nichts, worauf der Benutzer zeigen
+        // koennte. Fail-closed statt den Benutzer identitaetslos zu machen
+        // (T-61-14) — derselbe Ausgang wie ein `rows_affected() == 0` in
+        // Schritt 3.
+        let Some(target_person) = person_of_sales_person.clone() else {
+            return Err(DaoError::EntityAlreadyExists);
+        };
+
+        // Schritt 2b — die beiden Konflikt-Abfragen VOR jedem Schreibvorgang
+        // (D-61-04, T-61-11/T-61-12).
+        let foreign_user = query!(
+            "SELECT name FROM user WHERE person_id = ? AND name != ?",
+            target_person,
+            user_id
+        )
+        .fetch_optional(tx.tx.lock().await.as_mut())
+        .await
+        .map_db_error()?;
+        if foreign_user.is_some() {
+            return Err(DaoError::EntityAlreadyExists);
+        }
+
+        if let Some(p_u) = &person_of_user {
+            let foreign_sales_person = query!(
+                "SELECT id FROM sales_person WHERE person_id = ? AND id != ?",
+                p_u,
+                sales_person_id_vec
+            )
+            .fetch_optional(tx.tx.lock().await.as_mut())
+            .await
+            .map_db_error()?;
+            if foreign_sales_person.is_some() {
+                return Err(DaoError::EntityAlreadyExists);
+            }
+        }
+
+        // Schritt 3 — Benutzer umhaengen. Der `person_id IS ?`-Guard auf den in
+        // Schritt 1 gelesenen Wert ist Defense-in-Depth gegen eine Race
+        // innerhalb derselben Transaktion (Muster:
+        // `rebooking_batch::update_state_conditional`). `IS` statt `=`, damit
+        // auch ein leerer Ausgangswert korrekt matcht.
+        let update_process = if process.is_empty() {
+            PERSON_LINK_PROCESS
+        } else {
+            process
+        };
+        let update_result = query!(
+            "UPDATE user SET person_id = ?, update_process = ? WHERE name = ? AND person_id IS ?",
+            target_person,
+            update_process,
+            user_id,
+            person_of_user
+        )
+        .execute(tx.tx.lock().await.as_mut())
+        .await;
+        let update_result = match update_result {
+            Ok(result) => result,
+            // Rueckversicherung: schlaegt trotz Vorabpruefung einer der beiden
+            // vollstaendigen UNIQUE-Indizes zu, ist der Race-Verlierer ein
+            // Konflikt (409) und kein Serverfehler (T-61-13, T-61-15).
+            Err(err) if is_unique_violation(&err) => return Err(DaoError::EntityAlreadyExists),
+            Err(err) => return Err(DaoError::DatabaseQueryError(Box::new(err))),
+        };
+        if update_result.rows_affected() != 1 {
+            return Err(DaoError::EntityAlreadyExists);
+        }
+
+        // Schritt 4 — die absorbierte Person loeschen. Die beiden
+        // `NOT EXISTS`-Guards sind Absicherung; nach Schritt 3 zeigt nichts
+        // mehr auf sie.
+        if let Some(p_u) = person_of_user {
+            query!(
+                "DELETE FROM person WHERE id = ? \
+                 AND NOT EXISTS (SELECT 1 FROM sales_person WHERE person_id = person.id) \
+                 AND NOT EXISTS (SELECT 1 FROM user WHERE person_id = person.id)",
+                p_u
+            )
             .execute(tx.tx.lock().await.as_mut())
             .await
             .map_db_error()?;
+        }
+
         Ok(())
     }
 

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM person WHERE id = ? AND NOT EXISTS (SELECT 1 FROM sales_person WHERE person_id = person.id) AND NOT EXISTS (SELECT 1 FROM user WHERE person_id = person.id)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "efe1f113af5d5387c453cd6c9210e18bcc999712f2d471d2d93b62130903a688"
+}

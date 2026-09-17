@@ -171,9 +171,10 @@ person ─┬─ 0..1 ─ user          (user.person_id — nullable, UNIQUE)
   `user.person_id = sales_person.person_id`; `sales_person_user` wird auf
   keinem dieser Pfade mehr gelesen. Die Entscheidung liegt bewusst im SQL, wo
   `NULL = NULL` nie matcht — ein Rust-seitiger `Option<Uuid>`-Vergleich wäre
-  fail-open. *Geschrieben* wird die Verknüpfungstabelle weiterhin
-  (`assign_to_user` / `discard_assigned_user`), bis die Auflösungs-Migration
-  später in Phase 61 greift.
+  fail-open. Seit Phase 61 arbeiten auch die *schreibenden* Pfade
+  (`assign_to_user` / `discard_assigned_user`) ausschließlich auf `person_id` —
+  die Verknüpfungstabelle wird gar nicht mehr angefasst und von der
+  Auflösungs-Migration später in Phase 61 entfernt.
 - **Die Login-Auto-Anlage vergibt `person_id` mit** (v2.7, Phase 61
   [D-61-01]). `PermissionDaoImpl::create_user`
   (`dao_impl_sqlite/src/lib.rs`) öffnet dafür eine **methoden-interne**
