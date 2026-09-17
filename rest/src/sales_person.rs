@@ -315,6 +315,7 @@ pub async fn set_sales_person_user<RestState: RestStateDef>(
     responses(
         (status = 204, description = "Delete sales person user"),
         (status = 404, description = "Sales person not found"),
+        (status = 409, description = "The link was changed by someone else before it could be removed"),
         (status = 500, description = "Internal server error"),
     ),
 )]

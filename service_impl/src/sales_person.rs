@@ -324,16 +324,42 @@ impl<Deps: SalesPersonServiceDeps> SalesPersonService for SalesPersonServiceImpl
         self.permission_service
             .check_permission(HR_PRIVILEGE, context)
             .await?;
-        self.sales_person_dao
+        // Der Verknuepfungs-Konflikt (D-61-04) muss den Aufrufer als 409
+        // erreichen. `ServiceError` konvertiert `DaoError` per `#[from]`
+        // pauschal nach `DatabaseQueryError` -> HTTP 500; ohne diese
+        // chirurgische Uebersetzung waere ein Konflikt vom Serverfehler nicht
+        // unterscheidbar und wuerde stillschweigend wiederholt (T-61-15).
+        // Muster: `rebooking_batch::create_pending_suggestion`.
+        //
+        // Die Uebersetzung gilt fuer BEIDE Schreibpfade dieser Methode, Split
+        // wie Merge (WR-04): `discard_assigned_user` meldet einen
+        // Race-Verlierer mit demselben `DaoError::EntityAlreadyExists` wie
+        // `assign_to_user`, und `set_user(id, None, ..)` - der Rumpf von
+        // DELETE /sales-person/{id}/user - faehrt ausschliesslich den Split.
+        // Lief der Split ueber ein blankes `?`, ergab derselbe Zustand auf dem
+        // einen Endpoint einen Konflikt und auf dem anderen einen
+        // Serverfehler.
+        //
+        // Die Variante bleibt auch fuer den Split `EntityAlreadyExists`,
+        // obwohl der Zustand dort eher "der Benutzer ist zwischenzeitlich
+        // weggelaufen" heisst als "existiert bereits": 409 ist fuer einen
+        // Race-Verlierer der richtige Status - derselbe, den der Merge-Pfad
+        // schon liefert -, und eine eigene Variante waere eine
+        // Vertragserweiterung ohne Bedarf. Bewusste Entscheidung, nicht
+        // Versehen.
+        match self
+            .sales_person_dao
             .discard_assigned_user(sales_person_id, tx.clone())
-            .await?;
+            .await
+        {
+            Ok(()) => {}
+            Err(dao::DaoError::EntityAlreadyExists) => {
+                // Kein Commit: die Transaktion wird verworfen (P-61-B).
+                return Err(ServiceError::EntityAlreadyExists(sales_person_id));
+            }
+            Err(other) => return Err(other.into()),
+        }
         if let Some(user) = user_id {
-            // Der Verknuepfungs-Konflikt (D-61-04) muss den Aufrufer als 409
-            // erreichen. `ServiceError` konvertiert `DaoError` per `#[from]`
-            // pauschal nach `DatabaseQueryError` → HTTP 500; ohne diese
-            // chirurgische Uebersetzung waere ein Konflikt vom Serverfehler
-            // nicht unterscheidbar und wuerde stillschweigend wiederholt
-            // (T-61-15). Muster: `rebooking_batch::create_pending_suggestion`.
             match self
                 .sales_person_dao
                 .assign_to_user(

@@ -1,7 +1,7 @@
 use super::error_test::*;
 use dao::{
     sales_person::{MockSalesPersonDao, SalesPersonEntity},
-    MockTransaction, MockTransactionDao,
+    DaoError, MockTransaction, MockTransactionDao,
 };
 use mockall::predicate::{always, eq};
 use service::{
@@ -9,7 +9,7 @@ use service::{
     permission::Authentication,
     sales_person::{SalesPerson, SalesPersonService},
     uuid_service::MockUuidService,
-    MockPermissionService,
+    MockPermissionService, ServiceError,
 };
 use time::{Date, Month, PrimitiveDateTime, Time};
 use tokio;
@@ -833,4 +833,100 @@ async fn test_exists() {
         .await
         .unwrap();
     assert!(result);
+}
+
+// --- WR-04: Fehleruebersetzung des Split-Pfads in `set_user` -----------------
+//
+// Herkunft: `61-REVIEW.md` Abschnitt WR-04. `discard_assigned_user` liefert bei einem
+// Race-Verlierer (`rows_affected() != 1`) `DaoError::EntityAlreadyExists` -
+// denselben Fehler, den `assign_to_user` im Konfliktfall liefert. Geprueft wird
+// hier ausschliesslich die **Uebersetzung im Service**, nicht das SQL.
+//
+// Bewusst Mock-basiert statt als Integrationstest: der
+// `rows_affected() != 1`-Zweig in `discard_assigned_user` ist ueber eine echte
+// SQLite nicht deterministisch herstellbar, weil die Vorab-Lesung und das
+// `UPDATE` in derselben Transaktion laufen und kein Nebenlaeufer dazwischen
+// kommt. Der Mock stellt genau den Rueckgabewert her, den die echte
+// Implementierung in diesem Zweig liefert. Das ist keine Abweichung vom
+// Integrations-Stil der Person-Testmodule (`person_merge`, `person_creation`),
+// sondern die einzige Bauart, in der dieser Zweig ueberhaupt erreichbar ist.
+
+/// WR-04: Ein Split-Konflikt muss den Aufrufer als
+/// `ServiceError::EntityAlreadyExists` (HTTP 409) erreichen, nicht als
+/// Serverfehler.
+///
+/// Mock statt Integration: siehe Abschnittskommentar oben - der
+/// `rows_affected() != 1`-Zweig ist in einer einzigen Transaktion nicht
+/// deterministisch erzeugbar.
+#[tokio::test]
+async fn set_user_none_uebersetzt_split_konflikt_nach_409() {
+    let mut dependencies = build_dependencies(true, "hr");
+    dependencies
+        .sales_person_dao
+        .expect_discard_assigned_user()
+        .with(eq(default_id()), always())
+        .times(1)
+        .returning(|_, _| Err(DaoError::EntityAlreadyExists));
+    // `expect_assign_to_user` wird bewusst NICHT gesetzt: `set_user(_, None, ..)`
+    // darf den Merge-Pfad gar nicht erreichen. mockall meldet einen
+    // unerwarteten Aufruf von selbst.
+    let sales_person_service = dependencies.build_service();
+
+    let result = sales_person_service
+        .set_user(default_id(), None, ().auth(), None)
+        .await;
+
+    match &result {
+        Err(ServiceError::EntityAlreadyExists(id)) => {
+            assert_eq!(
+                &default_id(),
+                id,
+                "Der Konflikt muss die angefragte Sales Person nennen"
+            );
+        }
+        other => panic!(
+            "Split-Konflikt wurde nicht als Konflikt gemeldet: {:?}. \
+             Dieselbe DAO-Bedingung darf nicht auf POST /sales-person/{{id}}/user \
+             einen 409 und auf DELETE /sales-person/{{id}}/user einen 500 ergeben \
+             - DELETE faehrt ausschliesslich den Split (WR-04).",
+            other
+        ),
+    }
+}
+
+/// Grenze der Uebersetzung aus WR-04: ein anderer `DaoError` im Split bleibt
+/// ein Serverfehler. Verhindert, dass der Fix zu einem pauschalen
+/// "jeder DAO-Fehler im Split wird 409" ausartet und damit einen echten Defekt
+/// als fachlichen Konflikt tarnt (T-61-32).
+///
+/// Mock statt Integration: siehe Abschnittskommentar oben.
+#[tokio::test]
+async fn set_user_none_laesst_andere_dao_fehler_als_serverfehler_durch() {
+    let mut dependencies = build_dependencies(true, "hr");
+    dependencies
+        .sales_person_dao
+        .expect_discard_assigned_user()
+        .with(eq(default_id()), always())
+        .times(1)
+        .returning(|_, _| {
+            Err(DaoError::DatabaseQueryError(
+                "simulierter Serverfehler im Split".into(),
+            ))
+        });
+    let sales_person_service = dependencies.build_service();
+
+    let result = sales_person_service
+        .set_user(default_id(), None, ().auth(), None)
+        .await;
+
+    assert!(
+        !matches!(&result, Err(ServiceError::EntityAlreadyExists(_))),
+        "Ein beliebiger DAO-Fehler darf nicht als Konflikt getarnt werden: {:?}",
+        result
+    );
+    assert!(
+        matches!(&result, Err(ServiceError::DatabaseQueryError(_))),
+        "Ein beliebiger DAO-Fehler muss unveraendert als Serverfehler durchgehen: {:?}",
+        result
+    );
 }
