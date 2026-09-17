@@ -86,16 +86,22 @@ the balance history and FK consistency with Bookings/Extra Hours.
   (`migrations/sqlite/20240506114107_add_sales_person.sql:20-21`).
   Replacement runs in a TX via `discard_assigned_user` + `assign_to_user`
   (`sales_person.rs:316-342`), so an assignment move is atomic.
-- **The self-access read paths resolve via `person_id`** (v2.7, Phase 61
-  [D-61-08]). `SalesPersonDaoImpl::find_by_user` and
-  `find_sales_person_by_user_id` join
-  `sales_person sp JOIN user u ON u.person_id = sp.person_id WHERE u.name = ?`
-  instead of going through the link table. The authorisation decision lives
-  **entirely in SQL** on purpose: an equivalent Rust comparison of two
-  `Option<Uuid>` would evaluate `None == None` as `true` and go fail-open,
-  while SQL's three-valued logic never lets `NULL = NULL` be true. Covered by
+- **All four reading link paths resolve via `person_id`** (v2.7, Phase 61
+  [D-61-08]). `SalesPersonDaoImpl::find_by_user`,
+  `find_sales_person_by_user_id`, `get_assigned_user` and
+  `get_all_user_assignments` join
+  `sales_person sp JOIN user u ON u.person_id = sp.person_id` instead of going
+  through the link table. The authorisation decision lives **entirely in SQL**
+  on purpose: an equivalent Rust comparison of two `Option<Uuid>` would
+  evaluate `None == None` as `true` and go fail-open, while SQL's three-valued
+  logic never lets `NULL = NULL` be true. Covered by
   `service_impl::test::person_self_gate`, which also runs a byte-identical
   before/after permission matrix against one fixture database [D-61-09].
+- **None of the four paths filters `deleted IS NULL` — and none may start to.**
+  `verify_user_is_sales_person` hangs off `get_assigned_user`, so a soft-delete
+  filter added later would silently take self-access away from a soft-deleted
+  Sales Person. Locked by
+  `person_self_gate::soft_geloeschte_sales_person_behaelt_selbstzugriff`.
 
 ### 2.2 Employee Work Details (employment contract)
 

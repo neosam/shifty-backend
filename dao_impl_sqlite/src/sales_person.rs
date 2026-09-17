@@ -223,7 +223,7 @@ impl SalesPersonDao for SalesPersonDaoImpl {
     ) -> Result<Option<Arc<str>>, DaoError> {
         let sales_person_id = sales_person_id.as_bytes().to_vec();
         Ok(query!(
-            "SELECT user_id FROM sales_person_user WHERE sales_person_id = ?",
+            "SELECT u.name AS user_id FROM sales_person sp JOIN user u ON u.person_id = sp.person_id WHERE sp.id = ?",
             sales_person_id
         )
         .fetch_optional(tx.tx.lock().await.as_mut())
@@ -237,7 +237,7 @@ impl SalesPersonDao for SalesPersonDaoImpl {
         tx: Self::Transaction,
     ) -> Result<HashMap<Uuid, Arc<str>>, DaoError> {
         let rows = query!(
-            "SELECT sales_person_id, user_id FROM sales_person_user"
+            "SELECT sp.id AS sales_person_id, u.name AS user_id FROM sales_person sp JOIN user u ON u.person_id = sp.person_id"
         )
         .fetch_all(tx.tx.lock().await.as_mut())
         .await

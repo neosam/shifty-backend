@@ -176,9 +176,10 @@ person ─┬─ 0..1 ─ user          (user.person_id — nullable, UNIQUE)
   [F01](./F01-employee-management.md)). The unique index only forbids *two*
   users on one person.
 - **The self-access check reads via `person_id`** (v2.7, Phase 61 [D-61-08]).
-  `find_sales_person_by_user_id` and `find_by_user` (§4.2) join
+  `find_sales_person_by_user_id`, `find_by_user` (§4.2), `get_assigned_user`
+  and `get_all_user_assignments` join
   `user.person_id = sales_person.person_id`; `sales_person_user` is no longer
-  read on this path. The decision deliberately lives in SQL, where
+  read on any of these paths. The decision deliberately lives in SQL, where
   `NULL = NULL` never matches — a Rust-side `Option<Uuid>` comparison would be
   fail-open. The link table is still *written* (`assign_to_user` /
   `discard_assigned_user`) until the dissolution migration later in Phase 61.

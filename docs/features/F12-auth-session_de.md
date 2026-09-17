@@ -166,9 +166,10 @@ person ─┬─ 0..1 ─ user          (user.person_id — nullable, UNIQUE)
   gleichwertig ist (siehe [F01](./F01-employee-management_de.md)). Der
   Unique-Index verbietet ausschließlich *zwei* Benutzer an einer Person.
 - **Die Selbst-Zugriffs-Prüfung liest über `person_id`** (v2.7, Phase 61
-  [D-61-08]). `find_sales_person_by_user_id` und `find_by_user` (§4.2) joinen
+  [D-61-08]). `find_sales_person_by_user_id`, `find_by_user` (§4.2),
+  `get_assigned_user` und `get_all_user_assignments` joinen
   `user.person_id = sales_person.person_id`; `sales_person_user` wird auf
-  diesem Pfad nicht mehr gelesen. Die Entscheidung liegt bewusst im SQL, wo
+  keinem dieser Pfade mehr gelesen. Die Entscheidung liegt bewusst im SQL, wo
   `NULL = NULL` nie matcht — ein Rust-seitiger `Option<Uuid>`-Vergleich wäre
   fail-open. *Geschrieben* wird die Verknüpfungstabelle weiterhin
   (`assign_to_user` / `discard_assigned_user`), bis die Auflösungs-Migration

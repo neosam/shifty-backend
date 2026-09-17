@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT sales_person_id, user_id FROM sales_person_user",
+  "query": "SELECT sp.id AS sales_person_id, u.name AS user_id FROM sales_person sp JOIN user u ON u.person_id = sp.person_id",
   "describe": {
     "columns": [
       {
@@ -22,5 +22,5 @@
       false
     ]
   },
-  "hash": "7b78fc49381b67d70b2ad33b1249f3bcb5ce6f1a2e26373adbc16618764030ba"
+  "hash": "e3a9df77cb469fda5482c4a15c7276397dcb929d3cf15b790e7bfa0fe5d00c8f"
 }
