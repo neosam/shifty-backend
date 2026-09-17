@@ -65,6 +65,9 @@ type VacationEntitlementOffsetDao =
     dao_impl_sqlite::vacation_entitlement_offset::VacationEntitlementOffsetDaoImpl;
 // Phase 54 (D-54-DM-01): Basic-Tier Rebooking-Batch-DAO.
 type RebookingBatchDao = dao_impl_sqlite::rebooking_batch::RebookingBatchDaoImpl;
+// Phase 61 (PERS-05, D-61-02): Basic-Tier Person-DAO inkl. der beiden
+// Kandidaten-Lesepfade.
+type PersonDao = dao_impl_sqlite::person::PersonDaoImpl;
 // Phase 48 (EXP-02/EXP-03): Basic-Config-DAO für den Nextcloud-PDF-Export.
 type PdfExportConfigDao = dao_impl_sqlite::pdf_export_config::PdfExportConfigDaoImpl;
 
@@ -325,6 +328,23 @@ impl service_impl::rebooking_batch::RebookingBatchServiceDeps for RebookingBatch
 }
 type RebookingBatchService =
     service_impl::rebooking_batch::RebookingBatchServiceImpl<RebookingBatchServiceDependencies>;
+
+// Phase 61 (SC5, Roadmap-Constraint 5): Basic-Tier Person-Service
+// (Entity-Manager) — nur DAO + Permission + Clock + Uuid + Transaction.
+// Konsumiert KEINEN Domain-Service; ein solcher wuerde ueber PermissionService
+// einen DI-Zyklus schliessen. Konstruktion im Basic-Block, strikt vor der
+// Business-Logic-Schicht.
+pub struct PersonServiceDependencies;
+impl service_impl::person::PersonServiceDeps for PersonServiceDependencies {
+    type Context = Context;
+    type Transaction = Transaction;
+    type PersonDao = PersonDao;
+    type PermissionService = PermissionService;
+    type ClockService = ClockService;
+    type UuidService = UuidService;
+    type TransactionDao = TransactionDao;
+}
+type PersonService = service_impl::person::PersonServiceImpl<PersonServiceDependencies>;
 
 // Phase 54 (VOL-STAT + VOL-ACCT, Plan 03 + Gap-Closure 54-09-Ist-Fix):
 // VoluntaryStatsServiceImpl ist Business-Logic-Tier. Konsumiert
@@ -809,6 +829,10 @@ pub struct RestStateImpl {
     // Phase 55 von der BL-Reconciliation konsumiert; in Phase 54 nur via
     // RestStateDef exponiert, kein REST-Endpoint.
     rebooking_batch_service: Arc<RebookingBatchService>,
+    // Phase 61 (PERS-05, P-61-A): Basic-Tier Person-Identitaets-Manager. Kein
+    // REST-Endpoint in Phase 61 — nur via RestStateDef exponiert (Vorarbeit
+    // Phase 62, und damit das Feld einen Leser hat).
+    person_service: Arc<PersonService>,
     // Phase 54 Plan 03 (VOL-STAT + VOL-ACCT): Business-Logic-Tier
     // HR-only Voluntary-Stundenkonto-Sicht. Kein REST-Endpoint in Phase 54
     // Plan 03 — der Endpoint kommt in Plan 04.
@@ -869,6 +893,7 @@ impl rest::RestStateDef for RestStateImpl {
     type PdfExportConfigService = PdfExportConfigService;
     type PdfExportScheduler = PdfExportSchedulerService;
     type PdfShiftplanService = PdfShiftplanService;
+    type PersonService = PersonService;
     type BasicDao = BasicDaoImpl;
 
     fn backend_version(&self) -> Arc<str> {
@@ -990,6 +1015,9 @@ impl rest::RestStateDef for RestStateImpl {
     fn pdf_shiftplan_service(&self) -> Arc<Self::PdfShiftplanService> {
         self.pdf_shiftplan_service.clone()
     }
+    fn person_service(&self) -> Arc<Self::PersonService> {
+        self.person_service.clone()
+    }
     fn basic_dao(&self) -> Arc<Self::BasicDao> {
         self.basic_dao.clone()
     }
@@ -1004,6 +1032,8 @@ impl RestStateImpl {
             Arc::new(VacationEntitlementOffsetDao::new(pool.clone()));
         // Phase 54 (D-54-DM-01): Basic-Tier Rebooking-Batch-DAO.
         let rebooking_batch_dao = Arc::new(RebookingBatchDao::new(pool.clone()));
+        // Phase 61 (PERS-05): Basic-Tier Person-DAO.
+        let person_dao = Arc::new(PersonDao::new(pool.clone()));
         let pdf_export_config_dao = Arc::new(PdfExportConfigDao::new(pool.clone()));
         let sales_person_dao = SalesPersonDao::new(pool.clone());
         let booking_dao = BookingDao::new(pool.clone());
@@ -1196,6 +1226,20 @@ impl RestStateImpl {
                 RebookingBatchServiceDependencies,
             > {
                 rebooking_batch_dao,
+                permission_service: permission_service.clone(),
+                clock_service: clock_service.clone(),
+                uuid_service: uuid_service.clone(),
+                transaction_dao: transaction_dao.clone(),
+            },
+        );
+        // Phase 61 (PERS-05 / SC5): Basic-Tier Person-Service — nur DAO +
+        // Permission + Clock + Uuid + Transaction. Steht bewusst HIER im
+        // Basic-Block, strikt vor der Business-Logic-Schicht
+        // (reporting_service, voluntary_stats_service,
+        // rebooking_reconciliation_service).
+        let person_service = Arc::new(
+            service_impl::person::PersonServiceImpl::<PersonServiceDependencies> {
+                person_dao,
                 permission_service: permission_service.clone(),
                 clock_service: clock_service.clone(),
                 uuid_service: uuid_service.clone(),
@@ -1580,6 +1624,7 @@ impl RestStateImpl {
             pdf_export_scheduler,
             voluntary_rebooking_scheduler,
             pdf_shiftplan_service,
+            person_service,
             basic_dao: Arc::new(BasicDaoImpl::new(pool)),
         }
     }

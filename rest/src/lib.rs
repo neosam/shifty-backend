@@ -467,6 +467,15 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
+    // Phase 61 (PERS-05, Planer-Entscheidung P-61-A): Basic-Tier HR-gated
+    // PersonService. In Phase 61 bewusst OHNE REST-Route, Handler oder TO —
+    // der Accessor existiert, damit das `RestStateImpl.person_service`-Feld
+    // einen Leser hat (`dead_code` unter `-D warnings`) und als Vorarbeit fuer
+    // die Personenverwaltung in Phase 62.
+    type PersonService: service::person::PersonService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
     type BasicDao: dao::BasicDao + Send + Sync + 'static;
 
     fn backend_version(&self) -> Arc<str>;
@@ -509,6 +518,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn pdf_export_config_service(&self) -> Arc<Self::PdfExportConfigService>;
     fn pdf_export_scheduler(&self) -> Arc<Self::PdfExportScheduler>;
     fn pdf_shiftplan_service(&self) -> Arc<Self::PdfShiftplanService>;
+    fn person_service(&self) -> Arc<Self::PersonService>;
     fn basic_dao(&self) -> Arc<Self::BasicDao>;
 }
 

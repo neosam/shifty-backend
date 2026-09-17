@@ -21,6 +21,14 @@ A **Basic Service** manages exactly one domain object:
   Deps: `RebookingBatchDao`, `PermissionService`, `ClockService`,
   `UuidService`, `TransactionDao`. See feature
   [F14](../features/F14-rebooking.md).
+- `PersonService` — entity manager for the `person` identity parent
+  (v2.7 Phase 61). All four methods are HR-gated; two of them are the
+  "unlinked candidate" reads that Phase 63 needs for the candidate picker.
+  Deps: `PersonDao`, `PermissionService`, `ClockService`, `UuidService`,
+  `TransactionDao` — deliberately no domain service, because one would close
+  a DI cycle through `PermissionService`. Constructed in the basic block of
+  `shifty_bin/src/main.rs`, strictly before the business-logic layer. See
+  feature [F01](../features/F01-employee-management.md) §4.5.
 - `SalesPersonService`
 - `SalesPersonUnavailableService`
 - `SlotService`

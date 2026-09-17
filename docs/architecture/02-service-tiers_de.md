@@ -22,6 +22,15 @@ Ein **Basic Service** verwaltet genau ein Fach-Objekt:
   `PermissionService`, `ClockService`, `UuidService`,
   `TransactionDao`. Siehe Feature
   [F14](../features/F14-rebooking.md).
+- `PersonService` — Entity-Manager für die Identitäts-Elterntabelle
+  `person` (v2.7 Phase 61). Alle vier Methoden sind HR-gated; zwei davon
+  sind die „unverknüpfte Kandidaten"-Lesepfade, die Phase 63 für den
+  Kandidaten-Picker braucht. Deps: `PersonDao`, `PermissionService`,
+  `ClockService`, `UuidService`, `TransactionDao` — bewusst kein
+  Domain-Service, weil ein solcher über `PermissionService` einen
+  DI-Zyklus schließen würde. Konstruktion im Basic-Block von
+  `shifty_bin/src/main.rs`, strikt vor der Business-Logic-Schicht. Siehe
+  Feature [F01](../features/F01-employee-management_de.md) §4.5.
 - `SalesPersonService`
 - `SalesPersonUnavailableService`
 - `SlotService`
