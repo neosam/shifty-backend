@@ -218,7 +218,7 @@ aggregate (`user`).
 
 | Column | Type | Notes |
 | --- | --- | --- |
-| `id` | BLOB(16) PK | UUID v4, stored as raw 16 bytes (bit-compatible with `Uuid::from_slice`). |
+| `id` | BLOB(16) PK | 16 random bytes from `randomblob(16)`, stored raw and read back via `Uuid::from_slice`. Deliberately **not** an RFC-4122 UUID — SQLite sets neither the version nibble nor the variant bits, and nothing in the system interprets the value as a versioned UUID. |
 | `created` | TEXT | Creation timestamp. |
 | `update_process` | TEXT | Origin marker — backfilled rows carry `phase-60-person-backfill`. |
 | `update_version` | BLOB(16) | Audit column. |

@@ -1,20 +1,14 @@
 ---
-status: testing
+status: partial
 phase: 60-person-datenmodell-backfill
 source: [60-VERIFICATION.md]
 started: 2026-09-17T00:00:00Z
-updated: 2026-09-17T00:00:00Z
+updated: 2026-09-17T05:38:32Z
 ---
 
 ## Current Test
 
-number: 1
-name: CR-02 — Pre-Flight-Query gegen die Produktions-Datenbank vor dem v2.7-Deploy
-expected: |
-  Entweder die Query liefert 0 (die Migration startet sicher durch), oder es wird
-  bewusst entschieden, die Daten vorher zu bereinigen bzw. das Risiko zu tragen und
-  den Rollback-Pfad (Datei-Backup der SQLite-Datei) bereitzuhalten.
-awaiting: user response
+[testing paused — 1 item outstanding]
 
 ## Tests
 
@@ -37,7 +31,11 @@ Anwendung sind solche Zeilen nicht erzeugbar (sqlx setzt `PRAGMA foreign_keys = 
 `sales_person` wird nur soft-gelöscht). Restrisiko sind Altbestände aus manuellen
 Eingriffen, Restores oder älteren Tools. Kein Test kann die reale Datenlage prüfen.
 
-result: [pending]
+result: blocked
+blocked_by: other
+reason: "User: 'Lass uns weitermachen. Ich prüfe später den Meilenstein.' — Die Query
+verlangt Zugriff auf die produktive SQLite-Datei und ist erst vor dem v2.7-Deploy
+sinnvoll auszuführen. Bewusst auf den Meilenstein-Check vertagt; bleibt Deploy-Gate."
 
 ### 2. WR-01 — Doku-Aussage "UUID v4" für `person.id` korrigieren oder Erzeugung umstellen
 
@@ -50,15 +48,30 @@ Hintergrund: `randomblob(16)` setzt weder Version-Nibble noch Variant-Bits. Der 
 trifft auf beliebige 16 Bytes zu und deckt die Doku-Behauptung nicht. Redaktionsentscheidung,
 kein automatisch entscheidbarer Fakt.
 
-result: [pending]
+result: pass
+resolution: |
+  Doku-Weg gewählt (Erzeugung unverändert). Umgesetzt:
+  - `docs/architecture/03-data-model.md` — `person.id` beschreibt jetzt 16 Zufallsbytes
+    aus `randomblob(16)`, roh gespeichert, über `Uuid::from_slice` gelesen, explizit
+    **keine** RFC-4122-UUID (weder Version-Nibble noch Variant-Bits).
+  - `docs/architecture/03-data-model_de.md` — synchron mitgezogen (Docs-Freshness-Gate).
+  - `service_impl/src/test/person_backfill.rs` — Doc-Kommentar auf
+    `person_id_parses_as_uuid` hält fest, was der Test deckt und was nicht, und nennt
+    die Migration als Ort einer etwaigen späteren Verschärfung.
+  Nicht angefasst: `rebooking_batch.id` (Zeile 149/157 + F14) — diese IDs entstehen
+  Rust-seitig und sind echte v4.
+  Gates: `cargo test -p service_impl person_backfill` 18/18 grün,
+  `cargo clippy --workspace --all-targets -- -D warnings` sauber.
 
 ## Summary
 
 total: 2
-passed: 0
+passed: 1
 issues: 0
-pending: 2
+pending: 0
 skipped: 0
-blocked: 0
+blocked: 1
 
 ## Gaps
+
+[none — der offene Punkt ist ein Deploy-Gate, kein Code-Defekt]

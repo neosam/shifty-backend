@@ -624,6 +624,14 @@ async fn apply_twice_is_noop() {
 }
 
 /// RESEARCH Frage 4 — Vorab-Absicherung fuer den `PersonDao` in Phase 61.
+///
+/// Der Test prueft **Laenge + `Uuid::from_slice`-Kompatibilitaet**, nicht die
+/// RFC-4122-Struktur: `randomblob(16)` setzt weder Version-Nibble noch
+/// Variant-Bits, `person.id` ist also bewusst keine UUID v4. Wer diese Zusage
+/// verschaerfen will, muss zuerst die Erzeugung in
+/// `migrations/sqlite/20260916000000_create-person-backfill.sql` umstellen —
+/// und `docs/architecture/03-data-model.md` (+ `_de`) mitziehen, wo genau das
+/// so dokumentiert ist [UAT-60 WR-01].
 #[tokio::test]
 async fn person_id_parses_as_uuid() {
     let pool = setup_pool().await;

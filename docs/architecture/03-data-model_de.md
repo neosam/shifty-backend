@@ -229,7 +229,7 @@ Eine Zeile pro realem Menschen. `person` ist die Klammer über das
 
 | Spalte | Typ | Anmerkung |
 | --- | --- | --- |
-| `id` | BLOB(16) PK | UUID v4, roh als 16 Bytes gespeichert (bitkompatibel zu `Uuid::from_slice`). |
+| `id` | BLOB(16) PK | 16 Zufallsbytes aus `randomblob(16)`, roh gespeichert und über `Uuid::from_slice` zurückgelesen. Bewusst **keine** RFC-4122-UUID — SQLite setzt weder Version-Nibble noch Variant-Bits, und nichts im System interpretiert den Wert als versionierte UUID. |
 | `created` | TEXT | Anlage-Zeitstempel. |
 | `update_process` | TEXT | Herkunftsmarker — Backfill-Zeilen tragen `phase-60-person-backfill`. |
 | `update_version` | BLOB(16) | Audit-Spalte. |

@@ -2,7 +2,7 @@
 phase: 60-person-datenmodell-backfill
 verified: 2026-09-17T00:00:00Z
 status: human_needed
-score: 5/5 Roadmap-Success-Criteria verifiziert (Code + Tests); 2 offene operative/dokumentarische Punkte als human_verification
+score: 5/5 Roadmap-Success-Criteria verifiziert (Code + Tests); 1 offener operativer Punkt (CR-02, Deploy-Gate) als human_verification — WR-01 in UAT-60 erledigt
 behavior_unverified: 0
 overrides_applied: 0
 human_verification:
@@ -12,6 +12,7 @@ human_verification:
   - test: "Dokumentationsaussage 'UUID v4' für `person.id` gegen den tatsächlichen Erzeugungsmechanismus abgleichen (`docs/architecture/03-data-model.md:221`, `_de.md` analog)."
     expected: "Entweder die Doku wird auf 'zufällige 16 Bytes, kompatibel zu `Uuid::from_slice`, bewusst keine RFC-4122-Version/Variant-Bits' korrigiert, oder die Erzeugung wird in SQL auf echte v4-Bits umgestellt."
     why_human: "`randomblob(16)` setzt keine RFC-4122-Version-Nibble und keine Variant-Bits; `person_id_parses_as_uuid` prüft nur Länge und `Uuid::from_slice`-Kompatibilität, was für beliebige 16 Bytes zutrifft und die Doku-Behauptung nicht deckt (WR-01 aus 60-REVIEW.md, von Plan 60-04 explizit unadressiert gelassen). Das ist eine Redaktionsentscheidung, kein automatisch entscheidbarer Fakt."
+    resolved: "UAT-60 Test 2 (2026-09-17): Doku-Weg gewählt. `docs/architecture/03-data-model.md` + `_de.md` beschreiben `person.id` jetzt als 16 Zufallsbytes aus `randomblob(16)`, explizit keine RFC-4122-UUID; Doc-Kommentar auf `person_id_parses_as_uuid` hält die Testabdeckung fest. Erzeugung unverändert."
 ---
 
 # Phase 60: Person-Datenmodell + Backfill Verification Report
