@@ -369,7 +369,7 @@ Plans:
 
 **Wave 7** *(Gap-Closure, blocked on Wave 6)*
 
-- [ ] 61-07-PLAN.md — CR-01 + WR-05: Nachzieh-Backfill der DROP-Migration konvergiert statt zu divergieren (Entkopplung + Merge + Träger-Aufräumung nach D-61-03/D-61-05), Selbst-Assertion bekommt die beiden globalen Deckungsterme aus Phase 60, der Test, der den Abbruch als Sollverhalten zementiert, wird umgedreht
+- [x] 61-07-PLAN.md — CR-01 + WR-05: Nachzieh-Backfill der DROP-Migration konvergiert statt zu divergieren (Entkopplung + Merge + Träger-Aufräumung nach D-61-03/D-61-05), Selbst-Assertion bekommt die beiden globalen Deckungsterme aus Phase 60, der Test, der den Abbruch als Sollverhalten zementiert, wird umgedreht
 
 **Wave 8** *(blocked on Wave 7)*
 

@@ -4,17 +4,17 @@ milestone: v2.7
 milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 61
 current_phase_name: personservice-aufl-sung-von-sales-person-user
-status: verifying
-stopped_at: Completed 61-04-PLAN.md
-last_updated: "2026-09-17T09:41:51.302Z"
+status: executing
+stopped_at: Completed 61-07-PLAN.md
+last_updated: "2026-09-17T10:40:39.750Z"
 last_activity: 2026-09-17
-last_activity_desc: "Plan 61-05 ausgefuehrt (Migration 20260917000000_drop-sales-person-user.sql: Nachzieh-Backfill D-61-06 + Selbst-Assertion + DROP D-61-07; Migrations-Regressionstests nach shifty_bin verlagert; SC2-Grep ueber dao/, dao_impl_sqlite/, service_impl/, .sqlx und docs/ leer)"
+last_activity_desc: "Plan 61-07 ausgefuehrt (Gap Closure CR-01 + WR-05: DROP-Migration konvergiert statt abzubrechen, Selbst-Assertion faengt verwaiste Verknuepfungszeilen, 27 Regressionstests gruen)"
 progress:
   total_phases: 5
-  completed_phases: 2
-  total_plans: 9
-  completed_plans: 10
-  percent: 40
+  completed_phases: 1
+  total_plans: 13
+  completed_plans: 11
+  percent: 20
 ---
 
 # Project State: Shifty Backend
@@ -28,18 +28,18 @@ progress:
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
 - **Last shipped/closed**: **v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter** (shipped 2026-07-31, deployed; Planungs-Archiv 2026-09-15; Phasen 54, 54.5, 55, 56, 57 — 29 Pläne, 19/19 Requirements, Audit `passed`, `override_closeout`)
 - **Current milestone**: **v2.7 Personenverwaltung & Planungs-Soll** (in Arbeit; Roadmap erstellt 2026-09-16, Phasen 60–64; 1/5 Phasen abgeschlossen).
-- **Current focus**: Phase 61 in Ausführung — Pläne 61-01 bis 61-05 fertig (PersonService, `person_id`-Vergabe bei Neuanlage, Self-Gate auf `person_id`-Joins, Merge/Split der Person-Zuordnung mit 409, Auflösung der Verknüpfungstabelle). Nächster Schritt: Plan 61-06. Offen bis zum Deploy: CR-02 Pre-Flight-Query (siehe **v2.7 Deploy-Gates**). Die zwei ausgearbeiteten Entwürfe **Phase 58** (Werktags-Stundenverteilung, Snapshot-Bump 13→14) und **Phase 59** (E2E-Playwright) bleiben bewusst außerhalb von v2.7; ihre Nummern sind reserviert.
+- **Current focus**: Phase 61 in Ausführung — Pläne 61-01 bis 61-05 fertig (PersonService, `person_id`-Vergabe bei Neuanlage, Self-Gate auf `person_id`-Joins, Merge/Split der Person-Zuordnung mit 409, Auflösung der Verknüpfungstabelle). Pläne 61-06 (Doku-Nachzug) und 61-07 (Gap Closure CR-01 + WR-05) ebenfalls fertig. Nächster Schritt: Plan 61-08. Offen bis zum Deploy: CR-02 Pre-Flight-Query (siehe **v2.7 Deploy-Gates**). Die zwei ausgearbeiteten Entwürfe **Phase 58** (Werktags-Stundenverteilung, Snapshot-Bump 13→14) und **Phase 59** (E2E-Playwright) bleiben bewusst außerhalb von v2.7; ihre Nummern sind reserviert.
 - **Snapshot-Schema-Version**: aktuell **13** (Bump 12→13 in Phase 57, D-57-10). **v2.7 bumpt nicht** — `person` ist rein administrativ, das Planungs-Soll ein reines Anzeigefeld. Phase 58 (nicht in v2.7) würde auf 14 heben.
 
 ## Current Position
 
 Phase: 61 (personservice-aufl-sung-von-sales-person-user) — EXECUTING
-Plan: 6 of 6
-Status: Phase complete — ready for verification
-Test 2 (WR-01, person.id-Doku) pass, Test 1 (CR-02 Pre-Flight-Query) blocked als Deploy-Gate,
-siehe **v2.7 Deploy-Gates** unten. Kein offener Code-Gap.
-Last activity: 2026-09-17 — Plan 61-05 ausgefuehrt (Migration 20260917000000_drop-sales-person-user.sql: Nachzieh-Backfill D-61-06 + Selbst-Assertion + DROP D-61-07; Migrations-Regressionstests nach shifty_bin verlagert; SC2-Grep ueber dao/, dao_impl_sqlite/, service_impl/, .sqlx und docs/ leer)
-Next: Plan 61-06 ausfuehren (letzter Plan der Phase)
+Plan: 7 of 10
+Status: Gap-Closure-Wellen laufen (61-07 bis 61-10 schliessen die Review-Befunde CR-01, CR-02, WR-04, WR-05, WR-06)
+Code-Review 61-REVIEW.md: 2 critical, 7 warning, 7 info. CR-01 + WR-05 sind mit 61-07
+geschlossen; CR-02 (Pre-Flight-Query) bleibt Deploy-Gate, siehe **v2.7 Deploy-Gates** unten.
+Last activity: 2026-09-17 — Plan 61-07 ausgefuehrt (Gap Closure CR-01 + WR-05: DROP-Migration konvergiert statt abzubrechen, Selbst-Assertion faengt verwaiste Verknuepfungszeilen, 27 Regressionstests gruen)
+Next: Plan 61-08 ausfuehren (Gap Closure CR-02 / WR-04 / WR-06)
 Resume file: None
 
 ## Quick Tasks Completed
@@ -287,8 +287,8 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-09-17T09:41:44.792Z
-**Stopped at:** Completed 61-04-PLAN.md
+**Last session:** 2026-09-17T10:40:39.742Z
+**Stopped at:** Completed 61-07-PLAN.md
 **Resume file:** None
 
 **To resume work in a new session:**
@@ -400,6 +400,8 @@ D-63-01/02, D-64-01/02/03).
 - [Phase 61]: 61-04: Re-Link A->B laeuft als Split(A)+Merge(B) in einer Transaktion; der 409 rollt den Split mit zurueck (P-61-B)
 - [Phase ?]: Doku-Nachzug prueft zuerst, was fruehere Plaene derselben Phase bereits korrigiert haben — 02-service-tiers und arc42/05 blieben deshalb bewusst unveraendert (61-06)
 - [Phase ?]: Die Regel 'Identitaetsvergleich gehoert ins SQL, nicht nach Rust' ist als dauerhafte Konvention in 04-auth{,_de}.md verankert, nicht als Phasen-Notiz (T-61-21)
+- [Phase 61]: D-61-07-A: Der Nachzug der DROP-Migration wendet die Gewinner-Regel des Laufzeitpfads en bloc an — Entkopplung des verdraengten Benutzers (D-61-05) VOR der Verschmelzung auf die Person der Sales Person (D-61-03), danach Aufraeumung traegerloser person-Zeilen. Der im Review vorgeschlagene COALESCE-Fix wurde verworfen: er tauscht CHECK constraint failed gegen UNIQUE constraint failed.
+- [Phase 61]: D-61-07-B: Die Migrationsdatei 20260917000000 wird IN PLACE korrigiert statt per Folgemigration — ein Abbruch innerhalb dieser Datei laesst jede spaetere Migration nie laufen. Preis ist die lokale sqlx-Ledger-Checksumme; die Reparaturanleitung steht in 61-07-SUMMARY.md.
 
 ## Performance Metrics
 
@@ -455,3 +457,4 @@ D-63-01/02, D-64-01/02/03).
 | Phase 61 P04 | 40min | 3 tasks | 9 files |
 | Phase 61 P05 | 25min | 3 tasks | 15 files |
 | Phase 61 P06 | 30min | 2 tasks | 10 files |
+| Phase 61 P07 | 35min | 3 tasks | 4 files |
