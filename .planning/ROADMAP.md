@@ -108,7 +108,7 @@ Permission-Beobachtungen, 62–64 gegen sichtbares Verhalten im Browser.
 | Phase | Backend | Frontend | Begründung bei Frontend = nein |
 |---|---|---|---|
 | 60 | ja | **nein** | Reine Schema- + Backfill-Phase ohne API-Wirkung — kein TO geändert, kein Endpoint neu, keine sichtbare Verhaltensänderung. |
-| 61 | 6/6 | Complete   | 2026-09-17 |
+| 61 | ja | **nein** | Reine Backend-Phase — `PersonService`/`PersonDao` neu, Verknüpfungspfade auf `person_id` umgestellt, `sales_person_user` aufgelöst. Kein TO geändert, kein Endpoint neu; `POST /{id}/user` dokumentiert lediglich zusätzlich 409. |
 | 62 | ja | ja | — |
 | 63 | ja | ja | — |
 | 64 | ja | ja | — |
