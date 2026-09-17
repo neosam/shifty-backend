@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v2.7
 milestone_name: — Personenverwaltung & Planungs-Soll
-current_phase: 61
-current_phase_name: personservice-aufl-sung-von-sales-person-user
-status: executing
-stopped_at: Completed 61-10-PLAN.md
-last_updated: "2026-09-17T12:30:00.000Z"
+current_phase: 62
+current_phase_name: Personen-Verzeichnis — eine Liste statt Tabs
+status: Gap-Closure-Wellen abgeschlossen (61-07 bis 61-10 haben die Review-Befunde CR-01, CR-02, WR-04, WR-05, WR-06 geschlossen)
+stopped_at: Completed 61-09-PLAN.md
+last_updated: "2026-09-17T11:20:02.613Z"
 last_activity: 2026-09-17
-last_activity_desc: "Plan 61-10 ausgefuehrt (Gap Closure WR-06: AUTHENTICATION.md auf den Schema-Stand nach Phase 61 gebracht — person_id auf user, person-Tabelle, Verweis-Banner auf docs/architecture/; Repo-Sweep dokumentiert). Alle 10 Plaene der Phase 61 fertig."
+last_activity_desc: Phase 61 complete, transitioned to Phase 62
 progress:
   total_phases: 5
-  completed_phases: 1
-  total_plans: 14
+  completed_phases: 2
+  total_plans: 13
   completed_plans: 14
-  percent: 20
+  percent: 40
 ---
 
 # Project State: Shifty Backend
@@ -33,13 +33,13 @@ progress:
 
 ## Current Position
 
-Phase: 61 (personservice-aufl-sung-von-sales-person-user) — ALLE PLAENE AUSGEFUEHRT
-Plan: 10 of 10
+Phase: 62 — Personen-Verzeichnis — eine Liste statt Tabs
+Plan: Not started
 Status: Gap-Closure-Wellen abgeschlossen (61-07 bis 61-10 haben die Review-Befunde CR-01, CR-02, WR-04, WR-05, WR-06 geschlossen)
 Code-Review 61-REVIEW.md: 2 critical, 7 warning, 7 info. CR-01 + WR-05 sind mit 61-07,
 CR-02 mit 61-08, WR-04 mit 61-09 und WR-06 mit 61-10 geschlossen; CR-02 (Pre-Flight-Query) bleibt Deploy-Gate, siehe **v2.7 Deploy-Gates** unten.
 Weiterhin aufgeschoben: WR-02 (Phase 62), WR-01, WR-03, WR-07 und IN-01..IN-07 (Backlog).
-Last activity: 2026-09-17 — Plan 61-10 ausgefuehrt (Gap Closure WR-06: AUTHENTICATION.md zeigt `user` mit `person_id` und `person` als eigene Tabelle, verweist auf die kanonischen Dokumente unter `docs/architecture/`, und die Login-Auto-Anlage ist mit ihrer Identitaetsvergabe dokumentiert)
+Last activity: 2026-09-17 — Phase 61 complete, transitioned to Phase 62
 Next: Phase 61 verifizieren (`/gsd-verify-work`), danach Phase 62
 Resume file: None
 

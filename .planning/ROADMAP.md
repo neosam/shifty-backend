@@ -207,7 +207,7 @@ Code-Diff (MEMORY `feedback_docs_always_current_no_followup`).
       `person_id`-FKs mit wiederhergestelltem UNIQUE, idempotenter Backfill inkl.
       soft-gelöschter Sales Persons (Backend-only)
 
-- [ ] **Phase 61: PersonService + Auflösung von `sales_person_user`** — Basic-Tier
+- [x] **Phase 61: PersonService + Auflösung von `sales_person_user`** — Basic-Tier (completed 2026-09-17)
       `PersonDao`/`PersonService`, sechs DAO-Methoden auf `person_id`-Joins
       umgeschrieben inkl. der Selbst-Zugriffs-Prüfung, Verknüpfen/Lösen mit
       Konflikt-Ablehnung (Backend-only)
@@ -340,7 +340,7 @@ Geschäftslogik (Person auflösen-oder-anlegen, mehrdeutigen Merge ablehnen) ohn
 1:1-Präzedenz im Repo — eigene Test-Matrix beim Planen entwerfen, nicht „Query
 portieren".
 
-**Plans:** 10 plans (6 geplant + 4 Gap-Closure aus `61-REVIEW.md`)
+**Plans:** 10/10 plans complete
 
 Plans:
 **Wave 1**
@@ -381,7 +381,7 @@ Plans:
 
 **Wave 10** *(blocked on Wave 9)*
 
-- [ ] 61-10-PLAN.md — WR-06: `AUTHENTICATION.md` beschreibt nicht länger die aufgelöste 1:1-Verknüpfungstabelle als aktuelles Schema; `user`/`person` auf dem Stand der Migrationskette, Verweis auf die kanonische zweisprachige Doku
+- [x] 61-10-PLAN.md — WR-06: `AUTHENTICATION.md` beschreibt nicht länger die aufgelöste 1:1-Verknüpfungstabelle als aktuelles Schema; `user`/`person` auf dem Stand der Migrationskette, Verweis auf die kanonische zweisprachige Doku
 
 **Aufgeschoben (in `61-07-PLAN.md` §„Deferral Record" dokumentiert):** WR-02 →
 Phase 62; WR-01, WR-03, WR-07 und IN-01 bis IN-07 → Backlog.
