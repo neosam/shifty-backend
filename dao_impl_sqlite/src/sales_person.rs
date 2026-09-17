@@ -130,7 +130,36 @@ impl SalesPersonDao for SalesPersonDaoImpl {
         let is_paid = entity.is_paid;
         let inactive = entity.inactive;
         let deleted = entity.deleted.as_ref().map(|deleted| deleted.to_string());
-        query!("INSERT INTO sales_person (id, name, background_color, is_paid, inactive, deleted, update_version, update_process) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", id, name, background_color, is_paid, inactive, deleted, version, process)
+
+        // D-61-01: Jede neu angelegte Sales Person bekommt sofort eine eigene
+        // Person-Identitaet. Ohne sie faellt die Zeile aus der
+        // person-basierten Selbst-Zugriffs-Pruefung heraus, sobald der
+        // Phase-60-Backfill nicht mehr greift (er lief einmalig ueber den
+        // Bestand).
+        //
+        // Der 16-Byte-Wert entsteht hier in Rust und wird in beide Statements
+        // eingesetzt. Ein Readback der von SQLite vergebenen Zeilennummer waere
+        // falsch: `person.id` ist ein `blob(16) PRIMARY KEY` und damit kein
+        // Alias auf die interne Zeilennummer (Research Pitfall 3).
+        //
+        // `created` entsteht per `strftime` in SQL — im selben ISO-8601-Format
+        // wie im Phase-60-Backfill, damit die Leseseite (`Iso8601::DATE_TIME`)
+        // es parst; so braucht die DAO-Ebene keinen `ClockService`.
+        //
+        // Beide Statements laufen auf der **uebergebenen** `tx`. Damit ist die
+        // Person-Anlage atomar mit der Sales-Person-Anlage, ohne dass hier eine
+        // zweite Transaktion geoeffnet werden muesste.
+        let person_id = Uuid::new_v4().as_bytes().to_vec();
+        query!(
+            "INSERT INTO person (id, created, update_process, update_version) VALUES (?, strftime('%Y-%m-%dT%H:%M:%S.000000000Z','now'), ?, randomblob(16))",
+            person_id,
+            process
+        )
+        .execute(tx.tx.lock().await.as_mut())
+        .await
+        .map_db_error()?;
+
+        query!("INSERT INTO sales_person (id, name, background_color, is_paid, inactive, deleted, person_id, update_version, update_process) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", id, name, background_color, is_paid, inactive, deleted, person_id, version, process)
             .execute(tx.tx.lock().await.as_mut())
             .await
             .map_db_error()?;

@@ -708,9 +708,20 @@ Kanten dieses Clusters:
   Freiwillige ohne Benutzerkonto sind genauso gültig wie HR-/Admin-Benutzer
   ohne Sales Person (siehe [F12](./F12-auth-session_de.md)). `person_id` bleibt
   bewusst nullable, und es wird **nirgends** automatisch ein Benutzer zu einer
-  Sales Person angelegt [D-60-03]. Zeilen, die nach der Phase-60-Migration
-  entstehen, bekommen noch gar kein `person_id` — die Vergabe beim Anlegen ist
-  Phase-61-Scope [D-60-10].
+  Sales Person angelegt [D-60-03].
+- **Die Vergabe bei Neuanlage** (v2.7, Phase 61 [D-61-01]):
+  `SalesPersonDaoImpl::create` legt seitdem **zuerst** eine eigene
+  `person`-Zeile an und schreibt deren ID in `sales_person.person_id`. Beide
+  Statements laufen auf der vom Aufrufer übergebenen Transaktion — die
+  Identitäts-Vergabe ist damit atomar mit der Sales-Person-Anlage, ein
+  Rollback nimmt beide Zeilen mit. Die 16-Byte-ID entsteht in Rust
+  (`Uuid::new_v4()`); ein Readback der SQLite-Zeilennummer wäre falsch, weil
+  `person.id` ein `blob(16) PRIMARY KEY` und kein Rowid-Alias ist. `created`
+  entsteht per `strftime('%Y-%m-%dT%H:%M:%S.000000000Z','now')` — identisches
+  Format wie im Phase-60-Backfill, damit `Iso8601::DATE_TIME` es parst; die
+  DAO-Ebene braucht so keinen `ClockService`. Die Trait-Signatur von
+  `SalesPersonDao::create` ist unverändert geblieben. Nachweise:
+  `service_impl::test::person_creation` (N-1 bis N-4).
 
 ## 8. Tests
 

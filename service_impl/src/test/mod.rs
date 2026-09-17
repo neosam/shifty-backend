@@ -128,3 +128,5 @@ pub mod shiftplan_report;
 pub mod person_backfill;
 #[cfg(test)]
 pub mod person_candidates;
+#[cfg(test)]
+pub mod person_creation;

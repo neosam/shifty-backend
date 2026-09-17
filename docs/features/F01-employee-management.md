@@ -709,8 +709,20 @@ edges for this cluster:
   Volunteers without a user account are as valid as HR/admin users without a
   Sales Person (see [F12](./F12-auth-session.md)). `person_id` stays nullable
   on purpose, and **nowhere** is a user created automatically alongside a
-  Sales Person [D-60-03]. Rows created after the Phase-60 migration get no
-  `person_id` at all yet — assignment on creation is Phase-61 scope [D-60-10].
+  Sales Person [D-60-03].
+- **Assignment on creation** (v2.7, Phase 61 [D-61-01]): since then,
+  `SalesPersonDaoImpl::create` **first** inserts its own `person` row and
+  writes that ID into `sales_person.person_id`. Both statements run on the
+  transaction handed in by the caller — identity assignment is therefore
+  atomic with the Sales Person insert, and a rollback takes both rows with
+  it. The 16-byte ID is generated in Rust (`Uuid::new_v4()`); reading back the
+  SQLite row number would be wrong because `person.id` is a `blob(16) PRIMARY
+  KEY`, not a rowid alias. `created` is produced by
+  `strftime('%Y-%m-%dT%H:%M:%S.000000000Z','now')` — the same format as the
+  Phase-60 backfill so that `Iso8601::DATE_TIME` parses it, which keeps the
+  DAO layer free of a `ClockService` dependency. The trait signature of
+  `SalesPersonDao::create` is unchanged. Evidence:
+  `service_impl::test::person_creation` (N-1 through N-4).
 
 ## 8. Tests
 
