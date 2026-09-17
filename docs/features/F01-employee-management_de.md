@@ -83,6 +83,16 @@ FK-Konsistenz mit Bookings/Extra Hours zu erhalten.
   (`migrations/sqlite/20240506114107_add_sales_person.sql:20-21`). Das
   Ersetzen läuft in einer TX via `discard_assigned_user` + `assign_to_user`
   (`sales_person.rs:316-342`), also atomar für den Umzug einer Zuordnung.
+- **Die lesenden Selbst-Zugriffs-Pfade lösen über `person_id` auf** (v2.7,
+  Phase 61 [D-61-08]). `SalesPersonDaoImpl::find_by_user` und
+  `find_sales_person_by_user_id` joinen
+  `sales_person sp JOIN user u ON u.person_id = sp.person_id WHERE u.name = ?`
+  statt über die Verknüpfungstabelle zu gehen. Die Autorisierungsentscheidung
+  liegt bewusst **vollständig im SQL**: ein äquivalenter Rust-Vergleich zweier
+  `Option<Uuid>` würde `None == None` als `true` werten und fail-open gehen,
+  während SQLs Drei-Werte-Logik `NULL = NULL` nie wahr werden lässt. Belegt von
+  `service_impl::test::person_self_gate`, das zusätzlich eine byte-identische
+  Vorher/Nachher-Permission-Matrix gegen **eine** Fixture-DB fährt [D-61-09].
 
 ### 2.2 Employee Work Details (Arbeitsvertrag)
 

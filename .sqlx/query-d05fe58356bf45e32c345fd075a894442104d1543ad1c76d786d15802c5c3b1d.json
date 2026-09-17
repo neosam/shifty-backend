@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT sp.id, sp.name, sp.background_color, sp.is_paid, sp.inactive, sp.deleted, sp.update_version FROM sales_person sp JOIN sales_person_user spu ON sp.id = spu.sales_person_id WHERE spu.user_id = ?",
+  "query": "SELECT sp.id, sp.name, sp.background_color, sp.is_paid, sp.inactive, sp.deleted, sp.update_version FROM sales_person sp JOIN user u ON u.person_id = sp.person_id WHERE u.name = ?",
   "describe": {
     "columns": [
       {
@@ -52,5 +52,5 @@
       false
     ]
   },
-  "hash": "b80bfc977dde2623f8eb3a67fb4d55427a1c0e39f83a3188a312c6371b6f89e1"
+  "hash": "d05fe58356bf45e32c345fd075a894442104d1543ad1c76d786d15802c5c3b1d"
 }

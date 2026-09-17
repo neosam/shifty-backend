@@ -175,10 +175,13 @@ person ─┬─ 0..1 ─ user          (user.person_id — nullable, UNIQUE)
   as a volunteer without a login is equally valid on the other side (see
   [F01](./F01-employee-management.md)). The unique index only forbids *two*
   users on one person.
-- **`sales_person_user` stays** in Phase 60 and remains the running truth of
-  the 1:1 link; dissolving it is Phase 61. Rewriting the self-access check
-  (`find_sales_person_by_user_id`, §4.2) onto `person_id` joins is likewise
-  Phase-61 scope — Phase 60 changes no DAO and no service [D-60-10].
+- **The self-access check reads via `person_id`** (v2.7, Phase 61 [D-61-08]).
+  `find_sales_person_by_user_id` and `find_by_user` (§4.2) join
+  `user.person_id = sales_person.person_id`; `sales_person_user` is no longer
+  read on this path. The decision deliberately lives in SQL, where
+  `NULL = NULL` never matches — a Rust-side `Option<Uuid>` comparison would be
+  fail-open. The link table is still *written* (`assign_to_user` /
+  `discard_assigned_user`) until the dissolution migration later in Phase 61.
 - **Login auto-creation assigns `person_id`** (v2.7, Phase 61 [D-61-01]).
   `PermissionDaoImpl::create_user` (`dao_impl_sqlite/src/lib.rs`) opens a
   **method-internal** transaction (`self.pool.begin()`), inserts the `person`

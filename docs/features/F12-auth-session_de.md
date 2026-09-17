@@ -165,11 +165,14 @@ person ─┬─ 0..1 ─ user          (user.person_id — nullable, UNIQUE)
   Benutzer angelegt — genauso wie umgekehrt eine Freiwillige ohne Login
   gleichwertig ist (siehe [F01](./F01-employee-management_de.md)). Der
   Unique-Index verbietet ausschließlich *zwei* Benutzer an einer Person.
-- **`sales_person_user` bleibt** in Phase 60 bestehen und ist weiterhin die
-  laufende Wahrheit der 1:1-Kopplung; die Auflösung ist Phase 61. Die
-  Umschreibung der Selbst-Zugriffs-Prüfung (`find_sales_person_by_user_id`,
-  §4.2) auf `person_id`-Joins ist ebenfalls Phase-61-Scope — Phase 60 ändert
-  weder DAO noch Service [D-60-10].
+- **Die Selbst-Zugriffs-Prüfung liest über `person_id`** (v2.7, Phase 61
+  [D-61-08]). `find_sales_person_by_user_id` und `find_by_user` (§4.2) joinen
+  `user.person_id = sales_person.person_id`; `sales_person_user` wird auf
+  diesem Pfad nicht mehr gelesen. Die Entscheidung liegt bewusst im SQL, wo
+  `NULL = NULL` nie matcht — ein Rust-seitiger `Option<Uuid>`-Vergleich wäre
+  fail-open. *Geschrieben* wird die Verknüpfungstabelle weiterhin
+  (`assign_to_user` / `discard_assigned_user`), bis die Auflösungs-Migration
+  später in Phase 61 greift.
 - **Die Login-Auto-Anlage vergibt `person_id` mit** (v2.7, Phase 61
   [D-61-01]). `PermissionDaoImpl::create_user`
   (`dao_impl_sqlite/src/lib.rs`) öffnet dafür eine **methoden-interne**

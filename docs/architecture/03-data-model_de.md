@@ -334,7 +334,10 @@ damit in einer Transaktion):
 
 - `sales_person_user` **bleibt** in Phase 60 bestehen. Die Tabelle ist die
   laufende Wahrheit, gegen die der Backfill geprüft wird; ihre Auflösung ist
-  Phase 61.
+  Phase 61. **Nachtrag (Phase 61):** Die lesenden Verknüpfungs-Pfade in
+  `dao_impl_sqlite/src/sales_person.rs` joinen jetzt über
+  `u.person_id = sp.person_id` [D-61-08]; die Tabelle wird ab da nur noch
+  geschrieben, bis die Auflösungs-Migration sie entfernt.
 - Zeilen, die **nach** der Migration entstehen (Login-Auto-Anlage,
   `create_sales_person`), bekommen in Phase 60 **kein** `person_id` — die
   Vergabe beim Anlegen ist Phase-61-Scope. Kein Trigger, kein DAO-Eingriff in

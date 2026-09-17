@@ -130,3 +130,5 @@ pub mod person_backfill;
 pub mod person_candidates;
 #[cfg(test)]
 pub mod person_creation;
+#[cfg(test)]
+pub mod person_self_gate;

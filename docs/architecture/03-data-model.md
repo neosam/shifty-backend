@@ -315,7 +315,10 @@ therefore inside one transaction):
 ### Scope boundary
 
 - `sales_person_user` **stays** in Phase 60. It remains the running truth the
-  backfill is checked against; dissolving it is Phase 61.
+  backfill is checked against; dissolving it is Phase 61. **Update (Phase 61):**
+  the reading link paths in `dao_impl_sqlite/src/sales_person.rs` now join
+  `u.person_id = sp.person_id` [D-61-08]; the table is only written from then on
+  until the dissolution migration removes it.
 - Rows created **after** the migration (login auto-creation, `create_sales_person`)
   get **no** `person_id` in Phase 60 — assignment on creation is Phase-61 scope.
   There is no trigger and no DAO change in this phase [D-60-10]. The count check

@@ -106,7 +106,7 @@ impl SalesPersonDao for SalesPersonDaoImpl {
     ) -> Result<Option<SalesPersonEntity>, DaoError> {
         Ok(query_as!(
             SalesPersonDb,
-            "SELECT sp.id, sp.name, sp.background_color, sp.is_paid, sp.inactive, sp.deleted, sp.update_version FROM sales_person sp JOIN sales_person_user spu ON sp.id = spu.sales_person_id WHERE spu.user_id = ?",
+            "SELECT sp.id, sp.name, sp.background_color, sp.is_paid, sp.inactive, sp.deleted, sp.update_version FROM sales_person sp JOIN user u ON u.person_id = sp.person_id WHERE u.name = ?",
             user_id
         )
         .fetch_optional(tx.tx.lock().await.as_mut())
@@ -259,7 +259,7 @@ impl SalesPersonDao for SalesPersonDaoImpl {
     ) -> Result<Option<SalesPersonEntity>, DaoError> {
         Ok(query_as!(
             SalesPersonDb,
-            "SELECT sp.id, sp.name, sp.background_color, sp.is_paid, sp.inactive, sp.deleted, sp.update_version FROM sales_person sp JOIN sales_person_user spu ON sp.id = spu.sales_person_id WHERE spu.user_id = ?",
+            "SELECT sp.id, sp.name, sp.background_color, sp.is_paid, sp.inactive, sp.deleted, sp.update_version FROM sales_person sp JOIN user u ON u.person_id = sp.person_id WHERE u.name = ?",
             user_id
         )
             .fetch_optional(tx.tx.lock().await.as_mut())
