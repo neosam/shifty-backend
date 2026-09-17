@@ -6,14 +6,14 @@ current_phase: 61
 current_phase_name: personservice-aufl-sung-von-sales-person-user
 status: executing
 stopped_at: Completed 61-07-PLAN.md
-last_updated: "2026-09-17T10:40:39.750Z"
+last_updated: "2026-09-17T10:49:35.611Z"
 last_activity: 2026-09-17
 last_activity_desc: "Plan 61-07 ausgefuehrt (Gap Closure CR-01 + WR-05: DROP-Migration konvergiert statt abzubrechen, Selbst-Assertion faengt verwaiste Verknuepfungszeilen, 27 Regressionstests gruen)"
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 13
-  completed_plans: 11
+  completed_plans: 12
   percent: 20
 ---
 
@@ -34,7 +34,7 @@ progress:
 ## Current Position
 
 Phase: 61 (personservice-aufl-sung-von-sales-person-user) — EXECUTING
-Plan: 7 of 10
+Plan: 8 of 10
 Status: Gap-Closure-Wellen laufen (61-07 bis 61-10 schliessen die Review-Befunde CR-01, CR-02, WR-04, WR-05, WR-06)
 Code-Review 61-REVIEW.md: 2 critical, 7 warning, 7 info. CR-01 + WR-05 sind mit 61-07
 geschlossen; CR-02 (Pre-Flight-Query) bleibt Deploy-Gate, siehe **v2.7 Deploy-Gates** unten.
@@ -287,7 +287,7 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-09-17T10:40:39.742Z
+**Last session:** 2026-09-17T10:49:09.017Z
 **Stopped at:** Completed 61-07-PLAN.md
 **Resume file:** None
 
@@ -402,6 +402,7 @@ D-63-01/02, D-64-01/02/03).
 - [Phase ?]: Die Regel 'Identitaetsvergleich gehoert ins SQL, nicht nach Rust' ist als dauerhafte Konvention in 04-auth{,_de}.md verankert, nicht als Phasen-Notiz (T-61-21)
 - [Phase 61]: D-61-07-A: Der Nachzug der DROP-Migration wendet die Gewinner-Regel des Laufzeitpfads en bloc an — Entkopplung des verdraengten Benutzers (D-61-05) VOR der Verschmelzung auf die Person der Sales Person (D-61-03), danach Aufraeumung traegerloser person-Zeilen. Der im Review vorgeschlagene COALESCE-Fix wurde verworfen: er tauscht CHECK constraint failed gegen UNIQUE constraint failed.
 - [Phase 61]: D-61-07-B: Die Migrationsdatei 20260917000000 wird IN PLACE korrigiert statt per Folgemigration — ein Abbruch innerhalb dieser Datei laesst jede spaetere Migration nie laufen. Preis ist die lokale sqlx-Ledger-Checksumme; die Reparaturanleitung steht in 61-07-SUMMARY.md.
+- [Phase 61]: clear_all loescht nur traegerlose person-Zeilen — Loeschbedingung wortgleich zu Anweisung A7 der DROP-Migration — Review-Befund CR-02: ein pauschales DELETE FROM person liess jede ueberlebende user-Zeile (inkl. DEVUSER/admin) auf eine nicht mehr existierende Person zeigen; user.person_id traegt keine FK-Deklaration, die DB faengt das nicht ab.
 
 ## Performance Metrics
 
@@ -458,3 +459,4 @@ D-63-01/02, D-64-01/02/03).
 | Phase 61 P05 | 25min | 3 tasks | 15 files |
 | Phase 61 P06 | 30min | 2 tasks | 10 files |
 | Phase 61 P07 | 35min | 3 tasks | 4 files |
+| Phase 61 P08 | 20 min | 2 tasks | 6 files |

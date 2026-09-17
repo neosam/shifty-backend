@@ -373,7 +373,7 @@ Plans:
 
 **Wave 8** *(blocked on Wave 7)*
 
-- [ ] 61-08-PLAN.md — CR-02: `BasicDaoImpl::clear_all` löscht nur noch trägerlose `person`-Zeilen, zwei Regressionstests für die Invariante, `.sqlx`-Cache und Datenmodell-Doku im selben Commit
+- [x] 61-08-PLAN.md — CR-02: `BasicDaoImpl::clear_all` löscht nur noch trägerlose `person`-Zeilen, zwei Regressionstests für die Invariante, `.sqlx`-Cache und Datenmodell-Doku im selben Commit
 
 **Wave 9** *(blocked on Wave 8)*
 
