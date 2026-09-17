@@ -63,11 +63,15 @@ This is exactly why a source grep is misleading here: searching `*.rs` and
 `*.sql` for `foreign_keys` really does return zero hits — the pragma comes
 from the driver, not from the codebase. Verified empirically against the
 production DB file and again inside the test harness: `PRAGMA foreign_keys`
-reads `1`, and inserting a `sales_person_user` row with an unresolvable
-`sales_person_id` is rejected with `FOREIGN KEY constraint failed` (SQLite
-code 787). Both FK declarations on `sales_person_user` parse correctly and
-are listed by `PRAGMA foreign_key_list`, despite the missing comma between
-them in `migrations/sqlite/20240506114107_add_sales_person.sql:22-23`.
+reads `1`, and inserting a row into the former link table with an
+unresolvable `sales_person_id` was rejected with `FOREIGN KEY constraint
+failed` (SQLite code 787). Both FK declarations on that table parsed
+correctly and were listed by `PRAGMA foreign_key_list`, despite the missing
+comma between them in
+`migrations/sqlite/20240506114107_add_sales_person.sql:22-23`. **The table
+itself is gone since Phase 61** (see *Scope boundary* below); the observation
+is kept because it is the empirical proof that FK enforcement is active in
+this repo at all.
 
 What the FK check does **not** buy you: soft delete. A parent row that is
 only marked `deleted` still exists as a row, so the FK stays satisfied while
@@ -271,8 +275,8 @@ arise there [D-60-02].
 
 ### Enforcement: index, not foreign key
 
-The 1:1 guarantee that the two `UNIQUE` constraints on `sales_person_user`
-carry today now additionally lives in these two indices. It is enforced
+The 1:1 guarantee that the two `UNIQUE` constraints of the former link table
+used to carry now lives in these two indices **alone**. It is enforced
 **by the database**, not by an application check [D-60-05] — SQLite forbids
 `UNIQUE` in `ALTER TABLE … ADD COLUMN`, hence the separate
 `CREATE UNIQUE INDEX`.
@@ -302,7 +306,7 @@ therefore inside one transaction):
   user side **copies** that value back through a correlated subquery, so both
   sides of a pair point at the same person.
 - At the end the migration **verifies itself** [D-60-07]: the count check
-  `COUNT(person) = COUNT(sales_person) + COUNT(user) − COUNT(sales_person_user)`
+  `COUNT(person) = COUNT(sales_person) + COUNT(user) − COUNT(link rows)`
   runs as a hard assertion inside the migration transaction (a throw-away
   `TEMP` table with a `CHECK` constraint, since SQLite only knows `RAISE()`
   inside triggers). If it does not hold, the whole migration rolls back and the
@@ -314,11 +318,19 @@ therefore inside one transaction):
 
 ### Scope boundary
 
-- `sales_person_user` **stays** in Phase 60. It remains the running truth the
-  backfill is checked against; dissolving it is Phase 61. **Update (Phase 61):**
-  the reading link paths in `dao_impl_sqlite/src/sales_person.rs` now join
-  `u.person_id = sp.person_id` [D-61-08]; the table is only written from then on
-  until the dissolution migration removes it.
+- The former 1:1 link table **stayed** through Phase 60. It was the running
+  truth the backfill was checked against; dissolving it was Phase 61.
+  **Update (Phase 61, done):** all reading *and* writing link paths in
+  `dao_impl_sqlite/src/sales_person.rs` go through `u.person_id =
+  sp.person_id` [D-61-08, D-61-03, D-61-05], and
+  `migrations/sqlite/20260917000000_drop-sales-person-user.sql` has dissolved
+  the table [D-61-07]. That migration first **catches up** any row still
+  lacking a `person_id` (same winner logic as Phase 60: the sales person
+  generates, the user copies) and then **asserts itself** — if any remaining
+  link had no matching `person_id` counterpart on both sides, the `CHECK`
+  constraint rolls the whole migration back and the `DROP` never runs
+  [D-61-06]. There is no down migration; the recovery path is the file copy
+  taken before the deploy.
 - Rows created **after** the migration (login auto-creation, `create_sales_person`)
   get **no** `person_id` in Phase 60 — assignment on creation is Phase-61 scope.
   There is no trigger and no DAO change in this phase [D-60-10]. The count check

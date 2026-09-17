@@ -406,7 +406,12 @@ impl<Deps: SalesPersonServiceDeps> SalesPersonService for SalesPersonServiceImpl
         tx: Option<Self::Transaction>,
     ) -> Result<(), ServiceError> {
         let tx = self.transaction_dao.use_transaction(tx).await?;
-        let (Some(username), Some(sales_person_username)) = (
+        // `assigned_username` ist der Login, den `get_assigned_user` ueber den
+        // `person_id`-Join aufloest (Plan 61-03). Der frueher hier stehende
+        // Bezeichner zitierte den Namen der inzwischen aufgeloesten
+        // Verknuepfungstabelle; siehe
+        // `migrations/sqlite/20260917000000_drop-sales-person-user.sql`.
+        let (Some(username), Some(assigned_username)) = (
             self.permission_service.current_user_id(context).await?,
             self.get_assigned_user(sales_person_id, Authentication::Full, tx.clone().into())
                 .await?,
@@ -414,7 +419,7 @@ impl<Deps: SalesPersonServiceDeps> SalesPersonService for SalesPersonServiceImpl
             return Err(ServiceError::Forbidden);
         };
         self.transaction_dao.commit(tx).await?;
-        if username == sales_person_username {
+        if username == assigned_username {
             Ok(())
         } else {
             Err(ServiceError::Forbidden)

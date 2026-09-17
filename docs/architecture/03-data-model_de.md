@@ -66,12 +66,15 @@ Genau deshalb führt ein Quelltext-Grep hier in die Irre: die Suche nach
 `foreign_keys` über alle `*.rs` und `*.sql` liefert tatsächlich null Treffer —
 das Pragma kommt vom Treiber, nicht aus der Codebase. Empirisch nachgefahren
 gegen die Produktions-Datei und noch einmal im Test-Harness: `PRAGMA
-foreign_keys` liefert `1`, und der Versuch, eine `sales_person_user`-Zeile mit
-unauflösbarer `sales_person_id` einzufügen, wird mit
+foreign_keys` liefert `1`, und der Versuch, eine Zeile der früheren
+Verknüpfungstabelle mit unauflösbarer `sales_person_id` einzufügen, wurde mit
 `FOREIGN KEY constraint failed` (SQLite-Code 787) abgelehnt. Beide
-FK-Deklarationen auf `sales_person_user` werden korrekt geparst und von
+FK-Deklarationen auf jener Tabelle wurden korrekt geparst und von
 `PRAGMA foreign_key_list` aufgeführt — trotz des fehlenden Kommas zwischen
-ihnen in `migrations/sqlite/20240506114107_add_sales_person.sql:22-23`.
+ihnen in `migrations/sqlite/20240506114107_add_sales_person.sql:22-23`. **Die
+Tabelle selbst existiert seit Phase 61 nicht mehr** (siehe *Abgrenzung*
+unten); die Beobachtung bleibt stehen, weil sie der empirische Beleg dafür
+ist, dass die FK-Durchsetzung in diesem Repo überhaupt aktiv ist.
 
 Was die FK-Prüfung **nicht** leistet: Soft Delete. Eine nur als `deleted`
 markierte Elternzeile existiert weiterhin als Zeile, der Fremdschlüssel bleibt
@@ -285,8 +288,8 @@ Soft-Delete-Spalte, dort stellt sich die Frage nicht [D-60-02].
 
 ### Durchsetzung: Index, nicht Fremdschlüssel
 
-Die 1:1-Garantie, die heute die beiden `UNIQUE`-Constraints auf
-`sales_person_user` tragen, sitzt ab jetzt zusätzlich in diesen beiden
+Die 1:1-Garantie, die früher die beiden `UNIQUE`-Constraints der
+Verknüpfungstabelle trugen, sitzt seit Phase 61 **allein** in diesen beiden
 Indizes. Sie wird **von der Datenbank** durchgesetzt, nicht von einer
 Applikationsprüfung [D-60-05] — SQLite verbietet `UNIQUE` bei
 `ALTER TABLE … ADD COLUMN`, daher der separate `CREATE UNIQUE INDEX`.
@@ -318,7 +321,7 @@ damit in einer Transaktion):
   korrelierte Subquery zurück, damit beide Seiten eines Paars auf dieselbe
   Person zeigen.
 - Am Ende **verifiziert sich die Migration selbst** [D-60-07]: die Zählprobe
-  `COUNT(person) = COUNT(sales_person) + COUNT(user) − COUNT(sales_person_user)`
+  `COUNT(person) = COUNT(sales_person) + COUNT(user) − COUNT(Verknüpfungszeilen)`
   läuft als harte Assertion innerhalb der Migrations-Transaktion (eine
   Wegwerf-`TEMP`-Tabelle mit `CHECK`-Constraint, weil SQLite `RAISE()` nur in
   Triggern kennt). Geht sie nicht auf, rollt die gesamte Migration zurück und
@@ -332,12 +335,21 @@ damit in einer Transaktion):
 
 ### Abgrenzung
 
-- `sales_person_user` **bleibt** in Phase 60 bestehen. Die Tabelle ist die
-  laufende Wahrheit, gegen die der Backfill geprüft wird; ihre Auflösung ist
-  Phase 61. **Nachtrag (Phase 61):** Die lesenden Verknüpfungs-Pfade in
-  `dao_impl_sqlite/src/sales_person.rs` joinen jetzt über
-  `u.person_id = sp.person_id` [D-61-08]; die Tabelle wird ab da nur noch
-  geschrieben, bis die Auflösungs-Migration sie entfernt.
+- Die frühere 1:1-Verknüpfungstabelle **blieb** über Phase 60 hinweg
+  bestehen. Sie war die laufende Wahrheit, gegen die der Backfill geprüft
+  wurde; ihre Auflösung war Phase 61. **Nachtrag (Phase 61, erledigt):** Alle
+  lesenden *und* schreibenden Verknüpfungs-Pfade in
+  `dao_impl_sqlite/src/sales_person.rs` laufen über
+  `u.person_id = sp.person_id` [D-61-08, D-61-03, D-61-05], und
+  `migrations/sqlite/20260917000000_drop-sales-person-user.sql` hat die
+  Tabelle aufgelöst [D-61-07]. Diese Migration **zieht** zuerst jede Zeile
+  nach, die noch kein `person_id` trägt (gleiche Gewinner-Logik wie Phase 60:
+  die Sales Person generiert, der Benutzer kopiert), und **prüft sich dann
+  selbst** — bliebe danach eine Verknüpfung ohne übereinstimmendes
+  `person_id`-Gegenstück auf beiden Seiten, rollt der `CHECK`-Constraint die
+  gesamte Migration zurück und der `DROP` läuft nie [D-61-06]. Es gibt keine
+  Down-Migration; der Wiederherstellungspfad ist die vor dem Deploy gezogene
+  Dateikopie.
 - Zeilen, die **nach** der Migration entstehen (Login-Auto-Anlage,
   `create_sales_person`), bekommen in Phase 60 **kein** `person_id` — die
   Vergabe beim Anlegen ist Phase-61-Scope. Kein Trigger, kein DAO-Eingriff in

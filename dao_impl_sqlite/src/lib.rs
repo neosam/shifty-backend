@@ -315,14 +315,20 @@ impl BasicDaoImpl {
 #[async_trait]
 impl BasicDao for BasicDaoImpl {
     async fn clear_all(&self) -> Result<(), DaoError> {
+        // `DELETE FROM person;` laeuft NACH `DELETE FROM sales_person;` — sonst
+        // bliebe nach clear_all ein Bestand verwaister person-Zeilen zurueck und
+        // verfaelschte die Zaehlproben nachfolgender Tests. Die frueher hier
+        // gefuehrte 1:1-Verknuepfungstabelle ist mit
+        // `migrations/sqlite/20260917000000_drop-sales-person-user.sql`
+        // aufgeloest; die Kopplung haengt seither allein an `person_id`.
         query!(
             r"
                 DELETE FROM booking;
-                DELETE FROM sales_person_user;
                 DELETE FROM sales_person_unavailable;
                 DELETE FROM extra_hours;
                 DELETE FROM employee_work_details;
                 DELETE FROM sales_person;
+                DELETE FROM person;
                 DELETE FROM special_day;
                 "
         )

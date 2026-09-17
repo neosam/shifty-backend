@@ -1275,3 +1275,339 @@ async fn legacy_keys_are_bit_identical_after_backfill() {
         "I-9/SC5: der Snapshot zeigt unveraendert auf denselben Schluesselwert"
     );
 }
+
+// ─── Phase 61 Plan 05: Nachzieh-Backfill, Selbst-Assertion, Aufloesung ──────
+//
+// Die folgenden Faelle belegen D-61-06 (Nachzug + Selbst-Assertion) und D-61-07
+// (Aufloesung der Verknuepfungstabelle) fuer
+// `migrations/sqlite/20260917000000_drop-sales-person-user.sql`.
+//
+// Sie fahren die Migration per `sqlx::raw_sql` gegen eine Fixture-DB, die ueber
+// die Teil-Kette aus `setup_pool` aufgebaut wurde — nur dort ist der
+// Zwischenzustand aus D-60-10 (verknuepfte Zeilen ohne `person_id`) ueberhaupt
+// noch herstellbar. Der Nachweis von Success Criterion 2 nutzt zusaetzlich einen
+// zweiten Pool mit der **vollen** Kette.
+
+/// Die Aufloesungs-Migration im Klartext.
+///
+/// Anders als beim Phase-60-Backfill braucht es hier keinen Marker-Split: die
+/// Datei enthaelt kein `ALTER TABLE ... ADD COLUMN`, und `DROP TABLE IF EXISTS`
+/// ist von sich aus mehrfach ausfuehrbar.
+const DROP_MIGRATION_SQL: &str =
+    include_str!("../../migrations/sqlite/20260917000000_drop-sales-person-user.sql");
+
+/// Name der von dieser Migration aufgeloesten Verknuepfungstabelle.
+const LEGACY_LINK_TABLE: &str = "sales_person_user";
+
+/// Faehrt die Aufloesungs-Migration und reicht das `Result` unveraendert durch —
+/// der Selbst-Assertions-Test braucht den `Err`-Fall.
+async fn run_drop_migration(pool: &sqlx::SqlitePool) -> Result<(), sqlx::Error> {
+    sqlx::raw_sql(DROP_MIGRATION_SQL).execute(pool).await?;
+    Ok(())
+}
+
+/// Baut eine In-Memory-DB mit der **vollen** Migrationskette auf — inklusive der
+/// Aufloesungs-Migration. Gegenstueck zu `setup_pool`.
+async fn setup_full_pool() -> Arc<sqlx::SqlitePool> {
+    let pool = Arc::new(
+        sqlx::SqlitePool::connect("sqlite::memory:")
+            .await
+            .expect("Could not connect to in-memory SQLite"),
+    );
+    sqlx::migrate!("./../migrations/sqlite")
+        .run(pool.as_ref())
+        .await
+        .expect("Could not run full migration chain");
+    pool
+}
+
+/// Legt eine `person`-Zeile mit vorgegebener Identitaet an.
+async fn seed_person(pool: &sqlx::SqlitePool, id: Uuid) {
+    sqlx::query(
+        "INSERT INTO person (id, created, update_process, update_version) \
+         VALUES (?1, '2026-09-17T00:00:00.000000000Z', 'seed', ?2)",
+    )
+    .bind(id.as_bytes().to_vec())
+    .bind(Uuid::new_v4().as_bytes().to_vec())
+    .execute(pool)
+    .await
+    .expect("seed person");
+}
+
+/// Setzt `person_id` auf einer bereits geseedeten `sales_person`-Zeile.
+async fn set_sales_person_person_id(pool: &sqlx::SqlitePool, id: Uuid, person_id: Uuid) {
+    sqlx::query("UPDATE sales_person SET person_id = ?1 WHERE id = ?2")
+        .bind(person_id.as_bytes().to_vec())
+        .bind(id.as_bytes().to_vec())
+        .execute(pool)
+        .await
+        .expect("set sales_person.person_id");
+}
+
+/// Setzt `person_id` auf einer bereits geseedeten `user`-Zeile.
+async fn set_user_person_id(pool: &sqlx::SqlitePool, name: &str, person_id: Uuid) {
+    sqlx::query("UPDATE user SET person_id = ?1 WHERE name = ?2")
+        .bind(person_id.as_bytes().to_vec())
+        .bind(name)
+        .execute(pool)
+        .await
+        .expect("set user.person_id");
+}
+
+/// Prueft ueber `sqlite_master`, ob eine Tabelle existiert.
+async fn table_exists(pool: &sqlx::SqlitePool, name: &str) -> bool {
+    sqlx::query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?1")
+        .bind(name)
+        .fetch_optional(pool)
+        .await
+        .expect("read sqlite_master")
+        .is_some()
+}
+
+/// D-61-06, Kernfall: ein verknuepftes Paar, das zwischen dem Phase-60- und dem
+/// Phase-61-Deploy entstanden ist und deshalb auf **beiden** Seiten noch
+/// `person_id IS NULL` traegt (der Dauerzustand aus D-60-10).
+///
+/// Ohne den Nachzug in Block A ginge die Verknuepfung beim `DROP` still
+/// verloren — genau die Datenverlust-Klasse aus T-61-16.
+#[tokio::test]
+async fn nachzug_backfillt_verknuepftes_paar_ohne_person_id() {
+    let pool = setup_pool().await;
+
+    let sales_person = Uuid::new_v4();
+    const USER: &str = "nachzug-verknuepfter-benutzer";
+    seed_sales_person(pool.as_ref(), sales_person, "Nachzug-Verkaeuferin", None).await;
+    seed_user(pool.as_ref(), USER).await;
+    seed_link(pool.as_ref(), sales_person, USER).await;
+
+    // Vorbedingung: beide Seiten sind wirklich identitaetslos — sonst prueft der
+    // Test den Nachzug gar nicht.
+    assert_eq!(
+        person_id_of_sales_person(pool.as_ref(), sales_person).await,
+        None,
+        "Vorbedingung: die Sales Person darf vor dem Nachzug keine person_id tragen"
+    );
+    assert_eq!(
+        person_id_of_user(pool.as_ref(), USER).await,
+        None,
+        "Vorbedingung: der Benutzer darf vor dem Nachzug keine person_id tragen"
+    );
+
+    run_drop_migration(pool.as_ref())
+        .await
+        .expect("D-61-06: der Nachzug muss den Zwischenzustand aufloesen koennen");
+
+    let sales_person_identity = person_id_of_sales_person(pool.as_ref(), sales_person).await;
+    let user_identity = person_id_of_user(pool.as_ref(), USER).await;
+
+    assert!(
+        sales_person_identity.is_some(),
+        "D-61-06: die Sales-Person-Seite muss nach dem Nachzug eine person_id tragen"
+    );
+    assert_eq!(
+        sales_person_identity, user_identity,
+        "D-61-06/T-61-17: beide Seiten des Paars muessen auf DIESELBE Person zeigen — \
+         zwei unabhaengige Zufallswerte wuerden die Verknuepfung beim DROP verlieren"
+    );
+
+    let persons = count(pool.as_ref(), "SELECT COUNT(*) FROM person").await;
+    assert_eq!(
+        persons, 1,
+        "D-61-06: zu dem nachgezogenen Paar muss genau EINE person-Zeile existieren"
+    );
+}
+
+/// D-61-06: unverknuepfte Zeilen bekommen je eine **eigene** Person.
+///
+/// Die Gegenprobe zum Test oben: der Nachzug darf nicht alles auf eine Person
+/// zusammenziehen (T-61-17 — das waere ein Fremdzugriff ueber den Self-Gate).
+#[tokio::test]
+async fn nachzug_backfillt_unverknuepfte_zeilen() {
+    let pool = setup_pool().await;
+
+    let sales_person = Uuid::new_v4();
+    const USER: &str = "nachzug-freier-benutzer";
+    seed_sales_person(pool.as_ref(), sales_person, "Freie Verkaeuferin", None).await;
+    seed_user(pool.as_ref(), USER).await;
+
+    run_drop_migration(pool.as_ref())
+        .await
+        .expect("D-61-06: der Nachzug muss auch ohne Verknuepfungen durchlaufen");
+
+    let sales_person_identity = person_id_of_sales_person(pool.as_ref(), sales_person)
+        .await
+        .expect("D-61-06: eine unverknuepfte Sales Person braucht eine eigene Person");
+    let user_identity = person_id_of_user(pool.as_ref(), USER)
+        .await
+        .expect("D-61-06: ein unverknuepfter Benutzer braucht eine eigene Person");
+
+    assert_ne!(
+        sales_person_identity, user_identity,
+        "D-61-06/T-61-17: zwei nie verknuepfte Objekte duerfen NICHT auf dieselbe Person \
+         gezogen werden — das wuerde ueber den Self-Gate Fremdzugriff oeffnen"
+    );
+
+    let persons = count(pool.as_ref(), "SELECT COUNT(*) FROM person").await;
+    assert_eq!(
+        persons, 2,
+        "D-61-06: zwei unverknuepfte Objekte ergeben zwei person-Zeilen"
+    );
+}
+
+/// D-61-06 / T-61-16: die Selbst-Assertion in Block B bricht ab, wenn nach dem
+/// Nachzug eine Verknuepfung ohne uebereinstimmendes `person_id`-Gegenstueck
+/// bliebe.
+///
+/// Fixture: ein verknuepftes Paar, dessen Seiten auf **verschiedene** Personen
+/// zeigen. Block A ueberspringt es (Idempotenz-Key ist `person_id IS NULL`),
+/// Block B erkennt den Widerspruch — und der `CHECK`-Constraint verhindert, dass
+/// Block C die Verknuepfung still wegwirft.
+#[tokio::test]
+async fn selbst_assertion_bricht_bei_widerspruechlicher_verknuepfung_ab() {
+    let pool = setup_pool().await;
+
+    let sales_person = Uuid::new_v4();
+    const USER: &str = "widerspruechlich-verknuepfter-benutzer";
+    let person_a = Uuid::new_v4();
+    let person_b = Uuid::new_v4();
+
+    seed_person(pool.as_ref(), person_a).await;
+    seed_person(pool.as_ref(), person_b).await;
+    seed_sales_person(
+        pool.as_ref(),
+        sales_person,
+        "Widerspruechliche Verkaeuferin",
+        None,
+    )
+    .await;
+    seed_user(pool.as_ref(), USER).await;
+    seed_link(pool.as_ref(), sales_person, USER).await;
+    set_sales_person_person_id(pool.as_ref(), sales_person, person_a).await;
+    set_user_person_id(pool.as_ref(), USER, person_b).await;
+
+    let err = run_drop_migration(pool.as_ref())
+        .await
+        .expect_err("T-61-16: ein widerspruechliches Paar darf nicht als Erfolg durchgehen");
+
+    assert!(
+        matches!(err, sqlx::Error::Database(_)),
+        "D-61-06: die Ablehnung muss von der Datenbank kommen (sqlx::Error::Database) — \
+         Fehler war: {err:?}"
+    );
+    assert!(
+        err.to_string()
+            .to_lowercase()
+            .contains("check constraint failed"),
+        "D-61-06: der Abbruch muss aus der Selbst-Assertion in Block B stammen, nicht aus \
+         einem beliebigen anderen Datenbankfehler — Fehlertext war: {err}"
+    );
+
+    assert!(
+        table_exists(pool.as_ref(), LEGACY_LINK_TABLE).await,
+        "T-61-16: Block C darf nach einem Abbruch in Block B NICHT gelaufen sein — die \
+         Verknuepfung muss fuer die manuelle Bereinigung erhalten bleiben"
+    );
+}
+
+/// D-61-06: nach einem vollstaendigen Phase-60-Backfill ist der Nachzug ein
+/// beweisbarer No-Op.
+///
+/// Das ist der Regelfall im Produktions-Deploy: Phase 60 und 61 gehen gemeinsam
+/// live, es gibt also gar keinen Zwischenzustand. Der Nachzug darf dann nichts
+/// anfassen — insbesondere keine zusaetzlichen `person`-Zeilen erzeugen.
+#[tokio::test]
+async fn nachzug_ist_no_op_ohne_altzeilen() {
+    let pool = setup_pool().await;
+    seed_fixtures(pool.as_ref()).await;
+
+    run_backfill_section(pool.as_ref())
+        .await
+        .expect("Phase-60-Backfill muss durchlaufen");
+
+    let before = snapshot(pool.as_ref()).await;
+    assert!(
+        before.person_count > 0,
+        "Vorbedingung: der Phase-60-Backfill muss person-Zeilen erzeugt haben — sonst \
+         waere der No-Op-Vergleich trivial gruen"
+    );
+
+    run_drop_migration(pool.as_ref())
+        .await
+        .expect("D-61-06: der Nachzug muss auf einem vollstaendig migrierten Bestand durchlaufen");
+
+    let after = snapshot(pool.as_ref()).await;
+    assert_eq!(
+        before, after,
+        "D-61-06: nach vollstaendigem Phase-60-Backfill darf der Nachzug weder \
+         COUNT(person) noch eine einzige Zuordnung veraendern"
+    );
+}
+
+/// Success Criterion 2 (D-61-07): nach dem vollen Migrationslauf existiert die
+/// Verknuepfungstabelle nicht mehr — und trotzdem bleibt jede `sales_person`-
+/// und jede `user`-Zeile lesbar.
+///
+/// Der Existenz-Nachweis laeuft gegen einen Pool mit der **vollen**
+/// `sqlx::migrate!`-Kette; die Erhaltungs-Pruefung braucht dagegen einen Pool,
+/// in dem vor dem `DROP` ueberhaupt Zeilen angelegt werden konnten — also die
+/// Teil-Kette plus die Migration von Hand.
+#[tokio::test]
+async fn tabelle_ist_nach_vollem_migrationslauf_verschwunden() {
+    // (1) SC2: die Tabelle ist nach der vollen Kette weg.
+    let full = setup_full_pool().await;
+    assert!(
+        !table_exists(full.as_ref(), LEGACY_LINK_TABLE).await,
+        "SC2/D-61-07: nach dem vollen Migrationslauf darf sqlite_master keinen Eintrag \
+         fuer die aufgeloeste Verknuepfungstabelle mehr fuehren"
+    );
+    // Gegenprobe: die Traeger-Tabellen sind nicht mit verschwunden.
+    assert!(
+        table_exists(full.as_ref(), "sales_person").await,
+        "SC2: die Aufloesung darf ausschliesslich die Verknuepfungstabelle treffen"
+    );
+    assert!(
+        table_exists(full.as_ref(), "person").await,
+        "SC2: die person-Tabelle muss die Aufloesung ueberleben"
+    );
+
+    // (2) Erhaltung: Zeilen, die vor dem DROP existierten, bleiben lesbar.
+    let pool = setup_pool().await;
+    let fixtures = seed_fixtures(pool.as_ref()).await;
+    run_backfill_section(pool.as_ref())
+        .await
+        .expect("Phase-60-Backfill muss durchlaufen");
+
+    let before = snapshot(pool.as_ref()).await;
+    assert!(
+        table_exists(pool.as_ref(), LEGACY_LINK_TABLE).await,
+        "Vorbedingung: die Teil-Kette muss die Verknuepfungstabelle noch fuehren"
+    );
+
+    run_drop_migration(pool.as_ref())
+        .await
+        .expect("D-61-07: die Aufloesung muss auf dem migrierten Bestand durchlaufen");
+
+    assert!(
+        !table_exists(pool.as_ref(), LEGACY_LINK_TABLE).await,
+        "D-61-07: nach dem Lauf darf die Verknuepfungstabelle nicht mehr existieren"
+    );
+    let after = snapshot(pool.as_ref()).await;
+    assert_eq!(
+        before, after,
+        "D-61-07/PERS-06: der DROP darf keine sales_person- und keine user-Zeile und keine \
+         ihrer Identitaeten veraendern"
+    );
+
+    // Die Self-Gate-Verknuepfung lebt jetzt ausschliesslich ueber person_id weiter.
+    let linked_sales_person =
+        person_id_of_sales_person(pool.as_ref(), fixtures.linked_sales_person).await;
+    assert!(
+        linked_sales_person.is_some(),
+        "D-61-07: das verknuepfte Paar muss seine Identitaet ueber den DROP hinweg behalten"
+    );
+    assert_eq!(
+        linked_sales_person,
+        person_id_of_user(pool.as_ref(), LINKED_USER).await,
+        "D-61-07/SC1: nach der Aufloesung traegt allein person_id die 1:1-Kopplung"
+    );
+}

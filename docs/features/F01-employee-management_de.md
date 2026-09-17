@@ -227,7 +227,15 @@ FK-Konsistenz mit Bookings/Extra Hours zu erhalten.
 | --- | --- | --- |
 | `person` (v2.7, Phase 60) | Identitäts-Elterntabelle über Sales Person und Login-User — eine Zeile pro realem Menschen | `id` (BLOB(16) PK), `created`, `update_process`, `update_version`. Das ist der vollständige Satz: **keine `deleted`-Spalte** [D-60-04] und **keine Namensspalten** (Namen bleiben an `sales_person.name` / `user.name`) |
 | `sales_person` | Stammdaten des Angestellten | `id`, `name`, `background_color`, `is_paid`, `inactive`, `deleted`, `update_version`, `person_id` (v2.7 — nullable, `UNIQUE` über `sales_person_person_id_unique_idx`) |
-| `sales_person_user` | 1:1 Verknüpfung Sales-Person ↔ Login-User | `sales_person_id`, `user_id` (beide `UNIQUE`), FK auf `sales_person(id)` und `user(name)`. Ab v2.7 Phase 60 existiert die Tabelle **zusätzlich** zur neuen `person_id`-Verknüpfung — sie bleibt die laufende Wahrheit und wird erst in Phase 61 aufgelöst |
+
+> **Aufgelöst in v2.7 Phase 61:** Die frühere 1:1-Verknüpfungstabelle zwischen
+> Sales Person und Login-User existiert nicht mehr.
+> `migrations/sqlite/20260917000000_drop-sales-person-user.sql` zieht jede Zeile
+> nach, die noch kein `person_id` trägt, prüft anschließend, dass keine
+> verbleibende Verknüpfung ihr Gegenstück verlieren würde, und löst die Tabelle
+> dann auf [D-61-06, D-61-07]. Die 1:1-Garantie tragen seither allein die beiden
+> vollständigen Unique-Indizes `sales_person_person_id_unique_idx` und
+> `user_person_id_unique_idx`.
 | `employee_work_details` (früher `working_hours`) | Arbeitsvertrag mit Zeitraum, Wochenstunden, Urlaub | `id`, `sales_person_id`, `expected_hours`, `from_/to_year/calendar_week/day_of_week`, `workdays_per_week`, `monday`..`sunday`, `vacation_days`, `is_dynamic`, `cap_planned_hours_to_expected`, `committed_voluntary`, `created`, `deleted`, `update_version` |
 | `sales_person_unavailable` | Wiederkehrende Verfügbarkeits-Sperren auf Wochentagsebene | `id`, `sales_person_id`, `year`, `calendar_week`, `day_of_week`, `created`, `deleted` |
 | `sales_person_shiftplan` | M:N Sales-Person ↔ Shiftplan mit Berechtigungslevel | `sales_person_id`, `shiftplan_id`, `permission_level` ∈ {`available`,`planner_only`} |
@@ -262,8 +270,11 @@ Kandidaten-Mengen sind trotzdem nicht leer.
 Chronologische Historie (nur die für dieses Cluster relevanten Files aus
 `migrations/sqlite/`):
 
-- `20240506114107_add_sales_person.sql` — Basistabellen `sales_person` +
-  `sales_person_user` (mit `UNIQUE`-Constraints für die 1:1-Kopplung).
+- `20240506114107_add_sales_person.sql` — Basistabelle `sales_person` plus die
+  1:1-Verknüpfungstabelle (mit `UNIQUE`-Constraints). Die Verknüpfungstabelle
+  ist in v2.7 Phase 61 aufgelöst worden, siehe unten; die Migrationsdatei selbst
+  bleibt byte-identisch, weil ihre Checksumme Teil des sqlx-Migrations-Ledgers
+  ist.
 - `20240614075633_shiftplanner-role.sql` — legt Rolle + Privilege
   `shiftplanner` an. Kein direktes Feld an einer Cluster-Tabelle, aber
   Auth-Voraussetzung für viele Endpoints hier.
@@ -334,9 +345,12 @@ nirgends automatisch die fehlende Gegenseite angelegt [D-60-03]. Details in
 person ─┬─ 0..1 ─ user          (user.person_id — nullable, UNIQUE)
         └─ 0..1 ─ sales_person  (sales_person.person_id — nullable, UNIQUE)
 
-user ────────────< sales_person_user >──── sales_person ──┬──< employee_work_details
-                                                          ├──< sales_person_unavailable
-                                                          └──< sales_person_shiftplan >── shiftplan
+                                        sales_person ──┬──< employee_work_details
+                                                       ├──< sales_person_unavailable
+                                                       └──< sales_person_shiftplan >── shiftplan
+
+(user ↔ sales_person läuft seit v2.7 Phase 61 ausschließlich über die
+ gemeinsame Person — eine Verknüpfungstabelle gibt es nicht mehr.)
 ```
 
 ## 4. Service-API
@@ -709,13 +723,15 @@ Kanten dieses Clusters:
   anlegen (kein `UNIQUE(name)`), aber das FK-Sub-Graph (Bookings, Extra
   Hours, Absences) hängt weiter am ursprünglichen Datensatz. Siehe
   edge-cases §8.
-- **User-Zuweisungs-Race.** `sales_person_user` hat
-  `UNIQUE(user_id)`; ein Ersetzen läuft `discard_assigned_user` +
-  `assign_to_user` in derselben TX. Zwei parallele HR-Requests, die
-  denselben Login-User zwei verschiedenen Sales Persons zuordnen, führen
-  bei zweitem Commit zu einem SQLite-Unique-Constraint-Fehler — die
-  Fehlermeldung ist derzeit **[Zu prüfen]** ein generischer DAO-Fehler,
-  nicht Business-lesbar.
+- **User-Zuweisungs-Race.** Seit v2.7 Phase 61 trägt
+  `user_person_id_unique_idx` die 1:1-Garantie. Ein Ersetzen läuft
+  `discard_assigned_user` (Split) + `assign_to_user` (Merge) in derselben TX
+  [P-61-B]. Zwei parallele HR-Requests, die denselben Login-User zwei
+  verschiedenen Sales Persons zuordnen, erzeugen keinen generischen DAO-Fehler
+  mehr: `assign_to_user` erkennt echte Mehrdeutigkeit **vor** jedem
+  Schreibvorgang und liefert `DaoError::EntityAlreadyExists`, das `set_user` in
+  `ServiceError::EntityAlreadyExists` → **HTTP 409** übersetzt [D-61-04]. Der
+  Unique-Index bleibt die zweite Verteidigungslinie für den Race-Verlierer.
 - **`sales_person.background_color`.** Freies Hex-Feld — kein Format-
   Check im Backend. Ungültige Werte (`"rot"`, leerer String) landen roh
   in der DB und rendern im Frontend als Style-`background-color:` — das
@@ -812,8 +828,9 @@ teilen sich `service_impl/src/test/helpers` (Mock-Auth, Time-Fake).
 
 ## 9. Historie & Kontext
 
-- **v0.1 (Mai 2024) — Grundgerüst.** `sales_person` + `sales_person_user`
-  (Mig `20240506114107`). Ur-Tabelle `working_hours` folgt im Juni
+- **v0.1 (Mai 2024) — Grundgerüst.** `sales_person` plus die
+  1:1-Verknüpfungstabelle (Mig `20240506114107`; die Verknüpfungstabelle wurde
+  in v2.7 Phase 61 aufgelöst). Ur-Tabelle `working_hours` folgt im Juni
   (`20240618125847`), Kennfarbe (`20240618035521`) und Bezahlt-Flag im
   selben Sprint. `shiftplanner`-Rolle kommt im Juni (`20240614075633`).
 - **v0.2 (Juli 2024) — Verfügbarkeits-Sperren.**

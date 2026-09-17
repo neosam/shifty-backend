@@ -136,9 +136,14 @@ see or change the requested aggregate?*
   `user.person_id`, made unique by the **full** index
   `user_person_id_unique_idx` (`user` has no soft-delete column, so the
   partial-index question does not arise here [D-60-02]). A one-off, idempotent
-  backfill gives every existing user an identity; users linked to a Sales
-  Person via `sales_person_user` share that person's identity. Schema +
-  backfill only — the auth layer is untouched.
+  backfill gives every existing user an identity; users that were linked to a
+  Sales Person via the (since Phase 61 dissolved) link table share that
+  person's identity. Schema + backfill only — the auth layer is untouched.
+- `20260917000000_drop-sales-person-user.sql` (v2.7, Phase 61) dissolves that
+  link table [D-61-07]. It first catches up any row still lacking a
+  `person_id` and asserts that no remaining link would lose its counterpart
+  [D-61-06]. From here on `user.person_id` is the **only** coupling between a
+  login and a Sales Person.
 
 Further migrations for user invitation live in cluster **F13 (User
 Invitation)** and are deliberately not listed here.
@@ -178,13 +183,14 @@ person ─┬─ 0..1 ─ user          (user.person_id — nullable, UNIQUE)
 - **The self-access check reads via `person_id`** (v2.7, Phase 61 [D-61-08]).
   `find_sales_person_by_user_id`, `find_by_user` (§4.2), `get_assigned_user`
   and `get_all_user_assignments` join
-  `user.person_id = sales_person.person_id`; `sales_person_user` is no longer
-  read on any of these paths. The decision deliberately lives in SQL, where
-  `NULL = NULL` never matches — a Rust-side `Option<Uuid>` comparison would be
-  fail-open. Since Phase 61 the *write* paths (`assign_to_user` /
-  `discard_assigned_user`) also operate purely on `person_id` — the link table
-  is no longer touched at all and is removed by the dissolution migration later
-  in Phase 61.
+  `user.person_id = sales_person.person_id`. The decision deliberately lives in
+  SQL, where `NULL = NULL` never matches — a Rust-side `Option<Uuid>`
+  comparison would be fail-open. The *write* paths (`assign_to_user` /
+  `discard_assigned_user`) operate purely on `person_id` as well, and the
+  former link table has been removed by
+  `migrations/sqlite/20260917000000_drop-sales-person-user.sql` [D-61-07].
+  `person_id` is therefore the single source of truth for the self-access
+  check.
 - **Login auto-creation assigns `person_id`** (v2.7, Phase 61 [D-61-01]).
   `PermissionDaoImpl::create_user` (`dao_impl_sqlite/src/lib.rs`) opens a
   **method-internal** transaction (`self.pool.begin()`), inserts the `person`

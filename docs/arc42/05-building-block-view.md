@@ -116,7 +116,7 @@ prose documentation at [03-data-model](../architecture/03-data-model.md).
 | Aggregate | Tables (main) |
 | --- | --- |
 | RBAC & sessions | `user`, `role`, `privilege`, `user_role`, `role_privilege`, `session`, `user_invitation` |
-| Employee | `sales_person`, `sales_person_user`, `employee_work_details`, `sales_person_unavailable`, `vacation_entitlement_offset` |
+| Employee | `sales_person`, `person` (Identitäts-Elterntabelle, v2.7 Phase 60), `employee_work_details`, `sales_person_unavailable`, `vacation_entitlement_offset` |
 | Shift plan | `shiftplan`, `slot`, `sales_person_shiftplan`, `booking` (+ `bookings_view`) |
 | Time recording | `extra_hours` (legacy), `custom_extra_hours` (+ junction), `absence_period` (+ migration source), `rebooking_batch` (+ entries) |
 | Accounting | `employee_yearly_carryover`, `billing_period`, `billing_period_sales_person` |

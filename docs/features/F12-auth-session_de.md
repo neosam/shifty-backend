@@ -126,9 +126,14 @@ darf er das gefragte Aggregat sehen oder ändern?*
   `user_person_id_unique_idx` (`user` hat keine Soft-Delete-Spalte, die Frage
   nach einem partiellen Index stellt sich hier also nicht [D-60-02]). Ein
   einmaliger, idempotenter Backfill gibt jedem Bestands-Benutzer eine
-  Identität; Benutzer, die über `sales_person_user` an einer Sales Person
-  hängen, teilen deren Identität. Reine Schema- + Backfill-Arbeit — die
-  Auth-Schicht bleibt unberührt.
+  Identität; Benutzer, die über die (seit Phase 61 aufgelöste)
+  Verknüpfungstabelle an einer Sales Person hingen, teilen deren Identität.
+  Reine Schema- + Backfill-Arbeit — die Auth-Schicht bleibt unberührt.
+- `20260917000000_drop-sales-person-user.sql` (v2.7, Phase 61) löst eben jene
+  Verknüpfungstabelle auf [D-61-07]. Sie zieht zuvor jede Zeile nach, die noch
+  kein `person_id` trägt, und prüft, dass keine verbleibende Verknüpfung ihr
+  Gegenstück verliert [D-61-06]. Ab hier ist `user.person_id` die **einzige**
+  Kopplung zwischen einem Login und einer Sales Person.
 
 Weitere Migrations zu User-Invitation liegen im Cluster **F13 (User Invitation)**
 und sind hier bewusst nicht aufgeführt.
@@ -168,13 +173,14 @@ person ─┬─ 0..1 ─ user          (user.person_id — nullable, UNIQUE)
 - **Die Selbst-Zugriffs-Prüfung liest über `person_id`** (v2.7, Phase 61
   [D-61-08]). `find_sales_person_by_user_id`, `find_by_user` (§4.2),
   `get_assigned_user` und `get_all_user_assignments` joinen
-  `user.person_id = sales_person.person_id`; `sales_person_user` wird auf
-  keinem dieser Pfade mehr gelesen. Die Entscheidung liegt bewusst im SQL, wo
-  `NULL = NULL` nie matcht — ein Rust-seitiger `Option<Uuid>`-Vergleich wäre
-  fail-open. Seit Phase 61 arbeiten auch die *schreibenden* Pfade
-  (`assign_to_user` / `discard_assigned_user`) ausschließlich auf `person_id` —
-  die Verknüpfungstabelle wird gar nicht mehr angefasst und von der
-  Auflösungs-Migration später in Phase 61 entfernt.
+  `user.person_id = sales_person.person_id`. Die Entscheidung liegt bewusst im
+  SQL, wo `NULL = NULL` nie matcht — ein Rust-seitiger
+  `Option<Uuid>`-Vergleich wäre fail-open. Auch die *schreibenden* Pfade
+  (`assign_to_user` / `discard_assigned_user`) arbeiten ausschließlich auf
+  `person_id`, und die frühere Verknüpfungstabelle ist von
+  `migrations/sqlite/20260917000000_drop-sales-person-user.sql` entfernt
+  worden [D-61-07]. `person_id` ist damit die einzige Wahrheit der
+  Selbst-Zugriffs-Prüfung.
 - **Die Login-Auto-Anlage vergibt `person_id` mit** (v2.7, Phase 61
   [D-61-01]). `PermissionDaoImpl::create_user`
   (`dao_impl_sqlite/src/lib.rs`) öffnet dafür eine **methoden-interne**

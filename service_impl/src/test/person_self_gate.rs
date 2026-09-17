@@ -31,10 +31,14 @@
 //!   fail-open gehen (`null_person_id_does_not_match_null_person_id`).
 //! - **G-5**: Eine ausschliesslich ueber `person_id` bestehende Verknuepfung
 //!   loest auf (`person_id_link_without_legacy_row_resolves`).
-//! - **G-6** (D-61-09): Alt-Query und Neu-Query liefern auf **einer**
-//!   dual-befuellten Fixture-DB dieselbe Accept/Reject-Entscheidung, dieselbe
-//!   Sales-Person-ID und denselben Benutzernamen — fuer **beide** Zweige des
-//!   Self-Gates (`byte_identity_old_vs_new_query`).
+//! - **G-6** (D-61-09) — **abgebaut in Plan 61-05.** Die Vorher/Nachher-Matrix
+//!   brauchte zwingend beide Datenmodelle in derselben Fixture-DB und war damit
+//!   ein befristetes Artefakt: mit
+//!   `migrations/sqlite/20260917000000_drop-sales-person-user.sql` existiert das
+//!   alte Modell nicht mehr, die „Vorher"-Haelfte ist nicht mehr herstellbar.
+//!   Die Accept/Reject-Assertions gegen die `person_id`-Implementierung (G-1 bis
+//!   G-5, G-7 bis G-12) bleiben als Dauer-Regressionstests stehen — sie, nicht
+//!   der Vergleich, sind der Existenzbeweis fuer PERS-05.
 //! - **G-7**: `find_by_user` und `find_sales_person_by_user_id` sind
 //!   deckungsgleich — die vorbestehende Duplikation bleibt erhalten, wird aber
 //!   nachgewiesen (`find_by_user_und_find_sales_person_by_user_id_sind_deckungsgleich`).
@@ -55,13 +59,11 @@
 //!   nachruesten, weil `verify_user_is_sales_person` an `get_assigned_user`
 //!   haengt (`soft_geloeschte_sales_person_behaelt_selbstzugriff`).
 //!
-//! **Befristetes Artefakt:** Die mit `LEGACY-VERGLEICH START` / `LEGACY-VERGLEICH
-//! ENDE` markierte Region ist die „Vorher"-Haelfte von D-61-09. Sie zitiert
-//! zwangslaeufig das abgeloeste Datenmodell und kann deshalb nur existieren,
-//! solange dieses noch da ist. Plan 61-05 entfernt den Block **vollstaendig**
-//! zusammen mit der Migration `20260917000000_drop-sales-person-user.sql`, weil
-//! Success Criterion 2 einen sauberen Endzustand verlangt. Die Marker sind Teil
-//! dieses Vertrags — wer sie umbenennt, macht den Abbau manuell.
+//! **Endzustand ab Plan 61-05:** Dieses Modul zitiert das abgeloeste
+//! Datenmodell nirgends mehr — weder in Code noch in Kommentaren. Die
+//! 1:1-Kopplung lebt ausschliesslich ueber `person_id`; die Aufloesung der
+//! frueheren Verknuepfungstabelle steht in
+//! `migrations/sqlite/20260917000000_drop-sales-person-user.sql`.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -196,9 +198,9 @@ async fn seed_user(pool: &sqlx::SqlitePool, name: &str, person_id: Option<Uuid>)
         .expect("seed user");
 }
 
-/// Baut die gemeinsame Fixture **ausschliesslich** ueber `person_id`. Die
-/// „Vorher"-Haelfte (Zeilen im abgeloesten Datenmodell) legt nur der
-/// D-61-09-Vergleichstest zusaetzlich an — siehe LEGACY-VERGLEICH-Region unten.
+/// Baut die gemeinsame Fixture **ausschliesslich** ueber `person_id` — die
+/// einzige Kopplung, die es seit
+/// `migrations/sqlite/20260917000000_drop-sales-person-user.sql` noch gibt.
 async fn seed_fixture(pool: &sqlx::SqlitePool) -> Fixture {
     let p_self = Uuid::new_v4();
     let p_fremd = Uuid::new_v4();
@@ -537,115 +539,3 @@ async fn soft_geloeschte_sales_person_behaelt_selbstzugriff() {
     );
 }
 
-// ── LEGACY-VERGLEICH START (Plan 61-05 entfernt diesen Block) ──
-//
-// D-61-09: Die Vorher/Nachher-Permission-Matrix. Diese Region zitiert
-// zwangslaeufig das abgeloeste Datenmodell, um die „Vorher"-Haelfte ueberhaupt
-// herstellen zu koennen — sie kann deshalb nur existieren, solange dieses noch
-// da ist. Plan 61-05 loescht den gesamten Block zusammen mit der Migration
-// `20260917000000_drop-sales-person-user.sql`; ausserhalb dieser Marker kommt
-// der alte Tabellenname in dieser Datei nirgends vor.
-//
-// Bewusst rohes `sqlx::query` statt der `query!`-Makros: die Alt-Query darf
-// nicht in den `.sqlx`-Offline-Cache wandern und nicht zur Compile-Zeit gegen
-// das Schema gebunden werden, sonst bricht sie den Build in dem Moment, in dem
-// 61-05 die Tabelle entfernt — statt sauber mit diesem Block zu verschwinden.
-
-/// Ergaenzt die Fixture um die „Vorher"-Haelfte: dieselben drei Paarungen, nun
-/// zusaetzlich im abgeloesten Datenmodell. Damit ist **eine** Fixture-DB
-/// dual-befuellt und Alt- wie Neu-Query koennen auf ihr gegeneinander laufen.
-async fn seed_legacy_links(pool: &sqlx::SqlitePool, fixture: &Fixture) {
-    for (sales_person_id, user_id) in [
-        (fixture.s_self, U_SELF),
-        (fixture.s_fremd, U_FREMD),
-        (fixture.s_nur_person_id, U_NUR_PERSON_ID),
-    ] {
-        sqlx::query(
-            "INSERT INTO sales_person_user (sales_person_id, user_id, update_process) \
-             VALUES (?1, ?2, 'seed-legacy')",
-        )
-        .bind(sales_person_id.as_bytes().to_vec())
-        .bind(user_id)
-        .execute(pool)
-        .await
-        .expect("seed legacy link");
-    }
-}
-
-/// Die Alt-Fassung von `find_sales_person_by_user_id` im Wortlaut vor dem
-/// Rewrite (nur auf `sp.id` reduziert — verglichen wird die Entscheidung und
-/// die Sales-Person-ID).
-async fn alt_find_sales_person_id_by_user_id(pool: &sqlx::SqlitePool, user_id: &str) -> Option<Uuid> {
-    sqlx::query_scalar::<_, Vec<u8>>(
-        "SELECT sp.id FROM sales_person sp \
-         JOIN sales_person_user spu ON sp.id = spu.sales_person_id \
-         WHERE spu.user_id = ?1",
-    )
-    .bind(user_id)
-    .fetch_optional(pool)
-    .await
-    .expect("alt-query find_sales_person_by_user_id")
-    .map(|id| Uuid::from_slice(&id).expect("sales_person.id ist ein UUID"))
-}
-
-/// Die Alt-Fassung von `get_assigned_user` im Wortlaut vor dem Rewrite.
-async fn alt_get_assigned_user(pool: &sqlx::SqlitePool, sales_person_id: Uuid) -> Option<String> {
-    sqlx::query_scalar::<_, String>(
-        "SELECT user_id FROM sales_person_user WHERE sales_person_id = ?1",
-    )
-    .bind(sales_person_id.as_bytes().to_vec())
-    .fetch_optional(pool)
-    .await
-    .expect("alt-query get_assigned_user")
-}
-
-/// G-6 (D-61-09): Vorher/Nachher-Permission-Matrix als **ein** Test gegen
-/// **eine** dual-befuellte Fixture-DB. Ohne diesen Vergleich liesse sich eine
-/// Verhaltensaenderung nachtraeglich nicht mehr von einem Datenfehler
-/// unterscheiden (T-61-04).
-#[tokio::test]
-async fn byte_identity_old_vs_new_query() {
-    let pool = setup_pool().await;
-    let fixture = seed_fixture(pool.as_ref()).await;
-    seed_legacy_links(pool.as_ref(), &fixture).await;
-
-    // Zweig 1 des Self-Gates: find_sales_person_by_user_id.
-    for user in [U_SELF, U_FREMD, U_ALLEIN] {
-        let alt = alt_find_sales_person_id_by_user_id(pool.as_ref(), user).await;
-        let neu = find_sales_person_by_user_id(&pool, user)
-            .await
-            .map(|entity| entity.id);
-
-        assert_eq!(
-            alt.is_some(),
-            neu.is_some(),
-            "D-61-09: Alt und Neu muessen fuer '{user}' dieselbe Accept/Reject-Entscheidung treffen \
-             (alt={alt:?}, neu={neu:?})"
-        );
-        assert_eq!(
-            alt, neu,
-            "D-61-09: Alt und Neu muessen fuer '{user}' dieselbe Sales-Person-ID liefern"
-        );
-    }
-
-    // Zweig 2 des Self-Gates: get_assigned_user. Damit deckt die
-    // D-61-09-Matrix beide Pfade ab, an denen verify_user_is_sales_person
-    // haengt.
-    for sales_person_id in [fixture.s_self, fixture.s_fremd] {
-        let alt = alt_get_assigned_user(pool.as_ref(), sales_person_id).await;
-        let neu = get_assigned_user(&pool, sales_person_id)
-            .await
-            .map(|user| user.to_string());
-
-        assert_eq!(
-            alt.is_some(),
-            neu.is_some(),
-            "D-61-09: Alt und Neu muessen fuer {sales_person_id} dieselbe Accept/Reject-Entscheidung treffen"
-        );
-        assert_eq!(
-            alt, neu,
-            "D-61-09: Alt und Neu muessen fuer {sales_person_id} denselben Benutzernamen liefern"
-        );
-    }
-}
-// ── LEGACY-VERGLEICH ENDE ──

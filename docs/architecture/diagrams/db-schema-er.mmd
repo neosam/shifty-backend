@@ -81,11 +81,6 @@ erDiagram
         blob person_id "nullable, UK"
     }
 
-    SALES_PERSON_USER {
-        blob sales_person_id PK,FK
-        text user_id PK,FK
-    }
-
     SLOT {
         blob id PK
         integer day_of_week
@@ -348,15 +343,13 @@ erDiagram
 
     USER ||--o{ SESSION : "authenticated-as"
     USER ||--o{ USER_INVITATION : "invitee"
-    %% Verknüpfungstabelle: bleibt bis Phase 61 die laufende Wahrheit der
-    %% 1:1-Kopplung. Phase 60 ergänzt person_id daneben, löst sie NICHT ab.
-    USER ||--o| SALES_PERSON_USER : "maps-to"
-    SALES_PERSON ||--o| SALES_PERSON_USER : "maps-to"
-
     %% Person-Identität (Phase 60, v2.7): je Person höchstens ein Träger pro
     %% Seite — durchgesetzt von den VOLLSTÄNDIGEN (nicht partiellen) Indizes
     %% sales_person_person_id_unique_idx / user_person_id_unique_idx.
     %% Null Träger ist erlaubt und dauerhaft (D-60-03).
+    %% Seit Phase 61 (Migration 20260917000000_drop-sales-person-user.sql) ist
+    %% das die EINZIGE Kopplung zwischen Benutzer und Sales Person — die frühere
+    %% Verknüpfungstabelle ist aufgelöst (D-61-07).
     PERSON ||--o| SALES_PERSON : "identifies"
     PERSON ||--o| USER : "identifies"
 

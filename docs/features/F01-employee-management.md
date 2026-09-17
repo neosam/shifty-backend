@@ -227,7 +227,14 @@ the balance history and FK consistency with Bookings/Extra Hours.
 | --- | --- | --- |
 | `person` (v2.7, Phase 60) | Identity parent above Sales Person and login user — one row per real human | `id` (BLOB(16) PK), `created`, `update_process`, `update_version`. That is the complete set: **no `deleted` column** [D-60-04] and **no name columns** (names stay on `sales_person.name` / `user.name`) |
 | `sales_person` | Employee master data | `id`, `name`, `background_color`, `is_paid`, `inactive`, `deleted`, `update_version`, `person_id` (v2.7 — nullable, `UNIQUE` via `sales_person_person_id_unique_idx`) |
-| `sales_person_user` | 1:1 link Sales Person ↔ login user | `sales_person_id`, `user_id` (both `UNIQUE`), FK to `sales_person(id)` and `user(name)`. From v2.7 Phase 60 this table exists **alongside** the new `person_id` link — it stays the running truth and is dissolved only in Phase 61 |
+
+> **Dissolved in v2.7 Phase 61:** the former 1:1 link table between Sales
+> Person and login user no longer exists.
+> `migrations/sqlite/20260917000000_drop-sales-person-user.sql` catches up any
+> row still lacking a `person_id`, asserts that no remaining link would lose
+> its counterpart, and then drops the table [D-61-06, D-61-07]. The 1:1
+> guarantee is now carried solely by the two full unique indices
+> `sales_person_person_id_unique_idx` and `user_person_id_unique_idx`.
 | `employee_work_details` (formerly `working_hours`) | Employment contract with time range, weekly hours, Vacation | `id`, `sales_person_id`, `expected_hours`, `from_/to_year/calendar_week/day_of_week`, `workdays_per_week`, `monday`..`sunday`, `vacation_days`, `is_dynamic`, `cap_planned_hours_to_expected`, `committed_voluntary`, `created`, `deleted`, `update_version` |
 | `sales_person_unavailable` | Recurring availability blocks at day-of-week granularity | `id`, `sales_person_id`, `year`, `calendar_week`, `day_of_week`, `created`, `deleted` |
 | `sales_person_shiftplan` | M:N Sales Person ↔ Shiftplan with permission level | `sales_person_id`, `shiftplan_id`, `permission_level` ∈ {`available`,`planner_only`} |
@@ -262,8 +269,10 @@ still non-empty.
 Chronological history (only the files from `migrations/sqlite/` that are
 relevant to this cluster):
 
-- `20240506114107_add_sales_person.sql` — base tables `sales_person` +
-  `sales_person_user` (with `UNIQUE` constraints for the 1:1 link).
+- `20240506114107_add_sales_person.sql` — base table `sales_person` plus the
+  1:1 link table (with `UNIQUE` constraints). The link table was dissolved in
+  v2.7 Phase 61, see below; this migration file itself stays byte-identical
+  because its checksum is part of the sqlx migration ledger.
 - `20240614075633_shiftplanner-role.sql` — creates role + privilege
   `shiftplanner`. No direct field on a cluster table, but an auth
   prerequisite for many endpoints here.
@@ -333,9 +342,12 @@ person **or** both, and nothing auto-creates the missing counterpart
 person ─┬─ 0..1 ─ user          (user.person_id — nullable, UNIQUE)
         └─ 0..1 ─ sales_person  (sales_person.person_id — nullable, UNIQUE)
 
-user ────────────< sales_person_user >──── sales_person ──┬──< employee_work_details
-                                                          ├──< sales_person_unavailable
-                                                          └──< sales_person_shiftplan >── shiftplan
+                                        sales_person ──┬──< employee_work_details
+                                                       ├──< sales_person_unavailable
+                                                       └──< sales_person_shiftplan >── shiftplan
+
+(user ↔ sales_person runs exclusively through the shared person since
+ v2.7 Phase 61 — there is no link table any more.)
 ```
 
 ## 4. Service API
@@ -707,13 +719,15 @@ edges for this cluster:
   (no `UNIQUE(name)`), but the FK subgraph (Bookings, Extra
   Hours, Absences) still hangs off the original record. See
   edge-cases §8.
-- **User assignment race.** `sales_person_user` has
-  `UNIQUE(user_id)`; a replacement runs `discard_assigned_user` +
-  `assign_to_user` in the same TX. Two parallel HR requests assigning
-  the same login user to two different Sales Persons will fail on the
-  second commit with a SQLite unique constraint error — the error
-  message is currently **[To verify]** a generic DAO error, not
-  business-readable.
+- **User assignment race.** Since v2.7 Phase 61 the 1:1 guarantee is carried
+  by `user_person_id_unique_idx`. A replacement runs `discard_assigned_user`
+  (split) + `assign_to_user` (merge) in the same TX [P-61-B]. Two parallel HR
+  requests assigning the same login user to two different Sales Persons no
+  longer produce a generic DAO error: `assign_to_user` detects real ambiguity
+  **before** any write and returns `DaoError::EntityAlreadyExists`, which
+  `set_user` translates into `ServiceError::EntityAlreadyExists` → **HTTP 409**
+  [D-61-04]. The unique index remains the second line of defence for the race
+  loser.
 - **`sales_person.background_color`.** Free hex field — no format
   check in the backend. Invalid values (`"red"`, empty string) land raw
   in the DB and render in the frontend as style `background-color:` —
@@ -810,8 +824,8 @@ share `service_impl/src/test/helpers` (mock auth, time fake).
 
 ## 9. History & context
 
-- **v0.1 (May 2024) — foundation.** `sales_person` + `sales_person_user`
-  (mig `20240506114107`). Original table `working_hours` follows in
+- **v0.1 (May 2024) — foundation.** `sales_person` plus the 1:1 link table
+  (mig `20240506114107`; the link table was dissolved in v2.7 Phase 61). Original table `working_hours` follows in
   June (`20240618125847`), identifying color (`20240618035521`), and
   the paid flag in the same sprint. `shiftplanner` role comes in June
   (`20240614075633`).
