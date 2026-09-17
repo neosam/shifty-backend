@@ -108,7 +108,7 @@ Permission-Beobachtungen, 62–64 gegen sichtbares Verhalten im Browser.
 | Phase | Backend | Frontend | Begründung bei Frontend = nein |
 |---|---|---|---|
 | 60 | ja | **nein** | Reine Schema- + Backfill-Phase ohne API-Wirkung — kein TO geändert, kein Endpoint neu, keine sichtbare Verhaltensänderung. |
-| 61 | 4/6 | In Progress|  |
+| 61 | 5/6 | In Progress|  |
 | 62 | ja | ja | — |
 | 63 | ja | ja | — |
 | 64 | ja | ja | — |
@@ -361,7 +361,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4)*
 
-- [ ] 61-05-PLAN.md — DROP-Migration `20260917000000_drop-sales-person-user.sql` mit Nachzieh-Backfill und Selbst-Assertion (D-61-06/D-61-07), Verlagerung der Migrations-Regressionstests nach `shifty_bin`, Abbau der Alt-Query-Hälfte, `cargo sqlx prepare` (SC2)
+- [x] 61-05-PLAN.md — DROP-Migration `20260917000000_drop-sales-person-user.sql` mit Nachzieh-Backfill und Selbst-Assertion (D-61-06/D-61-07), Verlagerung der Migrations-Regressionstests nach `shifty_bin`, Abbau der Alt-Query-Hälfte, `cargo sqlx prepare` (SC2)
 
 **Wave 6** *(blocked on Wave 5)*
 
