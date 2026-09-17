@@ -561,7 +561,7 @@ and are mounted in `rest/src/lib.rs:640-682`.
 | `PUT` | `/sales-person/{id}` | Update | `SalesPersonTO` | `SalesPersonTO` | 400 (ID mismatch), 404, 409, 403, 422, 500 |
 | `DELETE` | `/sales-person/{id}` | Soft delete | — | 204 | 404/500 |
 | `GET` | `/sales-person/{id}/user` | Read linked login user | — | `Option<String>` | 404/500 |
-| `POST` | `/sales-person/{id}/user` | Assign login user (replace) | `String` (username) | 204 | 404/500 |
+| `POST` | `/sales-person/{id}/user` | Assign login user (replace) | `String` (username) | 204 | 404/409/500 |
 | `DELETE` | `/sales-person/{id}/user` | Remove login user | — | 204 | 404/500 |
 | `GET` | `/sales-person/by-user/{username}` | Sales Person for username | — | `SalesPersonTO` | 404/500 |
 | `GET` | `/sales-person/current` | Sales Person for the current login user | — | `Option<SalesPersonTO>` | 500 |

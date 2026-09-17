@@ -281,6 +281,7 @@ pub async fn get_sales_person_user<RestState: RestStateDef>(
     responses(
         (status = 204, description = "Set sales person user"),
         (status = 404, description = "Sales person not found"),
+        (status = 409, description = "Sales person or user is already linked to a different counterpart"),
         (status = 500, description = "Internal server error"),
     ),
 )]
