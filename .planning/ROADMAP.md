@@ -377,7 +377,7 @@ Plans:
 
 **Wave 9** *(blocked on Wave 8)*
 
-- [ ] 61-09-PLAN.md — WR-04: `set_user` übersetzt den Konflikt aus `discard_assigned_user` genauso wie den aus `assign_to_user` (409 statt 500 auf `DELETE /sales-person/{id}/user`), plus OpenAPI-Ergänzung
+- [x] 61-09-PLAN.md — WR-04: `set_user` übersetzt den Konflikt aus `discard_assigned_user` genauso wie den aus `assign_to_user` (409 statt 500 auf `DELETE /sales-person/{id}/user`), plus OpenAPI-Ergänzung
 
 **Wave 10** *(blocked on Wave 9)*
 
@@ -605,7 +605,7 @@ als unsicher).
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 60. Person-Datenmodell + Backfill | 0/? | Not started | — |
-| 61. PersonService + Auflösung `sales_person_user` | 0/? | Not started | — |
+| 61. PersonService + Auflösung `sales_person_user` | 9/10 | In Progress | — |
 | 62. Personen-Verzeichnis — eine Liste statt Tabs | 0/? | Not started | — |
 | 63. Personen-Detailansicht + Ausprägungs-Aktionen | 0/? | Not started | — |
 | 64. Planungs-Soll für dynamische Verträge | 0/? | Not started | — |
