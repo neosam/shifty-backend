@@ -100,6 +100,19 @@ FK-Konsistenz mit Bookings/Extra Hours zu erhalten.
   `ServiceError::EntityAlreadyExists` → HTTP 409. Der häufige Bestandsfall nach
   dem Backfill — beide Seiten tragen *je eine eigene* Person — ist
   ausdrücklich **kein** Konflikt und geht durch.
+- **Lösen ist ein Split** (v2.7, Phase 61 [D-61-05]).
+  `discard_assigned_user` lässt die Sales Person auf ihrer Person stehen und
+  gibt dem Benutzer eine **frisch angelegte**. Die Reihenfolge ist zwingend:
+  erst die neue `person`-Zeile anlegen, dann den Benutzer umhängen — andersherum
+  wäre der Benutzer transient ohne gültige `person_id` und damit ohne
+  Selbstzugriff. Eine trägerlose `person`-Zeile bleibt zu keinem Zeitpunkt
+  zurück.
+- **Ein Re-Link A→B läuft als Split(A) + Merge(B)** (v2.7, Phase 61 [P-61-B]).
+  `set_user` ruft `discard_assigned_user` bedingungslos vor `assign_to_user`,
+  also behält Benutzer A eine eigene frische Person und bleibt als reiner
+  Benutzer bestehen. Beide Schritte liegen in **einer** Service-Transaktion:
+  scheitert der Merge mit 409, wird der Split mit zurückgerollt und der
+  Ausgangszustand bleibt unverändert.
 - **Alle vier lesenden Verknüpfungs-Pfade lösen über `person_id` auf** (v2.7,
   Phase 61 [D-61-08]). `SalesPersonDaoImpl::find_by_user`,
   `find_sales_person_by_user_id`, `get_assigned_user` und

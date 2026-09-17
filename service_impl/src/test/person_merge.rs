@@ -427,3 +427,215 @@ async fn konflikt_wird_als_409_sichtbar() {
         other => panic!("M-6: erwartet EntityAlreadyExists, war {other:?}"),
     }
 }
+
+// ─── Task 2 — Split ─────────────────────────────────────────────────────────
+//
+// Abgedeckte Invarianten (Task 2 — Split und Re-Link):
+//
+// - **S-1** (D-61-05): Nach dem Loesen traegt die Sales Person unveraendert
+//   ihre alte Person, der Benutzer eine **neue**, davon verschiedene
+//   (`split_keeps_sales_person_identity`).
+// - **S-2**: Loesen ohne Verknuepfung ist ein No-Op
+//   (`split_ohne_verknuepfung_ist_noop`).
+// - **S-3** (T-61-14 / Pitfall 5): Nach jedem Split ist die Menge der
+//   `person`-Zeilen ohne Traeger leer
+//   (`split_erzeugt_keine_traegerlose_person`).
+// - **S-4** (P-61-B): Ein Re-Link A→B laeuft ueber Split(A) + Merge(B) und
+//   laesst A mit einer eigenen Person zurueck
+//   (`relink_von_benutzer_a_auf_benutzer_b`).
+// - **S-5** (P-61-B, Rollback-Nachweis): Scheitert der Merge am 409, ist auch
+//   der Split zurueckgerollt — der Ausgangszustand steht unveraendert
+//   (`relink_konflikt_rollt_den_split_zurueck`).
+
+/// Fuehrt `discard_assigned_user` auf einer frischen Transaktion aus und
+/// committet nur im Erfolgsfall.
+async fn discard(pool: &Arc<sqlx::SqlitePool>, sales_person_id: Uuid) -> Result<(), DaoError> {
+    let tx = tx_of(pool).await;
+    let result = dao(pool)
+        .discard_assigned_user(sales_person_id, tx.clone())
+        .await;
+    match &result {
+        Ok(()) => commit(pool, tx).await,
+        Err(_) => rollback(pool, tx).await,
+    }
+    result
+}
+
+/// Zaehlt `person`-Zeilen, auf die weder eine Sales Person noch ein Benutzer
+/// zeigt. Muss nach jedem Split `0` sein (T-61-14).
+async fn count_traegerlose_personen(pool: &sqlx::SqlitePool) -> i64 {
+    sqlx::query_scalar(
+        "SELECT COUNT(*) FROM person \
+         WHERE id NOT IN (SELECT person_id FROM sales_person WHERE person_id IS NOT NULL) \
+           AND id NOT IN (SELECT person_id FROM user WHERE person_id IS NOT NULL)",
+    )
+    .fetch_one(pool)
+    .await
+    .expect("count traegerlose person")
+}
+
+// ─── S-1 ────────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn split_keeps_sales_person_identity() {
+    let pool = setup_pool().await;
+    let s1 = Uuid::new_v4();
+    let p1 = seed_sales_person_with_person(pool.as_ref(), s1, "S1").await;
+    seed_user(pool.as_ref(), "U1", Some(p1)).await;
+
+    let persons_before = count_persons(pool.as_ref()).await;
+    discard(&pool, s1).await.expect("split geht durch");
+
+    assert_eq!(
+        person_of_sales_person(pool.as_ref(), s1).await,
+        Some(p1),
+        "S-1 (D-61-05): die Sales Person behaelt ihre Person — sie ist die Seite \
+         mit historischem Gewicht (Buchungen, extra_hours, Abrechnungs-Snapshots)"
+    );
+    let p_user = person_of_user(pool.as_ref(), "U1")
+        .await
+        .expect("S-1: der Benutzer bekommt eine frisch angelegte Person");
+    assert_ne!(p_user, p1, "S-1: die neue Person ist eine andere");
+    assert!(
+        person_exists(pool.as_ref(), p_user).await,
+        "S-1: die neue person-Zeile existiert"
+    );
+    assert_eq!(
+        count_persons(pool.as_ref()).await,
+        persons_before + 1,
+        "S-1: aus einer Person sind zwei geworden"
+    );
+}
+
+// ─── S-2 ────────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn split_ohne_verknuepfung_ist_noop() {
+    let pool = setup_pool().await;
+    let s2 = Uuid::new_v4();
+    let p2 = seed_sales_person_with_person(pool.as_ref(), s2, "S2").await;
+
+    let persons_before = count_persons(pool.as_ref()).await;
+    discard(&pool, s2)
+        .await
+        .expect("S-2: Loesen ohne Verknuepfung ist kein Fehler");
+
+    assert_eq!(person_of_sales_person(pool.as_ref(), s2).await, Some(p2));
+    assert_eq!(
+        count_persons(pool.as_ref()).await,
+        persons_before,
+        "S-2: kein Schreibvorgang, keine neue Person"
+    );
+}
+
+// ─── S-3 ────────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn split_erzeugt_keine_traegerlose_person() {
+    let pool = setup_pool().await;
+    let s1 = Uuid::new_v4();
+    let s2 = Uuid::new_v4();
+    seed_sales_person_with_person(pool.as_ref(), s1, "S1").await;
+    seed_sales_person_with_person(pool.as_ref(), s2, "S2").await;
+    seed_user_with_person(pool.as_ref(), "U1").await;
+    seed_user_with_person(pool.as_ref(), "U2").await;
+
+    assign(&pool, s1, "U1").await.expect("merge S1/U1");
+    assign(&pool, s2, "U2").await.expect("merge S2/U2");
+
+    for sales_person in [s1, s2] {
+        discard(&pool, sales_person).await.expect("split");
+        assert_eq!(
+            count_traegerlose_personen(pool.as_ref()).await,
+            0,
+            "S-3 (T-61-14): nach jedem Split darf es keine traegerlose person-Zeile geben"
+        );
+    }
+
+    // Ein zweiter Split auf derselben Sales Person ist ein No-Op und darf
+    // ebenfalls nichts Traegerloses hinterlassen.
+    discard(&pool, s1).await.expect("zweiter split");
+    assert_eq!(count_traegerlose_personen(pool.as_ref()).await, 0);
+}
+
+// ─── S-4 ────────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn relink_von_benutzer_a_auf_benutzer_b() {
+    let pool = setup_pool().await;
+    let s1 = Uuid::new_v4();
+    let p1 = seed_sales_person_with_person(pool.as_ref(), s1, "S1").await;
+    seed_user(pool.as_ref(), "UA", Some(p1)).await;
+    let pb = seed_user_with_person(pool.as_ref(), "UB").await;
+
+    let persons_before = count_persons(pool.as_ref()).await;
+
+    service(&pool)
+        .set_user(s1, Some("UB".into()), Authentication::Full, None)
+        .await
+        .expect("S-4: der Re-Link geht durch");
+
+    assert_eq!(
+        person_of_sales_person(pool.as_ref(), s1).await,
+        Some(p1),
+        "S-4: die Sales Person behaelt ihre Identitaet"
+    );
+    assert_eq!(
+        person_of_user(pool.as_ref(), "UB").await,
+        Some(p1),
+        "S-4: UB haengt jetzt an der Sales Person"
+    );
+    let pa = person_of_user(pool.as_ref(), "UA")
+        .await
+        .expect("S-4 (P-61-B): UA behaelt eine eigene, frisch angelegte Person");
+    assert_ne!(pa, p1, "S-4: UA ist von der Sales Person geloest");
+    assert!(
+        !person_exists(pool.as_ref(), pb).await,
+        "S-4: die alte Person von UB ist absorbiert"
+    );
+    assert_eq!(
+        count_persons(pool.as_ref()).await,
+        persons_before,
+        "S-4: eine neue Person fuer UA, eine absorbierte von UB — die Summe bleibt"
+    );
+    assert_eq!(count_traegerlose_personen(pool.as_ref()).await, 0);
+}
+
+// ─── S-5 ────────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn relink_konflikt_rollt_den_split_zurueck() {
+    let pool = setup_pool().await;
+    let s1 = Uuid::new_v4();
+    let s2 = Uuid::new_v4();
+    let p1 = seed_sales_person_with_person(pool.as_ref(), s1, "S1").await;
+    let p2 = seed_sales_person_with_person(pool.as_ref(), s2, "S2").await;
+    seed_user(pool.as_ref(), "UA", Some(p1)).await;
+    seed_user(pool.as_ref(), "UB", Some(p2)).await;
+
+    let persons_before = count_persons(pool.as_ref()).await;
+
+    let err = service(&pool)
+        .set_user(s1, Some("UB".into()), Authentication::Full, None)
+        .await
+        .expect_err("S-5: UB haengt bereits an S2 — echte Mehrdeutigkeit");
+    assert!(
+        matches!(err, ServiceError::EntityAlreadyExists(id) if id == s1),
+        "S-5: erwartet EntityAlreadyExists(S1), war {err:?}"
+    );
+
+    // Der Split lief vor dem Merge — er muss mit zurueckgerollt sein.
+    assert_eq!(
+        person_of_user(pool.as_ref(), "UA").await,
+        Some(p1),
+        "S-5 (P-61-B): UA ist nach dem gescheiterten Re-Link noch immer mit S1 verknuepft"
+    );
+    assert_eq!(person_of_sales_person(pool.as_ref(), s1).await, Some(p1));
+    assert_eq!(person_of_sales_person(pool.as_ref(), s2).await, Some(p2));
+    assert_eq!(person_of_user(pool.as_ref(), "UB").await, Some(p2));
+    assert_eq!(
+        count_persons(pool.as_ref()).await,
+        persons_before,
+        "S-5: die im Split angelegte Person ist mit zurueckgerollt"
+    );
+}

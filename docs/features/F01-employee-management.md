@@ -101,6 +101,17 @@ the balance history and FK consistency with Bookings/Extra Hours.
   `ServiceError::EntityAlreadyExists` → HTTP 409. The common post-backfill case
   — both sides already carry their *own* person — is explicitly **not** a
   conflict and goes through.
+- **Unlinking is a split** (v2.7, Phase 61 [D-61-05]).
+  `discard_assigned_user` keeps the sales person on its person and gives the
+  user a **freshly created** one. Order is mandatory: insert the new `person`
+  row first, move the user second — the other way round would leave the user
+  transiently without a valid `person_id` and therefore without self-access.
+  No carrier-less `person` row is ever left behind.
+- **A re-link A→B runs as split(A) + merge(B)** (v2.7, Phase 61 [P-61-B]).
+  `set_user` unconditionally calls `discard_assigned_user` before
+  `assign_to_user`, so user A is left with its own fresh person and stays a
+  plain user. Both steps share one service transaction: if the merge fails with
+  409, the split rolls back with it and the original state survives untouched.
 - **All four reading link paths resolve via `person_id`** (v2.7, Phase 61
   [D-61-08]). `SalesPersonDaoImpl::find_by_user`,
   `find_sales_person_by_user_id`, `get_assigned_user` and

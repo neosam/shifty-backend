@@ -16,6 +16,12 @@ use uuid::Uuid;
 /// mitgibt — siehe Methodenkommentar von `assign_to_user`.
 const PERSON_LINK_PROCESS: &str = "sales-person-dao::link";
 
+/// `update_process`-Marker fuer die beim Loesen frisch angelegte `person`-Zeile
+/// und die umgehaengte `user`-Zeile. Anders als beim Verknuepfen gibt es hier
+/// keine Wahl: die Trait-Signatur von `discard_assigned_user` hat keinen
+/// `process`-Parameter — und sie bleibt unveraendert (SC3).
+const PERSON_SPLIT_PROCESS: &str = "sales-person-dao::unlink";
+
 /// Erkennt eine SQLite-UNIQUE-Constraint-Verletzung im rohen `sqlx::Error`,
 /// bevor er via `map_db_error` in `DatabaseQueryError` geboxt wird. Ohne diese
 /// Unterscheidung wuerde aus dem Verlierer einer Race ein 500er statt eines
@@ -342,19 +348,91 @@ impl SalesPersonDao for SalesPersonDaoImpl {
         Ok(())
     }
 
+    /// Loesen ist ein **Split** (D-61-05): die Sales Person behaelt ihre
+    /// Person, der Benutzer bekommt eine frisch angelegte. Ein Umhaengen der
+    /// Sales Person statt des Benutzers waere ein Datendefekt in den
+    /// write-once-Snapshots von `billing_period_sales_person` — ihre Identitaet
+    /// bleibt stabil.
+    ///
+    /// **Reihenfolge ist zwingend:** erst die neue `person`-Zeile anlegen, dann
+    /// den Benutzer umhaengen. Andersherum waere der Benutzer transient ohne
+    /// gueltige `person_id` und damit ohne Selbstzugriff (T-61-14). Die neue
+    /// 16-Byte-ID entsteht in Rust und wird in beide Statements eingesetzt: ein
+    /// Readback der von SQLite vergebenen Zeilennummer waere falsch, weil
+    /// `person.id` ein `blob(16) PRIMARY KEY` und kein Alias auf die interne
+    /// Zeilennummer ist (Research Pitfall 3).
+    ///
+    /// Ohne Verknuepfung — die Sales Person existiert nicht, traegt keine
+    /// Identitaet, oder es haengt kein Benutzer an ihrer Person — ist die
+    /// Methode ein No-Op, identisch zum frueheren Verhalten bei fehlender
+    /// Verknuepfungszeile.
+    ///
+    /// Die frueher hier geloeschte separate Verknuepfungstabelle wird von
+    /// `migrations/sqlite/20260917000000_drop-sales-person-user.sql` entfernt;
+    /// die Verknuepfung lebt seither ausschliesslich in `person_id`.
     async fn discard_assigned_user(
         &self,
         sales_person_id: Uuid,
         tx: Self::Transaction,
     ) -> Result<(), DaoError> {
-        let sales_person_id = sales_person_id.as_bytes().to_vec();
+        let sales_person_id_vec = sales_person_id.as_bytes().to_vec();
+
+        // Schritt 1 — die Person der Sales Person. Ohne sie gibt es nichts zu
+        // loesen.
+        let person_id = query!(
+            "SELECT person_id FROM sales_person WHERE id = ?",
+            sales_person_id_vec
+        )
+        .fetch_optional(tx.tx.lock().await.as_mut())
+        .await
+        .map_db_error()?
+        .and_then(|row| row.person_id);
+        let Some(person_id) = person_id else {
+            return Ok(());
+        };
+
+        // Schritt 2 — haengt ueberhaupt ein Benutzer an dieser Person?
+        let user_name = query!("SELECT name FROM user WHERE person_id = ?", person_id)
+            .fetch_optional(tx.tx.lock().await.as_mut())
+            .await
+            .map_db_error()?
+            .map(|row| row.name);
+        let Some(user_name) = user_name else {
+            return Ok(());
+        };
+
+        // Schritt 3a — frische Person fuer den Benutzer. `created` entsteht per
+        // `strftime` im Format des Phase-60-Backfills, damit die Leseseite
+        // (`Iso8601::DATE_TIME`) es parst; so bleibt die DAO-Ebene ohne
+        // `ClockService`.
+        let new_person_id = Uuid::new_v4().as_bytes().to_vec();
+        let new_version = Uuid::new_v4().as_bytes().to_vec();
         query!(
-            "DELETE FROM sales_person_user WHERE sales_person_id = ?",
-            sales_person_id
+            "INSERT INTO person (id, created, update_process, update_version) VALUES (?, strftime('%Y-%m-%dT%H:%M:%S.000000000Z','now'), ?, ?)",
+            new_person_id,
+            PERSON_SPLIT_PROCESS,
+            new_version
         )
         .execute(tx.tx.lock().await.as_mut())
         .await
         .map_db_error()?;
+
+        // Schritt 3b — Benutzer umhaengen, mit demselben Guard-Muster wie beim
+        // Verknuepfen.
+        let update_result = query!(
+            "UPDATE user SET person_id = ?, update_process = ? WHERE name = ? AND person_id IS ?",
+            new_person_id,
+            PERSON_SPLIT_PROCESS,
+            user_name,
+            person_id
+        )
+        .execute(tx.tx.lock().await.as_mut())
+        .await
+        .map_db_error()?;
+        if update_result.rows_affected() != 1 {
+            return Err(DaoError::EntityAlreadyExists);
+        }
+
         Ok(())
     }
 

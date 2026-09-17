@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO person (id, created, update_process, update_version) VALUES (?, strftime('%Y-%m-%dT%H:%M:%S.000000000Z','now'), ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "360818f5ec076d8c7b13f612a7da7541bac0d6f413e1dd198a76137cc7a5db9a"
+}
