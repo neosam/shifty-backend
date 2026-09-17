@@ -178,8 +178,25 @@ person ─┬─ 0..1 ─ user          (user.person_id — nullable, UNIQUE)
 - **`sales_person_user` stays** in Phase 60 and remains the running truth of
   the 1:1 link; dissolving it is Phase 61. Rewriting the self-access check
   (`find_sales_person_by_user_id`, §4.2) onto `person_id` joins is likewise
-  Phase-61 scope — Phase 60 changes no DAO and no service [D-60-10], so rows
-  created after the migration carry no `person_id` yet.
+  Phase-61 scope — Phase 60 changes no DAO and no service [D-60-10].
+- **Login auto-creation assigns `person_id`** (v2.7, Phase 61 [D-61-01]).
+  `PermissionDaoImpl::create_user` (`dao_impl_sqlite/src/lib.rs`) opens a
+  **method-internal** transaction (`self.pool.begin()`), inserts the `person`
+  row first and the `user` row carrying its ID second, then commits. The trait
+  signature `create_user(&self, user: &UserEntity, process: &str)` is
+  unchanged — the transaction is an internal detail, not a new parameter, and
+  both callers (`PermissionServiceImpl::create_user`,
+  `UserInvitationServiceImpl`) stay untouched.
+  **Why internal rather than two pool statements:** two independent statements
+  would not be atomic. An abort in between would leave either an orphan
+  `person` row or — considerably worse — a `user` **without** an identity, and
+  the latter drops out of the person-based self-access check. Evidence:
+  `service_impl::test::person_creation::create_user_ist_atomar` (a second
+  `create_user` with the same name fails on the primary key and the `person`
+  count stays unchanged).
+  The 16-byte ID is generated in Rust (`Uuid::new_v4()`); reading back the
+  SQLite row number would be wrong because `person.id` is a `blob(16) PRIMARY
+  KEY`, not a rowid alias. No Sales Person is created alongside [D-60-03].
 - Enforcement of the 1:1 guarantee runs through that unique index, **not**
   through foreign keys: FK enforcement is switched off in this repo
   [D-60-06], see the note above.

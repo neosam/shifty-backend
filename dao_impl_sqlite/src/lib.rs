@@ -93,14 +93,48 @@ impl dao::PermissionDao for PermissionDaoImpl {
 
     async fn create_user(&self, user: &dao::UserEntity, process: &str) -> Result<(), DaoError> {
         let name = user.name.as_ref();
+
+        // D-61-01: Die Login-Auto-Anlage vergibt sofort eine eigene
+        // Person-Identitaet mit. Ohne sie faellt jeder nach dem Deploy neu
+        // angemeldete Benutzer aus der person-basierten Selbst-Zugriffs-
+        // Pruefung heraus — der Phase-60-Backfill lief einmalig ueber den
+        // Bestand und greift hier nicht mehr.
+        //
+        // Die lokale Transaktion ist zwingend (Research Pitfall 4): zwei
+        // unabhaengige Statements auf dem Pool waeren nicht atomar. Ein Abbruch
+        // dazwischen liesse entweder eine traegerlose `person`-Zeile oder —
+        // deutlich schlimmer — einen `user` ohne Identitaet zurueck, also genau
+        // den Zustand, den D-61-01 ausschliesst. Die Trait-Signatur bleibt
+        // dabei unveraendert; die Transaktion ist eine reine Interna dieser
+        // Methode, kein neuer Parameter.
+        //
+        // Der 16-Byte-Wert entsteht in Rust und geht in beide Statements. Ein
+        // Readback der von SQLite vergebenen Zeilennummer waere falsch:
+        // `person.id` ist ein `blob(16) PRIMARY KEY` und kein Alias auf die
+        // interne Zeilennummer (Research Pitfall 3).
+        let mut tx = self.pool.begin().await.map_db_error()?;
+
+        let person_id = uuid::Uuid::new_v4().as_bytes().to_vec();
         query!(
-            r"INSERT INTO user (name, update_process) VALUES (?, ?)",
-            name,
+            "INSERT INTO person (id, created, update_process, update_version) VALUES (?, strftime('%Y-%m-%dT%H:%M:%S.000000000Z','now'), ?, randomblob(16))",
+            person_id,
             process
         )
-        .execute(self.pool.as_ref())
+        .execute(tx.as_mut())
         .await
         .map_db_error()?;
+
+        query!(
+            r"INSERT INTO user (name, person_id, update_process) VALUES (?, ?, ?)",
+            name,
+            person_id,
+            process
+        )
+        .execute(tx.as_mut())
+        .await
+        .map_db_error()?;
+
+        tx.commit().await.map_db_error()?;
         Ok(())
     }
     async fn all_users(&self) -> Result<Arc<[dao::UserEntity]>, DaoError> {

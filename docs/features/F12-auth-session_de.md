@@ -169,8 +169,27 @@ person ─┬─ 0..1 ─ user          (user.person_id — nullable, UNIQUE)
   laufende Wahrheit der 1:1-Kopplung; die Auflösung ist Phase 61. Die
   Umschreibung der Selbst-Zugriffs-Prüfung (`find_sales_person_by_user_id`,
   §4.2) auf `person_id`-Joins ist ebenfalls Phase-61-Scope — Phase 60 ändert
-  weder DAO noch Service [D-60-10], Zeilen nach der Migration tragen daher noch
-  kein `person_id`.
+  weder DAO noch Service [D-60-10].
+- **Die Login-Auto-Anlage vergibt `person_id` mit** (v2.7, Phase 61
+  [D-61-01]). `PermissionDaoImpl::create_user`
+  (`dao_impl_sqlite/src/lib.rs`) öffnet dafür eine **methoden-interne**
+  Transaktion (`self.pool.begin()`), schreibt darin zuerst die `person`-Zeile
+  und danach die `user`-Zeile mit deren ID, und committet. Die Trait-Signatur
+  `create_user(&self, user: &UserEntity, process: &str)` ist unverändert — die
+  Transaktion ist Interna, kein neuer Parameter; beide Aufrufer
+  (`PermissionServiceImpl::create_user`, `UserInvitationServiceImpl`) bleiben
+  unberührt.
+  **Warum intern und nicht zwei Pool-Statements:** zwei unabhängige Statements
+  wären nicht atomar. Ein Abbruch dazwischen ließe entweder eine trägerlose
+  `person`-Zeile oder — deutlich schlimmer — einen `user` **ohne** Identität
+  zurück; letzterer fällt aus der person-basierten Selbst-Zugriffs-Prüfung
+  heraus. Nachweis: `service_impl::test::person_creation::create_user_ist_atomar`
+  (zweiter `create_user` mit gleichem Namen scheitert am Primärschlüssel, die
+  `person`-Anzahl bleibt unverändert).
+  Die 16-Byte-ID entsteht in Rust (`Uuid::new_v4()`); ein Readback der
+  SQLite-Zeilennummer wäre falsch, weil `person.id` ein `blob(16) PRIMARY KEY`
+  und kein Rowid-Alias ist. Eine Sales Person wird dabei **nicht** mit angelegt
+  [D-60-03].
 - Die Durchsetzung der 1:1-Garantie läuft über diesen Unique-Index, **nicht**
   über Fremdschlüssel: die FK-Durchsetzung ist in diesem Repo ausgeschaltet
   [D-60-06], siehe die Anmerkung oben.

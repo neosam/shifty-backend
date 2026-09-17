@@ -26,13 +26,29 @@
 //! - **N-4**: Die Person-Anlage haengt an der uebergebenen Transaktion — ein
 //!   Rollback laesst weder `sales_person`- noch `person`-Zeile zurueck
 //!   (`create_sales_person_rollback_laesst_keine_person_zurueck`).
+//!
+//! Ergaenzt in Task 2 (Login-Auto-Anlage, `PermissionDaoImpl::create_user`):
+//!
+//! - **N-5** (D-61-01): `create_user` vergibt ein nicht-NULL `person_id` mit
+//!   genau einer passenden `person`-Zeile (`create_user_vergibt_person_id`).
+//! - **N-6** (T-61-06): Zwei Benutzer bekommen zwei verschiedene Personen — der
+//!   vollstaendige `user_person_id_unique_idx` haelt
+//!   (`create_user_vergibt_je_benutzer_eine_eigene_person`).
+//! - **N-7** (D-60-03 / T-61-10): `create_user` legt **keine** `sales_person`-
+//!   Zeile an (`create_user_legt_keine_sales_person_an`).
+//! - **N-8** (Research Pitfall 4, der Atomaritaets-Nachweis): Ein zweiter
+//!   `create_user` mit demselben Namen scheitert am Primaerschluessel; die
+//!   `person`-Anzahl bleibt danach **unveraendert** — die interne Transaktion
+//!   hat die bereits geschriebene `person`-Zeile mitgenommen
+//!   (`create_user_ist_atomar`). Ohne interne Transaktion bliebe hier eine
+//!   traegerlose Person zurueck oder — schlimmer — ein `user` ohne Identitaet.
 
 use std::sync::Arc;
 
 use dao::sales_person::{SalesPersonDao, SalesPersonEntity};
-use dao::TransactionDao;
+use dao::{PermissionDao, TransactionDao, UserEntity};
 use dao_impl_sqlite::sales_person::SalesPersonDaoImpl;
-use dao_impl_sqlite::{TransactionDaoImpl, TransactionImpl};
+use dao_impl_sqlite::{PermissionDaoImpl, TransactionDaoImpl, TransactionImpl};
 use uuid::Uuid;
 
 // ─── Harness ────────────────────────────────────────────────────────────────
@@ -220,5 +236,125 @@ async fn create_sales_person_rollback_laesst_keine_person_zurueck() {
         0,
         count(pool.as_ref(), "SELECT COUNT(*) FROM person").await,
         "die person-Zeile haengt an derselben Transaktion — ein Rollback nimmt sie mit"
+    );
+}
+
+// ─── Lese-Helfer (Benutzer-Seite) ───────────────────────────────────────────
+
+async fn person_id_of_user(pool: &sqlx::SqlitePool, name: &str) -> Option<Vec<u8>> {
+    sqlx::query_scalar::<_, Option<Vec<u8>>>("SELECT person_id FROM user WHERE name = ?1")
+        .bind(name)
+        .fetch_optional(pool)
+        .await
+        .expect("select person_id")
+        .flatten()
+}
+
+fn user_entity(name: &str) -> UserEntity {
+    UserEntity { name: name.into() }
+}
+
+// ─── N-5 ────────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn create_user_vergibt_person_id() {
+    let pool = setup_pool().await;
+    let dao = PermissionDaoImpl::new(pool.clone());
+
+    dao.create_user(&user_entity("alice"), "test-process")
+        .await
+        .expect("create user");
+
+    let person_id = person_id_of_user(pool.as_ref(), "alice")
+        .await
+        .expect("D-61-01: ein neu angelegter Benutzer muss ein person_id tragen");
+
+    assert_eq!(
+        1,
+        person_row_count(pool.as_ref(), &person_id).await,
+        "zu dem vergebenen person_id muss genau eine person-Zeile existieren"
+    );
+}
+
+// ─── N-6 ────────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn create_user_vergibt_je_benutzer_eine_eigene_person() {
+    let pool = setup_pool().await;
+    let dao = PermissionDaoImpl::new(pool.clone());
+
+    dao.create_user(&user_entity("alice"), "test-process")
+        .await
+        .expect("create alice");
+    dao.create_user(&user_entity("bob"), "test-process")
+        .await
+        .expect("create bob — der UNIQUE-Index darf nicht greifen (T-61-06)");
+
+    let alice = person_id_of_user(pool.as_ref(), "alice")
+        .await
+        .expect("alice person_id");
+    let bob = person_id_of_user(pool.as_ref(), "bob")
+        .await
+        .expect("bob person_id");
+
+    assert_ne!(
+        alice, bob,
+        "zwei Benutzer duerfen niemals dieselbe Person teilen (PERS-04 / T-61-06)"
+    );
+    assert_eq!(
+        2,
+        count(pool.as_ref(), "SELECT COUNT(*) FROM person").await,
+        "zwei create_user-Aufrufe muessen zwei person-Zeilen erzeugen"
+    );
+}
+
+// ─── N-7 ────────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn create_user_legt_keine_sales_person_an() {
+    let pool = setup_pool().await;
+    let dao = PermissionDaoImpl::new(pool.clone());
+    let before = count(pool.as_ref(), "SELECT COUNT(*) FROM sales_person").await;
+
+    dao.create_user(&user_entity("alice"), "test-process")
+        .await
+        .expect("create user");
+
+    assert_eq!(
+        before,
+        count(pool.as_ref(), "SELECT COUNT(*) FROM sales_person").await,
+        "D-60-03/T-61-10: ein reiner HR-/Admin-Account bekommt KEINE Schichtplan-Identitaet"
+    );
+}
+
+// ─── N-8 — Atomaritaets-Nachweis (Research Pitfall 4) ───────────────────────
+
+#[tokio::test]
+async fn create_user_ist_atomar() {
+    let pool = setup_pool().await;
+    let dao = PermissionDaoImpl::new(pool.clone());
+
+    dao.create_user(&user_entity("alice"), "test-process")
+        .await
+        .expect("create alice");
+
+    let persons_before = count(pool.as_ref(), "SELECT COUNT(*) FROM person").await;
+    assert_eq!(1, persons_before);
+
+    let second = dao.create_user(&user_entity("alice"), "test-process").await;
+    assert!(
+        second.is_err(),
+        "ein zweiter Benutzer mit demselben Namen muss am Primaerschluessel scheitern"
+    );
+
+    assert_eq!(
+        persons_before,
+        count(pool.as_ref(), "SELECT COUNT(*) FROM person").await,
+        "Pitfall 4: der fehlgeschlagene Aufruf darf KEINE traegerlose person-Zeile hinterlassen"
+    );
+    assert_eq!(
+        1,
+        count(pool.as_ref(), "SELECT COUNT(*) FROM user").await,
+        "der fehlgeschlagene Aufruf darf den Bestand nicht veraendern"
     );
 }
