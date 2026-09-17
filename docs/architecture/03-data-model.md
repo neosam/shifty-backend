@@ -353,6 +353,12 @@ least one carrier" on the second half is what the merge and split paths
 maintain (`assign_to_user` deletes the absorbed person row, and
 `discard_assigned_user` inserts the new one *before* moving the user).
 
+The drop migration **establishes** that second half while it runs: its last
+catch-up statement deletes every `person` row that neither a `sales_person`
+nor a `user` row carries [D-61-06]. So the invariant does not only hold from
+the first post-migration write onwards — it holds the moment the migration
+commits.
+
 Note the asymmetry with the schema: `person_id` is **nullable** and carries no
 `FOREIGN KEY` declaration, and it stays that way — SQLite cannot tighten a
 column to `NOT NULL` without rebuilding the table, and a rebuild of
@@ -374,13 +380,41 @@ honour this by hand — the database will not catch the omission.
   `dao_impl_sqlite/src/sales_person.rs` go through `u.person_id =
   sp.person_id` [D-61-08, D-61-03, D-61-05], and
   `migrations/sqlite/20260917000000_drop-sales-person-user.sql` has dissolved
-  the table [D-61-07]. That migration first **catches up** any row still
-  lacking a `person_id` (same winner logic as Phase 60: the sales person
-  generates, the user copies) and then **asserts itself** — if any remaining
-  link had no matching `person_id` counterpart on both sides, the `CHECK`
-  constraint rolls the whole migration back and the `DROP` never runs
-  [D-61-06]. There is no down migration; the recovery path is the file copy
-  taken before the deploy.
+  the table [D-61-07]. Its catch-up block runs three steps, in this order
+  [D-61-06]:
+
+  1. **Decouple.** Every user still carrying the `person_id` of a sales person
+     it is no longer linked to gets a **fresh** person of its own [D-61-05].
+     That is what a re-link inside the deploy window leaves behind — the old
+     runtime path ran `discard` and then `assign`, so the displaced side keeps
+     a stale `person_id` but loses its link row. This step has to run *before*
+     the merge; otherwise the merge collides with the complete
+     `user_person_id_unique_idx`.
+  2. **Merge.** Every live link moves the user onto the person of its sales
+     person [D-61-03] — the sales person keeps (or generates) the identity,
+     because the write-once snapshots in `billing_period_sales_person` hang off
+     it. This covers both window classes: the row that has no `person_id` yet
+     *and* the pre-existing pair whose two sides drifted apart because the link
+     was written while the old `assign_to_user` was still deployed.
+  3. **Sweep.** Every `person` row left without a carrier is deleted.
+
+  That is exactly the winner rule of the runtime path (`assign_to_user` /
+  `discard_assigned_user`), applied in bulk — the migration does not invent a
+  second policy.
+
+  The migration then **asserts itself**: two global coverage terms (no
+  `sales_person` and no `user` row without a `person_id`, inherited from the
+  Phase-60 backfill's own assertion) plus an outer-joined check across the link
+  table. What the assertion still catches is *not* the deploy-window
+  contradiction — the catch-up block resolves that — but a link row whose
+  parent row is missing, plus any row the catch-up block failed to give an
+  identity. In either case the `CHECK` constraint rolls the whole migration
+  back and the `DROP` never runs. The outer joins are mandatory: with inner
+  joins the orphaned row falls out of the result, the assertion passes green,
+  and the `DROP` discards the live link without a trace.
+
+  There is no down migration; the recovery path is the file copy taken before
+  the deploy.
 - Rows created **after** the migration (login auto-creation, `create_sales_person`)
   get **no** `person_id` in Phase 60 — assignment on creation is Phase-61 scope.
   There is no trigger and no DAO change in this phase [D-60-10]. The count check

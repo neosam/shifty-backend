@@ -373,6 +373,12 @@ die Merge- und Split-Pfade aufrecht (`assign_to_user` löscht die absorbierte
 `person`-Zeile, und `discard_assigned_user` legt die neue an, **bevor** der
 Benutzer umgehängt wird).
 
+Die DROP-Migration **stellt** diese zweite Hälfte beim Lauf selbst her: ihre
+letzte Nachzug-Anweisung löscht jede `person`-Zeile, die weder eine
+`sales_person`- noch eine `user`-Zeile trägt [D-61-06]. Die Invariante gilt
+damit nicht erst ab dem ersten Schreibvorgang nach der Migration, sondern in
+dem Moment, in dem die Migration committet.
+
 Zu beachten ist die Asymmetrie zum Schema: `person_id` ist **nullable** und
 trägt keine `FOREIGN KEY`-Deklaration — und das bleibt so. SQLite kann eine
 Spalte ohne Table-Rebuild nicht auf `NOT NULL` verschärfen, und ein Rebuild von
@@ -396,14 +402,45 @@ Datenbank fängt das Versäumnis nicht ab.
   `dao_impl_sqlite/src/sales_person.rs` laufen über
   `u.person_id = sp.person_id` [D-61-08, D-61-03, D-61-05], und
   `migrations/sqlite/20260917000000_drop-sales-person-user.sql` hat die
-  Tabelle aufgelöst [D-61-07]. Diese Migration **zieht** zuerst jede Zeile
-  nach, die noch kein `person_id` trägt (gleiche Gewinner-Logik wie Phase 60:
-  die Sales Person generiert, der Benutzer kopiert), und **prüft sich dann
-  selbst** — bliebe danach eine Verknüpfung ohne übereinstimmendes
-  `person_id`-Gegenstück auf beiden Seiten, rollt der `CHECK`-Constraint die
-  gesamte Migration zurück und der `DROP` läuft nie [D-61-06]. Es gibt keine
-  Down-Migration; der Wiederherstellungspfad ist die vor dem Deploy gezogene
-  Dateikopie.
+  Tabelle aufgelöst [D-61-07]. Ihr Nachzug-Block arbeitet in drei Schritten,
+  in genau dieser Reihenfolge [D-61-06]:
+
+  1. **Entkoppeln.** Jeder Benutzer, der noch die `person_id` einer Sales
+     Person trägt, mit der er nicht mehr verknüpft ist, bekommt eine
+     **frische** eigene Person [D-61-05]. Genau diesen Zustand hinterlässt ein
+     Re-Link im Deploy-Fenster — der alte Laufzeitpfad fuhr `discard` und
+     danach `assign`, die verdrängte Seite behält also eine veraltete
+     `person_id`, verliert aber ihre Verknüpfungszeile. Dieser Schritt muss
+     *vor* der Verschmelzung laufen, sonst kollidiert die Verschmelzung mit dem
+     vollständigen `user_person_id_unique_idx`.
+  2. **Verschmelzen.** Jede lebende Verknüpfung zieht den Benutzer auf die
+     Person seiner Sales Person [D-61-03] — die Sales Person behält bzw.
+     erzeugt die Identität, weil die write-once-Snapshots in
+     `billing_period_sales_person` an ihr hängen. Das deckt beide
+     Fensterklassen ab: die Zeile, die noch gar kein `person_id` trägt, *und*
+     das Bestandspaar, dessen beide Seiten auseinandergelaufen sind, weil die
+     Verknüpfung noch unter dem alten `assign_to_user` geschrieben wurde.
+  3. **Aufräumen.** Jede `person`-Zeile, die danach ohne Träger dasteht, wird
+     gelöscht.
+
+  Das ist exakt die Gewinner-Regel des Laufzeitpfads (`assign_to_user` /
+  `discard_assigned_user`), nur en bloc angewandt — die Migration erfindet
+  keine zweite Politik.
+
+  Danach **prüft sich die Migration selbst**: zwei globale Deckungsterme (keine
+  `sales_person`- und keine `user`-Zeile ohne `person_id`, geerbt aus der
+  Assertion des Phase-60-Backfills) plus eine Prüfung über die
+  Verknüpfungstabelle mit äußeren Joins. Was die Assertion danach noch fängt,
+  ist *nicht* der Fenster-Widerspruch — den löst der Nachzug-Block auf —,
+  sondern eine Verknüpfungszeile mit fehlender Elternzeile sowie jede Zeile,
+  der der Nachzug keine Identität geben konnte. In beiden Fällen rollt der
+  `CHECK`-Constraint die gesamte Migration zurück und der `DROP` läuft nie. Die
+  äußeren Joins sind dabei zwingend: mit inneren Joins fällt die verwaiste
+  Zeile aus dem Ergebnis, die Assertion geht grün durch, und der `DROP` wirft
+  die lebende Verknüpfung spurlos weg.
+
+  Es gibt keine Down-Migration; der Wiederherstellungspfad ist die vor dem
+  Deploy gezogene Dateikopie.
 - Zeilen, die **nach** der Migration entstehen (Login-Auto-Anlage,
   `create_sales_person`), bekommen in Phase 60 **kein** `person_id` — die
   Vergabe beim Anlegen ist Phase-61-Scope. Kein Trigger, kein DAO-Eingriff in
