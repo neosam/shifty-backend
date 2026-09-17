@@ -340,7 +340,7 @@ Geschäftslogik (Person auflösen-oder-anlegen, mehrdeutigen Merge ablehnen) ohn
 1:1-Präzedenz im Repo — eigene Test-Matrix beim Planen entwerfen, nicht „Query
 portieren".
 
-**Plans:** 6 plans
+**Plans:** 10 plans (6 geplant + 4 Gap-Closure aus `61-REVIEW.md`)
 
 Plans:
 **Wave 1**
@@ -366,6 +366,25 @@ Plans:
 **Wave 6** *(blocked on Wave 5)*
 
 - [x] 61-06-PLAN.md — Docs-Freshness-Gate: `02-service-tiers` + `diagrams/service-graph-runtime.mmd`, `04-auth`, `F12-auth-session`, `03-data-model` + `diagrams/db-schema-er.mmd`, `F01-employee-management`, `arc42/05-building-block-view` — je EN + DE
+
+**Wave 7** *(Gap-Closure, blocked on Wave 6)*
+
+- [ ] 61-07-PLAN.md — CR-01 + WR-05: Nachzieh-Backfill der DROP-Migration konvergiert statt zu divergieren (Entkopplung + Merge + Träger-Aufräumung nach D-61-03/D-61-05), Selbst-Assertion bekommt die beiden globalen Deckungsterme aus Phase 60, der Test, der den Abbruch als Sollverhalten zementiert, wird umgedreht
+
+**Wave 8** *(blocked on Wave 7)*
+
+- [ ] 61-08-PLAN.md — CR-02: `BasicDaoImpl::clear_all` löscht nur noch trägerlose `person`-Zeilen, zwei Regressionstests für die Invariante, `.sqlx`-Cache und Datenmodell-Doku im selben Commit
+
+**Wave 9** *(blocked on Wave 8)*
+
+- [ ] 61-09-PLAN.md — WR-04: `set_user` übersetzt den Konflikt aus `discard_assigned_user` genauso wie den aus `assign_to_user` (409 statt 500 auf `DELETE /sales-person/{id}/user`), plus OpenAPI-Ergänzung
+
+**Wave 10** *(blocked on Wave 9)*
+
+- [ ] 61-10-PLAN.md — WR-06: `AUTHENTICATION.md` beschreibt nicht länger die aufgelöste 1:1-Verknüpfungstabelle als aktuelles Schema; `user`/`person` auf dem Stand der Migrationskette, Verweis auf die kanonische zweisprachige Doku
+
+**Aufgeschoben (in `61-07-PLAN.md` §„Deferral Record" dokumentiert):** WR-02 →
+Phase 62; WR-01, WR-03, WR-07 und IN-01 bis IN-07 → Backlog.
 
 ---
 
