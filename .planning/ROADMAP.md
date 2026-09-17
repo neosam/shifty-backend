@@ -108,7 +108,7 @@ Permission-Beobachtungen, 62–64 gegen sichtbares Verhalten im Browser.
 | Phase | Backend | Frontend | Begründung bei Frontend = nein |
 |---|---|---|---|
 | 60 | ja | **nein** | Reine Schema- + Backfill-Phase ohne API-Wirkung — kein TO geändert, kein Endpoint neu, keine sichtbare Verhaltensänderung. |
-| 61 | ja | **nein** | Der Service-/REST-Vertrag ist per Konstruktion eingefroren (ARCHITECTURE §b: Signaturen bleiben identisch, ~50 Aufrufstellen unberührt). Das Frontend kompiliert und verhält sich unverändert; die Phase wird nur als Nicht-Regression sichtbar. |
+| 61 | 1/6 | In Progress|  |
 | 62 | ja | ja | — |
 | 63 | ja | ja | — |
 | 64 | ja | ja | — |
@@ -345,7 +345,7 @@ portieren".
 Plans:
 **Wave 1**
 
-- [ ] 61-01-PLAN.md — Basic-Tier `PersonDao`/`PersonDaoImpl`/`PersonService`/`PersonServiceImpl`, die beiden „unverknüpfte Kandidaten"-Anti-Join-Lesepfade (D-61-02), DI-Konstruktion im Basic-Block plus `RestStateDef`-Accessor (SC5)
+- [x] 61-01-PLAN.md — Basic-Tier `PersonDao`/`PersonDaoImpl`/`PersonService`/`PersonServiceImpl`, die beiden „unverknüpfte Kandidaten"-Anti-Join-Lesepfade (D-61-02), DI-Konstruktion im Basic-Block plus `RestStateDef`-Accessor (SC5)
 
 **Wave 2** *(blocked on Wave 1)*
 

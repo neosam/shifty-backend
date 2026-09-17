@@ -25,7 +25,7 @@ defined: 2026-09-16
 - [x] **PERS-02**: Die Backfill-Migration ist wiederholbar — ein zweiter Lauf erzeugt keine zusätzlichen `person`-Zeilen und keine Doppelzuordnung.
 - [x] **PERS-03**: Der Backfill erfasst auch soft-gelöschte Sales Persons, damit Personen, die noch Abrechnungs-Snapshots besitzen, nicht ohne Person dastehen.
 - [x] **PERS-04**: Die Datenbank erzwingt weiterhin, dass eine Person höchstens einen Benutzer und höchstens eine Sales Person hat — die heute von `sales_person_user` getragene 1:1-Garantie geht nicht verloren.
-- [ ] **PERS-05**: Ein Mitarbeiter sieht und bucht nach der Umstellung genau dieselben eigenen Daten wie vorher — die Selbst-Zugriffs-Prüfung arbeitet über die neue Person-Verknüpfung statt über `sales_person_user`.
+- [x] **PERS-05**: Ein Mitarbeiter sieht und bucht nach der Umstellung genau dieselben eigenen Daten wie vorher — die Selbst-Zugriffs-Prüfung arbeitet über die neue Person-Verknüpfung statt über `sales_person_user`.
 - [x] **PERS-06**: Bestehende Abrechnungs-Snapshots und Schichtplan-Daten referenzieren nach der Migration dieselben Sales Persons wie vorher (`sales_person.id` und `user.name` bleiben unverändert).
 
 ### Personenverwaltung (PADM)
@@ -85,7 +85,7 @@ Gefüllt bei der Roadmap-Erstellung am 2026-09-16 (`.planning/ROADMAP.md`, Miles
 | PERS-02 | Phase 60 | Complete |
 | PERS-03 | Phase 60 | Complete |
 | PERS-04 | Phase 60 | Complete |
-| PERS-05 | Phase 61 | Pending |
+| PERS-05 | Phase 61 | Complete |
 | PERS-06 | Phase 60 | Complete |
 | PADM-01 | Phase 62 | Pending |
 | PADM-02 | Phase 63 | Pending |

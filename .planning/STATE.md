@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v2.7
 milestone_name: — Personenverwaltung & Planungs-Soll
-current_phase: 60
-current_phase_name: person-datenmodell-backfill
-status: complete
-stopped_at: Phase 61 context gathered
-last_updated: "2026-09-17T06:54:40.022Z"
+current_phase: 61
+current_phase_name: personservice-aufl-sung-von-sales-person-user
+status: executing
+stopped_at: Completed 61-01-PLAN.md
+last_updated: "2026-09-17T07:57:58.279Z"
 last_activity: 2026-09-17
-last_activity_desc: UAT 60 (`60-UAT.md`), person.id-Doku in EN + DE korrigiert
+last_activity_desc: Plan 61-01 complete — PersonDao + PersonService (Basic-Tier)
 progress:
   total_phases: 5
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 4
+  total_plans: 9
+  completed_plans: 5
   percent: 20
 ---
 
@@ -33,13 +33,13 @@ progress:
 
 ## Current Position
 
-Phase: 60 (person-datenmodell-backfill) — COMPLETE + VERIFIED
-Plan: 3 of 3 (+ Gap-Closure 60-04)
-Status: Phase abgeschlossen. 5/5 Roadmap-Success-Criteria verifiziert; UAT-Session `partial` —
+Phase: 61 (personservice-aufl-sung-von-sales-person-user) — EXECUTING
+Plan: 2 of 6
+Status: Ready to execute
 Test 2 (WR-01, person.id-Doku) pass, Test 1 (CR-02 Pre-Flight-Query) blocked als Deploy-Gate,
 siehe **v2.7 Deploy-Gates** unten. Kein offener Code-Gap.
-Last activity: 2026-09-17 — UAT 60 (`60-UAT.md`), person.id-Doku in EN + DE korrigiert
-Next: `/gsd-plan-phase 61` (PersonService + Aufloesung von `sales_person_user`)
+Last activity: 2026-09-17 — Plan 61-01 ausgefuehrt (PersonDao + PersonService, Basic-Tier)
+Next: Plan 61-02 ausfuehren (create_user-Pfad)
 Resume file: None
 
 ## Quick Tasks Completed
@@ -287,7 +287,7 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-09-17T06:54:40.015Z
+**Last session:** 2026-09-17T07:57:39.262Z
 **Stopped at:** Phase 61 context gathered
 **Resume file:** .planning/phases/61-personservice-aufl-sung-von-sales-person-user/61-CONTEXT.md
 
@@ -386,6 +386,9 @@ D-63-01/02, D-64-01/02/03).
 - [Phase 60]: one-way-Vermerk zu den vollstaendigen Unique-Indizes steht in beiden Sprachfassungen von 03-data-model UND im Migrations-Kopfkommentar — Vertragsbestandteil gegen kuenftige Aufraeum-Passes
 - [Phase 60]: SQLite-Zeitstempel in Migrationen als strftime('%Y-%m-%dT%H:%M:%S.000000000Z','now') schreiben — datetime('now') erzeugt ein Leerzeichen, das Iso8601::DATE_TIME in beiden Parser-Zweigen ablehnt
 - [Phase 60]: Korrektur zu D-60-06: FK-Durchsetzung IST in diesem Repo aktiv — sqlx setzt PRAGMA foreign_keys = ON per Verbindung (sqlx-sqlite-0.8.6/src/options/mod.rs:185). Ein Quelltext-Grep ist hier kein Beleg.
+- [Phase 61-01]: PersonService ist Basic-Tier mit genau fuenf Deps (PersonDao, Permission, Clock, Uuid, Transaction) — kein Domain-Service; Konstruktion im Basic-Block vor der Business-Logic-Schicht (SC5, T-61-07)
+- [Phase 61-01]: Beide Kandidaten-Lesepfade sind LEFT-JOIN-Anti-Joins ueber person_id, keine IS-NULL-Abfragen (D-61-02); Regressionsschutz: kandidat_trotz_gesetzter_person_id
+- [Phase 61-01]: Alle vier PersonService-Methoden HR-gated (T-61-05); Phase 62/63 darf auf admin verschaerfen, nicht lockern
 
 ## Performance Metrics
 
@@ -435,3 +438,4 @@ D-63-01/02, D-64-01/02/03).
 | Phase 60 P01 | 12min | 3 tasks | 3 files |
 | Phase 60 P02 | 7min | 2 tasks | 1 files |
 | Phase 60 P03 | 6min | 2 tasks | 7 files |
+| Phase 61 P01 | 25min | 3 tasks | 17 files |
