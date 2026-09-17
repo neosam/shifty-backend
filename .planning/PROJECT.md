@@ -580,10 +580,29 @@ rückwirkenden Backfill, und in Phase 57 die Korrektur, die den Übertrag
 überhaupt erst wirksam gemacht hat (siehe „Zuletzt geshipt" oben).
 Snapshot-Schema-Version steht seit D-57-10 auf **13**.
 
-**Aktuell zwischen Milestones.** Zwei Phasen-Entwürfe liegen ausgearbeitet
-bereit (58 Werktags-Stundenverteilung mit Snapshot-Bump 13→14, 59 E2E-Browser-
-Tests mit Playwright), beide noch nicht in der ROADMAP — siehe „Zwischen
-Milestones" oben. Nächster Schritt: `/gsd-new-milestone`.
+**v2.7 in Arbeit — Phase 61 abgeschlossen (2026-09-17).** 2 von 5 Phasen fertig.
+Phase 60 legte `person` plus die nullable `person_id`-FKs und den Backfill an;
+Phase 61 hat die Verknüpfungstabelle `sales_person_user` aufgelöst und alle
+Lese- und Schreibpfade auf die geteilte `person`-Identität umgestellt.
+Validiert in Phase 61: **PERS-05**.
+
+Die Phase lief in zwei Runden — sechs geplante Pläne, danach vier
+Gap-Closure-Pläne gegen die eigenen Code-Review-Befunde. Der teuerste davon:
+die DROP-Migration erzeugte in Block A selbst den Widerspruch, gegen den ihre
+eigene Assertion abbrach, und hätte im Deploy-Fenster den Serverstart
+blockiert. Die Migration konvergiert jetzt (entkoppeln → verschmelzen →
+trägerlose Personen wegräumen) statt zu divergieren.
+
+Sicherheitsrelevanter Kern des Milestones: das Selbst-Zugriffs-Gate
+entscheidet ausschließlich im SQL-Join über `person_id`; ein
+`Option<Uuid>`-Vergleich in Rust wäre an dieser Stelle fail-open gewesen.
+`PersonService` existiert, hat aber bewusst noch keinen Konsumenten — Phase 62
+bringt den ersten Endpoint.
+
+Snapshot-Schema-Version bleibt **13** (v2.7 hat sie bisher nicht berührt).
+Zwei Phasen-Entwürfe liegen weiter ausgearbeitet bereit (58 Werktags-
+Stundenverteilung mit Snapshot-Bump 13→14, 59 E2E-Browser-Tests mit
+Playwright), beide bewusst nicht in v2.7.
 
 Zuvor: **v2.5 shipped 2026-07-06** (Phasen 52 + 53, 8 Pläne + 3 Follow-Ups, 9/9
 Requirements WOP-01..05 + VAA-01..04, verified_closeout, Milestone-Audit

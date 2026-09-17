@@ -4,8 +4,8 @@ milestone: v2.7
 milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 62
 current_phase_name: Personen-Verzeichnis — eine Liste statt Tabs
-status: Gap-Closure-Wellen abgeschlossen (61-07 bis 61-10 haben die Review-Befunde CR-01, CR-02, WR-04, WR-05, WR-06 geschlossen)
-stopped_at: Completed 61-09-PLAN.md
+status: complete
+stopped_at: Phase 61 verified and closed (10/10 Plaene, VERIFICATION passed)
 last_updated: "2026-09-17T11:20:02.613Z"
 last_activity: 2026-09-17
 last_activity_desc: Phase 61 complete, transitioned to Phase 62
