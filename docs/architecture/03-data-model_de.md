@@ -53,13 +53,43 @@ DB-Constraint — d.h. Reviewer müssen prüfen, dass jeder neue
 
 ### Foreign Keys
 
-SQLite prüft FKs nur, wenn `PRAGMA foreign_keys = ON` aktiv ist. Shifty
-setzt es nirgends — weder im Startup-Pfad noch in einer Migration (in
-Phase 60 verifiziert: null Treffer über alle `*.rs` und `*.sql`). Die
-vorhandenen `FOREIGN KEY`-Deklarationen sind damit dekorative Dokumentation,
-kein durchgesetztes Constraint [D-60-06]. Was wirklich halten muss, muss als
+SQLite prüft FKs nur, wenn `PRAGMA foreign_keys = ON` aktiv ist. **In Shifty
+ist die Durchsetzung aktiv** — allerdings nicht, weil das Projekt das Pragma
+setzt. sqlx schaltet es selbst ein: `SqliteConnectOptions::default()` trägt
+`foreign_keys = ON` in die Pragma-Menge ein, die auf jede Verbindung
+angewendet wird (`sqlx-sqlite-0.8.6/src/options/mod.rs:185`), und
+`shifty_bin/src/main.rs:1645` verbindet über eine schlichte
+`SqlitePool::connect("sqlite:./localdb.sqlite3")`-URL, ohne das zu
+überschreiben.
+
+Genau deshalb führt ein Quelltext-Grep hier in die Irre: die Suche nach
+`foreign_keys` über alle `*.rs` und `*.sql` liefert tatsächlich null Treffer —
+das Pragma kommt vom Treiber, nicht aus der Codebase. Empirisch nachgefahren
+gegen die Produktions-Datei und noch einmal im Test-Harness: `PRAGMA
+foreign_keys` liefert `1`, und der Versuch, eine `sales_person_user`-Zeile mit
+unauflösbarer `sales_person_id` einzufügen, wird mit
+`FOREIGN KEY constraint failed` (SQLite-Code 787) abgelehnt. Beide
+FK-Deklarationen auf `sales_person_user` werden korrekt geparst und von
+`PRAGMA foreign_key_list` aufgeführt — trotz des fehlenden Kommas zwischen
+ihnen in `migrations/sqlite/20240506114107_add_sales_person.sql:22-23`.
+
+Was die FK-Prüfung **nicht** leistet: Soft Delete. Eine nur als `deleted`
+markierte Elternzeile existiert weiterhin als Zeile, der Fremdschlüssel bleibt
+also erfüllt, während jede Live-Query mit `WHERE deleted IS NULL` einen ins
+Leere zeigenden Verweis sieht. Für diese Klasse von Invarianten ist ein
+Fremdschlüssel das falsche Werkzeug — siehe `docs/domain/edge-cases.md` §8.
+
+Was über referentielle Integrität hinaus wirklich halten muss, muss als
 `UNIQUE`-Index oder `CHECK` formuliert werden — siehe den Phase-60-Abschnitt
 weiter unten.
+
+> **Korrektur (2026-09-17, Plan 60-04):** Eine frühere Fassung dieses
+> Abschnitts behauptete, die FK-Deklarationen seien „dekorative Dokumentation,
+> kein durchgesetztes Constraint [D-60-06]". Diese Schlussfolgerung war falsch;
+> sie stützte sich allein auf den Quelltext-Grep und übersah den
+> sqlx-Default. D-60-06 — die FK-Durchsetzung in Phase 60 nicht anzufassen —
+> bleibt als Scope-Entscheidung bestehen, ihre Prämisse über den Ist-Zustand
+> nicht.
 
 ### Views
 
@@ -261,11 +291,14 @@ Indizes. Sie wird **von der Datenbank** durchgesetzt, nicht von einer
 Applikationsprüfung [D-60-05] — SQLite verbietet `UNIQUE` bei
 `ALTER TABLE … ADD COLUMN`, daher der separate `CREATE UNIQUE INDEX`.
 
-Der Nachweis läuft über den Index, **nicht** über Fremdschlüssel: die
-FK-Durchsetzung ist in diesem Repo ausgeschaltet, die vorhandenen
-`FOREIGN KEY`-Deklarationen sind damit dekorativ [D-60-06] — siehe
-*Konventionen im Schema → Foreign Keys* weiter oben. Die Durchsetzung
-einzuschalten ist ausdrücklich nicht Phase-60-Scope.
+Der Nachweis läuft über den Index, **nicht** über einen Fremdschlüssel — aus
+einem anderen Grund als ursprünglich festgehalten. `person_id` trägt gar keine
+`FOREIGN KEY`-Deklaration, SQLite hat auf dieser Kante also nichts
+durchzusetzen; die Eindeutigkeitsgarantie muss ohnehin aus dem Index kommen.
+Die FK-Durchsetzung als solche *ist* in diesem Repo aktiv (sqlx setzt das
+Pragma pro Verbindung — siehe *Konventionen im Schema → Foreign Keys* weiter
+oben). Eine FK-Deklaration auf `person_id` zu ergänzen war nicht
+Phase-60-Scope [D-60-06].
 
 ### Backfill
 

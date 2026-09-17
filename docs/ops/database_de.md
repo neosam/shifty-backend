@@ -84,11 +84,34 @@ Für kritische Deployments: Regelmäßiges Kopieren der `.sqlite`-Datei
 ## Foreign Keys
 
 SQLite prüft FKs nur, wenn `PRAGMA foreign_keys = ON` gesetzt ist.
-**[Zu prüfen]** — ob Shifty das im Connection-Setup aktiviert.
+**Verifiziert (2026-09-17, Plan 60-04): es ist an.** Shiftys eigener Code
+setzt das Pragma nirgends, sqlx aber schon —
+`SqliteConnectOptions::default()` trägt `foreign_keys = ON` in die
+Pragma-Menge ein, die auf jede Verbindung angewendet wird
+(`sqlx-sqlite-0.8.6/src/options/mod.rs:185`), und
+`shifty_bin/src/main.rs:1645` verbindet über eine schlichte
+`SqlitePool::connect("sqlite:./localdb.sqlite3")`-URL, die das nicht
+überschreibt. Ein Grep nach `foreign_keys` im Repo liefert deshalb nichts und
+ist **kein** Beleg dafür, dass die Durchsetzung aus wäre.
 
-Konsequenz falls nicht: FK-Violations werden nicht erkannt, orphan
-Rows sind still möglich. Ein Migration-Review sollte prüfen, dass
-neue Tabellen mit FKs auch tatsächlich gecheckt werden.
+Nachprüfen an einer laufenden Datei:
+
+```sql
+PRAGMA foreign_keys;              -- muss auf einer App-Verbindung 1 liefern
+PRAGMA foreign_key_check;         -- muss null Zeilen liefern
+```
+
+Betriebliche Konsequenz: Ein Delete, das eine Kindzeile verwaisen ließe,
+scheitert mit `FOREIGN KEY constraint failed` (SQLite-Code 787), statt still
+eine verwaiste Zeile zu erzeugen — relevant z. B. beim Admin-Benutzer-Delete,
+das hart aus `user` löscht.
+
+Der verbleibende blinde Fleck ist der Soft Delete: eine als `deleted`
+markierte Zeile existiert weiterhin, die FK-Prüfung bleibt also erfüllt,
+während jede Live-Query mit `WHERE deleted IS NULL` einen ins Leere zeigenden
+Verweis sieht. Diese Klasse von Invarianten schützt die FK-Durchsetzung nicht
+— ein Migration-Review sollte weiterhin prüfen, dass neue Tabellen sie
+explizit ausdrücken.
 
 ## Views
 

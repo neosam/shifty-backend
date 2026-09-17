@@ -78,6 +78,28 @@ Auflösung ist Phase 61.
   entsprechend gegen den Index schreiben, und die Doku hält die Einschränkung
   fest.
 
+  > **Korrektur-Vermerk (2026-09-17, Plan 60-04) — Entscheidung bleibt, Prämisse
+  > ist falsch.** Der Scout-Befund ist als Grep-Ergebnis korrekt, die daraus
+  > gezogene Schlussfolgerung nicht: FK-Enforcement **ist** in diesem Repo
+  > aktiv. sqlx setzt `foreign_keys = ON` per Default auf jeder Verbindung
+  > (`sqlx-sqlite-0.8.6/src/options/mod.rs:185`), und
+  > `shifty_bin/src/main.rs:1645` verbindet ohne Override. Der Grep findet
+  > deshalb nichts, obwohl das Pragma gesetzt ist — das Pragma kommt vom
+  > Treiber, nicht aus der Codebase. Empirisch bestätigt: `PRAGMA foreign_keys`
+  > liefert `1`, ein verwaister `sales_person_user`-Insert wird mit
+  > `FOREIGN KEY constraint failed` (Code 787) abgelehnt, und beide
+  > FK-Deklarationen auf `sales_person_user` werden von
+  > `PRAGMA foreign_key_list` aufgeführt.
+  >
+  > Die Entscheidung selbst — den Ablehnungstest über den Index zu führen —
+  > bleibt richtig und unverändert: `person_id` trägt gar keine
+  > `FOREIGN KEY`-Deklaration, auf dieser Kante gibt es für SQLite nichts
+  > durchzusetzen. Nur die Begründung „die Deklarationen sind dekorativ" ist
+  > zurückzunehmen, damit spätere Phasen den Irrtum nicht erben. Korrigiert in
+  > `docs/architecture/03-data-model.md` (+ `_de`),
+  > `docs/features/F01-employee-management.md` (+ `_de`) und
+  > `docs/ops/database.md` (+ `_de`).
+
 ### Migrations-Robustheit
 
 - **D-60-07:** Die Migration **verifiziert sich selbst** und bricht bei
@@ -261,9 +283,11 @@ Auflösung ist Phase 61.
   den Ausprägungs-Aktionen in Phase 63, falls dort überhaupt gebraucht.
 - **Echte Personenstammdaten** (E-Mail, Telefon, Geburtsdatum) an `person` —
   PERS-F-01, Future.
-- **`PRAGMA foreign_keys = ON` aktivieren** — würde die FK-Deklarationen im
-  gesamten Repo scharf schalten. Eigenständige Änderung mit projektweitem Blast
-  Radius, ausdrücklich nicht Phase-60-Scope (siehe D-60-06).
+- **~~`PRAGMA foreign_keys = ON` aktivieren~~** — hinfällig: das Pragma ist
+  bereits aktiv, sqlx setzt es per Default auf jeder Verbindung. Siehe den
+  Korrektur-Vermerk zu D-60-06 (2026-09-17, Plan 60-04). Was offen bleibt, ist
+  eine andere Frage: ob einzelne Kanten (z. B. `person_id`) überhaupt eine
+  `FOREIGN KEY`-Deklaration bekommen sollen — weiterhin nicht Phase-60-Scope.
 
 </deferred>
 

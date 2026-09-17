@@ -83,12 +83,33 @@ For critical deployments: periodically copy the `.sqlite` file
 
 ## Foreign Keys
 
-SQLite only enforces FKs if `PRAGMA foreign_keys = ON` is set.
-**[To verify]** — whether Shifty enables this in the connection setup.
+SQLite only enforces FKs if `PRAGMA foreign_keys = ON` is set. **Verified
+(2026-09-17, Plan 60-04): it is on.** Shifty's own code never sets the
+pragma, but sqlx does — `SqliteConnectOptions::default()` puts
+`foreign_keys = ON` into the pragma set applied to every connection
+(`sqlx-sqlite-0.8.6/src/options/mod.rs:185`), and
+`shifty_bin/src/main.rs:1645` connects through a plain
+`SqlitePool::connect("sqlite:./localdb.sqlite3")` URL that does not override
+it. Grepping the repo for `foreign_keys` therefore returns nothing and is
+**not** evidence that enforcement is off.
 
-Consequence otherwise: FK violations go undetected, orphan rows are
-silently possible. A migration review should confirm that new tables
-with FKs are in fact enforced.
+How to re-check on a live file:
+
+```sql
+PRAGMA foreign_keys;              -- must return 1 on an app connection
+PRAGMA foreign_key_check;         -- must return no rows
+```
+
+Operational consequence: a delete that would orphan a child row fails with
+`FOREIGN KEY constraint failed` (SQLite code 787) rather than silently
+producing an orphan — relevant e.g. for the admin user delete, which
+hard-deletes from `user`.
+
+The remaining blind spot is soft delete: a row marked `deleted` still exists,
+so the FK check stays satisfied while every live query filtering
+`WHERE deleted IS NULL` sees a reference that resolves to nothing. FK
+enforcement does not protect that class of invariant — a migration review
+should still confirm that new tables express it explicitly.
 
 ## Views
 

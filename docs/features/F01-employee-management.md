@@ -244,9 +244,17 @@ relevant to this cluster):
 All tables of the cluster hang off `sales_person(id)` via foreign key
 (exception: `sales_person_shiftplan` additionally hangs off
 `shiftplan(id)`). SQLite only checks FKs if `PRAGMA foreign_keys=ON` is
-active — the soft-delete semantics (`WHERE deleted IS NULL`) make the FK
-check only partially meaningful anyway (see
-`docs/domain/edge-cases.md` §8).
+active, **and it is** — sqlx enables it on every connection by default
+(`sqlx-sqlite-0.8.6/src/options/mod.rs:185`), even though the project code
+itself never sets the pragma. A grep of `*.rs`/`*.sql` therefore finds
+nothing and is misleading here; `PRAGMA foreign_keys` reads `1` at runtime,
+and a dangling insert is rejected with `FOREIGN KEY constraint failed`.
+
+What the check does not cover is the soft-delete semantics
+(`WHERE deleted IS NULL`): a soft-deleted parent is still a row, so the FK
+stays satisfied while live queries see a reference that resolves to nothing
+(see `docs/domain/edge-cases.md` §8). That limit is why FK enforcement buys
+less here than it looks.
 
 The identity parent `person` (v2.7, Phase 60) sits above both carriers.
 Both edges are optional and unique: a person may have a user **or** a sales

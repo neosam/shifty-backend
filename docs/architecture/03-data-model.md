@@ -51,12 +51,39 @@ DB constraint — meaning reviewers must confirm that every new
 
 ### Foreign keys
 
-SQLite enforces FKs only if `PRAGMA foreign_keys = ON` is active. Shifty
-never sets it — neither in the startup path nor in a migration (verified
-Phase 60: zero occurrences across `*.rs` and `*.sql`). The existing
-`FOREIGN KEY` declarations are therefore decorative documentation, not an
-enforced constraint [D-60-06]. Anything that must really hold has to be
+SQLite enforces FKs only if `PRAGMA foreign_keys = ON` is active.
+**Enforcement is active in Shifty** — but not because the project sets the
+pragma. sqlx turns it on itself: `SqliteConnectOptions::default()` inserts
+`foreign_keys = ON` into the pragma set applied to every connection
+(`sqlx-sqlite-0.8.6/src/options/mod.rs:185`), and
+`shifty_bin/src/main.rs:1645` connects via a plain
+`SqlitePool::connect("sqlite:./localdb.sqlite3")` URL without overriding it.
+
+This is exactly why a source grep is misleading here: searching `*.rs` and
+`*.sql` for `foreign_keys` really does return zero hits — the pragma comes
+from the driver, not from the codebase. Verified empirically against the
+production DB file and again inside the test harness: `PRAGMA foreign_keys`
+reads `1`, and inserting a `sales_person_user` row with an unresolvable
+`sales_person_id` is rejected with `FOREIGN KEY constraint failed` (SQLite
+code 787). Both FK declarations on `sales_person_user` parse correctly and
+are listed by `PRAGMA foreign_key_list`, despite the missing comma between
+them in `migrations/sqlite/20240506114107_add_sales_person.sql:22-23`.
+
+What the FK check does **not** buy you: soft delete. A parent row that is
+only marked `deleted` still exists as a row, so the FK stays satisfied while
+every live query filtering `WHERE deleted IS NULL` sees a dangling reference.
+For that class of invariant an FK is the wrong instrument — see
+`docs/domain/edge-cases.md` §8.
+
+Anything that must really hold beyond referential integrity has to be
 expressed as a `UNIQUE` index or a `CHECK` — see the Phase-60 section below.
+
+> **Correction (2026-09-17, Plan 60-04):** an earlier version of this section
+> claimed FK declarations were "decorative documentation, not an enforced
+> constraint [D-60-06]". That conclusion was wrong; it was drawn from the
+> source grep alone and missed the sqlx default. D-60-06 — not switching FK
+> enforcement on inside Phase 60 — still stands as a scope decision, but its
+> premise about the current state does not.
 
 ### Views
 
@@ -250,10 +277,13 @@ carry today now additionally lives in these two indices. It is enforced
 `UNIQUE` in `ALTER TABLE … ADD COLUMN`, hence the separate
 `CREATE UNIQUE INDEX`.
 
-The proof runs through the index, **not** through foreign keys: FK
-enforcement is switched off in this repo, so the existing `FOREIGN KEY`
-declarations are decorative [D-60-06] — see *Schema conventions → Foreign
-keys* above. Turning enforcement on is explicitly out of Phase-60 scope.
+The proof runs through the index, **not** through a foreign key — for a
+different reason than originally recorded. `person_id` carries no
+`FOREIGN KEY` declaration at all, so there is nothing for SQLite to enforce
+on that edge; the uniqueness guarantee has to come from the index either way.
+FK enforcement as such *is* active in this repo (sqlx sets the pragma per
+connection — see *Schema conventions → Foreign keys* above). Adding an FK
+declaration on `person_id` was out of Phase-60 scope [D-60-06].
 
 ### Backfill
 

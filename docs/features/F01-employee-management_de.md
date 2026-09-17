@@ -239,9 +239,19 @@ Chronologische Historie (nur die für dieses Cluster relevanten Files aus
 
 Alle Tabellen des Clusters hängen per Foreign Key an `sales_person(id)`
 (Ausnahme: `sales_person_shiftplan` hängt zusätzlich an `shiftplan(id)`).
-SQLite prüft FKs nur, wenn `PRAGMA foreign_keys=ON` aktiv ist — die
-Soft-Delete-Semantik (`WHERE deleted IS NULL`) macht die FK-Prüfung ohnehin
-nur bedingt aussagekräftig (siehe `docs/domain/edge-cases.md` §8).
+SQLite prüft FKs nur, wenn `PRAGMA foreign_keys=ON` aktiv ist — **und das ist
+es**: sqlx schaltet das Pragma per Default auf jeder Verbindung ein
+(`sqlx-sqlite-0.8.6/src/options/mod.rs:185`), obwohl der Projektcode es
+selbst nirgends setzt. Ein Grep über `*.rs`/`*.sql` findet deshalb nichts und
+führt hier in die Irre; zur Laufzeit liefert `PRAGMA foreign_keys` eine `1`,
+und ein verwaister Insert wird mit `FOREIGN KEY constraint failed` abgelehnt.
+
+Was die Prüfung nicht abdeckt, ist die Soft-Delete-Semantik
+(`WHERE deleted IS NULL`): eine soft-gelöschte Elternzeile ist weiterhin eine
+Zeile, der Fremdschlüssel bleibt also erfüllt, während Live-Queries einen ins
+Leere zeigenden Verweis sehen (siehe `docs/domain/edge-cases.md` §8). Diese
+Grenze ist der Grund, warum die FK-Durchsetzung hier weniger bringt, als es
+aussieht.
 
 Die Identitäts-Elterntabelle `person` (v2.7, Phase 60) sitzt über beiden
 Trägern. Beide Kanten sind optional und eindeutig: eine Person darf einen
