@@ -304,6 +304,7 @@ klassifiziert:
 | `EmployeeWorkDetailsService` | Grenzfall / **Business-Logic-lite** | konsumiert `SalesPersonService` als Auth-Helfer (`verify_user_is_sales_person`, `find_by_sales_person_id`) |
 | `SalesPersonUnavailableService` | Grenzfall / **Business-Logic-lite** | dito, für Auth-Helfer |
 | `SalesPersonShiftplanService` | **Business-Logic** | konsumiert `SalesPersonService` (Existence + Aggregat-Listing für `get_bookable_sales_persons`) |
+| `PersonService` (v2.7, Phase 61) | **Basic** | nein — nur `PersonDao`, `PermissionService`, `ClockService`, `UuidService`, `TransactionDao` |
 
 Die drei Grenzfall-Services nutzen `SalesPersonService` **nur** zur
 Autorisierung ("ist der Aufrufer selbst dieser Sales-Person-Datensatz?")
@@ -454,6 +455,52 @@ mit "halb ersetzt" (`docs/domain/edge-cases.md` §7.2 — Re-Point-Atomarität).
 `PermissionService`, `TransactionDao`. Damit klar in der Business-Logic-Tier,
 weil er ein zweites Aggregat (`SalesPersonService::get_all`) für die
 Bookable-Berechnung heranzieht.
+
+### 4.5 `PersonService` (v2.7, Phase 61)
+
+Trait: `service/src/person.rs`. Implementierung: `service_impl/src/person.rs`.
+
+```rust
+async fn create(&self, ctx, tx) -> Result<Person, ServiceError>;
+async fn get(&self, id, ctx, tx) -> Result<Option<Person>, ServiceError>;
+async fn unlinked_sales_persons(&self, ctx, tx) -> Result<Arc<[SalesPerson]>, ServiceError>;
+async fn unlinked_users(&self, ctx, tx) -> Result<Arc<[Arc<str>]>, ServiceError>;
+```
+
+`create` nimmt keine Nutzdaten entgegen — `person` trägt außer der Identität
+nichts. `id` und `version` kommen aus dem `UuidService`, `created` aus dem
+`ClockService` (dieselbe defensive Form wie
+`RebookingBatchServiceImpl::create`).
+
+**Auth-Gates** (`service_impl/src/person.rs`):
+
+| Methode | Erlaubte Rollen |
+| --- | --- |
+| `create` | HR |
+| `get` | HR |
+| `unlinked_sales_persons` | HR |
+| `unlinked_users` | HR |
+
+`HR_PRIVILEGE` ist in jeder Methode die erste Anweisung. Begründung: die
+beiden Kandidaten-Lesepfade geben Sales-Person- und Login-Namen preis
+(Threat T-61-05), und der bestehende Lesepfad `get_all_user_assignments` im
+Sales-Person-Aggregat ist heute ebenfalls HR-gated. Phase 62/63 darf das mit
+der Personenverwaltungs-UI auf `admin` **verschärfen** — lockern darf es das
+nicht.
+
+**Tier.** Basic. Der `gen_service_impl!`-Block bindet genau fünf
+Dependencies und bewusst keinen weiteren Domain-Service: eine
+Domain-Service-Dependency würde hier über `PermissionService` einen DI-Zyklus
+schließen und die Gate-Reihenfolge unbestimmt machen (Threat T-61-07,
+Roadmap-Constraint 5). Die Akzeptanzkriterien von Plan 61-01 greppen die
+Datei genau darauf.
+
+**Verdrahtung.** Konstruiert im *Basic*-Service-Block von
+`shifty_bin/src/main.rs`, strikt vor der Business-Logic-Schicht, und über
+`RestStateDef::person_service` erreichbar. In Phase 61 gibt es keine
+REST-Route — der Accessor existiert, damit das `RestStateImpl`-Feld einen
+Leser hat (`cargo clippy --workspace -- -D warnings` ist hartes Gate) und als
+Vorarbeit für Phase 62.
 
 ## 5. REST-Endpoints
 

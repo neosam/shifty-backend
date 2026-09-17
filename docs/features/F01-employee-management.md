@@ -307,6 +307,7 @@ All services are classified according to the convention in
 | `EmployeeWorkDetailsService` | edge case / **Business-Logic-lite** | consumes `SalesPersonService` as auth helper (`verify_user_is_sales_person`, `find_by_sales_person_id`) |
 | `SalesPersonUnavailableService` | edge case / **Business-Logic-lite** | same, for auth helper |
 | `SalesPersonShiftplanService` | **Business-Logic** | consumes `SalesPersonService` (existence + aggregate listing for `get_bookable_sales_persons`) |
+| `PersonService` (v2.7, Phase 61) | **Basic** | no — only `PersonDao`, `PermissionService`, `ClockService`, `UuidService`, `TransactionDao` |
 
 The three edge-case services use `SalesPersonService` **only** for
 authorization ("is the caller themselves this Sales Person record?")
@@ -458,6 +459,49 @@ atomicity).
 `PermissionService`, `TransactionDao`. Thus clearly in the
 Business-Logic-Tier, because it draws a second aggregate
 (`SalesPersonService::get_all`) into the bookable computation.
+
+### 4.5 `PersonService` (v2.7, Phase 61)
+
+Trait: `service/src/person.rs`. Implementation: `service_impl/src/person.rs`.
+
+```rust
+async fn create(&self, ctx, tx) -> Result<Person, ServiceError>;
+async fn get(&self, id, ctx, tx) -> Result<Option<Person>, ServiceError>;
+async fn unlinked_sales_persons(&self, ctx, tx) -> Result<Arc<[SalesPerson]>, ServiceError>;
+async fn unlinked_users(&self, ctx, tx) -> Result<Arc<[Arc<str>]>, ServiceError>;
+```
+
+`create` takes no payload — `person` carries no data beyond identity, so
+`id` and `version` come from `UuidService` and `created` from `ClockService`
+(the same defensive shape as `RebookingBatchServiceImpl::create`).
+
+**Auth gates** (`service_impl/src/person.rs`):
+
+| Method | Allowed roles |
+| --- | --- |
+| `create` | HR |
+| `get` | HR |
+| `unlinked_sales_persons` | HR |
+| `unlinked_users` | HR |
+
+`HR_PRIVILEGE` is the first statement of every method. Rationale: the two
+candidate reads disclose sales person and login names (threat T-61-05), and
+the existing `get_all_user_assignments` read on the Sales Person aggregate is
+HR-gated too. Phase 62/63 may **tighten** this to `admin` when the person
+management UI lands — it must not loosen it.
+
+**Tier.** Basic. The `gen_service_impl!` block binds exactly five
+dependencies and deliberately no other domain service: a domain service
+dependency here would close a DI cycle through `PermissionService` and make
+the gate ordering indeterminate (threat T-61-07, Roadmap constraint 5). The
+acceptance criteria of plan 61-01 grep the file for exactly that.
+
+**Wiring.** Constructed in the *basic* service block of
+`shifty_bin/src/main.rs`, strictly before the business-logic layer, and
+exposed via `RestStateDef::person_service`. There is no REST route in
+Phase 61 — the accessor exists so the `RestStateImpl` field has a reader
+(`cargo clippy --workspace -- -D warnings` is a hard gate) and as
+groundwork for Phase 62.
 
 ## 5. REST endpoints
 
