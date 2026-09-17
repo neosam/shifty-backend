@@ -104,8 +104,23 @@ WHERE person_id IS NULL
 -- die Zaehlprobe weiter unten. Laeuft nach allen vier vorherigen Bloecken.
 -- Der update_process-Marker macht die migrierten Personen dauerhaft von
 -- spaeter regulaer angelegten unterscheidbar.
+--
+-- ZEITSTEMPEL-FORMAT (Plan 60-04 / CR-03): bewusst strftime statt
+-- datetime('now'). datetime('now') liefert "YYYY-MM-DD HH:MM:SS" mit einem
+-- LEERZEICHEN, und die repo-weite Leseseite (Iso8601::DATE_TIME, siehe
+-- dao_impl_sqlite/src/billing_period.rs) verlangt ein literales 'T' — beide
+-- Zweige der dortigen Parser-Kette (OffsetDateTime, dann PrimitiveDateTime)
+-- lehnen das Leerzeichen ab. person.created ist write-once, der PersonDao aus
+-- Phase 61 liest genau diese Zeilen. Das gewaehlte Muster wurde empirisch
+-- gegen die Parser-Kette geprueft und ist das einzige der getesteten
+-- Kandidaten, das in BEIDEN Zweigen parst; sqlite 'now' ist UTC, das 'Z' ist
+-- also sachlich korrekt. Festgezurrt von I-13
+-- (service_impl::test::person_backfill::person_created_is_iso8601_parsable).
 INSERT INTO person (id, created, update_process, update_version)
-SELECT DISTINCT ids.person_id, datetime('now'), 'phase-60-person-backfill', randomblob(16)
+SELECT DISTINCT ids.person_id,
+       strftime('%Y-%m-%dT%H:%M:%S.000000000Z', 'now'),
+       'phase-60-person-backfill',
+       randomblob(16)
 FROM (
     SELECT person_id FROM sales_person WHERE person_id IS NOT NULL
     UNION
