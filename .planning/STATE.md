@@ -5,15 +5,15 @@ milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 60
 current_phase_name: person-datenmodell-backfill
 status: complete
-stopped_at: Phase 60 abgeschlossen — UAT partial (CR-02 als v2.7-Deploy-Gate offen)
-last_updated: "2026-09-17T05:40:43.000Z"
+stopped_at: Phase 61 context gathered
+last_updated: "2026-09-17T06:54:40.022Z"
 last_activity: 2026-09-17
-last_activity_desc: UAT 60 durchlaufen — WR-01 (person.id-Doku) erledigt, CR-02 als Deploy-Gate vertagt; Phase 60 complete
+last_activity_desc: UAT 60 (`60-UAT.md`), person.id-Doku in EN + DE korrigiert
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 3
-  completed_plans: 3
+  completed_plans: 4
   percent: 20
 ---
 
@@ -287,9 +287,9 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-09-17T04:27:59.056Z
-**Stopped at:** Completed 60-04 gap closure
-**Resume file:** None
+**Last session:** 2026-09-17T06:54:40.015Z
+**Stopped at:** Phase 61 context gathered
+**Resume file:** .planning/phases/61-personservice-aufl-sung-von-sales-person-user/61-CONTEXT.md
 
 **To resume work in a new session:**
 
