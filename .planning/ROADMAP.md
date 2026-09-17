@@ -108,7 +108,7 @@ Permission-Beobachtungen, 62–64 gegen sichtbares Verhalten im Browser.
 | Phase | Backend | Frontend | Begründung bei Frontend = nein |
 |---|---|---|---|
 | 60 | ja | **nein** | Reine Schema- + Backfill-Phase ohne API-Wirkung — kein TO geändert, kein Endpoint neu, keine sichtbare Verhaltensänderung. |
-| 61 | 2/6 | In Progress|  |
+| 61 | 3/6 | In Progress|  |
 | 62 | ja | ja | — |
 | 63 | ja | ja | — |
 | 64 | ja | ja | — |
@@ -353,7 +353,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2)*
 
-- [ ] 61-03-PLAN.md — Self-Gate-Rewrite der vier Lesepfade auf `person_id`-Joins (D-61-08) plus die byte-identische Vorher/Nachher-Permission-Matrix gegen eine gemeinsame Fixture-DB (D-61-09, SC1)
+- [x] 61-03-PLAN.md — Self-Gate-Rewrite der vier Lesepfade auf `person_id`-Joins (D-61-08) plus die byte-identische Vorher/Nachher-Permission-Matrix gegen eine gemeinsame Fixture-DB (D-61-09, SC1)
 
 **Wave 4** *(blocked on Wave 3)*
 
