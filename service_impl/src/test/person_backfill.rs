@@ -56,6 +56,14 @@
 //!   Namensspalte (`person_table_has_no_deleted_column`,
 //!   `person_table_has_only_identity_and_audit_columns`).
 //!
+//! Ergaenzt in Plan 60-04 (Gap-Closure zum Code-Review):
+//!
+//! - **I-13** (CR-03): `person.created` ist mit der repo-weiten Parser-Kette
+//!   (`OffsetDateTime::parse` mit `Iso8601::DATE_TIME`, Rueckfall auf
+//!   `PrimitiveDateTime::parse`) lesbar — dieselbe Kette, die
+//!   `dao_impl_sqlite/src/billing_period.rs` benutzt
+//!   (`person_created_is_iso8601_parsable`).
+//!
 //! **I-10** (`CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt 13) ist bewusst KEIN
 //! Rust-Test: eine Konstante gegen sich selbst zu pruefen beweist nichts. Der
 //! Lock sitzt in den Acceptance Criteria und im Phasen-Gate; die Datei
@@ -64,6 +72,7 @@
 use std::sync::Arc;
 
 use sqlx::Row;
+use time::{format_description::well_known::Iso8601, OffsetDateTime, PrimitiveDateTime};
 use uuid::Uuid;
 
 // ─── Harness ────────────────────────────────────────────────────────────────
@@ -589,6 +598,57 @@ async fn person_id_parses_as_uuid() {
             "person.id muss 16 rohe Bytes sein (kein Hex-String) — sonst scheitert Uuid::from_slice in Phase 61"
         );
         Uuid::from_slice(&bytes).expect("person.id muss mit Uuid::from_slice parsebar sein");
+    }
+}
+
+/// I-13 (Plan 60-04, CR-03) — `person.created` muss mit **derselben**
+/// Parser-Kette lesbar sein, die jeder DAO im Repo benutzt.
+///
+/// Das Muster ist woertlich aus `dao_impl_sqlite/src/billing_period.rs`
+/// uebernommen: erst `OffsetDateTime::parse` mit `Iso8601::DATE_TIME`, dann
+/// `PrimitiveDateTime::parse` als Rueckfallebene. Beide Zweige verlangen ein
+/// literales `T` zwischen Datum und Uhrzeit
+/// (`time::parsing::iso8601` ruft `ascii_char::<b'T'>`), ein Leerzeichen wird
+/// in beiden abgelehnt.
+///
+/// Der Test zieht diese Zusage vor, weil `person.created` write-once ist: der
+/// `PersonDao` aus Phase 61 liest die Backfill-Zeilen, und eine Reparatur
+/// braeuchte dann eine zweite Datenmigration ueber bereits produktiv vergebene
+/// Identitaeten.
+#[tokio::test]
+async fn person_created_is_iso8601_parsable() {
+    let pool = setup_pool().await;
+    seed_fixtures(pool.as_ref()).await;
+
+    run_backfill_section(pool.as_ref())
+        .await
+        .expect("Backfill-Abschnitt muss durchlaufen");
+
+    let rows = sqlx::query("SELECT created FROM person")
+        .fetch_all(pool.as_ref())
+        .await
+        .expect("read person.created");
+
+    assert!(
+        !rows.is_empty(),
+        "Vorbedingung: der Backfill muss person-Zeilen erzeugt haben — ohne Zeilen \
+         wuerde der Formattest lautlos nichts pruefen"
+    );
+
+    for row in rows {
+        let created = row.get::<String, _>("created");
+
+        let parsed = OffsetDateTime::parse(&created, &Iso8601::DATE_TIME)
+            .map(|odt| PrimitiveDateTime::new(odt.date(), odt.time()))
+            .or_else(|_| PrimitiveDateTime::parse(&created, &Iso8601::DATE_TIME));
+
+        assert!(
+            parsed.is_ok(),
+            "I-13: person.created muss mit der Repo-Parser-Kette \
+             (OffsetDateTime -> PrimitiveDateTime, jeweils Iso8601::DATE_TIME) lesbar sein — \
+             war: {created:?}, Fehler: {:?}",
+            parsed.unwrap_err()
+        );
     }
 }
 
