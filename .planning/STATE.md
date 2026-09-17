@@ -4,11 +4,11 @@ milestone: v2.7
 milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 60
 current_phase_name: person-datenmodell-backfill
-status: verifying
-stopped_at: Completed 60-04 gap closure
-last_updated: "2026-09-17T04:28:05.187Z"
+status: complete
+stopped_at: Phase 60 abgeschlossen — UAT partial (CR-02 als v2.7-Deploy-Gate offen)
+last_updated: "2026-09-17T05:40:43.000Z"
 last_activity: 2026-09-17
-last_activity_desc: Gap-Closure 60-04 abgeschlossen (CR-03 Zeitstempel-Format, CR-01 Assertion-Haertung, FK-Doku-Korrektur)
+last_activity_desc: UAT 60 durchlaufen — WR-01 (person.id-Doku) erledigt, CR-02 als Deploy-Gate vertagt; Phase 60 complete
 progress:
   total_phases: 5
   completed_phases: 1
@@ -27,17 +27,20 @@ progress:
 - **Latest milestone archive**: `.planning/milestones/v2.6-ROADMAP.md`
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
 - **Last shipped/closed**: **v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter** (shipped 2026-07-31, deployed; Planungs-Archiv 2026-09-15; Phasen 54, 54.5, 55, 56, 57 — 29 Pläne, 19/19 Requirements, Audit `passed`, `override_closeout`)
-- **Current milestone**: **v2.7 Personenverwaltung & Planungs-Soll** (planning; Roadmap erstellt 2026-09-16, Phasen 60–64).
-- **Current focus**: Phase 60 ist geplant (3 Pläne, 2 Waves) und ausführbereit. Nächster Schritt: `/gsd-execute-phase 60`. Die zwei ausgearbeiteten Entwürfe **Phase 58** (Werktags-Stundenverteilung, Snapshot-Bump 13→14) und **Phase 59** (E2E-Playwright) bleiben bewusst außerhalb von v2.7; ihre Nummern sind reserviert.
+- **Current milestone**: **v2.7 Personenverwaltung & Planungs-Soll** (in Arbeit; Roadmap erstellt 2026-09-16, Phasen 60–64; 1/5 Phasen abgeschlossen).
+- **Current focus**: Phase 60 ist abgeschlossen und verifiziert. Nächster Schritt: `/gsd-plan-phase 61` (PersonService + Auflösung von `sales_person_user`). Offen bis zum Deploy: CR-02 Pre-Flight-Query (siehe **v2.7 Deploy-Gates**). Die zwei ausgearbeiteten Entwürfe **Phase 58** (Werktags-Stundenverteilung, Snapshot-Bump 13→14) und **Phase 59** (E2E-Playwright) bleiben bewusst außerhalb von v2.7; ihre Nummern sind reserviert.
 - **Snapshot-Schema-Version**: aktuell **13** (Bump 12→13 in Phase 57, D-57-10). **v2.7 bumpt nicht** — `person` ist rein administrativ, das Planungs-Soll ein reines Anzeigefeld. Phase 58 (nicht in v2.7) würde auf 14 heben.
 
 ## Current Position
 
-Phase: 60 (person-datenmodell-backfill) — COMPLETE (ready for verification)
-Plan: 3 of 3
-Status: Phase complete — ready for verification
-Last activity: 2026-09-16 — Plan 60-03 abgeschlossen (Docs-Freshness-Gate geschlossen — 7 Doku-Dateien, EN + DE)
-Resume file: None — alle 3 Plaene ausgefuehrt
+Phase: 60 (person-datenmodell-backfill) — COMPLETE + VERIFIED
+Plan: 3 of 3 (+ Gap-Closure 60-04)
+Status: Phase abgeschlossen. 5/5 Roadmap-Success-Criteria verifiziert; UAT-Session `partial` —
+Test 2 (WR-01, person.id-Doku) pass, Test 1 (CR-02 Pre-Flight-Query) blocked als Deploy-Gate,
+siehe **v2.7 Deploy-Gates** unten. Kein offener Code-Gap.
+Last activity: 2026-09-17 — UAT 60 (`60-UAT.md`), person.id-Doku in EN + DE korrigiert
+Next: `/gsd-plan-phase 61` (PersonService + Aufloesung von `sales_person_user`)
+Resume file: None
 
 ## Quick Tasks Completed
 
@@ -48,6 +51,19 @@ Resume file: None — alle 3 Plaene ausgefuehrt
 | 260702-jql | Special-Day Duplikat-Hinweis nach Create ausblenden, erst bei Feld-Änderung wieder | 2026-07-02 | b9d270b | [260702-jql-special-day-duplikat-hinweis-nach-create](./quick/260702-jql-special-day-duplikat-hinweis-nach-create/) |
 
 ## Deferred Items
+
+### v2.7 Deploy-Gates (vor dem Milestone-Deploy abarbeiten)
+
+| Item | Herkunft | Status |
+|------|----------|--------|
+| **CR-02 — Pre-Flight-Query gegen die Produktions-DB** vor dem v2.7-Deploy: `SELECT COUNT(*) FROM sales_person_user spu WHERE NOT EXISTS (SELECT 1 FROM sales_person sp WHERE sp.id = spu.sales_person_id) OR NOT EXISTS (SELECT 1 FROM user u WHERE u.name = spu.user_id);` — bei Treffer > 0 vorher bereinigen oder Datei-Backup als Rollback bereithalten. | Phase 60, `60-VERIFICATION.md` (human_verification) + `60-UAT.md` Test 1 (`blocked`) | offen — bewusst auf den Milestone-Check vertagt (User, 2026-09-17) |
+
+Hintergrund: Die in 60-04 verschaerfte Selbst-Assertion bricht die Migration bei
+verwaisten `sales_person_user`-Zeilen mit einer nicht-diagnostischen
+`CHECK constraint failed`-Meldung ab und blockiert damit den Serverstart. Ueber die
+laufende Anwendung sind solche Zeilen nicht erzeugbar (`PRAGMA foreign_keys = ON`,
+`sales_person` wird nur soft-geloescht); Restrisiko sind Altbestaende aus manuellen
+Eingriffen, Restores oder aelteren Tools. Kein Test kann die reale Datenlage pruefen.
 
 ### Beim v2.6-Close acknowledged (2026-09-15)
 

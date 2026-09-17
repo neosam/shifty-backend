@@ -203,7 +203,7 @@ Code-Diff (MEMORY `feedback_docs_always_current_no_followup`).
 
 ### Phases
 
-- [ ] **Phase 60: Person-Datenmodell + Backfill** — `person`-Tabelle, nullable
+- [x] **Phase 60: Person-Datenmodell + Backfill** — `person`-Tabelle, nullable
       `person_id`-FKs mit wiederhergestelltem UNIQUE, idempotenter Backfill inkl.
       soft-gelöschter Sales Persons (Backend-only)
 
