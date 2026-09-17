@@ -5,15 +5,15 @@ milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 61
 current_phase_name: personservice-aufl-sung-von-sales-person-user
 status: executing
-stopped_at: Completed 61-03-PLAN.md
-last_updated: "2026-09-17T08:33:52.563Z"
+stopped_at: Completed 61-04-PLAN.md
+last_updated: "2026-09-17T08:59:37.646Z"
 last_activity: 2026-09-17
 last_activity_desc: Plan 61-03 ausgefuehrt (alle vier lesenden Verknuepfungs-Methoden joinen ueber person_id, SC1-Matrix + D-61-09 belegt)
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 9
-  completed_plans: 7
+  completed_plans: 8
   percent: 20
 ---
 
@@ -28,18 +28,18 @@ progress:
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
 - **Last shipped/closed**: **v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter** (shipped 2026-07-31, deployed; Planungs-Archiv 2026-09-15; Phasen 54, 54.5, 55, 56, 57 — 29 Pläne, 19/19 Requirements, Audit `passed`, `override_closeout`)
 - **Current milestone**: **v2.7 Personenverwaltung & Planungs-Soll** (in Arbeit; Roadmap erstellt 2026-09-16, Phasen 60–64; 1/5 Phasen abgeschlossen).
-- **Current focus**: Phase 61 in Ausführung — Pläne 61-01 bis 61-03 fertig (PersonService, `person_id`-Vergabe bei Neuanlage, Self-Gate auf `person_id`-Joins). Nächster Schritt: Plan 61-04. Offen bis zum Deploy: CR-02 Pre-Flight-Query (siehe **v2.7 Deploy-Gates**). Die zwei ausgearbeiteten Entwürfe **Phase 58** (Werktags-Stundenverteilung, Snapshot-Bump 13→14) und **Phase 59** (E2E-Playwright) bleiben bewusst außerhalb von v2.7; ihre Nummern sind reserviert.
+- **Current focus**: Phase 61 in Ausführung — Pläne 61-01 bis 61-04 fertig (PersonService, `person_id`-Vergabe bei Neuanlage, Self-Gate auf `person_id`-Joins, Merge/Split der Person-Zuordnung mit 409). Nächster Schritt: Plan 61-05 (Auflösungs-Migration). Offen bis zum Deploy: CR-02 Pre-Flight-Query (siehe **v2.7 Deploy-Gates**). Die zwei ausgearbeiteten Entwürfe **Phase 58** (Werktags-Stundenverteilung, Snapshot-Bump 13→14) und **Phase 59** (E2E-Playwright) bleiben bewusst außerhalb von v2.7; ihre Nummern sind reserviert.
 - **Snapshot-Schema-Version**: aktuell **13** (Bump 12→13 in Phase 57, D-57-10). **v2.7 bumpt nicht** — `person` ist rein administrativ, das Planungs-Soll ein reines Anzeigefeld. Phase 58 (nicht in v2.7) würde auf 14 heben.
 
 ## Current Position
 
 Phase: 61 (personservice-aufl-sung-von-sales-person-user) — EXECUTING
-Plan: 4 of 6
+Plan: 5 of 6
 Status: Ready to execute
 Test 2 (WR-01, person.id-Doku) pass, Test 1 (CR-02 Pre-Flight-Query) blocked als Deploy-Gate,
 siehe **v2.7 Deploy-Gates** unten. Kein offener Code-Gap.
-Last activity: 2026-09-17 — Plan 61-03 ausgefuehrt (alle vier lesenden Verknuepfungs-Methoden joinen ueber person_id, SC1-Matrix + D-61-09 belegt)
-Next: Plan 61-04 ausfuehren (Merge/Split der Person-Zuordnung)
+Last activity: 2026-09-17 — Plan 61-04 ausgefuehrt (assign_to_user als Merge mit Konflikt-409, discard_assigned_user als Split, Re-Link-Semantik P-61-B inkl. Rollback-Nachweis)
+Next: Plan 61-05 ausfuehren (Migration 20260917000000_drop-sales-person-user.sql + Abbau der Restreferenzen)
 Resume file: None
 
 ## Quick Tasks Completed
@@ -287,8 +287,8 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-09-17T08:33:45.839Z
-**Stopped at:** Completed 61-03-PLAN.md
+**Last session:** 2026-09-17T08:59:30.964Z
+**Stopped at:** Completed 61-04-PLAN.md
 **Resume file:** None
 
 **To resume work in a new session:**
@@ -394,6 +394,10 @@ D-63-01/02, D-64-01/02/03).
 - [Phase 61]: D-61-08 umgesetzt: Self-Gate entscheidet ausschliesslich im SQL-JOIN (u.person_id = sp.person_id); kein Rust-seitiger Option-Vergleich, weil None == None fail-open waere
 - [Phase 61]: Kein Soft-Delete-Filter in den vier Lesepfaden nachgeruestet — verify_user_is_sales_person haengt an get_assigned_user; festgezurrt durch soft_geloeschte_sales_person_behaelt_selbstzugriff
 - [Phase 61]: LEGACY-VERGLEICH-Markerblock in person_self_gate.rs ist der Abbau-Vertrag fuer Plan 61-05 (D-61-09-Matrix verschwindet mit der DROP-Migration)
+- [Phase 61]: 61-04: Verknuepfen ist ein Merge zweier Personen; die absorbierte person-Zeile wird geloescht (D-61-03)
+- [Phase 61]: 61-04: 409 nur bei echter Mehrdeutigkeit — komplementaeres Verschmelzen zweier Bestandspersonen geht durch (D-61-04)
+- [Phase 61]: 61-04: Loesen laesst die Sales Person identitaetsstabil und gibt dem Benutzer eine frische Person (D-61-05)
+- [Phase 61]: 61-04: Re-Link A->B laeuft als Split(A)+Merge(B) in einer Transaktion; der 409 rollt den Split mit zurueck (P-61-B)
 
 ## Performance Metrics
 
@@ -446,3 +450,4 @@ D-63-01/02, D-64-01/02/03).
 | Phase 61 P01 | 25min | 3 tasks | 17 files |
 | Phase 61 P02 | 20min | 2 tasks | 8 files |
 | Phase 61 P03 | 15min | 2 tasks | 9 files |
+| Phase 61 P04 | 40min | 3 tasks | 9 files |

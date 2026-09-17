@@ -108,7 +108,7 @@ Permission-Beobachtungen, 62–64 gegen sichtbares Verhalten im Browser.
 | Phase | Backend | Frontend | Begründung bei Frontend = nein |
 |---|---|---|---|
 | 60 | ja | **nein** | Reine Schema- + Backfill-Phase ohne API-Wirkung — kein TO geändert, kein Endpoint neu, keine sichtbare Verhaltensänderung. |
-| 61 | 3/6 | In Progress|  |
+| 61 | 4/6 | In Progress|  |
 | 62 | ja | ja | — |
 | 63 | ja | ja | — |
 | 64 | ja | ja | — |
@@ -357,7 +357,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3)*
 
-- [ ] 61-04-PLAN.md — Verknüpfen als Merge mit Konflikt-Ablehnung (D-61-03/D-61-04), Lösen als Split mit frischer Person (D-61-05), 409-Übersetzung in `set_user` und OpenAPI-Ergänzung (SC4)
+- [x] 61-04-PLAN.md — Verknüpfen als Merge mit Konflikt-Ablehnung (D-61-03/D-61-04), Lösen als Split mit frischer Person (D-61-05), 409-Übersetzung in `set_user` und OpenAPI-Ergänzung (SC4)
 
 **Wave 5** *(blocked on Wave 4)*
 
