@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT u.name AS \"name!: String\"\n               FROM user u\n               LEFT JOIN sales_person sp ON sp.person_id = u.person_id\n               WHERE sp.id IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "name": "name!: String",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0da5510ebc415e2e22ebff58fc821cea63b9808abfb4e1cb5f64c7ee5deb103f"
+}

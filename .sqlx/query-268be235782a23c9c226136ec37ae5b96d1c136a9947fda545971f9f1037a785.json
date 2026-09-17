@@ -1,0 +1,56 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT sp.id AS \"id!: Vec<u8>\", sp.name AS \"name!: String\",\n                      sp.background_color AS \"background_color!: String\",\n                      sp.is_paid AS \"is_paid!: bool\", sp.inactive AS \"inactive!: bool\",\n                      sp.deleted AS \"deleted?: String\",\n                      sp.update_version AS \"update_version!: Vec<u8>\"\n               FROM sales_person sp\n               LEFT JOIN user u ON u.person_id = sp.person_id\n               WHERE u.name IS NULL AND sp.deleted IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: Vec<u8>",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "name!: String",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "background_color!: String",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "is_paid!: bool",
+        "ordinal": 3,
+        "type_info": "Bool"
+      },
+      {
+        "name": "inactive!: bool",
+        "ordinal": 4,
+        "type_info": "Bool"
+      },
+      {
+        "name": "deleted?: String",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version!: Vec<u8>",
+        "ordinal": 6,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "268be235782a23c9c226136ec37ae5b96d1c136a9947fda545971f9f1037a785"
+}

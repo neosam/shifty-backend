@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, created, update_version FROM person WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "created",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version",
+        "ordinal": 2,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "ea9a4c1976078fa6cee4314408f5b0efbb612e93012f15a1bdc005f5b5bc6738"
+}

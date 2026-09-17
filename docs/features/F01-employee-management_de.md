@@ -186,6 +186,31 @@ FK-Konsistenz mit Bookings/Extra Hours zu erhalten.
 | `sales_person_unavailable` | Wiederkehrende Verfügbarkeits-Sperren auf Wochentagsebene | `id`, `sales_person_id`, `year`, `calendar_week`, `day_of_week`, `created`, `deleted` |
 | `sales_person_shiftplan` | M:N Sales-Person ↔ Shiftplan mit Berechtigungslevel | `sales_person_id`, `shiftplan_id`, `permission_level` ∈ {`available`,`planner_only`} |
 
+### `PersonDao` — Zugriff auf die Identitäts-Elterntabelle (v2.7, Phase 61)
+
+`dao::person::PersonDao` / `dao_impl_sqlite::person::PersonDaoImpl` ist der
+einzige Lese-/Schreibpfad auf die Tabelle `person`. Das Trait bleibt bewusst
+bei genau vier Methoden — keine Vorratshaltung für spätere Phasen:
+
+| Methode | Zweck |
+| --- | --- |
+| `find_by_id(id, tx)` | Einzelne Identität lesen, `Option<PersonEntity>`. |
+| `create(entity, process, tx)` | Insert. `id`, `created` und `version` erzeugt der Service, nicht das DAO; es wird keine SQLite-Rowid zurückgelesen — `person.id` ist ein `blob(16) PRIMARY KEY` und kein Rowid-Alias. |
+| `sales_persons_without_user(tx)` | Sales Persons, deren Person keinen Login-User trägt — Kandidaten für „Login hinzufügen". Filtert `sp.deleted IS NULL`. |
+| `users_without_sales_person(tx)` | Login-User, deren Person keine Sales Person trägt — Kandidaten für „Person hinzufügen". `user` hat keine Soft-Delete-Spalte. |
+
+`PersonEntity` trägt `id`, `created`, `version` und sonst nichts — derselbe
+reduzierte Zuschnitt wie die Tabelle selbst [D-60-04].
+
+**Beide Kandidaten-Lesepfade sind LEFT-JOIN-Anti-Joins über `person_id` und
+keine Leer-Prüfungen auf dieser Spalte [D-61-02].** Nach dem Phase-60-Backfill
+trägt jede `sales_person`- und jede `user`-Zeile eine Person; „unverknüpft"
+heißt also *es gibt keinen Join-Partner auf der Gegenseite*, nicht *der Wert
+fehlt*. Der Regressionsschutz dafür ist
+`service_impl::test::person_candidates::kandidat_trotz_gesetzter_person_id`:
+jede Fixture-Zeile trägt ein nicht-NULL `person_id`, und beide
+Kandidaten-Mengen sind trotzdem nicht leer.
+
 ### Migrations
 
 Chronologische Historie (nur die für dieses Cluster relevanten Files aus
