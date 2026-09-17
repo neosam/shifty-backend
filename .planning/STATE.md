@@ -4,17 +4,17 @@ milestone: v2.7
 milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 61
 current_phase_name: personservice-aufl-sung-von-sales-person-user
-status: executing
+status: verifying
 stopped_at: Completed 61-04-PLAN.md
-last_updated: "2026-09-17T09:27:17.510Z"
+last_updated: "2026-09-17T09:41:51.302Z"
 last_activity: 2026-09-17
-last_activity_desc: Plan 61-05 ausgefuehrt (Verknuepfungstabelle per Migration aufgeloest — Nachzieh-Backfill + Selbst-Assertion + DROP; SC2-Grep sauber)
+last_activity_desc: "Plan 61-05 ausgefuehrt (Migration 20260917000000_drop-sales-person-user.sql: Nachzieh-Backfill D-61-06 + Selbst-Assertion + DROP D-61-07; Migrations-Regressionstests nach shifty_bin verlagert; SC2-Grep ueber dao/, dao_impl_sqlite/, service_impl/, .sqlx und docs/ leer)"
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 9
-  completed_plans: 9
-  percent: 20
+  completed_plans: 10
+  percent: 40
 ---
 
 # Project State: Shifty Backend
@@ -35,7 +35,7 @@ progress:
 
 Phase: 61 (personservice-aufl-sung-von-sales-person-user) — EXECUTING
 Plan: 6 of 6
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Test 2 (WR-01, person.id-Doku) pass, Test 1 (CR-02 Pre-Flight-Query) blocked als Deploy-Gate,
 siehe **v2.7 Deploy-Gates** unten. Kein offener Code-Gap.
 Last activity: 2026-09-17 — Plan 61-05 ausgefuehrt (Migration 20260917000000_drop-sales-person-user.sql: Nachzieh-Backfill D-61-06 + Selbst-Assertion + DROP D-61-07; Migrations-Regressionstests nach shifty_bin verlagert; SC2-Grep ueber dao/, dao_impl_sqlite/, service_impl/, .sqlx und docs/ leer)
@@ -287,7 +287,7 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-09-17T09:27:08.327Z
+**Last session:** 2026-09-17T09:41:44.792Z
 **Stopped at:** Completed 61-04-PLAN.md
 **Resume file:** None
 
@@ -398,6 +398,8 @@ D-63-01/02, D-64-01/02/03).
 - [Phase 61]: 61-04: 409 nur bei echter Mehrdeutigkeit — komplementaeres Verschmelzen zweier Bestandspersonen geht durch (D-61-04)
 - [Phase 61]: 61-04: Loesen laesst die Sales Person identitaetsstabil und gibt dem Benutzer eine frische Person (D-61-05)
 - [Phase 61]: 61-04: Re-Link A->B laeuft als Split(A)+Merge(B) in einer Transaktion; der 409 rollt den Split mit zurueck (P-61-B)
+- [Phase ?]: Doku-Nachzug prueft zuerst, was fruehere Plaene derselben Phase bereits korrigiert haben — 02-service-tiers und arc42/05 blieben deshalb bewusst unveraendert (61-06)
+- [Phase ?]: Die Regel 'Identitaetsvergleich gehoert ins SQL, nicht nach Rust' ist als dauerhafte Konvention in 04-auth{,_de}.md verankert, nicht als Phasen-Notiz (T-61-21)
 
 ## Performance Metrics
 
@@ -452,3 +454,4 @@ D-63-01/02, D-64-01/02/03).
 | Phase 61 P03 | 15min | 2 tasks | 9 files |
 | Phase 61 P04 | 40min | 3 tasks | 9 files |
 | Phase 61 P05 | 25min | 3 tasks | 15 files |
+| Phase 61 P06 | 30min | 2 tasks | 10 files |

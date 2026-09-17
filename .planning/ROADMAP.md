@@ -108,7 +108,7 @@ Permission-Beobachtungen, 62–64 gegen sichtbares Verhalten im Browser.
 | Phase | Backend | Frontend | Begründung bei Frontend = nein |
 |---|---|---|---|
 | 60 | ja | **nein** | Reine Schema- + Backfill-Phase ohne API-Wirkung — kein TO geändert, kein Endpoint neu, keine sichtbare Verhaltensänderung. |
-| 61 | 5/6 | In Progress|  |
+| 61 | 6/6 | Complete   | 2026-09-17 |
 | 62 | ja | ja | — |
 | 63 | ja | ja | — |
 | 64 | ja | ja | — |
@@ -365,7 +365,7 @@ Plans:
 
 **Wave 6** *(blocked on Wave 5)*
 
-- [ ] 61-06-PLAN.md — Docs-Freshness-Gate: `02-service-tiers` + `diagrams/service-graph-runtime.mmd`, `04-auth`, `F12-auth-session`, `03-data-model` + `diagrams/db-schema-er.mmd`, `F01-employee-management`, `arc42/05-building-block-view` — je EN + DE
+- [x] 61-06-PLAN.md — Docs-Freshness-Gate: `02-service-tiers` + `diagrams/service-graph-runtime.mmd`, `04-auth`, `F12-auth-session`, `03-data-model` + `diagrams/db-schema-er.mmd`, `F01-employee-management`, `arc42/05-building-block-view` — je EN + DE
 
 ---
 
