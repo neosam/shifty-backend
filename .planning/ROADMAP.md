@@ -108,7 +108,7 @@ Permission-Beobachtungen, 62–64 gegen sichtbares Verhalten im Browser.
 | Phase | Backend | Frontend | Begründung bei Frontend = nein |
 |---|---|---|---|
 | 60 | ja | **nein** | Reine Schema- + Backfill-Phase ohne API-Wirkung — kein TO geändert, kein Endpoint neu, keine sichtbare Verhaltensänderung. |
-| 61 | 1/6 | In Progress|  |
+| 61 | 2/6 | In Progress|  |
 | 62 | ja | ja | — |
 | 63 | ja | ja | — |
 | 64 | ja | ja | — |
@@ -349,7 +349,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 61-02-PLAN.md — `person_id` bei jeder Neuanlage: `SalesPersonDaoImpl::create` auf derselben `tx`, `PermissionDaoImpl::create_user` mit interner Transaktion (D-61-01, Atomaritäts-Nachweis)
+- [x] 61-02-PLAN.md — `person_id` bei jeder Neuanlage: `SalesPersonDaoImpl::create` auf derselben `tx`, `PermissionDaoImpl::create_user` mit interner Transaktion (D-61-01, Atomaritäts-Nachweis)
 
 **Wave 3** *(blocked on Wave 2)*
 

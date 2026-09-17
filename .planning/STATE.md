@@ -5,15 +5,15 @@ milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 61
 current_phase_name: personservice-aufl-sung-von-sales-person-user
 status: executing
-stopped_at: Completed 61-01-PLAN.md
-last_updated: "2026-09-17T07:57:58.279Z"
+stopped_at: Completed 61-02-PLAN.md
+last_updated: "2026-09-17T08:14:27.255Z"
 last_activity: 2026-09-17
-last_activity_desc: Plan 61-01 complete — PersonDao + PersonService (Basic-Tier)
+last_activity_desc: Plan 61-02 ausgefuehrt (person_id-Vergabe bei Neuanlage, beide Pfade atomar)
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 9
-  completed_plans: 5
+  completed_plans: 6
   percent: 20
 ---
 
@@ -34,12 +34,12 @@ progress:
 ## Current Position
 
 Phase: 61 (personservice-aufl-sung-von-sales-person-user) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 Status: Ready to execute
 Test 2 (WR-01, person.id-Doku) pass, Test 1 (CR-02 Pre-Flight-Query) blocked als Deploy-Gate,
 siehe **v2.7 Deploy-Gates** unten. Kein offener Code-Gap.
-Last activity: 2026-09-17 — Plan 61-01 ausgefuehrt (PersonDao + PersonService, Basic-Tier)
-Next: Plan 61-02 ausfuehren (create_user-Pfad)
+Last activity: 2026-09-17 — Plan 61-02 ausgefuehrt (person_id-Vergabe bei Neuanlage, beide Pfade atomar)
+Next: Plan 61-03 ausfuehren (Selbst-Zugriffs-Pruefung auf person_id-Joins umschreiben)
 Resume file: None
 
 ## Quick Tasks Completed
@@ -287,7 +287,7 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-09-17T07:57:39.262Z
+**Last session:** 2026-09-17T08:14:09.139Z
 **Stopped at:** Phase 61 context gathered
 **Resume file:** .planning/phases/61-personservice-aufl-sung-von-sales-person-user/61-CONTEXT.md
 
@@ -389,6 +389,8 @@ D-63-01/02, D-64-01/02/03).
 - [Phase 61-01]: PersonService ist Basic-Tier mit genau fuenf Deps (PersonDao, Permission, Clock, Uuid, Transaction) — kein Domain-Service; Konstruktion im Basic-Block vor der Business-Logic-Schicht (SC5, T-61-07)
 - [Phase 61-01]: Beide Kandidaten-Lesepfade sind LEFT-JOIN-Anti-Joins ueber person_id, keine IS-NULL-Abfragen (D-61-02); Regressionsschutz: kandidat_trotz_gesetzter_person_id
 - [Phase 61-01]: Alle vier PersonService-Methoden HR-gated (T-61-05); Phase 62/63 darf auf admin verschaerfen, nicht lockern
+- [Phase 61]: 61-02: person_id-Vergabe bei Neuanlage — ID in Rust erzeugt (kein Rowid-Readback), created per strftime im Backfill-Format; DAO-Ebene bleibt ClockService-frei
+- [Phase 61]: 61-02: create_user oeffnet eine methoden-interne Transaktion — Trait-Signatur und beide Aufrufer bleiben unveraendert, Atomaritaet per PK-Konflikt-Test belegt (Pitfall 4)
 
 ## Performance Metrics
 
@@ -439,3 +441,4 @@ D-63-01/02, D-64-01/02/03).
 | Phase 60 P02 | 7min | 2 tasks | 1 files |
 | Phase 60 P03 | 6min | 2 tasks | 7 files |
 | Phase 61 P01 | 25min | 3 tasks | 17 files |
+| Phase 61 P02 | 20min | 2 tasks | 8 files |
