@@ -5,10 +5,10 @@ milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 60
 current_phase_name: person-datenmodell-backfill
 status: verifying
-stopped_at: Completed 60-03-PLAN.md
-last_updated: "2026-09-16T07:16:09.693Z"
-last_activity: 2026-09-16
-last_activity_desc: Plan 60-03 abgeschlossen (Docs-Freshness-Gate geschlossen — 7 Doku-Dateien, EN + DE)
+stopped_at: Completed 60-04 gap closure
+last_updated: "2026-09-17T04:28:05.187Z"
+last_activity: 2026-09-17
+last_activity_desc: Gap-Closure 60-04 abgeschlossen (CR-03 Zeitstempel-Format, CR-01 Assertion-Haertung, FK-Doku-Korrektur)
 progress:
   total_phases: 5
   completed_phases: 1
@@ -271,8 +271,8 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-09-16T07:16:04.012Z
-**Stopped at:** Completed 60-03-PLAN.md
+**Last session:** 2026-09-17T04:27:59.056Z
+**Stopped at:** Completed 60-04 gap closure
 **Resume file:** None
 
 **To resume work in a new session:**
@@ -366,8 +366,10 @@ D-63-01/02, D-64-01/02/03).
 - [Phase ?]: Die F08-Bump-Historie nennt VIER betroffene value_types (Overall, Balance, ExtraWork, Volunteer) — Messbefund aus Plan 05
 - [Phase 60]: D-60-01 bestaetigt (60-01 Checkpoint, auto-mode): UNIQUE-Index auf sales_person.person_id bleibt vollstaendig statt partiell — soft-geloeschte Sales Persons behalten ihre Person-Identitaet dauerhaft (one-way).
 - [Phase 60]: Apply-twice-Nachweis via Marker-Split (BACKFILL-START/END-Kommentare + sqlx::raw_sql) statt vollem Datei-Replay — SQLite kennt fuer ALTER TABLE ADD COLUMN keine Existenz-Guard-Klausel.
-- [Phase 60]: [To verify] in der Foreign-Keys-Konvention aufgeloest — PRAGMA foreign_keys wird nirgends gesetzt, FK-Deklarationen sind dekorativ (D-60-06)
+- [Phase 60]: ~~[To verify] in der Foreign-Keys-Konvention aufgeloest — PRAGMA foreign_keys wird nirgends gesetzt, FK-Deklarationen sind dekorativ (D-60-06)~~ — **WIDERLEGT in Plan 60-04**, siehe den Korrektur-Eintrag weiter unten
 - [Phase 60]: one-way-Vermerk zu den vollstaendigen Unique-Indizes steht in beiden Sprachfassungen von 03-data-model UND im Migrations-Kopfkommentar — Vertragsbestandteil gegen kuenftige Aufraeum-Passes
+- [Phase 60]: SQLite-Zeitstempel in Migrationen als strftime('%Y-%m-%dT%H:%M:%S.000000000Z','now') schreiben — datetime('now') erzeugt ein Leerzeichen, das Iso8601::DATE_TIME in beiden Parser-Zweigen ablehnt
+- [Phase 60]: Korrektur zu D-60-06: FK-Durchsetzung IST in diesem Repo aktiv — sqlx setzt PRAGMA foreign_keys = ON per Verbindung (sqlx-sqlite-0.8.6/src/options/mod.rs:185). Ein Quelltext-Grep ist hier kein Beleg.
 
 ## Performance Metrics
 
