@@ -1,5 +1,7 @@
 #[cfg(test)]
 mod integration_test;
+#[cfg(test)]
+mod person_link_migration_test;
 
 use std::sync::Arc;
 

@@ -125,8 +125,6 @@ pub mod week_status;
 #[cfg(test)]
 pub mod shiftplan_report;
 #[cfg(test)]
-pub mod person_backfill;
-#[cfg(test)]
 pub mod person_candidates;
 #[cfg(test)]
 pub mod person_creation;

@@ -5,6 +5,25 @@
 //! gegen rohes SQL — bewusst ohne Service/DAO, weil Phase 60 laut D-60-10 keinen
 //! Applikationscode anfasst (ein `PersonDao` entsteht erst in Phase 61).
 //!
+//! **Warum dieses Modul in `shifty_bin` liegt (Phase 61, P-61-C):** Es ist ein
+//! Migrations-Historien-Nachweis, kein DAO-Test — und `shifty_bin` ist das
+//! Crate, in dem der Migrations-Runner produktiv laeuft (`main.rs`,
+//! `sqlx::migrate!("./../migrations/sqlite")`) und in dem bereits die
+//! Full-Stack-Testumgebung sitzt (`integration_test.rs`). Bis Phase 61 lag es
+//! als `service_impl::test::person_backfill` in der DAO-Schicht; der Umzug
+//! haelt zusaetzlich Success Criterion 2 der Phase 61 ein (kein Vorkommen des
+//! aufgeloesten Tabellennamens in `dao/`, `dao_impl_sqlite/`, `service_impl/`),
+//! ohne einen einzigen Phase-60-Nachweis aufzugeben.
+//!
+//! **Warum die Migrationskette hier vor `DROP_MIGRATION_VERSION` endet:** Die
+//! Phase-60-Invarianten sind Aussagen ueber den Zustand *unmittelbar nach* dem
+//! Backfill — sie brauchen die damals noch bestehende Verknuepfungstabelle, aus
+//! der der Backfill seine Paare liest. Liefe `setup_pool` die **volle** Kette,
+//! haette `20260917000000_drop-sales-person-user.sql` die Tabelle schon
+//! aufgeloest und keine dieser Invarianten waere ueberhaupt noch herstellbar.
+//! Der Endzustand nach der vollen Kette wird stattdessen von den
+//! Phase-61-Tests weiter unten geprueft.
+//!
 //! Abgedeckte Invarianten:
 //!
 //! - **I-1** (PERS-01/SC1): Nach dem Backfill traegt jede `sales_person`-Zeile —
@@ -86,7 +105,7 @@ use uuid::Uuid;
 /// aus ihr den markierten Backfill-Abschnitt heraus und fuehrt genau diesen ein
 /// zweites Mal aus.
 const MIGRATION_SQL: &str =
-    include_str!("../../../migrations/sqlite/20260916000000_create-person-backfill.sql");
+    include_str!("../../migrations/sqlite/20260916000000_create-person-backfill.sql");
 
 const BACKFILL_START: &str = "-- BACKFILL START";
 const BACKFILL_END: &str = "-- BACKFILL END";
@@ -94,13 +113,37 @@ const BACKFILL_END: &str = "-- BACKFILL END";
 const HR_USER: &str = "hr-admin-ohne-sales-person";
 const LINKED_USER: &str = "verknuepfter-benutzer";
 
+/// Version der Phase-61-Migration, welche die Verknuepfungstabelle aufloest
+/// (`migrations/sqlite/20260917000000_drop-sales-person-user.sql`).
+///
+/// `setup_pool` faehrt die Kette **bis ausschliesslich** zu dieser Version —
+/// siehe Modul-Doc. Wer die Migrationsdatei umbenennt, muss diese Konstante
+/// mitziehen.
+const DROP_MIGRATION_VERSION: i64 = 20260917000000;
+
+/// Baut eine In-Memory-DB mit der Migrationskette **vor** der Aufloesung der
+/// Verknuepfungstabelle auf.
+///
+/// Gefiltert wird ueber einen eigenen `Migrator` statt ueber `sqlx::migrate!`
+/// direkt; die Struct-Update-Syntax mit `..Migrator::DEFAULT` sorgt dafuer, dass
+/// kuenftige zusaetzliche Felder in `Migrator` diesen Aufbau nicht brechen.
 async fn setup_pool() -> Arc<sqlx::SqlitePool> {
     let pool = Arc::new(
         sqlx::SqlitePool::connect("sqlite::memory:")
             .await
             .expect("Could not connect to in-memory SQLite"),
     );
-    sqlx::migrate!("./../migrations/sqlite")
+    let all = sqlx::migrate!("./../migrations/sqlite");
+    let upto: Vec<sqlx::migrate::Migration> = all
+        .iter()
+        .filter(|migration| migration.version < DROP_MIGRATION_VERSION)
+        .cloned()
+        .collect();
+    let partial = sqlx::migrate::Migrator {
+        migrations: std::borrow::Cow::Owned(upto),
+        ..sqlx::migrate::Migrator::DEFAULT
+    };
+    partial
         .run(pool.as_ref())
         .await
         .expect("Could not run migrations");
