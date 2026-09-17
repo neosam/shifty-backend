@@ -64,6 +64,11 @@
 //!   `dao_impl_sqlite/src/billing_period.rs` benutzt
 //!   (`person_created_is_iso8601_parsable`).
 //!
+//! - **I-14** (CR-01): Die Selbst-Assertion in Block 4 bricht ab, wenn nach dem
+//!   Backfill eine `sales_person`- oder `user`-Zeile ohne `person_id`
+//!   zurueckbleibt — die Zaehlarithmetik allein deckt das nicht ab
+//!   (`dangling_link_aborts_backfill`).
+//!
 //! **I-10** (`CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt 13) ist bewusst KEIN
 //! Rust-Test: eine Konstante gegen sich selbst zu pruefen beweist nichts. Der
 //! Lock sitzt in den Acceptance Criteria und im Phasen-Gate; die Datei
@@ -180,6 +185,40 @@ async fn seed_link(pool: &sqlx::SqlitePool, sales_person_id: Uuid, user_name: &s
     .execute(pool)
     .await
     .expect("seed sales_person_user");
+}
+
+/// Legt eine `sales_person_user`-Zeile an, deren `sales_person_id` auf keine
+/// existierende Zeile zeigt (Plan 60-04 / CR-01).
+///
+/// Dafuer muss die Fremdschluessel-Durchsetzung kurz aus: sqlx setzt
+/// `PRAGMA foreign_keys = ON` per Default auf JEDER Verbindung
+/// (`sqlx-sqlite/src/options/mod.rs`), die Deklaration in
+/// `20240506114107_add_sales_person.sql` wird also tatsaechlich durchgesetzt.
+/// Genau deshalb ist der hier konstruierte Zustand ueber die Applikation **nicht**
+/// erreichbar — der Test haertet die Selbst-Assertion, er belegt keinen aktiven
+/// Bug. Das Pragma wird auf derselben Verbindung wieder eingeschaltet.
+async fn seed_dangling_link(pool: &sqlx::SqlitePool, sales_person_id: Uuid, user_name: &str) {
+    let mut conn = pool.acquire().await.expect("acquire connection");
+
+    sqlx::query("PRAGMA foreign_keys = OFF")
+        .execute(&mut *conn)
+        .await
+        .expect("FK-Durchsetzung fuer die Fixture abschalten");
+
+    sqlx::query(
+        "INSERT INTO sales_person_user (sales_person_id, user_id, update_process) \
+         VALUES (?1, ?2, 'seed-verwaister-link')",
+    )
+    .bind(sales_person_id.as_bytes().to_vec())
+    .bind(user_name)
+    .execute(&mut *conn)
+    .await
+    .expect("seed verwaisten sales_person_user-Link");
+
+    sqlx::query("PRAGMA foreign_keys = ON")
+        .execute(&mut *conn)
+        .await
+        .expect("FK-Durchsetzung wieder einschalten");
 }
 
 /// Legt eine `billing_period`- plus `billing_period_sales_person`-Zeile fuer die
@@ -664,6 +703,83 @@ async fn person_created_is_iso8601_parsable() {
             parsed.unwrap_err()
         );
     }
+}
+
+/// I-14 (Plan 60-04, CR-01) — die Selbst-Assertion muss die Invariante pruefen,
+/// nicht nur die Zaehlarithmetik.
+///
+/// Fixture: eine `sales_person_user`-Zeile, deren `sales_person_id` ins Leere
+/// zeigt. Block 3b ueberspringt den Benutzer (`name IN (...)`), Block 3d setzt
+/// ihn ueber die korrelierte Subquery auf `NULL` — die `WHERE`-Klausel greift
+/// trotzdem. Die Zaehlprobe geht mit `1 == 1 + 1 - 1` auf, der Benutzer bleibt
+/// aber ohne Identitaet.
+///
+/// **Einordnung:** ueber die Applikation ist dieser Zustand nicht erzeugbar
+/// (FK-Durchsetzung ist per sqlx-Default aktiv, `sales_person` wird nur
+/// soft-geloescht). Der Test sichert, dass die Assertion das behauptet, was sie
+/// prueft — kein aktiver Produktionsfehler.
+#[tokio::test]
+async fn dangling_link_aborts_backfill() {
+    let pool = setup_pool().await;
+
+    let existing_sales_person = Uuid::new_v4();
+    let never_inserted_sales_person = Uuid::new_v4();
+    const DANGLING_USER: &str = "benutzer-mit-verwaistem-link";
+
+    seed_sales_person(
+        pool.as_ref(),
+        existing_sales_person,
+        "Unverknuepfte Verkaeuferin",
+        None,
+    )
+    .await;
+    seed_user(pool.as_ref(), DANGLING_USER).await;
+    seed_dangling_link(pool.as_ref(), never_inserted_sales_person, DANGLING_USER).await;
+
+    let dangling = count(
+        pool.as_ref(),
+        "SELECT COUNT(*) FROM sales_person_user spu \
+         WHERE NOT EXISTS (SELECT 1 FROM sales_person sp WHERE sp.id = spu.sales_person_id)",
+    )
+    .await;
+    assert_eq!(
+        dangling, 1,
+        "Vorbedingung: die Fixture muss wirklich einen verwaisten Link enthalten — \
+         sonst prueft der Test nichts"
+    );
+
+    let err = run_backfill_section(pool.as_ref())
+        .await
+        .expect_err("I-14: ein verwaister Link darf nicht als Erfolg durchgehen");
+    assert!(
+        err.to_string().to_lowercase().contains("check constraint failed"),
+        "I-14: der Abbruch muss aus der Selbst-Assertion stammen — Fehlertext war: {err}"
+    );
+
+    // Die beiden folgenden Pruefungen belegen, WARUM die reine Zaehlarithmetik
+    // nicht ausreicht. `run_backfill_section` faehrt ohne aeussere Transaktion
+    // (die Klammer kommt im Produktionspfad von sqlx::migrate), die UPDATEs sind
+    // hier also schon geschrieben und lesbar.
+    let user_gaps = count(
+        pool.as_ref(),
+        "SELECT COUNT(*) FROM user WHERE person_id IS NULL",
+    )
+    .await;
+    assert_eq!(
+        user_gaps, 1,
+        "I-14: genau das ist der Schaden — Block 3d schreibt NULL statt eine Identitaet"
+    );
+
+    let persons = count(pool.as_ref(), "SELECT COUNT(*) FROM person").await;
+    let sales_persons = count(pool.as_ref(), "SELECT COUNT(*) FROM sales_person").await;
+    let users = count(pool.as_ref(), "SELECT COUNT(*) FROM user").await;
+    let links = count(pool.as_ref(), "SELECT COUNT(*) FROM sales_person_user").await;
+    assert_eq!(
+        persons,
+        sales_persons + users - links,
+        "I-14: die Zaehlprobe geht trotz der Luecke auf (1 == 1 + 1 - 1) — sie ist \
+         weder notwendig noch hinreichend fuer \"jede Zeile hat eine Identitaet\""
+    );
 }
 
 // ─── Plan 60-02, Task 1: DB-Level-Ablehnung der Doppel-Identitaet ───────────
