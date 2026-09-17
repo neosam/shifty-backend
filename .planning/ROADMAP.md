@@ -340,7 +340,32 @@ Geschäftslogik (Person auflösen-oder-anlegen, mehrdeutigen Merge ablehnen) ohn
 1:1-Präzedenz im Repo — eigene Test-Matrix beim Planen entwerfen, nicht „Query
 portieren".
 
-**Plans:** TBD
+**Plans:** 6 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 61-01-PLAN.md — Basic-Tier `PersonDao`/`PersonDaoImpl`/`PersonService`/`PersonServiceImpl`, die beiden „unverknüpfte Kandidaten"-Anti-Join-Lesepfade (D-61-02), DI-Konstruktion im Basic-Block plus `RestStateDef`-Accessor (SC5)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 61-02-PLAN.md — `person_id` bei jeder Neuanlage: `SalesPersonDaoImpl::create` auf derselben `tx`, `PermissionDaoImpl::create_user` mit interner Transaktion (D-61-01, Atomaritäts-Nachweis)
+
+**Wave 3** *(blocked on Wave 2)*
+
+- [ ] 61-03-PLAN.md — Self-Gate-Rewrite der vier Lesepfade auf `person_id`-Joins (D-61-08) plus die byte-identische Vorher/Nachher-Permission-Matrix gegen eine gemeinsame Fixture-DB (D-61-09, SC1)
+
+**Wave 4** *(blocked on Wave 3)*
+
+- [ ] 61-04-PLAN.md — Verknüpfen als Merge mit Konflikt-Ablehnung (D-61-03/D-61-04), Lösen als Split mit frischer Person (D-61-05), 409-Übersetzung in `set_user` und OpenAPI-Ergänzung (SC4)
+
+**Wave 5** *(blocked on Wave 4)*
+
+- [ ] 61-05-PLAN.md — DROP-Migration `20260917000000_drop-sales-person-user.sql` mit Nachzieh-Backfill und Selbst-Assertion (D-61-06/D-61-07), Verlagerung der Migrations-Regressionstests nach `shifty_bin`, Abbau der Alt-Query-Hälfte, `cargo sqlx prepare` (SC2)
+
+**Wave 6** *(blocked on Wave 5)*
+
+- [ ] 61-06-PLAN.md — Docs-Freshness-Gate: `02-service-tiers` + `diagrams/service-graph-runtime.mmd`, `04-auth`, `F12-auth-session`, `03-data-model` + `diagrams/db-schema-er.mmd`, `F01-employee-management`, `arc42/05-building-block-view` — je EN + DE
 
 ---
 
