@@ -66,15 +66,22 @@ Genau deshalb führt ein Quelltext-Grep hier in die Irre: die Suche nach
 `foreign_keys` über alle `*.rs` und `*.sql` liefert tatsächlich null Treffer —
 das Pragma kommt vom Treiber, nicht aus der Codebase. Empirisch nachgefahren
 gegen die Produktions-Datei und noch einmal im Test-Harness: `PRAGMA
-foreign_keys` liefert `1`, und der Versuch, eine Zeile der früheren
-Verknüpfungstabelle mit unauflösbarer `sales_person_id` einzufügen, wurde mit
-`FOREIGN KEY constraint failed` (SQLite-Code 787) abgelehnt. Beide
-FK-Deklarationen auf jener Tabelle wurden korrekt geparst und von
-`PRAGMA foreign_key_list` aufgeführt — trotz des fehlenden Kommas zwischen
-ihnen in `migrations/sqlite/20240506114107_add_sales_person.sql:22-23`. **Die
-Tabelle selbst existiert seit Phase 61 nicht mehr** (siehe *Abgrenzung*
-unten); die Beobachtung bleibt stehen, weil sie der empirische Beleg dafür
-ist, dass die FK-Durchsetzung in diesem Repo überhaupt aktiv ist.
+foreign_keys` liefert `1`, und ein Insert mit unauflösbarem Elternverweis wird
+mit `FOREIGN KEY constraint failed` (SQLite-Code 787) abgelehnt.
+
+Als Beispiel dient hier ein **weiterhin existierender** Fremdschlüssel:
+`sales_person_unavailable.sales_person_id` → `sales_person(id)`
+(`migrations/sqlite/20240731043118_add-table-sales-person-unavailable.sql:14`).
+`PRAGMA foreign_key_list(sales_person_unavailable)` führt ihn auf, und ein
+Insert mit zufälliger `sales_person_id` scheitert an
+`FOREIGN KEY constraint failed`. Nachgefahren am 2026-09-17 gegen eine
+Wegwerf-Datenbank, die mit der **vollen** Migrationskette migriert wurde.
+
+(Eine frühere Fassung dieses Abschnitts führte denselben Beleg an der
+1:1-Verknüpfungstabelle zwischen Sales Person und Login-Benutzer. Diese
+Tabelle ist in Phase 61 aufgelöst worden — siehe *Abgrenzung* unten —, deshalb
+wurde das Beispiel ersetzt und nicht als Behauptung über eine nicht mehr
+existierende Tabelle stehen gelassen.)
 
 Was die FK-Prüfung **nicht** leistet: Soft Delete. Eine nur als `deleted`
 markierte Elternzeile existiert weiterhin als Zeile, der Fremdschlüssel bleibt
@@ -327,17 +334,64 @@ damit in einer Transaktion):
   Triggern kennt). Geht sie nicht auf, rollt die gesamte Migration zurück und
   der Server startet nicht — das ist besser, als einen halb ausgeführten
   Backfill zu committen.
+  **Diese Probe ist historisch.** Sie galt zum Zeitpunkt des Backfills und
+  steht weiterhin in jener Migrationsdatei, ist gegen eine aktuelle Datenbank
+  aber **nicht mehr auswertbar**: ihr letzter Term zählt Zeilen der
+  Verknüpfungstabelle, und die ist in Phase 61 aufgelöst worden. Für einen
+  Datenaudit ist sie damit unbrauchbar — dafür dient die Invariante unten.
+  (Der Phase-60-Nachweis ist erhalten: die Regressionssuite
+  `shifty_bin/src/person_link_migration_test.rs` stellt den Schema-Stand vor
+  Phase 61 über einen `Migrator` her, der vor der DROP-Migration endet; dort
+  bleibt die Zählprobe prüfbar.)
 - Backfill-Zeilen bleiben dauerhaft an `update_process =
   'phase-60-person-backfill'` erkennbar.
 - Es gibt keine Down-Migration und keine Backup-Tabelle in der Datenbank
   [D-60-09]. Der Wiederherstellungspfad ist die vor dem Deploy gezogene Kopie
   der SQLite-Datei.
 
+### Die dauerhaft prüfbare Invariante (ab Phase 61)
+
+Ohne die Verknüpfungstabelle lautet die Aussage, die sich gegen jede laufende
+Datenbank auditieren lässt:
+
+```sql
+-- beide müssen 0 sein
+SELECT COUNT(*) FROM sales_person WHERE person_id IS NULL;
+SELECT COUNT(*) FROM user         WHERE person_id IS NULL;
+
+-- muss 0 sein: keine Person ohne Träger
+SELECT COUNT(*) FROM person p
+WHERE NOT EXISTS (SELECT 1 FROM sales_person sp WHERE sp.person_id = p.id)
+  AND NOT EXISTS (SELECT 1 FROM user         u  WHERE u.person_id  = p.id);
+```
+
+In Worten: **jede `sales_person`- und jede `user`-Zeile trägt genau ein
+`person_id`, und jede `person`-Zeile hat mindestens einen Träger.** Das „genau
+eins" der ersten Hälfte tragen die beiden Unique-Indizes plus die
+Nicht-NULL-Eigenschaft; das „mindestens ein Träger" der zweiten Hälfte halten
+die Merge- und Split-Pfade aufrecht (`assign_to_user` löscht die absorbierte
+`person`-Zeile, und `discard_assigned_user` legt die neue an, **bevor** der
+Benutzer umgehängt wird).
+
+Zu beachten ist die Asymmetrie zum Schema: `person_id` ist **nullable** und
+trägt keine `FOREIGN KEY`-Deklaration — und das bleibt so. SQLite kann eine
+Spalte ohne Table-Rebuild nicht auf `NOT NULL` verschärfen, und ein Rebuild von
+`sales_person` müsste jede referenzierende Tabelle neu verdrahten. Die
+„nie NULL"-Hälfte der Invariante trägt seit Phase 61 deshalb **der Code**
+[D-61-01], nicht das Schema: `SalesPersonDaoImpl::create` schreibt die eigene
+`person`-Zeile innerhalb der Transaktion des Aufrufers,
+`PermissionDaoImpl::create_user` tut dasselbe in einer methoden-internen, und
+die DROP-Migration hat jede vorbestehende Zeile nachgezogen [D-61-06]. Wer
+einen dritten Anlage-Pfad schreibt, muss das von Hand einhalten — die
+Datenbank fängt das Versäumnis nicht ab.
+
 ### Abgrenzung
 
-- Die frühere 1:1-Verknüpfungstabelle **blieb** über Phase 60 hinweg
-  bestehen. Sie war die laufende Wahrheit, gegen die der Backfill geprüft
-  wurde; ihre Auflösung war Phase 61. **Nachtrag (Phase 61, erledigt):** Alle
+- **Die 1:1-Verknüpfungstabelle existiert nicht mehr.** Während Phase 60 war
+  sie noch da — jene Phase nutzte sie als die Wahrheit, gegen die ihr Backfill
+  geprüft wurde —, und ihre Auflösung war Aufgabe von Phase 61. Der folgende
+  Absatz ist die Historie dieser Scope-Teilung, keine Beschreibung des
+  aktuellen Schemas. **Nachtrag (Phase 61, erledigt):** Alle
   lesenden *und* schreibenden Verknüpfungs-Pfade in
   `dao_impl_sqlite/src/sales_person.rs` laufen über
   `u.person_id = sp.person_id` [D-61-08, D-61-03, D-61-05], und

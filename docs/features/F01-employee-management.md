@@ -120,9 +120,17 @@ the balance history and FK consistency with Bookings/Extra Hours.
   through the link table. The authorisation decision lives **entirely in SQL**
   on purpose: an equivalent Rust comparison of two `Option<Uuid>` would
   evaluate `None == None` as `true` and go fail-open, while SQL's three-valued
-  logic never lets `NULL = NULL` be true. Covered by
-  `service_impl::test::person_self_gate`, which also runs a byte-identical
-  before/after permission matrix against one fixture database [D-61-09].
+  logic never lets `NULL = NULL` be true. This is a **permanent convention**,
+  not a phase note — see
+  [`../architecture/04-auth.md` §Self-access gate for sales-person data](../architecture/04-auth.md#self-access-gate-for-sales-person-data).
+  Covered by `service_impl::test::person_self_gate` (11 tests against a real
+  in-memory SQLite database). The before/after permission matrix it used to run
+  [D-61-09] was a *temporary* artefact: it needed both data models in one
+  fixture database, and since
+  `migrations/sqlite/20260917000000_drop-sales-person-user.sql` the "before"
+  half cannot be produced any more. It was removed in Phase 61; the
+  accept/reject assertions against the `person_id` implementation stay as
+  permanent regression guards.
 - **None of the four paths filters `deleted IS NULL` — and none may start to.**
   `verify_user_is_sales_person` hangs off `get_assigned_user`, so a soft-delete
   filter added later would silently take self-access away from a soft-deleted
@@ -227,6 +235,9 @@ the balance history and FK consistency with Bookings/Extra Hours.
 | --- | --- | --- |
 | `person` (v2.7, Phase 60) | Identity parent above Sales Person and login user — one row per real human | `id` (BLOB(16) PK), `created`, `update_process`, `update_version`. That is the complete set: **no `deleted` column** [D-60-04] and **no name columns** (names stay on `sales_person.name` / `user.name`) |
 | `sales_person` | Employee master data | `id`, `name`, `background_color`, `is_paid`, `inactive`, `deleted`, `update_version`, `person_id` (v2.7 — nullable, `UNIQUE` via `sales_person_person_id_unique_idx`) |
+| `employee_work_details` (formerly `working_hours`) | Employment contract with time range, weekly hours, Vacation | `id`, `sales_person_id`, `expected_hours`, `from_/to_year/calendar_week/day_of_week`, `workdays_per_week`, `monday`..`sunday`, `vacation_days`, `is_dynamic`, `cap_planned_hours_to_expected`, `committed_voluntary`, `created`, `deleted`, `update_version` |
+| `sales_person_unavailable` | Recurring availability blocks at day-of-week granularity | `id`, `sales_person_id`, `year`, `calendar_week`, `day_of_week`, `created`, `deleted` |
+| `sales_person_shiftplan` | M:N Sales Person ↔ Shiftplan with permission level | `sales_person_id`, `shiftplan_id`, `permission_level` ∈ {`available`,`planner_only`} |
 
 > **Dissolved in v2.7 Phase 61:** the former 1:1 link table between Sales
 > Person and login user no longer exists.
@@ -235,9 +246,6 @@ the balance history and FK consistency with Bookings/Extra Hours.
 > its counterpart, and then drops the table [D-61-06, D-61-07]. The 1:1
 > guarantee is now carried solely by the two full unique indices
 > `sales_person_person_id_unique_idx` and `user_person_id_unique_idx`.
-| `employee_work_details` (formerly `working_hours`) | Employment contract with time range, weekly hours, Vacation | `id`, `sales_person_id`, `expected_hours`, `from_/to_year/calendar_week/day_of_week`, `workdays_per_week`, `monday`..`sunday`, `vacation_days`, `is_dynamic`, `cap_planned_hours_to_expected`, `committed_voluntary`, `created`, `deleted`, `update_version` |
-| `sales_person_unavailable` | Recurring availability blocks at day-of-week granularity | `id`, `sales_person_id`, `year`, `calendar_week`, `day_of_week`, `created`, `deleted` |
-| `sales_person_shiftplan` | M:N Sales Person ↔ Shiftplan with permission level | `sales_person_id`, `shiftplan_id`, `permission_level` ∈ {`available`,`planner_only`} |
 
 ### `PersonDao` — access to the identity parent (v2.7, Phase 61)
 
@@ -855,6 +863,19 @@ share `service_impl/src/test/helpers` (mock auth, time fake).
   `verify_user_is_sales_person`. After the toggle service had the
   Full bypass, aggregate callers had to be ensured to keep reading
   with Full.
+- **v2.7 (Sept 2026) — person identity.** *Phase 60* introduced the identity
+  parent table `person` plus the nullable columns `sales_person.person_id` and
+  `user.person_id`, each made unique by a **full** (not partial) index, and
+  backfilled every existing row — soft-deleted sales persons included
+  (`20260916000000_create-person-backfill.sql`; schema + backfill only, no
+  behaviour change). *Phase 61* dissolved the 1:1 link table
+  (`20260917000000_drop-sales-person-user.sql`, after a catch-up backfill and
+  a self-assertion), moved all reading and writing link paths onto
+  `person_id`, reshaped linking into a **merge** and unlinking into a **split**
+  with an HTTP 409 on genuine ambiguity, and added the Basic-tier
+  `PersonService` (§4.5) as groundwork for the person management UI in
+  Phase 62/63. The self-access gate now decides inside a SQL join — see
+  [`../architecture/04-auth.md`](../architecture/04-auth.md).
 
 Additional docs for end users:
 

@@ -63,15 +63,21 @@ This is exactly why a source grep is misleading here: searching `*.rs` and
 `*.sql` for `foreign_keys` really does return zero hits — the pragma comes
 from the driver, not from the codebase. Verified empirically against the
 production DB file and again inside the test harness: `PRAGMA foreign_keys`
-reads `1`, and inserting a row into the former link table with an
-unresolvable `sales_person_id` was rejected with `FOREIGN KEY constraint
-failed` (SQLite code 787). Both FK declarations on that table parsed
-correctly and were listed by `PRAGMA foreign_key_list`, despite the missing
-comma between them in
-`migrations/sqlite/20240506114107_add_sales_person.sql:22-23`. **The table
-itself is gone since Phase 61** (see *Scope boundary* below); the observation
-is kept because it is the empirical proof that FK enforcement is active in
-this repo at all.
+reads `1`, and an insert with an unresolvable parent reference is rejected
+with `FOREIGN KEY constraint failed` (SQLite code 787).
+
+The example used here is a **still-existing** foreign key:
+`sales_person_unavailable.sales_person_id` → `sales_person(id)`
+(`migrations/sqlite/20240731043118_add-table-sales-person-unavailable.sql:14`).
+`PRAGMA foreign_key_list(sales_person_unavailable)` lists it, and an insert
+carrying a random `sales_person_id` fails with `FOREIGN KEY constraint
+failed`. Verified on 2026-09-17 against a scratch database migrated with the
+**full** chain.
+
+(An earlier version of this section made the same point on the 1:1 link table
+between sales person and login user. That table was dissolved in Phase 61 —
+see *Scope boundary* below — so the example was replaced rather than kept as a
+claim about a table that no longer exists.)
 
 What the FK check does **not** buy you: soft delete. A parent row that is
 only marked `deleted` still exists as a row, so the FK stays satisfied while
@@ -311,15 +317,59 @@ therefore inside one transaction):
   `TEMP` table with a `CHECK` constraint, since SQLite only knows `RAISE()`
   inside triggers). If it does not hold, the whole migration rolls back and the
   server does not start — better than committing a half-executed backfill.
+  **This check is historical.** It held at the moment of the backfill and it
+  still runs inside that migration file, but it is **no longer evaluable**
+  against a current database: its last term counts rows of the link table, and
+  that table was dissolved in Phase 61. Do not reach for it in a data audit —
+  use the invariant below instead. (The Phase-60 proof is preserved: the
+  regression suite `shifty_bin/src/person_link_migration_test.rs` rebuilds the
+  pre-Phase-61 schema state through a `Migrator` filtered to stop before the
+  drop migration, so the count check remains testable there.)
 - Backfilled rows stay recognisable forever by `update_process =
   'phase-60-person-backfill'`.
 - There is no down migration and no in-database backup table [D-60-09]. The
   recovery path is the copy of the SQLite file taken before the deploy.
 
+### The permanently checkable invariant (from Phase 61 on)
+
+With the link table gone, the statement that can be audited against any live
+database is:
+
+```sql
+-- must both be 0
+SELECT COUNT(*) FROM sales_person WHERE person_id IS NULL;
+SELECT COUNT(*) FROM user         WHERE person_id IS NULL;
+
+-- must be 0: no person without a carrier
+SELECT COUNT(*) FROM person p
+WHERE NOT EXISTS (SELECT 1 FROM sales_person sp WHERE sp.person_id = p.id)
+  AND NOT EXISTS (SELECT 1 FROM user         u  WHERE u.person_id  = p.id);
+```
+
+In words: **every `sales_person` row and every `user` row carries exactly one
+`person_id`, and every `person` row has at least one carrier.** "Exactly one"
+on the first half is the two unique indices plus the non-NULL property; "at
+least one carrier" on the second half is what the merge and split paths
+maintain (`assign_to_user` deletes the absorbed person row, and
+`discard_assigned_user` inserts the new one *before* moving the user).
+
+Note the asymmetry with the schema: `person_id` is **nullable** and carries no
+`FOREIGN KEY` declaration, and it stays that way — SQLite cannot tighten a
+column to `NOT NULL` without rebuilding the table, and a rebuild of
+`sales_person` would have to re-point every referencing table. The "never
+NULL" half of the invariant is therefore carried **by the code** since Phase 61
+[D-61-01], not by the schema: `SalesPersonDaoImpl::create` inserts its own
+`person` row inside the caller's transaction, `PermissionDaoImpl::create_user`
+does the same inside a method-internal one, and the drop migration caught up
+every pre-existing row [D-61-06]. Anyone writing a third creation path has to
+honour this by hand — the database will not catch the omission.
+
 ### Scope boundary
 
-- The former 1:1 link table **stayed** through Phase 60. It was the running
-  truth the backfill was checked against; dissolving it was Phase 61.
+- **The 1:1 link table no longer exists.** During Phase 60 it was still there
+  — that phase used it as the truth its backfill was checked against — and
+  dissolving it was the job of Phase 61. The following paragraph is the
+  history of that scope split, not a description of the current schema.
   **Update (Phase 61, done):** all reading *and* writing link paths in
   `dao_impl_sqlite/src/sales_person.rs` go through `u.person_id =
   sp.person_id` [D-61-08, D-61-03, D-61-05], and

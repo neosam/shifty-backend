@@ -121,9 +121,17 @@ FK-Konsistenz mit Bookings/Extra Hours zu erhalten.
   Verknüpfungstabelle zu gehen. Die Autorisierungsentscheidung liegt bewusst
   **vollständig im SQL**: ein äquivalenter Rust-Vergleich zweier
   `Option<Uuid>` würde `None == None` als `true` werten und fail-open gehen,
-  während SQLs Drei-Werte-Logik `NULL = NULL` nie wahr werden lässt. Belegt von
-  `service_impl::test::person_self_gate`, das zusätzlich eine byte-identische
-  Vorher/Nachher-Permission-Matrix gegen **eine** Fixture-DB fährt [D-61-09].
+  während SQLs Drei-Werte-Logik `NULL = NULL` nie wahr werden lässt. Das ist
+  eine **dauerhafte Konvention**, keine Phasen-Notiz — siehe
+  [`../architecture/04-auth_de.md` §Selbst-Zugriffs-Gate auf Sales-Person-Daten](../architecture/04-auth_de.md#selbst-zugriffs-gate-auf-sales-person-daten).
+  Belegt von `service_impl::test::person_self_gate` (11 Tests gegen eine echte
+  In-Memory-SQLite-Datenbank). Die dort früher gefahrene
+  Vorher/Nachher-Permission-Matrix [D-61-09] war ein *befristetes* Artefakt:
+  sie brauchte beide Datenmodelle in derselben Fixture-DB, und seit
+  `migrations/sqlite/20260917000000_drop-sales-person-user.sql` ist die
+  „Vorher"-Hälfte nicht mehr herstellbar. Sie wurde in Phase 61 abgebaut; die
+  Accept/Reject-Assertions gegen die `person_id`-Implementierung bleiben als
+  Dauer-Regressionstests stehen.
 - **Keiner der vier Pfade filtert `deleted IS NULL` — und keiner darf damit
   anfangen.** `verify_user_is_sales_person` hängt an `get_assigned_user`; ein
   später nachgerüsteter Soft-Delete-Filter würde einer soft-gelöschten Sales
@@ -227,6 +235,9 @@ FK-Konsistenz mit Bookings/Extra Hours zu erhalten.
 | --- | --- | --- |
 | `person` (v2.7, Phase 60) | Identitäts-Elterntabelle über Sales Person und Login-User — eine Zeile pro realem Menschen | `id` (BLOB(16) PK), `created`, `update_process`, `update_version`. Das ist der vollständige Satz: **keine `deleted`-Spalte** [D-60-04] und **keine Namensspalten** (Namen bleiben an `sales_person.name` / `user.name`) |
 | `sales_person` | Stammdaten des Angestellten | `id`, `name`, `background_color`, `is_paid`, `inactive`, `deleted`, `update_version`, `person_id` (v2.7 — nullable, `UNIQUE` über `sales_person_person_id_unique_idx`) |
+| `employee_work_details` (früher `working_hours`) | Arbeitsvertrag mit Zeitraum, Wochenstunden, Urlaub | `id`, `sales_person_id`, `expected_hours`, `from_/to_year/calendar_week/day_of_week`, `workdays_per_week`, `monday`..`sunday`, `vacation_days`, `is_dynamic`, `cap_planned_hours_to_expected`, `committed_voluntary`, `created`, `deleted`, `update_version` |
+| `sales_person_unavailable` | Wiederkehrende Verfügbarkeits-Sperren auf Wochentagsebene | `id`, `sales_person_id`, `year`, `calendar_week`, `day_of_week`, `created`, `deleted` |
+| `sales_person_shiftplan` | M:N Sales-Person ↔ Shiftplan mit Berechtigungslevel | `sales_person_id`, `shiftplan_id`, `permission_level` ∈ {`available`,`planner_only`} |
 
 > **Aufgelöst in v2.7 Phase 61:** Die frühere 1:1-Verknüpfungstabelle zwischen
 > Sales Person und Login-User existiert nicht mehr.
@@ -236,9 +247,6 @@ FK-Konsistenz mit Bookings/Extra Hours zu erhalten.
 > dann auf [D-61-06, D-61-07]. Die 1:1-Garantie tragen seither allein die beiden
 > vollständigen Unique-Indizes `sales_person_person_id_unique_idx` und
 > `user_person_id_unique_idx`.
-| `employee_work_details` (früher `working_hours`) | Arbeitsvertrag mit Zeitraum, Wochenstunden, Urlaub | `id`, `sales_person_id`, `expected_hours`, `from_/to_year/calendar_week/day_of_week`, `workdays_per_week`, `monday`..`sunday`, `vacation_days`, `is_dynamic`, `cap_planned_hours_to_expected`, `committed_voluntary`, `created`, `deleted`, `update_version` |
-| `sales_person_unavailable` | Wiederkehrende Verfügbarkeits-Sperren auf Wochentagsebene | `id`, `sales_person_id`, `year`, `calendar_week`, `day_of_week`, `created`, `deleted` |
-| `sales_person_shiftplan` | M:N Sales-Person ↔ Shiftplan mit Berechtigungslevel | `sales_person_id`, `shiftplan_id`, `permission_level` ∈ {`available`,`planner_only`} |
 
 ### `PersonDao` — Zugriff auf die Identitäts-Elterntabelle (v2.7, Phase 61)
 
@@ -859,6 +867,22 @@ teilen sich `service_impl/src/test/helpers` (Mock-Auth, Time-Fake).
   `verify_user_is_sales_person`. Nachdem der Toggle-Service den
   Full-Bypass hatte, mussten Aggregat-Aufrufer sichergestellt weiter mit
   Full lesen können.
+- **v2.7 (Sept. 2026) — Person-Identität.** *Phase 60* führte die
+  Identitäts-Elterntabelle `person` sowie die nullable Spalten
+  `sales_person.person_id` und `user.person_id` ein, jeweils eindeutig gemacht
+  durch einen **vollständigen** (nicht partiellen) Index, und zog jede
+  bestehende Zeile per Backfill nach — soft-gelöschte Sales Persons
+  eingeschlossen (`20260916000000_create-person-backfill.sql`; nur Schema +
+  Backfill, keine Verhaltensänderung). *Phase 61* löste die
+  1:1-Verknüpfungstabelle auf
+  (`20260917000000_drop-sales-person-user.sql`, nach einem Nachzieh-Backfill
+  und einer Selbst-Assertion), stellte alle lesenden und schreibenden
+  Verknüpfungs-Pfade auf `person_id` um, formte Verknüpfen zu einem **Merge**
+  und Lösen zu einem **Split** mit HTTP 409 bei echter Mehrdeutigkeit und
+  ergänzte den Basic-Tier-`PersonService` (§4.5) als Grundlage für die
+  Personenverwaltung in Phase 62/63. Die Selbst-Zugriffs-Prüfung entscheidet
+  seither im SQL-Join — siehe
+  [`../architecture/04-auth_de.md`](../architecture/04-auth_de.md).
 
 Zusatz-Doku für Endanwender:
 
