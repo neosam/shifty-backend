@@ -370,6 +370,18 @@ does the same inside a method-internal one, and the drop migration caught up
 every pre-existing row [D-61-06]. Anyone writing a third creation path has to
 honour this by hand — the database will not catch the omission.
 
+The same obligation binds **deletion** paths, and `BasicDaoImpl::clear_all` is
+one of them. It is not a creation path — it empties the payload tables wholesale
+— but the `user` rows survive it, so it has to honour the invariant from the
+other side: it deletes exactly those `person` rows that emptying `sales_person`
+leaves without a carrier, and it leaves the persons of the surviving `user` rows
+standing, including the `DEVUSER` and `admin` logins created at startup
+[D-61-01]. Its delete condition is the second half of the invariant above
+verbatim, and word-identical to statement `-- A7)` of the drop migration. The
+only way into `clear_all` is `POST /dev/...`, whose router sits behind
+`#[cfg(feature = "mock_auth")]` and does not exist in a production build — the
+path concerns development and test runs, not production.
+
 ### Scope boundary
 
 - **The 1:1 link table no longer exists.** During Phase 60 it was still there

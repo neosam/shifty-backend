@@ -391,6 +391,19 @@ die DROP-Migration hat jede vorbestehende Zeile nachgezogen [D-61-06]. Wer
 einen dritten Anlage-Pfad schreibt, muss das von Hand einhalten — die
 Datenbank fängt das Versäumnis nicht ab.
 
+Dieselbe Pflicht trifft **Lösch**-Pfade, und `BasicDaoImpl::clear_all` ist einer
+davon. Er ist kein Anlage-Pfad — er leert die Nutzdaten-Tabellen vollständig —,
+aber die `user`-Zeilen überleben ihn, und deshalb muss er die Invariante von der
+anderen Seite einhalten: Er löscht genau die `person`-Zeilen, die durch das
+Leeren von `sales_person` trägerlos werden, und lässt die Personen der
+überlebenden `user`-Zeilen stehen, einschließlich der beim Start angelegten
+Logins `DEVUSER` und `admin` [D-61-01]. Die Löschbedingung ist wörtlich die
+zweite Hälfte der obigen Invariante und wortgleich mit der Anweisung `-- A7)`
+der DROP-Migration. Der einzige Weg in `clear_all` ist `POST /dev/...`; dessen
+Router hängt hinter `#[cfg(feature = "mock_auth")]` und existiert im
+Produktionsbuild nicht — der Pfad betrifft Entwicklungs- und Testbetrieb, nicht
+Produktion.
+
 ### Abgrenzung
 
 - **Die 1:1-Verknüpfungstabelle existiert nicht mehr.** Während Phase 60 war

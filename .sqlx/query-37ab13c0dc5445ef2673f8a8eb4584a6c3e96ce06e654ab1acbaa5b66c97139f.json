@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                DELETE FROM booking;\n                DELETE FROM sales_person_unavailable;\n                DELETE FROM extra_hours;\n                DELETE FROM employee_work_details;\n                DELETE FROM sales_person;\n                DELETE FROM person\n                WHERE NOT EXISTS (SELECT 1 FROM sales_person sp WHERE sp.person_id = person.id)\n                  AND NOT EXISTS (SELECT 1 FROM user u WHERE u.person_id = person.id);\n                DELETE FROM special_day;\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "37ab13c0dc5445ef2673f8a8eb4584a6c3e96ce06e654ab1acbaa5b66c97139f"
+}

@@ -315,12 +315,25 @@ impl BasicDaoImpl {
 #[async_trait]
 impl BasicDao for BasicDaoImpl {
     async fn clear_all(&self) -> Result<(), DaoError> {
-        // `DELETE FROM person;` laeuft NACH `DELETE FROM sales_person;` — sonst
-        // bliebe nach clear_all ein Bestand verwaister person-Zeilen zurueck und
-        // verfaelschte die Zaehlproben nachfolgender Tests. Die frueher hier
-        // gefuehrte 1:1-Verknuepfungstabelle ist mit
-        // `migrations/sqlite/20260917000000_drop-sales-person-user.sql`
-        // aufgeloest; die Kopplung haengt seither allein an `person_id`.
+        // Die `person`-Anweisung loescht ausschliesslich **traegerlose** Zeilen
+        // (Herkunft: Review-Befund CR-02 der Phase 61). Sie laeuft zwingend NACH
+        // `DELETE FROM sales_person;`, denn erst das Leeren von `sales_person`
+        // macht die zugehoerigen Personen traegerlos.
+        //
+        // `user`-Zeilen ueberleben clear_all — auch die beim Start angelegten
+        // Logins (DEVUSER, admin) — und muessen dabei ihre Identitaet behalten
+        // (D-61-01). Ein pauschales `DELETE FROM person;` hinterliesse sie mit
+        // einem Verweis ins Leere, und die Datenbank faengt das NICHT ab:
+        // `user.person_id` traegt keine `FOREIGN KEY`-Deklaration, weil SQLite
+        // bei `ALTER TABLE ... ADD COLUMN` keine setzen kann.
+        //
+        // Die Bedingung ist woertlich die zweite Haelfte der Invariante aus
+        // `docs/architecture/03-data-model.md` — „jede `person`-Zeile hat
+        // mindestens einen Traeger" — und wortgleich mit Anweisung `-- A7)` in
+        // `migrations/sqlite/20260917000000_drop-sales-person-user.sql`. Die
+        // frueher hier gefuehrte 1:1-Verknuepfungstabelle ist mit derselben
+        // Migration aufgeloest; die Kopplung haengt seither allein an
+        // `person_id`.
         query!(
             r"
                 DELETE FROM booking;
@@ -328,7 +341,9 @@ impl BasicDao for BasicDaoImpl {
                 DELETE FROM extra_hours;
                 DELETE FROM employee_work_details;
                 DELETE FROM sales_person;
-                DELETE FROM person;
+                DELETE FROM person
+                WHERE NOT EXISTS (SELECT 1 FROM sales_person sp WHERE sp.person_id = person.id)
+                  AND NOT EXISTS (SELECT 1 FROM user u WHERE u.person_id = person.id);
                 DELETE FROM special_day;
                 "
         )

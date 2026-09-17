@@ -42,13 +42,27 @@
 //!   hat die bereits geschriebene `person`-Zeile mitgenommen
 //!   (`create_user_ist_atomar`). Ohne interne Transaktion bliebe hier eine
 //!   traegerlose Person zurueck oder — schlimmer — ein `user` ohne Identitaet.
+//!
+//! Ergaenzt in Plan 61-08 (Gap-Closure Review-Befund **CR-02**,
+//! `BasicDaoImpl::clear_all`):
+//!
+//! - **N-9** (CR-02 / T-61-29): Nach `clear_all` ist `sales_person` leer, aber
+//!   jede ueberlebende `user`-Zeile traegt weiterhin eine aufloesbare
+//!   `person_id` — die Logins ueberleben das Leeren und behalten ihre
+//!   Identitaet (D-61-01)
+//!   (`clear_all_laesst_keinen_benutzer_ohne_person_zurueck`).
+//! - **N-10** (CR-02, Gegenprobe): Nach `clear_all` bleibt keine `person`-Zeile
+//!   ohne Traeger zurueck — die Person der geleerten Sales Person verschwindet
+//!   mit. Der Test schuetzt davor, dass der Fix in die andere Richtung kippt
+//!   und das Loeschen ersatzlos entfaellt
+//!   (`clear_all_raeumt_traegerlose_personen_auf`).
 
 use std::sync::Arc;
 
 use dao::sales_person::{SalesPersonDao, SalesPersonEntity};
-use dao::{PermissionDao, TransactionDao, UserEntity};
+use dao::{BasicDao, PermissionDao, TransactionDao, UserEntity};
 use dao_impl_sqlite::sales_person::SalesPersonDaoImpl;
-use dao_impl_sqlite::{PermissionDaoImpl, TransactionDaoImpl, TransactionImpl};
+use dao_impl_sqlite::{BasicDaoImpl, PermissionDaoImpl, TransactionDaoImpl, TransactionImpl};
 use uuid::Uuid;
 
 // ─── Harness ────────────────────────────────────────────────────────────────
@@ -356,5 +370,93 @@ async fn create_user_ist_atomar() {
         1,
         count(pool.as_ref(), "SELECT COUNT(*) FROM user").await,
         "der fehlgeschlagene Aufruf darf den Bestand nicht veraendern"
+    );
+}
+
+// ─── N-9 — clear_all laesst keinen Benutzer ohne Person zurueck ─────────────
+
+#[tokio::test]
+async fn clear_all_laesst_keinen_benutzer_ohne_person_zurueck() {
+    let pool = setup_pool().await;
+    PermissionDaoImpl::new(pool.clone())
+        .create_user(&user_entity("alice"), "test-process")
+        .await
+        .expect("create alice");
+
+    // clear_all nimmt KEINE Transaktion und arbeitet direkt auf dem Pool — die
+    // Fixture muss deshalb vorher committet sein, sonst sieht clear_all sie nicht.
+    let tx = tx_of(&pool).await;
+    SalesPersonDaoImpl::new(pool.clone())
+        .create(&sales_person_entity("S1"), "test-process", tx.clone())
+        .await
+        .expect("create sales person");
+    commit(&pool, tx).await;
+
+    BasicDaoImpl::new(pool.clone())
+        .clear_all()
+        .await
+        .expect("clear_all");
+
+    assert_eq!(
+        0,
+        count(pool.as_ref(), "SELECT COUNT(*) FROM sales_person").await,
+        "clear_all muss sales_person weiterhin vollstaendig leeren"
+    );
+
+    let person_id = person_id_of_user(pool.as_ref(), "alice").await.expect(
+        "CR-02: jede user-Zeile traegt eine aufloesbare person_id — auch nach clear_all; \
+         die Datenbank faengt das nicht ab, user.person_id hat keine FOREIGN KEY-Deklaration",
+    );
+    assert_eq!(
+        1,
+        person_row_count(pool.as_ref(), &person_id).await,
+        "CR-02: jede person-Zeile hat mindestens einen Traeger, und umgekehrt muss die \
+         person_id einer ueberlebenden user-Zeile aufloesbar bleiben; ein pauschales \
+         DELETE FROM person hinterlaesst hier einen identitaetslosen Benutzer, und die \
+         Datenbank meldet das nicht, weil user.person_id keine FOREIGN KEY-Deklaration traegt"
+    );
+}
+
+// ─── N-10 — clear_all raeumt traegerlose Personen auf (Gegenprobe zu N-9) ───
+
+#[tokio::test]
+async fn clear_all_raeumt_traegerlose_personen_auf() {
+    let pool = setup_pool().await;
+    PermissionDaoImpl::new(pool.clone())
+        .create_user(&user_entity("alice"), "test-process")
+        .await
+        .expect("create alice");
+
+    // clear_all nimmt KEINE Transaktion und arbeitet direkt auf dem Pool — die
+    // Fixture muss deshalb vorher committet sein, sonst sieht clear_all sie nicht.
+    let tx = tx_of(&pool).await;
+    SalesPersonDaoImpl::new(pool.clone())
+        .create(&sales_person_entity("S1"), "test-process", tx.clone())
+        .await
+        .expect("create sales person");
+    commit(&pool, tx).await;
+
+    BasicDaoImpl::new(pool.clone())
+        .clear_all()
+        .await
+        .expect("clear_all");
+
+    assert_eq!(
+        0,
+        count(
+            pool.as_ref(),
+            "SELECT COUNT(*) FROM person p \
+             WHERE NOT EXISTS (SELECT 1 FROM sales_person sp WHERE sp.person_id = p.id) \
+               AND NOT EXISTS (SELECT 1 FROM user u WHERE u.person_id = p.id)"
+        )
+        .await,
+        "CR-02: jede person-Zeile hat mindestens einen Traeger — die Person der geleerten \
+         Sales Person muss mit verschwinden; die Datenbank faengt das nicht ab"
+    );
+    assert_eq!(
+        count(pool.as_ref(), "SELECT COUNT(*) FROM user").await,
+        count(pool.as_ref(), "SELECT COUNT(*) FROM person").await,
+        "nach clear_all sind die Benutzer die einzigen verbliebenen Traeger: die Person der \
+         Sales Person ist weg, die des Benutzers steht noch"
     );
 }
