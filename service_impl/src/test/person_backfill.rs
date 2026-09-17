@@ -420,10 +420,24 @@ async fn migration_aborts_on_count_mismatch() {
 
     let result = run_backfill_section(pool.as_ref()).await;
 
+    let err = result.expect_err(
+        "D-60-07: die Selbst-Assertion muss den Lauf mit einem Datenbankfehler abbrechen",
+    );
+    // `is_err()` allein wuerde jeden beliebigen Fehler durchwinken — einen
+    // Syntaxfehler, einen umbenannten Marker, der eine halbe Anweisung
+    // ausschneidet, oder eine Constraint-Verletzung aus einem ganz anderen
+    // Block. Der Test soll aber genau die CHECK-Assertion aus Block 4 belegen,
+    // deshalb dieselbe Schaerfe wie bei den beiden Duplikat-Tests weiter unten
+    // (WR-02).
     assert!(
-        result.is_err(),
-        "D-60-07: die Selbst-Assertion muss den Lauf mit einem Datenbankfehler abbrechen, \
-         statt einen halb ausgefuehrten Backfill zu committen — Ergebnis war: {result:?}"
+        matches!(err, sqlx::Error::Database(_)),
+        "D-60-07: die Ablehnung muss von der Datenbank kommen (sqlx::Error::Database) — \
+         Fehler war: {err:?}"
+    );
+    assert!(
+        err.to_string().to_lowercase().contains("check constraint failed"),
+        "D-60-07: der Abbruch muss aus der CHECK-Assertion in Block 4 stammen, nicht aus \
+         einem beliebigen anderen Datenbankfehler — Fehlertext war: {err}"
     );
 }
 
