@@ -129,8 +129,7 @@ FROM (
 WHERE ids.person_id NOT IN (SELECT id FROM person);
 
 -- Block 4 — Selbst-Verifikation (D-60-07). Bricht die Migration (und damit den
--- Server-Start) ab, wenn die Zaehlprobe aus Success Criterion 1 nicht aufgeht:
--- COUNT(person) = COUNT(sales_person) + COUNT(user) - COUNT(sales_person_user).
+-- Server-Start) ab, wenn Success Criterion 1 nach dem Backfill nicht gilt.
 -- SQLite kennt RAISE() nur in Trigger-Programmen; ein Trigger wird hier
 -- ausdruecklich NICHT angelegt (D-60-10). Die Wegwerf-Tabelle mit
 -- CHECK-Constraint ist das Aequivalent einer freistehenden Assertion: schlaegt
@@ -140,13 +139,36 @@ WHERE ids.person_id NOT IN (SELECT id FROM person);
 -- persistenten Datei zurueckbleibt. Dieser Block liegt INNERHALB der Marker,
 -- damit der Apply-twice-Nachweis (D-60-08) auch den zweiten Lauf gegen die
 -- Assertion fahren muss.
-CREATE TEMP TABLE __phase60_backfill_assertion (
+--
+-- IF NOT EXISTS (Plan 60-04 / WR-03): schlaegt der INSERT unten fehl, stoppt
+-- sqlx an dieser Anweisung und das DROP laeuft nie. Die TEMP-Tabelle ist
+-- verbindungslokal und ueberlebt. Ohne den Guard scheitert ein erneuter Lauf auf
+-- derselben Verbindung an "table already exists" und maskiert damit den
+-- eigentlichen Fehler. Die Tabelle ist beim Wiedereintritt immer leer: die
+-- einzige schreibende Anweisung ist der INSERT direkt darunter, und der schreibt
+-- im Fehlerfall nichts.
+CREATE TEMP TABLE IF NOT EXISTS __phase60_backfill_assertion (
     ok INTEGER NOT NULL CHECK (ok = 1)
 );
 
+-- Geprueft werden DREI Bedingungen. Die Zaehlarithmetik allein reicht nicht
+-- (Plan 60-04 / CR-01): zeigt eine sales_person_user-Zeile auf eine nicht
+-- aufloesbare sales_person, dann ueberspringt Block 3b den Benutzer und Block 3d
+-- schreibt ihm per korrelierter Subquery NULL — die Zaehlprobe geht mit
+-- 1 == 1 + 1 - 1 trotzdem auf, und ein user ohne Identitaet committet lautlos.
+-- Die Zaehlprobe ist fuer "jede Zeile hat eine Identitaet" also weder notwendig
+-- noch hinreichend; sie bleibt als Deduplizierungs-Nachweis fuer Block 3e stehen,
+-- die Deckungspruefung kommt separat dazu.
+--
+-- Der so erkannte Datenzustand ist ueber die Applikation nicht erzeugbar: sqlx
+-- setzt PRAGMA foreign_keys = ON auf jeder Verbindung
+-- (sqlx-sqlite/src/options/mod.rs), und sales_person wird nur soft-geloescht.
+-- Die Pruefung ist Haertung, kein Schutz vor einem bekannten Produktionspfad.
 INSERT INTO __phase60_backfill_assertion (ok)
 SELECT CASE
-    WHEN (SELECT COUNT(*) FROM person)
+    WHEN (SELECT COUNT(*) FROM sales_person WHERE person_id IS NULL) = 0
+     AND (SELECT COUNT(*) FROM user WHERE person_id IS NULL) = 0
+     AND (SELECT COUNT(*) FROM person)
        = (SELECT COUNT(*) FROM sales_person)
        + (SELECT COUNT(*) FROM user)
        - (SELECT COUNT(*) FROM sales_person_user)
