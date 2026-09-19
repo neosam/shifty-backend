@@ -5,8 +5,8 @@ milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 62
 current_phase_name: Personen-Verzeichnis — eine Liste statt Tabs
 status: complete
-stopped_at: Phase 61 verified and closed (10/10 Plaene, VERIFICATION passed)
-last_updated: "2026-09-17T11:20:02.613Z"
+stopped_at: Phase 62 context gathered
+last_updated: "2026-09-19T13:28:28.058Z"
 last_activity: 2026-09-17
 last_activity_desc: Phase 61 complete, transitioned to Phase 62
 progress:
@@ -300,9 +300,9 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-09-17T10:59:03.626Z
-**Stopped at:** Completed 61-09-PLAN.md
-**Resume file:** None
+**Last session:** 2026-09-19T13:28:28.038Z
+**Stopped at:** Phase 62 context gathered
+**Resume file:** .planning/phases/62-personen-verzeichnis-eine-liste-statt-tabs/62-CONTEXT.md
 
 **To resume work in a new session:**
 
