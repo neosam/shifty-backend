@@ -21,11 +21,20 @@ created: 2026-09-19
 | **Framework** | `cargo test` (Rust `#[test]` / `#[tokio::test]`); Frontend über `dioxus_ssr`-Rendertests im selben Runner |
 | **Config file** | none — Workspace-`Cargo.toml` genügt |
 | **Quick run command** | `nix develop --command bash -c 'SQLX_OFFLINE=true cargo test -p <crate> <modulpfad>'` |
-| **Full suite command** | `nix develop --command bash -c 'SQLX_OFFLINE=true cargo test --workspace'` **und** `nix develop --command bash -c 'SQLX_OFFLINE=true cargo clippy --workspace -- -D warnings'` |
+| **Full suite command** | Backend: `nix develop --command bash -c 'SQLX_OFFLINE=true cargo test --workspace'` + `nix develop --command bash -c 'SQLX_OFFLINE=true cargo clippy --workspace -- -D warnings'`<br>Frontend: `nix develop --command bash -c 'cd shifty-dioxus && cargo test'` + `nix develop --command bash -c 'cd shifty-dioxus && cargo clippy -- -D warnings'` |
 | **Estimated runtime** | ~180 s (Workspace-Test) + ~120 s (Clippy, kalt deutlich länger) |
 
 > **Clippy ist ein eigenständiges Hard-Gate.** `cargo test` führt Clippy NICHT
 > mit aus. Jede Wave-Merge- und Phase-Gate-Prüfung muss Clippy separat fahren.
+>
+> **`shifty-dioxus` liegt NICHT im Cargo-Workspace** (`exclude = ["shifty-dioxus"]` in der
+> Root-`Cargo.toml`) und hat kein Lib-Target. `cargo test -p shifty-dioxus --lib` funktioniert
+> nicht, und `cargo test --workspace` erfasst das Frontend gar nicht. Frontend-Tests laufen
+> ausschliesslich ueber `cd shifty-dioxus && cargo test ...`.
+>
+> **`cargo sqlx prepare --workspace`** ist Pflicht, sobald sich eine `sqlx::query*!`-Query aendert
+> (`docs/arc42/02-architecture-constraints.md`). Ohne aktualisierten `.sqlx/`-Cache bricht jeder
+> `SQLX_OFFLINE=true`-Build an den neuen Queries und am geaenderten WR-02-Statement.
 >
 > **Toolchain:** weder `cargo` noch `node` liegen im Default-PATH.
 > `cargo`/`clippy`/`sqlx` nur über `nix develop --command bash -c '<cmd>'` mit
@@ -54,13 +63,13 @@ Requirement-seitige Vertrag, den die Pläne abdecken müssen.
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
 | TBD | TBD | TBD | PADM-01 | — | N/A | unit | `cargo test -p service_impl --lib test::person_directory::liste_enthaelt_alle_drei_auspraegungen -- --exact` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | PADM-01 | — | N/A | unit (SSR) | `cargo test -p shifty-dioxus --lib page::user_management::tests::directory_search_matches_both_names -- --exact` | ❌ W0 | ⬜ pending |
+| TBD | TBD | TBD | PADM-01 | — | N/A | unit (SSR) | `cd shifty-dioxus && cargo test page::user_management::tests::directory_search_matches_both_names -- --exact` | ❌ W0 | ⬜ pending |
 | TBD | TBD | TBD | PADM-06 | — | N/A | unit | `cargo test -p service_impl --lib test::person_directory::display_name_reines_benutzerkonto_ist_username -- --exact` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | PADM-06 | T-62-03 | Kein Namens-Fallback im Frontend (Fat Backend, Thin Client) | grep-Artefakt | `grep -n "unwrap_or\|\.or(" shifty-dioxus/src/page/user_management.rs` — kein Treffer im Namenskontext | n/a | ⬜ pending |
-| TBD | TBD | TBD | PADM-08 | T-62-01 | HR ohne Admin-Rolle bekommt 403 vom Aggregat-Endpoint | integration (`tower::oneshot`) | `cargo test -p shifty_bin --bin shifty_bin person_directory::hr_ohne_admin_bekommt_403 -- --exact` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | PADM-08 | T-62-01 | Admin bekommt 200 mit Daten | integration (`tower::oneshot`) | `cargo test -p shifty_bin --bin shifty_bin person_directory::admin_bekommt_200 -- --exact` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | PADM-08 | T-62-02 | Component-Guard blockiert Nicht-Admin bei direktem Routenaufruf (Defense-in-Depth) | unit (SSR) | `cargo test -p shifty-dioxus --lib page::user_management::tests::non_admin_sees_not_authorized -- --exact` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | SC-5 | — | N/A | unit (Store) | `cargo test -p shifty-dioxus --lib service::user_management::tests::load_directory_ist_ein_request -- --exact` | ❌ W0 | ⬜ pending |
+| TBD | TBD | TBD | PADM-06 | T-62-03 | Kein Namens-Fallback im Frontend (Fat Backend, Thin Client) | grep-Artefakt | `grep -n 'display_name\|username' shifty-dioxus/src/page/user_management.rs \| grep -c 'unwrap_or\|\.or('` → `0` | n/a | ⬜ pending |
+| TBD | TBD | TBD | PADM-08 | T-62-01 | HR ohne Admin-Rolle bekommt 403 vom Aggregat-Endpoint | integration (`tower::oneshot`) | `cargo test -p shifty_bin --bin shifty_bin integration_test::person_directory::hr_ohne_admin_bekommt_403 -- --exact` | ❌ W0 | ⬜ pending |
+| TBD | TBD | TBD | PADM-08 | T-62-01 | Admin bekommt 200 mit Daten | integration (`tower::oneshot`) | `cargo test -p shifty_bin --bin shifty_bin integration_test::person_directory::admin_bekommt_200 -- --exact` | ❌ W0 | ⬜ pending |
+| TBD | TBD | TBD | PADM-08 | T-62-02 | Component-Guard blockiert Nicht-Admin bei direktem Routenaufruf (Defense-in-Depth) | unit (SSR) | `cd shifty-dioxus && cargo test page::user_management::tests::non_admin_sees_not_authorized -- --exact` | ❌ W0 | ⬜ pending |
+| TBD | TBD | TBD | SC-5 | — | N/A | unit (Store) | `cd shifty-dioxus && cargo test service::user_management::tests::load_directory_ist_ein_request -- --exact` | ❌ W0 | ⬜ pending |
 | TBD | TBD | TBD | D-62-05 / WR-02 | T-62-04 | Soft-Delete-Filter in der `ON`-Klausel, nicht in `WHERE` — Benutzer mit nur soft-gelöschter Sales Person bleibt Kandidat | unit | `cargo test -p service_impl --lib test::person_candidates::user_mit_nur_soft_geloeschter_sales_person_ist_kandidat -- --exact` | ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
