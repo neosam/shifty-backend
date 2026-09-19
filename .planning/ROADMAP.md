@@ -447,7 +447,28 @@ Entitäten — kein Neuschnitt nötig), `shifty-dioxus/Dioxus.toml`, i18n de/en/
 
 **UI hint**: yes
 
-**Plans:** TBD
+**Plans:** 7 plans
+
+Plans:
+
+**Wave 1**
+
+- [ ] 62-01-PLAN.md — DAO-Schicht: WR-02-Soft-Delete-Fix in der `ON`-Klausel (D-62-05) plus neues `PersonDirectoryDao` mit Drei-Wege-Outer-Join und Rollen-Bulk-Query
+- [ ] 62-02-PLAN.md — Transport-DTO `PersonEntryTO`/`PersonKindTO` (D-62-01/D-62-03) und sechs neue i18n-Keys in de/en/cs
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 62-03-PLAN.md — Business-Logic-Service `PersonDirectoryService`: Admin-Gate (D-62-08), Ausprägungs-Klassifikation, `display_name`-Ableitung, Sortierung, TO-Mapping
+- [ ] 62-04-PLAN.md — Frontend: Aggregat-Datenpfad statt N+1, `PersonKindBadge`, eine Liste statt Tabs, Component-Level-Admin-Guard, Tab-Leiste entfernt
+
+**Wave 3** *(blocked on Wave 2)*
+
+- [ ] 62-05-PLAN.md — REST-Endpoint `GET /person-directory`, OpenAPI, DI nach dem Basic-Block, `Dioxus.toml`-Proxy im selben Commit, Integrationstests Admin→200 / HR-ohne-Admin→403
+
+**Wave 4** *(blocked on Wave 3)*
+
+- [ ] 62-06-PLAN.md — Docs-Freshness-Gate: `F01-employee-management` und `02-service-tiers` je EN + DE, `diagrams/service-graph-runtime.mmd`
+- [ ] 62-07-PLAN.md — Phasen-Verifikation: `dx serve`-Proxy-Smoke, Ein-Request-Nachweis, Fat-Backend-Grep-Artefakt, visueller Checkpoint
 
 ---
 
@@ -606,7 +627,7 @@ als unsicher).
 |-------|----------------|--------|-----------|
 | 60. Person-Datenmodell + Backfill | 0/? | Not started | — |
 | 61. PersonService + Auflösung `sales_person_user` | 10/10 | Complete | 2026-09-17 |
-| 62. Personen-Verzeichnis — eine Liste statt Tabs | 0/? | Not started | — |
+| 62. Personen-Verzeichnis — eine Liste statt Tabs | 0/7 | Planned | — |
 | 63. Personen-Detailansicht + Ausprägungs-Aktionen | 0/? | Not started | — |
 | 64. Planungs-Soll für dynamische Verträge | 0/? | Not started | — |
 
