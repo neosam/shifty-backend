@@ -4,16 +4,16 @@ milestone: v2.7
 milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 62
 current_phase_name: Personen-Verzeichnis — eine Liste statt Tabs
-status: complete
-stopped_at: Phase 62 context gathered
-last_updated: "2026-09-19T13:28:28.058Z"
-last_activity: 2026-09-17
-last_activity_desc: Phase 61 complete, transitioned to Phase 62
+status: Ready to execute
+stopped_at: Phase 62 geplant (7 Pläne, 4 Wellen)
+last_updated: "2026-09-19T14:18:19.116Z"
+last_activity: 2026-09-19
+last_activity_desc: Phase 62 geplant — 7 Pläne in 4 Wellen, alle Gates grün
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 13
-  completed_plans: 14
+  total_plans: 20
+  completed_plans: 13
   percent: 40
 ---
 
@@ -28,20 +28,25 @@ progress:
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
 - **Last shipped/closed**: **v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter** (shipped 2026-07-31, deployed; Planungs-Archiv 2026-09-15; Phasen 54, 54.5, 55, 56, 57 — 29 Pläne, 19/19 Requirements, Audit `passed`, `override_closeout`)
 - **Current milestone**: **v2.7 Personenverwaltung & Planungs-Soll** (in Arbeit; Roadmap erstellt 2026-09-16, Phasen 60–64; 1/5 Phasen abgeschlossen).
-- **Current focus**: Phase 61 in Ausführung — Pläne 61-01 bis 61-05 fertig (PersonService, `person_id`-Vergabe bei Neuanlage, Self-Gate auf `person_id`-Joins, Merge/Split der Person-Zuordnung mit 409, Auflösung der Verknüpfungstabelle). Pläne 61-06 (Doku-Nachzug), 61-07 (Gap Closure CR-01 + WR-05), 61-08 (Gap Closure CR-02) und 61-09 (Gap Closure WR-04) ebenfalls fertig. Nächster Schritt: Plan 61-10 (WR-06). Offen bis zum Deploy: CR-02 Pre-Flight-Query (siehe **v2.7 Deploy-Gates**). Die zwei ausgearbeiteten Entwürfe **Phase 58** (Werktags-Stundenverteilung, Snapshot-Bump 13→14) und **Phase 59** (E2E-Playwright) bleiben bewusst außerhalb von v2.7; ihre Nummern sind reserviert.
+- **Current focus**: **Phase 62 geplant, bereit zur Ausführung** — 7 Pläne in 4 Wellen (`/gsd-execute-phase 62`). Phase 61 ist abgeschlossen; ihre Gap-Closure-Wellen 61-07 bis 61-10 haben CR-01, CR-02, WR-04, WR-05 und WR-06 geschlossen. Offen bis zum Deploy: CR-02 Pre-Flight-Query (siehe **v2.7 Deploy-Gates**). WR-02 wird in Phase 62 mitgefixt (D-62-05). Die zwei ausgearbeiteten Entwürfe **Phase 58** (Werktags-Stundenverteilung, Snapshot-Bump 13→14) und **Phase 59** (E2E-Playwright) bleiben bewusst außerhalb von v2.7; ihre Nummern sind reserviert.
 - **Snapshot-Schema-Version**: aktuell **13** (Bump 12→13 in Phase 57, D-57-10). **v2.7 bumpt nicht** — `person` ist rein administrativ, das Planungs-Soll ein reines Anzeigefeld. Phase 58 (nicht in v2.7) würde auf 14 heben.
 
 ## Current Position
 
 Phase: 62 — Personen-Verzeichnis — eine Liste statt Tabs
-Plan: Not started
-Status: Gap-Closure-Wellen abgeschlossen (61-07 bis 61-10 haben die Review-Befunde CR-01, CR-02, WR-04, WR-05, WR-06 geschlossen)
-Code-Review 61-REVIEW.md: 2 critical, 7 warning, 7 info. CR-01 + WR-05 sind mit 61-07,
-CR-02 mit 61-08, WR-04 mit 61-09 und WR-06 mit 61-10 geschlossen; CR-02 (Pre-Flight-Query) bleibt Deploy-Gate, siehe **v2.7 Deploy-Gates** unten.
-Weiterhin aufgeschoben: WR-02 (Phase 62), WR-01, WR-03, WR-07 und IN-01..IN-07 (Backlog).
-Last activity: 2026-09-17 — Phase 61 complete, transitioned to Phase 62
-Next: Phase 61 verifizieren (`/gsd-verify-work`), danach Phase 62
-Resume file: None
+Plan: 0/7 — geplant, noch nicht ausgeführt
+Status: Ready to execute. Planungs-Artefakte vollständig: CONTEXT, RESEARCH, PATTERNS,
+UI-SPEC (6/6 Dimensionen approved), VALIDATION, 7 PLAN.md in 4 Wellen.
+Gates: plan-checker PASSED · Requirements 3/3 (PADM-01, PADM-06, PADM-08) ·
+Decisions 8/8 (D-62-01..08) · UI-Gate entsperrt.
+Wellen: 1) 62-01 DAO (WR-02-Fix + `PersonDirectoryDao`) ∥ 62-02 DTO + i18n ·
+2) 62-03 Business-Logic-Service + Admin-Gate ∥ 62-04 Frontend-Umbau ·
+3) 62-05 REST + DI + `Dioxus.toml`-Proxy · 4) 62-06 Docs-Gate (EN+DE) ∥ 62-07 Laufzeit-Verifikation.
+Aus Phase 61 offen: CR-02 (Pre-Flight-Query) bleibt Deploy-Gate, siehe **v2.7 Deploy-Gates** unten.
+WR-02 wird in Phase 62 geschlossen (D-62-05, Plan 62-01); WR-01, WR-03, WR-07 und IN-01..IN-07 bleiben Backlog.
+Last activity: 2026-09-19 — Phase 62 geplant (7 Pläne, 4 Wellen)
+Next: `/gsd-execute-phase 62`
+Resume file: .planning/phases/62-personen-verzeichnis-eine-liste-statt-tabs/62-01-PLAN.md
 
 ## Quick Tasks Completed
 
@@ -300,9 +305,9 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-09-19T13:28:28.038Z
-**Stopped at:** Phase 62 context gathered
-**Resume file:** .planning/phases/62-personen-verzeichnis-eine-liste-statt-tabs/62-CONTEXT.md
+**Last session:** 2026-09-19T14:18:19.106Z
+**Stopped at:** Phase 62 UI-SPEC approved
+**Resume file:** .planning/phases/62-personen-verzeichnis-eine-liste-statt-tabs/62-UI-SPEC.md
 
 **To resume work in a new session:**
 
