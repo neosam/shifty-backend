@@ -146,6 +146,64 @@ darf damit anfangen — eine soft-gelöschte Sales Person behält den
 Selbstzugriff auf ihre eigene Historie
 (`soft_geloeschte_sales_person_behaelt_selbstzugriff`).
 
+## Benutzer-Schreibpfade auf der geteilten Transaktion (v2.7, Phase 63)
+
+Das Anlegen und Löschen eines Login-Benutzers ist mit Phase 63
+**komponierbar** geworden. Beide Schreibpfade sind vom Pool auf die vom
+Aufrufer übergebene Transaktion gewandert:
+
+```rust
+// dao/src/permission.rs
+type Transaction: crate::Transaction;
+
+async fn create_user(&self, user: &UserEntity, person_id: Option<Uuid>,
+                     process: &str, tx: Self::Transaction) -> Result<(), DaoError>;
+async fn delete_user(&self, username: &str, tx: Self::Transaction) -> Result<(), DaoError>;
+```
+
+Zwei Dinge haben sich geändert, und eines bewusst nicht.
+
+**1. Die Transaktion ist jetzt Parameter, kein internes Detail.** Vorher
+öffnete `create_user` eine methoden-interne `pool.begin()`-Transaktion, und
+`delete_user` schrieb direkt auf den Pool — beides für den aufrufenden Service
+unsichtbar und von außen nicht rückrollbar. Die Personenverwaltung braucht den
+Benutzer-Schreibvorgang in *derselben* Transaktion wie den
+Sales-Person-Schreibvorgang (damit „danach existieren genau die gewählten
+Objekte" gelten kann) und in derselben Transaktion wie das Aufräumen der
+Person, die gerade ihren letzten Träger verloren hat. Über Commit und Rollback
+entscheidet jetzt der Aufrufer. Siehe
+[`05-transactions_de.md`](./05-transactions_de.md).
+
+**2. `create_user` kann eine bestehende Person-Identität übernehmen.**
+`person_id: None` behält das alte Verhalten — es wird eine frische
+`person`-Zeile miterzeugt [D-61-01]. `person_id: Some(id)` hängt den Benutzer
+an die **bestehende** Person und legt keine zweite Zeile an. Genau das
+ermöglicht es, dass ein Dialog Benutzer *und* Sales Person auf derselben
+Identität anlegt.
+
+**3. Was sich nicht geändert hat: die Oberfläche von `PermissionService`.**
+Das Service-Trait führt **keinen** `Transaction`-Assoziationstyp und
+**keinen** `tx`-Parameter — und darf auch keinen bekommen. Rund zwanzig
+Services führen `PermissionService` als Dependency; ein Assoziationstyp dort
+wäre ein workspace-weiter Ripple ohne Gegenwert, und jeder dieser Services
+müsste einen Transaktionstyp benennen, den er nicht benutzt. Der
+Assoziationstyp sitzt deshalb eine Ebene tiefer, auf `dao::PermissionDao`.
+`PermissionServiceImpl` hat eine dritte Dependency bekommen
+(`TransactionDao`), um sich selbst eine Transaktion zu holen und sie am Ende
+von `create_user` / `delete_user` zu committen; von außen verhält sich der
+Service exakt wie vorher, und das Admin-Gate ist weiterhin seine erste
+Anweisung.
+
+**Dokumentierte Einschränkung — einen Benutzer mit offener Sitzung löschen.**
+`session.user_id` ist die einzige auf `user(name)` zeigende
+Fremdschlüssel-Beziehung **ohne** Kaskade (Migration
+`20241116224840_add-session.sql`). Rollen und offene Einladungen nimmt ihre
+jeweilige Kaskade mit; eine offene Sitzung nicht. Einen solchen Benutzer zu
+löschen läuft deshalb in einen Fremdschlüssel-Fehler und kommt am Endpoint als
+generischer **500** heraus statt als sprechende Ablehnung. Bekannt,
+vorbestehend und innerhalb von Phase 63 bewusst nicht gefixt — ein Fix ist
+eine Schema-Änderung und gehört in einen eigenen Vorgang.
+
 ## Session-Management
 
 - **Session-Tabelle:** Migration `20241116224840_add-session.sql`,

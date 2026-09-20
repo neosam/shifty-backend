@@ -194,21 +194,31 @@ person ─┬─ 0..1 ─ user          (user.person_id — nullable, UNIQUE)
   in SQL and which regression guards lock it — in
   [`../architecture/04-auth.md` §Self-access gate for sales-person data](../architecture/04-auth.md#self-access-gate-for-sales-person-data).
   Guarded by `service_impl/src/test/person_self_gate.rs`.
-- **Login auto-creation assigns `person_id`** (v2.7, Phase 61 [D-61-01]).
-  `PermissionDaoImpl::create_user` (`dao_impl_sqlite/src/lib.rs`) opens a
-  **method-internal** transaction (`self.pool.begin()`), inserts the `person`
-  row first and the `user` row carrying its ID second, then commits. The trait
-  signature `create_user(&self, user: &UserEntity, process: &str)` is
-  unchanged — the transaction is an internal detail, not a new parameter, and
-  both callers (`PermissionServiceImpl::create_user`,
-  `UserInvitationServiceImpl`) stay untouched.
-  **Why internal rather than two pool statements:** two independent statements
-  would not be atomic. An abort in between would leave either an orphan
-  `person` row or — considerably worse — a `user` **without** an identity, and
-  the latter drops out of the person-based self-access check. Evidence:
+- **Login auto-creation assigns `person_id`** (v2.7, Phase 61 [D-61-01],
+  signature reworked in Phase 63). `PermissionDaoImpl::create_user`
+  (`dao_impl_sqlite/src/lib.rs`) inserts the `person` row first and the `user`
+  row carrying its ID second — in **one** transaction, so that an abort in
+  between can leave neither an orphan `person` row nor, considerably worse, a
+  `user` **without** an identity (the latter would drop out of the
+  person-based self-access check). Evidence:
   `service_impl::test::person_creation::create_user_ist_atomar` (a second
   `create_user` with the same name fails on the primary key and the `person`
   count stays unchanged).
+  **Since v2.7 Phase 63 that transaction is a parameter, not an internal
+  detail:**
+
+  ```rust
+  async fn create_user(&self, user: &UserEntity, person_id: Option<Uuid>,
+                       process: &str, tx: Self::Transaction) -> Result<(), DaoError>;
+  ```
+
+  The caller decides about commit and rollback, and `person_id` decides about
+  the identity: `None` creates a fresh `person` row as before, `Some(id)`
+  hangs the user onto an **existing** person without creating a second row —
+  the prerequisite for one dialog creating a user *and* a sales person on the
+  same identity (see [F01 §4.7](./F01-employee-management.md)). The surface of
+  `PermissionService` stayed unchanged; details in §4.6 and in
+  [`../architecture/04-auth.md`](../architecture/04-auth.md).
   The 16-byte ID is generated in Rust (`Uuid::new_v4()`); reading back the
   SQLite row number would be wrong because `person.id` is a `blob(16) PRIMARY
   KEY`, not a rowid alias. No Sales Person is created alongside [D-60-03].
@@ -337,16 +347,35 @@ Context to the concrete username.
 
 ### 4.6 TX behavior
 
-Neither `PermissionService` nor `SessionService` uses `Transaction`
-parameters. All ops are single-statement DAO calls; the transactional
-consistency of roles/privileges is not critical, because changes are
-rare and atomic per SQL statement. Impersonate is an `UPDATE`, not
-atomic with further ops.
+Neither `PermissionService` nor `SessionService` exposes `Transaction`
+parameters, and `PermissionService` deliberately carries **no** `Transaction`
+associated type either — roughly twenty services hold it as a dependency, so
+one there would be a workspace-wide ripple without benefit. Most ops are
+single-statement DAO calls; the transactional consistency of roles/privileges
+is not critical, because changes are rare and atomic per SQL statement.
+Impersonate is an `UPDATE`, not atomic with further ops.
+
+**Exception on the DAO layer (v2.7, Phase 63).** `dao::PermissionDao` *does*
+carry a `Transaction` associated type, used by exactly two methods:
+`create_user` and `delete_user` both take `Self::Transaction`. They are the
+two write paths the person administration orchestrates, and they have to sit
+in the same transaction as a sales-person write or the cleanup of a
+carrier-less `person` row. All other `PermissionDao` methods keep working on
+the pool — the trait is deliberately mixed, not half-refactored. To keep its
+own surface unchanged, `PermissionServiceImpl` opens and commits a transaction
+of its own around the two calls. Full rationale in
+[`../architecture/05-transactions.md`](../architecture/05-transactions.md).
+
+**Known limitation:** `session.user_id` is the only FK onto `user(name)`
+without a cascade, so deleting a user with an open session surfaces as a
+generic 500 — see [`../architecture/04-auth.md`](../architecture/04-auth.md).
 
 ### 4.7 Dependencies
 
-- **`PermissionServiceImpl`** (`service_impl/src/permission.rs:10-15`):
-  `PermissionDao`, `UserService`. Basic service — no domain services.
+- **`PermissionServiceImpl`** (`service_impl/src/permission.rs`):
+  `PermissionDao`, `UserService`, and since v2.7 Phase 63 also
+  `TransactionDao` (to open and commit the transaction that the two DAO write
+  paths now demand, §4.6). Basic service — no domain services.
 - **`SessionServiceImpl`** (`service_impl/src/session.rs:14-20`):
   `SessionDao`, `UuidService`, `ClockService`. Basic service.
 - **`UserServiceImpl`** (`service_impl/src/lib.rs:54`): no deps.
@@ -431,10 +460,13 @@ the layer order and is relevant when refactoring the stack.
 - **Pages:** `shifty-dioxus/src/page/not_authenticated.rs` (24 lines —
   welcome screen with a link to `/authenticate`, reached only in the
   OIDC build, because in mock mode `context_extractor` immediately
-  creates a `DEVUSER`); `user_management.rs` (878 lines — tab layout
-  Users/SalesPersons, add/delete user dialogs, "Work as …" button for
-  Impersonation from line 42); `user_details.rs` (333 lines — role
-  assignment + invitation list).
+  creates a `DEVUSER`); `user_management.rs` (845 lines — since v2.7 Phase 62
+  the single person directory instead of the former Users/SalesPersons tabs,
+  with the "Work as …" button for Impersonation from line 42);
+  `person_detail.rs` (v2.7 Phase 63 — the single detail page, including role
+  assignment and invitation list). The former `user_details.rs` and
+  `sales_person_details.rs` were removed in Phase 63 [D-63-04]; their role and
+  invitation panels live on in `person_detail.rs`.
 - **Auth guard:** `shifty-dioxus/src/auth.rs` (24 lines) — `<Auth>`
   component with `authenticated`/`unauthenticated` slots, chosen based
   on `AUTH.auth_info` and `loading_done`. While loading, it shows

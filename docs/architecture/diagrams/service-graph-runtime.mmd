@@ -67,6 +67,7 @@ graph TD
         RebookingReconciliation[Rebooking Reconciliation Service<br/>Phase 55, v2.6]
         VoluntaryRebookingScheduler[Voluntary Rebooking Scheduler<br/>Phase 56, v2.6]
         PersonDirectory[Person Directory Service<br/>Phase 62, v2.7]
+        PersonDetail[Person Detail Service<br/>Phase 63, v2.7]
     end
 
     %% Infrastructure edges (session)
@@ -198,14 +199,17 @@ graph TD
     %% Person Service (Phase 61 — Basic-Tier, keine Domain-Service-Dependency).
     %% Deps sind ausschliesslich PersonDao + PermissionService + ClockService +
     %% UuidService + TransactionDao; die sind nach der Konvention oben
-    %% ausgeblendet, deshalb hat der Knoten bewusst KEINE Kante. Insbesondere
-    %% gibt es KEINE Kante zu oder von SalesPerson — genau deren Abwesenheit
-    %% ist die Tier-Eigenschaft: eine Domain-Service-Dependency wuerde ueber
-    %% PermissionService einen DI-Zyklus schliessen. Phase 62 hat den ersten
-    %% Konsument-Kontext gebracht, aber NICHT als Kante: das Verzeichnis steht
-    %% als eigener Business-Logic-Knoten (PersonDirectory) daneben und liest
-    %% ueber einen eigenen DAO. Der Basic-Service blieb dabei unveraendert —
-    %% gleiche Deps, gleiches HR-Gate.
+    %% ausgeblendet, deshalb hat der Knoten bewusst KEINE AUSGEHENDE Kante.
+    %% Insbesondere gibt es KEINE Kante von Person zu SalesPerson — genau
+    %% deren Abwesenheit ist die Tier-Eigenschaft: eine
+    %% Domain-Service-Dependency wuerde ueber PermissionService einen
+    %% DI-Zyklus schliessen. Phase 62 hat den ersten Konsument-Kontext
+    %% gebracht, aber NICHT als Kante: das Verzeichnis steht als eigener
+    %% Business-Logic-Knoten (PersonDirectory) daneben und liest ueber einen
+    %% eigenen DAO. Phase 63 bringt die erste EINGEHENDE Kante
+    %% (PersonDetail --> Person, siehe unten) — die Richtung ist die erlaubte:
+    %% Business-Logic konsumiert Basic, nie umgekehrt. Der Basic-Service
+    %% blieb dabei unveraendert — gleiche Deps, gleiches HR-Gate.
 
     %% Rebooking Reconciliation Service (Phase 55 — BL-Tier, F3/F5 write
     %% orchestrator; single pair-write-path shared by F3 + F5-approve)
@@ -232,3 +236,16 @@ graph TD
     %% ueber sie hinweg die PersonKind-Invariante. Siehe 02-service-tiers.md
     %% §Rules Nr. 3 (Klarstellung zur Faustregel). Konstruiert in main.rs nach
     %% dem Basic-Block, direkt im Anschluss an voluntary_stats_service.
+
+    %% Person Detail Service (Phase 63 — BL-Tier, Aggregat hinter der einen
+    %% Personen-Detailseite und ihren Ausprägungs-Aktionen). Acht Deps laut
+    %% gen_service_impl!-Block; gezeichnet sind nur die zwei Domain-Service-
+    %% Kanten. Die uebrigen sechs (PersonDirectoryDao, PersonDao,
+    %% PermissionDao, SalesPersonDao, PermissionService, TransactionDao) sind
+    %% nach der Kopf-Konvention ausgeblendet. Keine Gegenkante: weder
+    %% PersonService noch SalesPerson kennt dieses Aggregat, und kein anderer
+    %% Service konsumiert es — es haengt ausschliesslich an den REST-Handlern.
+    %% Konstruiert in main.rs strikt NACH dem Basic-Block, im
+    %% Business-Logic-Abschnitt direkt hinter person_directory_service.
+    PersonDetail --> Person
+    PersonDetail --> SalesPerson

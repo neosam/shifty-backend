@@ -113,6 +113,32 @@ Cross-Entity-Invarianten:
   insbesondere strikt nach `PersonService`, direkt im Anschluss an
   `voluntary_stats_service`. Siehe Feature
   [F01](../features/F01-employee-management_de.md) §4.6.
+- `PersonDetailService` — das Aggregat hinter der einen
+  Personen-Detailseite und ihren Ausprägungs-Aktionen (v2.7 Phase 63).
+  Deps: `PersonDirectoryDao`, `PersonDao`, `PermissionDao`,
+  `SalesPersonDao`, `PersonService`, `SalesPersonService`,
+  `PermissionService`, `TransactionDao` — **acht**, und zwei davon sind
+  Basic-Services. Zweifelsfrei Business-Logic: er orchestriert über zwei
+  Fach-Objekte hinweg (Sales Person und Benutzerkonto) und pflegt mit dem
+  Ausprägungs-Lebenszyklus eine Cross-Entity-Invariante — Anlegen,
+  Zuschalten, Entfernen einer Seite, plus dem Abbau der trägerlos
+  gewordenen Person [D-63-01].
+  **Warum zwei Basic-Service-Deps keinen Zyklus schließen:** die
+  Tier-Konvention erlaubt der Business-Logic-Schicht ausdrücklich, Basic-
+  Services zu konsumieren; verboten ist nur die Gegenrichtung.
+  `PersonService` und `SalesPersonService` sind beide Entity-Manager (nur
+  DAO + Permission + Clock + Uuid + Transaction) und kennen dieses Aggregat
+  nicht — es gibt also keine Kante zurück. Auch sonst konsumiert es kein
+  Service; es hängt ausschließlich an den REST-Handlern.
+  Alle sieben Methoden sind auf das Literal `"admin"` gegated, als erste
+  Anweisung, und damit bewusst **strenger** als die HR-Gates der
+  darunterliegenden Basic-Services; der Service ruft diese intern deshalb mit
+  `Authentication::Full` auf — erreichbar erst nach dem eigenen Gate.
+  DI-konstruiert in `shifty_bin/src/main.rs` **nach** dem Basic-Block —
+  insbesondere strikt nach `person_service`, `sales_person_service` und
+  `permission_service` — im Business-Logic-Abschnitt direkt hinter
+  `person_directory_service`. Siehe Feature
+  [F01](../features/F01-employee-management_de.md) §4.7.
 
 ## Regeln
 

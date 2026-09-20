@@ -144,6 +144,58 @@ Note that **none** of the four paths filters `deleted IS NULL`, and none may
 start to: a soft-deleted sales person keeps self-access to their own history
 (`soft_geloeschte_sales_person_behaelt_selbstzugriff`).
 
+## User write paths on the shared transaction (v2.7, Phase 63)
+
+Creating and deleting a login user became **composable** in Phase 63. Both
+write paths moved from the pool onto the transaction handed in by the caller:
+
+```rust
+// dao/src/permission.rs
+type Transaction: crate::Transaction;
+
+async fn create_user(&self, user: &UserEntity, person_id: Option<Uuid>,
+                     process: &str, tx: Self::Transaction) -> Result<(), DaoError>;
+async fn delete_user(&self, username: &str, tx: Self::Transaction) -> Result<(), DaoError>;
+```
+
+Two things changed, and one deliberately did not.
+
+**1. The transaction is now a parameter, not an internal detail.** Before,
+`create_user` opened a method-internal `pool.begin()` and `delete_user` wrote
+straight onto the pool — both invisible to the calling service and therefore
+not roll-back-able from the outside. The person administration needs the user
+write to sit in the *same* transaction as the sales-person write (so that
+"exactly the selected objects exist afterwards" can hold) and in the same
+transaction as the cleanup of the person that just lost its last carrier. The
+caller now decides about commit and rollback. See
+[`05-transactions.md`](./05-transactions.md).
+
+**2. `create_user` can adopt an existing person identity.** `person_id:
+None` keeps the old behaviour — a fresh `person` row is created alongside
+[D-61-01]. `person_id: Some(id)` hangs the user onto the **existing** person
+and creates no second row. That is what lets one dialog create a user *and* a
+sales person on the same identity.
+
+**3. What did not change: the surface of `PermissionService`.** The service
+trait carries **no** `Transaction` associated type and **no** `tx` parameter —
+and it must not grow one. Roughly twenty services hold `PermissionService` as
+a dependency; an associated type there would be a workspace-wide ripple
+without benefit, and every one of those services would have to name a
+transaction type it does not use. The associated type therefore sits one
+layer lower, on `dao::PermissionDao`. `PermissionServiceImpl` gained a third
+dependency (`TransactionDao`) to open a transaction for itself and commit it
+at the end of `create_user` / `delete_user`; from the outside the service
+behaves exactly as before, and the admin gate is still its first statement.
+
+**Documented limitation — deleting a user with an open session.**
+`session.user_id` is the only foreign-key relation pointing at `user(name)`
+**without** a cascade (migration `20241116224840_add-session.sql`). Roles and
+open invitations are taken along by their cascades; an open session is not.
+Deleting such a user therefore runs into a foreign-key error and surfaces at
+the endpoint as a generic **500** rather than a speaking rejection. Known,
+pre-existing, and deliberately not fixed inside Phase 63 — a fix is a schema
+change and belongs in its own change.
+
 ## Session management
 
 - **Session table:** migration `20241116224840_add-session.sql`,

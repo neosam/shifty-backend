@@ -29,10 +29,26 @@ async fn do_something(
   Service ist **nicht** Owner. Der Commit-Aufruf am Ende ist dann ein
   No-op oder ein Delegate, das nicht wirklich committet.
 
-**[Zu prüfen]** Die exakte Semantik in der `TransactionDao`-Impl —
-konkret ob `commit` bei durchgereichtem TX kein tatsächliches SQL
-`COMMIT` fährt. Das ist die kritische Invariante, ohne die das Pattern
-kaputt ist.
+**Geprüft (v2.7, Phase 63).** Der Handle ist ein `Arc`, und
+`TransactionDaoImpl::commit` committet nur, wenn er die **letzte** Referenz
+hält:
+
+```rust
+async fn commit(&self, transaction: Self::Transaction) -> Result<(), DaoError> {
+    if let Some(tx) = Arc::into_inner(transaction.tx) {
+        tx.into_inner().commit().await.map_db_error()?;
+    }
+    Ok(())
+}
+```
+
+Ein innerer `commit` auf einem geteilten Handle ist damit ein echter No-op —
+er lässt lediglich eine Referenz los. Das SQL `COMMIT` fährt, wenn der letzte
+Halter loslässt, also im äußersten Service. `rollback` arbeitet genauso.
+**Das ist die Invariante, die das Durchreichen überhaupt ermöglicht**: ein
+Business-Logic-Service kann einem Basic-Service `Some(tx.clone())` geben,
+obwohl dessen Code-Pfad auf `commit` endet, ohne dass dieser die Transaktion
+hinter seinem Rücken schließt.
 
 ## Warum so?
 
@@ -75,6 +91,36 @@ nicht mit dem Create-Pfad harmonisiert war.
 
 **Konvention:** Für jede Re-Point-Op gibt es einen expliziten Test
 gegen Doppelzählung im Reporting.
+
+## Bewusste Ausnahme: `PermissionDao` ist gemischt
+
+Die Konvention oben gilt für **Service**-Methoden. Auf der DAO-Ebene ist
+`dao::PermissionDao` das eine Trait, das bewusst **gemischt** ist (v2.7,
+Phase 63):
+
+| Methode | Transaktion |
+| --- | --- |
+| `create_user(user, person_id, process, tx)` | nimmt `Self::Transaction` |
+| `delete_user(username, tx)` | nimmt `Self::Transaction` |
+| alle übrigen (`has_privilege`, `all_users`, `find_user`, Rollen-/Privileg-CRUD, `add_user_role`, …) | arbeiten weiter direkt auf dem Pool |
+
+**Warum nicht alle.** Nur diese beiden Schreibpfade werden von der
+Personenverwaltung orchestriert, und nur sie müssen in derselben Transaktion
+stehen wie ein Sales-Person-Schreibvorgang oder ein Person-Cleanup — die
+Auflage lautet „nach dem Speichern existieren *genau* die gewählten Objekte"
+plus der Orphan-Cleanup der `person`-Zeile [D-63-01]. Die restlichen fünfzehn
+Methoden umzustellen hätte jeden Aufrufer im Workspace angefasst, ohne
+fachlichen Gewinn. Der Doc-Kommentar des Traits benennt die Teilung, damit ein
+späterer Leser sie nicht für ein unfertiges Refactoring hält.
+
+**Warum der Assoziationstyp auf dem DAO sitzt und nicht auf dem Service.**
+`service::PermissionService` führt bewusst **keinen**
+`Transaction`-Assoziationstyp. Rund zwanzig Services führen ihn als
+Dependency; einer dort würde jeden einzelnen von ihnen zwingen, einen
+Transaktionstyp zu benennen, den er nicht benutzt. `PermissionServiceImpl`
+hält deshalb einen eigenen `TransactionDao` und öffnet/committet um die beiden
+DAO-Aufrufe herum, sodass seine öffentliche Oberfläche exakt bleibt, wie sie
+war. Siehe [`04-auth_de.md`](./04-auth_de.md).
 
 ## SQLite-Spezifika
 

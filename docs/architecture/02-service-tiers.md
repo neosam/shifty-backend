@@ -107,6 +107,31 @@ cross-entity invariants:
   block, in particular strictly after `PersonService`, directly following
   `voluntary_stats_service`. See feature
   [F01](../features/F01-employee-management.md) §4.6.
+- `PersonDetailService` — the aggregate behind the single person detail page
+  and its facet actions (v2.7 Phase 63). Deps: `PersonDirectoryDao`,
+  `PersonDao`, `PermissionDao`, `SalesPersonDao`, `PersonService`,
+  `SalesPersonService`, `PermissionService`, `TransactionDao` — **eight**,
+  and two of them are basic services. Business-Logic beyond doubt: it
+  orchestrates across two domain objects (sales person and user account) and
+  maintains a cross-entity invariant through the facet lifecycle — creating,
+  adding, removing a side, plus tearing down the person that became
+  carrier-less [D-63-01].
+  **Why two basic-service deps close no cycle:** the tier convention
+  explicitly allows the business-logic layer to consume basic services;
+  forbidden is only the other direction. `PersonService` and
+  `SalesPersonService` are both entity managers (DAO + Permission + Clock +
+  Uuid + Transaction only) and neither of them knows this aggregate, so there
+  is no edge back. No other service consumes it either — it hangs off the
+  REST handlers alone.
+  All seven methods are gated on the literal `"admin"`, as the first
+  statement, which is deliberately **stricter** than the HR gates of the
+  basic services underneath; the service therefore calls those internally
+  with `Authentication::Full`, reachable only after its own gate has passed.
+  DI-constructed in `shifty_bin/src/main.rs` **after** the basic block — in
+  particular strictly after `person_service`, `sales_person_service` and
+  `permission_service` — in the business-logic section directly following
+  `person_directory_service`. See feature
+  [F01](../features/F01-employee-management.md) §4.7.
 
 ## Rules
 
