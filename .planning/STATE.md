@@ -5,14 +5,14 @@ milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 63
 current_phase_name: personen-detailansicht-auspr-gungs-aktionen
 status: executing
-stopped_at: Completed 63-06-PLAN.md
-last_updated: "2026-09-20T21:18:46.795Z"
+stopped_at: Completed 63-07-PLAN.md
+last_updated: "2026-09-20T21:39:24.398Z"
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 31
-  completed_plans: 27
-  percent: 87
+  completed_plans: 28
+  percent: 60
 ---
 
 # Project State: Shifty Backend
@@ -32,7 +32,7 @@ progress:
 ## Current Position
 
 Phase: 63 (personen-detailansicht-auspr-gungs-aktionen) — EXECUTING
-Plan: 7 of 11 (63-01, 63-02, 63-03, 63-04, 63-05, 63-06 abgeschlossen)
+Plan: 8 of 11 (63-01, 63-02, 63-03, 63-04, 63-05, 63-06, 63-07 abgeschlossen)
 Status: Welle 1 und der erste Plan von Welle 2 abgeschlossen. 63-01 hat `PermissionDao::create_user`/`delete_user` auf die
 geteilte Transaktion gehoben — SC-2-Atomaritaet und der D-63-01-Orphan-Cleanup sind
 damit ueberhaupt erst konstruierbar. `service::PermissionService` bleibt eingefroren.
@@ -338,8 +338,8 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-09-20T21:18:46.787Z
-**Stopped at:** Completed 63-06-PLAN.md
+**Last session:** 2026-09-20T21:39:00.287Z
+**Stopped at:** Completed 63-07-PLAN.md
 **Resume file:** None
 
 **To resume work in a new session:**
@@ -490,6 +490,9 @@ D-63-01/02, D-64-01/02/03).
 - [Phase 63]: 63-06: add_person_facet antwortet mit 200 + CreatedPersonEntryTO statt 204 — die RESULTIERENDE person_id muss den Aufrufer erreichen (D-61-03)
 - [Phase 63]: 63-06: rest::sales_person wird pub-exportiert (Datei unveraendert), damit der 409-Regressionstest den unveraenderten Phase-61-Endpoint via tower::oneshot befaehrt
 - [Phase 63]: 63-06: der [[web.proxy]]-Eintrag /person steht HINTER /person-directory — der Dev-Server-Proxy matcht praefix-literal
+- [Phase 63]: 63-07: Die 409/422-Uebersetzung der neuen Personen-Schreibpfade liegt in api.rs (Response noch offen, 422-Body lesbar); der 409 des unveraenderten Phase-61-Verknuepfungspfades wird dagegen im Loader uebersetzt (classify_link_error).
+- [Phase 63]: 63-07: SalesPersonTO und UserTO tragen jetzt PartialEq (UserTO zusaetzlich Clone/Eq), damit der UserManagementStore die Kandidatenlisten als Rc<[TO]> halten kann.
+- [Phase 63]: 63-07: CreatePersonEntry signalisiert die Weiterleitung ueber den Uebergang None -> Some in person_detail statt ueber ein eigenes Store-Feld (D-63-07).
 
 ## Performance Metrics
 
@@ -561,3 +564,4 @@ D-63-01/02, D-64-01/02/03).
 | Phase 63 P04 | 44min | 3 tasks | 8 files |
 | Phase 63 P05 | 21min | 3 tasks | 3 files |
 | Phase 63 P06 | 27min | 3 tasks | 6 files |
+| Phase 63 P07 | 34min | 3 tasks | 4 files |

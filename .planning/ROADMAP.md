@@ -567,7 +567,7 @@ Plans:
 
 **Wave 5** *(blockiert durch Wave 4)*
 
-- [ ] 63-07-PLAN.md — Frontend-Datenschicht: acht API-Funktionen, acht Loader, Store-Felder und neun Aktionen; erstmals ein Aufrufpfad zum Verkäufer-Löschen (D-63-06)
+- [x] 63-07-PLAN.md — Frontend-Datenschicht: acht API-Funktionen, acht Loader, Store-Felder und neun Aktionen; erstmals ein Aufrufpfad zum Verkäufer-Löschen (D-63-06)
 
 **Wave 6** *(blockiert durch Wave 5)*
 
@@ -677,7 +677,7 @@ als unsicher).
 | 60. Person-Datenmodell + Backfill | 0/? | Not started | — |
 | 61. PersonService + Auflösung `sales_person_user` | 10/10 | Complete | 2026-09-17 |
 | 62. Personen-Verzeichnis — eine Liste statt Tabs | 7/7 | Complete | 2026-09-20 |
-| 63. Personen-Detailansicht + Ausprägungs-Aktionen | 6/11 | In Progress | — |
+| 63. Personen-Detailansicht + Ausprägungs-Aktionen | 7/11 | In Progress | — |
 | 64. Planungs-Soll für dynamische Verträge | 0/? | Not started | — |
 
 **Requirements-Coverage: 18/18 gemappt**, keine Waisen, keine Doppelung.
