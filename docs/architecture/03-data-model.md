@@ -235,11 +235,22 @@ aggregate (`user`).
 
 Those four columns are the **complete** set:
 
-- **No `deleted` column [D-60-04].** No person is deleted in v2.7, and an
-  unused soft-delete column invites a half-implemented semantics. Should a
-  later phase need "delete a person", the column is added there. This is a
-  deliberate exception to the soft-delete convention above; it is locked by
+- **No `deleted` column [D-60-04].** A person is never *soft*-deleted, and
+  an unused soft-delete column invites a half-implemented semantics. This is
+  a deliberate exception to the soft-delete convention above; it is locked by
   the schema test `person_table_has_no_deleted_column`.
+  **Lifecycle since v2.7 Phase 63 [D-63-01]:** the row does have an end of
+  life, and it is a **hard** delete without a schema change. When removing
+  the last *live* carrier — a `user` row, or a `sales_person` row with
+  `deleted IS NULL` — leaves the person with none, `PersonDetailService`
+  deletes the `person` row in the same transaction. A soft-deleted sales
+  person counts as gone; its `person_id` can therefore point at a row that no
+  longer exists. That dangling pointer is documented and accepted: there is
+  deliberately no FK from `sales_person.person_id` onto `person(id)` (see
+  §"Enforcement: index, not foreign key"), and
+  `billing_period_sales_person` references `sales_person.id`, never
+  `person.id`, so write-once snapshots are unaffected. Details in
+  [F01 §3](../features/F01-employee-management.md).
 - **No name columns.** Names stay where they are — `user.name` and
   `sales_person.name`. Real person master data (e-mail, phone, date of
   birth) is future scope (PERS-F-01), not v2.7.

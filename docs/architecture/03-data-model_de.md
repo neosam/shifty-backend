@@ -246,12 +246,24 @@ Eine Zeile pro realem Menschen. `person` ist die Klammer über das
 
 Diese vier Spalten sind der **vollständige** Satz:
 
-- **Keine `deleted`-Spalte [D-60-04].** In v2.7 wird keine Person gelöscht,
+- **Keine `deleted`-Spalte [D-60-04].** Eine Person wird nie *soft*-gelöscht,
   und eine ungenutzte Soft-Delete-Spalte lädt zu einer halb implementierten
-  Semantik ein. Falls eine spätere Phase ein „Person löschen" braucht, kommt
-  die Spalte dort dazu. Das ist eine bewusste Ausnahme von der oben
-  beschriebenen Soft-Delete-Konvention; festgezurrt vom Schema-Test
+  Semantik ein. Das ist eine bewusste Ausnahme von der oben beschriebenen
+  Soft-Delete-Konvention; festgezurrt vom Schema-Test
   `person_table_has_no_deleted_column`.
+  **Lebenszyklus seit v2.7 Phase 63 [D-63-01]:** die Zeile hat sehr wohl ein
+  Lebensende, und zwar als **Hard Delete** ohne Schema-Änderung. Verliert die
+  Person durch das Entfernen ihres letzten *lebenden* Trägers — einer
+  `user`-Zeile oder einer `sales_person`-Zeile mit `deleted IS NULL` — alle
+  Träger, löscht `PersonDetailService` die `person`-Zeile in derselben
+  Transaktion. Eine soft-gelöschte Sales Person zählt dabei als weg; ihr
+  `person_id` kann deshalb auf eine Zeile zeigen, die es nicht mehr gibt.
+  Dieser hängende Zeiger ist dokumentiert und akzeptiert: es gibt bewusst
+  keinen FK von `sales_person.person_id` auf `person(id)` (siehe
+  §„Durchsetzung: Index, nicht Fremdschlüssel"), und
+  `billing_period_sales_person` referenziert `sales_person.id` und nie
+  `person.id`, write-once-Snapshots bleiben also unberührt. Details in
+  [F01 §3](../features/F01-employee-management_de.md).
 - **Keine Namensspalten.** Namen bleiben, wo sie sind — `user.name` und
   `sales_person.name`. Echte Personenstammdaten (E-Mail, Telefon,
   Geburtsdatum) sind Future-Scope (PERS-F-01), nicht v2.7.
