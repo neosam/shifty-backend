@@ -3,17 +3,17 @@ gsd_state_version: 1.0
 milestone: v2.7
 milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 62
-current_phase_name: Personen-Verzeichnis — eine Liste statt Tabs
-status: Ready to execute
+current_phase_name: personen-verzeichnis-eine-liste-statt-tabs
+status: executing
 stopped_at: Phase 62 geplant (7 Pläne, 4 Wellen)
-last_updated: "2026-09-19T14:18:19.116Z"
-last_activity: 2026-09-19
-last_activity_desc: Phase 62 geplant — 7 Pläne in 4 Wellen, alle Gates grün
+last_updated: "2026-09-20T07:24:16.468Z"
+last_activity: 2026-09-20
+last_activity_desc: 62-01 (DAO-Schicht) abgeschlossen, 3/3 Tasks
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 20
-  completed_plans: 13
+  completed_plans: 15
   percent: 40
 ---
 
@@ -33,9 +33,11 @@ progress:
 
 ## Current Position
 
-Phase: 62 — Personen-Verzeichnis — eine Liste statt Tabs
-Plan: 0/7 — geplant, noch nicht ausgeführt
-Status: Ready to execute. Planungs-Artefakte vollständig: CONTEXT, RESEARCH, PATTERNS,
+Phase: 62 (personen-verzeichnis-eine-liste-statt-tabs) — EXECUTING
+Plan: 2 of 7
+Status: Wave 1 läuft. 62-01 (DAO-Schicht) abgeschlossen — WR-02 geschlossen,
+`PersonDirectoryDao` liefert den Drei-Wege-Outer-Join. Planungs-Artefakte
+vollständig: CONTEXT, RESEARCH, PATTERNS,
 UI-SPEC (6/6 Dimensionen approved), VALIDATION, 7 PLAN.md in 4 Wellen.
 Gates: plan-checker PASSED · Requirements 3/3 (PADM-01, PADM-06, PADM-08) ·
 Decisions 8/8 (D-62-01..08) · UI-Gate entsperrt.
@@ -44,9 +46,9 @@ Wellen: 1) 62-01 DAO (WR-02-Fix + `PersonDirectoryDao`) ∥ 62-02 DTO + i18n ·
 3) 62-05 REST + DI + `Dioxus.toml`-Proxy · 4) 62-06 Docs-Gate (EN+DE) ∥ 62-07 Laufzeit-Verifikation.
 Aus Phase 61 offen: CR-02 (Pre-Flight-Query) bleibt Deploy-Gate, siehe **v2.7 Deploy-Gates** unten.
 WR-02 wird in Phase 62 geschlossen (D-62-05, Plan 62-01); WR-01, WR-03, WR-07 und IN-01..IN-07 bleiben Backlog.
-Last activity: 2026-09-19 — Phase 62 geplant (7 Pläne, 4 Wellen)
-Next: `/gsd-execute-phase 62`
-Resume file: .planning/phases/62-personen-verzeichnis-eine-liste-statt-tabs/62-01-PLAN.md
+Last activity: 2026-09-20 — 62-01 (DAO-Schicht) abgeschlossen, 3/3 Tasks
+Next: `/gsd-execute-phase 62` (Welle 1 fortsetzen: 62-02 DTO + i18n)
+Resume file: .planning/phases/62-personen-verzeichnis-eine-liste-statt-tabs/62-02-PLAN.md
 
 ## Quick Tasks Completed
 
@@ -305,7 +307,7 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-09-19T14:18:19.106Z
+**Last session:** 2026-09-20T07:24:16.461Z
 **Stopped at:** Phase 62 UI-SPEC approved
 **Resume file:** .planning/phases/62-personen-verzeichnis-eine-liste-statt-tabs/62-UI-SPEC.md
 
@@ -426,6 +428,8 @@ D-63-01/02, D-64-01/02/03).
 - [Phase 61]: D-61-10a: AUTHENTICATION.md bleibt bestehen und wird NICHT durch docs/architecture/04-auth.md ersetzt (die zweite im Review angebotene Option) — die Datei traegt Setup-, OIDC- und Beispielstoff, den die kanonischen Dokumente nicht fuehren. Stattdessen legt ein Verweis-Banner am Dateianfang die Vorrangregel fest: bei Widerspruch gewinnen die zweisprachig gepflegten Dokumente unter docs/architecture/.
 - [Phase 61]: D-61-10b: Es wird KEIN AUTHENTICATION_de.md angelegt. Die EN/DE-Regel aus CLAUDE.md gilt fuer Paare, die es gibt; eine neue 600-Zeilen-Uebersetzung waere neuer Doku-Scope statt Gap-Closure.
 - [Phase 61]: D-61-10c: Der Repo-Sweep nach dem alten Tabellennamen kann nicht 0 liefern und soll es auch nicht — migrations/sqlite/*.sql bleiben byte-identisch (sqlx-Checksumme je Datei), shifty_bin/src/person_link_migration_test.rs baut den Vor-Phase-61-Zustand absichtlich nach, und die Treffer in rest/ und shifty-dioxus/ sind Bezeichner (get_sales_person_user, sales_person_user_links), keine Tabellenverweise. Die pruefbare Aussage ist 'kein Dokument beschreibt die Tabelle als aktuelles Schema', nicht 'kein Vorkommen des Strings'.
+- [Phase 62]: D-62-05/WR-02 geschlossen: Soft-Delete-Filter in der ON-Klausel des LEFT JOIN, nicht in WHERE — In WHERE degeneriert der LEFT JOIN zum INNER JOIN. Ein Benutzer, dessen einzige Sales Person soft-geloescht ist, fiel vorher aus beiden Kandidatenlisten und war nie wieder verknuepfbar.
+- [Phase 62]: Das Personen-Verzeichnis bekommt ein eigenes DAO-Trait (PersonDirectoryDao) statt einer fuenften Methode auf PersonDao — PersonDao ist im Modulkopf auf genau vier Methoden festgezurrt; das Verzeichnis ist eine andere Lesart derselben Tabellen (Aggregat statt Identitaet/Anti-Join). Zwei Zustaendigkeiten, zwei Traits.
 
 ## Performance Metrics
 
@@ -485,3 +489,4 @@ D-63-01/02, D-64-01/02/03).
 | Phase 61 P08 | 20 min | 2 tasks | 6 files |
 | Phase 61 P09 | ~25min | 2 tasks | 5 files |
 | Phase 61 P10 | ~30min | 2 tasks | 1 files |
+| Phase 62 P01 | 32min | 3 tasks | 12 files |

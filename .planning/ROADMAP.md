@@ -453,7 +453,7 @@ Plans:
 
 **Wave 1**
 
-- [ ] 62-01-PLAN.md — DAO-Schicht: WR-02-Soft-Delete-Fix in der `ON`-Klausel (D-62-05) plus neues `PersonDirectoryDao` mit Drei-Wege-Outer-Join und Rollen-Bulk-Query
+- [x] 62-01-PLAN.md — DAO-Schicht: WR-02-Soft-Delete-Fix in der `ON`-Klausel (D-62-05) plus neues `PersonDirectoryDao` mit Drei-Wege-Outer-Join und Rollen-Bulk-Query
 - [ ] 62-02-PLAN.md — Transport-DTO `PersonEntryTO`/`PersonKindTO` (D-62-01/D-62-03) und sechs neue i18n-Keys in de/en/cs
 
 **Wave 2** *(blocked on Wave 1)*
