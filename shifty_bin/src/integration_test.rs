@@ -1475,4 +1475,6 @@ mod extra_hours_update;
 mod feature_flag;
 #[cfg(test)]
 mod voluntary_stats;
+#[cfg(test)]
+mod person_directory;
 mod dev_seed;
