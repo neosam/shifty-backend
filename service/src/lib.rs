@@ -27,6 +27,7 @@ pub mod pdf_export_config;
 pub mod pdf_shiftplan;
 pub mod permission;
 pub mod person;
+pub mod person_detail;
 pub mod person_directory;
 pub mod rebooking_batch;
 pub mod rebooking_reconciliation;

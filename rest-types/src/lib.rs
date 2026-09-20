@@ -12,6 +12,8 @@ use service::booking_information::{
 #[cfg(feature = "service-impl")]
 use service::{booking::Booking, sales_person::SalesPerson};
 #[cfg(feature = "service-impl")]
+use service::person_detail::{CreatePersonEntry, PersonFacet};
+#[cfg(feature = "service-impl")]
 use service::person_directory::{PersonEntry, PersonKind};
 #[cfg(feature = "service-impl")]
 use shifty_utils::{derive_from_reference, LazyLoad};
@@ -3009,6 +3011,50 @@ pub struct AddPersonFacetTO {
     pub display_name: Option<Arc<str>>,
     /// Name des neuen Benutzerkontos. Nur bei `facet = user` gefuellt.
     pub username: Option<Arc<str>>,
+}
+
+/// Phase 63 (63-04): Transport-Mapping der Auspraegungs-Kennung, in beide
+/// Richtungen.
+///
+/// Rein feldweise — es rechnet nichts nach und bewertet nichts. Die Richtung
+/// `TO -> Domain` ist der Eingabe-Pfad (der Client nennt das Ziel seiner
+/// Aktion), die Richtung `Domain -> TO` der Antwort-Pfad.
+#[cfg(feature = "service-impl")]
+impl From<&PersonFacetTO> for PersonFacet {
+    fn from(facet: &PersonFacetTO) -> Self {
+        match facet {
+            PersonFacetTO::User => PersonFacet::User,
+            PersonFacetTO::SalesPerson => PersonFacet::SalesPerson,
+        }
+    }
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&PersonFacet> for PersonFacetTO {
+    fn from(facet: &PersonFacet) -> Self {
+        match facet {
+            PersonFacet::User => PersonFacetTO::User,
+            PersonFacet::SalesPerson => PersonFacetTO::SalesPerson,
+        }
+    }
+}
+
+/// Phase 63 (63-04): Transport-Mapping der Anlege-Eingabe.
+///
+/// Rein feldweise. Insbesondere prueft es **nicht**, ob mindestens einer der
+/// beiden Umschalter an ist — diese Regel gehoert in den Service, der sie
+/// unabhaengig vom Client durchsetzt (ASVS V5). Eine Pruefung hier waere eine
+/// zweite Quelle derselben Wahrheit.
+#[cfg(feature = "service-impl")]
+impl From<&CreatePersonEntryTO> for CreatePersonEntry {
+    fn from(create: &CreatePersonEntryTO) -> Self {
+        Self {
+            display_name: create.display_name.clone(),
+            wants_user: create.wants_user,
+            wants_sales_person: create.wants_sales_person,
+            username: create.username.clone(),
+        }
+    }
 }
 
 /// Phase 62 (62-02): Wire-Form des Personen-Verzeichnis-DTOs.
