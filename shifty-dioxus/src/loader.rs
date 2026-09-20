@@ -435,6 +435,7 @@ pub async fn load_person_directory(config: Config) -> Result<Rc<[PersonEntryTO]>
     Ok(entries)
 }
 
+#[allow(dead_code)] // reason: Phase 62 loest den N+1-Ladepfad der User-Management-Seite ab; Phase 63 braucht diesen Pfad fuer den Kandidaten-Picker wieder.
 pub async fn load_all_users(config: Config) -> Result<Rc<[User]>, ShiftyError> {
     let users = api::get_all_users(config).await?;
     Ok(users.iter().map(User::from).collect())

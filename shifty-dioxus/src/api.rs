@@ -886,6 +886,7 @@ pub async fn get_person_directory(config: Config) -> Result<Rc<[PersonEntryTO]>,
     Ok(res)
 }
 
+#[allow(dead_code)] // reason: Phase 62 loest den N+1-Ladepfad der User-Management-Seite ab; Phase 63 braucht diesen Pfad fuer den Kandidaten-Picker wieder.
 pub async fn get_all_users(config: Config) -> Result<Rc<[UserTO]>, reqwest::Error> {
     info!("Fetching all users");
     let url = format!("{}/permission/user", config.backend);

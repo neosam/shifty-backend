@@ -1,8 +1,6 @@
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use dioxus::prelude::*;
-use futures::future::join_all;
 use futures_util::StreamExt;
 use rest_types::{InvitationResponse, PersonEntryTO};
 use uuid::Uuid;
@@ -13,7 +11,7 @@ use crate::{
     base_types::ImStr,
     error::ShiftyError,
     loader,
-    state::{shiftplan::SalesPerson, ShiftplanAssignment, User},
+    state::{shiftplan::SalesPerson, ShiftplanAssignment},
 };
 
 use super::{
@@ -45,12 +43,10 @@ pub struct RoleAssignment {
 
 #[derive(Default, Clone, PartialEq)]
 pub struct UserManagementStore {
-    pub users: Rc<[User]>,
-    pub sales_persons: Rc<[SalesPerson]>,
-
     /// Phase 62 (PADM-01): das Personen-Verzeichnis als **ein** Aggregat.
     /// Gefuellt von [`UserManagementAction::LoadPersonDirectory`]; loest die
-    /// drei Verknuepfungs-/Rollen-Maps und ihr N+1-Ladeverhalten ab.
+    /// frueheren Benutzer-/Verkaeufer-Listen und die drei Verknuepfungs- und
+    /// Rollen-Maps samt ihrem N+1-Ladeverhalten ab.
     pub directory: Rc<[PersonEntryTO]>,
 
     pub sales_person: Option<SelectedSalesPerson>,
@@ -71,17 +67,6 @@ pub struct UserManagementStore {
     pub save_success: bool,
     pub shiftplan_catalog: Rc<[ShiftplanTO]>,
 
-    /// Maps a `SalesPerson` id to the linked user login (if any).
-    /// Populated by `LoadAllSalesPersonUserLinks`.
-    pub sales_person_user_links: Rc<HashMap<Uuid, Option<ImStr>>>,
-
-    /// Maps a user login to the linked `SalesPerson` (if any).
-    /// Populated by `LoadAllUserSalesPersonLinks`.
-    pub user_sales_person_links: Rc<HashMap<ImStr, Option<SalesPerson>>>,
-
-    /// Maps a user login to the assigned roles list.
-    /// Populated by `LoadAllUserRoles`.
-    pub user_role_assignments: Rc<HashMap<ImStr, Rc<[ImStr]>>>,
 }
 pub static USER_MANAGEMENT_STORE: GlobalSignal<UserManagementStore> =
     Signal::global(UserManagementStore::default);
@@ -120,20 +105,6 @@ pub async fn load_shiftplan_assignments(sales_person_id: Uuid) {
     }
 }
 
-pub async fn load_all_users() {
-    let users = loader::load_all_users(CONFIG.read().clone()).await;
-    match users {
-        Ok(users) => {
-            USER_MANAGEMENT_STORE.write().users = users;
-        }
-        Err(err) => {
-            *ERROR_STORE.write() = ErrorStore {
-                error: Some(err),
-            };
-        }
-    }
-}
-
 /// Phase 62: laedt das Personen-Verzeichnis mit einem einzigen Request und
 /// meldet Fehler ueber den globalen `ERROR_STORE` — dieselbe `match Ok/Err`-Form
 /// wie jeder andere Loader dieser Datei; kein seitenlokales Banner
@@ -150,104 +121,6 @@ pub async fn load_person_directory() {
             };
         }
     }
-}
-
-pub async fn load_all_sales_persons() {
-    let sales_persons = loader::load_sales_persons(CONFIG.read().clone()).await;
-    match sales_persons {
-        Ok(sales_persons) => {
-            USER_MANAGEMENT_STORE.write().sales_persons = sales_persons;
-        }
-        Err(err) => {
-            *ERROR_STORE.write() = ErrorStore {
-                error: Some(err),
-            };
-        }
-    }
-}
-
-/// Pure split: `Ok` entries land in the map, `Err` entries land in the error
-/// vec. Caller is responsible for forwarding errors to `ERROR_STORE`. Kept
-/// as a free function so it can be unit-tested without touching globals.
-fn partition_results<K, V>(
-    results: Vec<(K, Result<V, ShiftyError>)>,
-) -> (HashMap<K, V>, Vec<ShiftyError>)
-where
-    K: std::hash::Hash + Eq,
-{
-    let mut map: HashMap<K, V> = HashMap::with_capacity(results.len());
-    let mut errors: Vec<ShiftyError> = Vec::new();
-    for (key, res) in results {
-        match res {
-            Ok(value) => {
-                map.insert(key, value);
-            }
-            Err(err) => errors.push(err),
-        }
-    }
-    (map, errors)
-}
-
-fn report_errors(errors: Vec<ShiftyError>) {
-    for err in errors {
-        *ERROR_STORE.write() = ErrorStore {
-            error: Some(err),
-        };
-    }
-}
-
-pub async fn load_all_sales_person_user_links() {
-    let sales_persons = USER_MANAGEMENT_STORE.read().sales_persons.clone();
-    let config = CONFIG.read().clone();
-
-    let fetches = sales_persons.iter().map(|sp| {
-        let cfg = config.clone();
-        let id = sp.id;
-        async move { (id, loader::load_user_for_sales_person(cfg, id).await) }
-    });
-    let results = join_all(fetches).await;
-
-    let (map, errors) = partition_results(results);
-    report_errors(errors);
-    USER_MANAGEMENT_STORE.write().sales_person_user_links = Rc::new(map);
-}
-
-pub async fn load_all_user_sales_person_links() {
-    let users = USER_MANAGEMENT_STORE.read().users.clone();
-    let config = CONFIG.read().clone();
-
-    let fetches = users.iter().map(|u| {
-        let cfg = config.clone();
-        let username = u.username.clone();
-        async move {
-            let res = loader::load_sales_person_by_user(cfg, username.clone()).await;
-            (username, res)
-        }
-    });
-    let results = join_all(fetches).await;
-
-    let (map, errors) = partition_results(results);
-    report_errors(errors);
-    USER_MANAGEMENT_STORE.write().user_sales_person_links = Rc::new(map);
-}
-
-pub async fn load_all_user_roles() {
-    let users = USER_MANAGEMENT_STORE.read().users.clone();
-    let config = CONFIG.read().clone();
-
-    let fetches = users.iter().map(|u| {
-        let cfg = config.clone();
-        let username = u.username.clone();
-        async move {
-            let res = loader::load_roles_from_user(cfg, username.clone()).await;
-            (username, res)
-        }
-    });
-    let results = join_all(fetches).await;
-
-    let (map, errors) = partition_results(results);
-    report_errors(errors);
-    USER_MANAGEMENT_STORE.write().user_role_assignments = Rc::new(map);
 }
 
 pub async fn load_sales_person(sales_person_id: Uuid) {
@@ -447,11 +320,9 @@ pub async fn revoke_user_invitation_session(
 }
 
 pub enum UserManagementAction {
-    LoadAllUsers,
     /// Phase 62 (PADM-01): fuellt das Personen-Verzeichnis mit genau einem
     /// Aggregat-Request.
     LoadPersonDirectory,
-    LoadAllSalesPersons,
     LoadSalesPerson(Uuid),
     UpdateSalesPerson(SalesPerson),
     UpdateSalesPersonUser(ImStr),
@@ -476,17 +347,6 @@ pub enum UserManagementAction {
 pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAction>) {
     while let Some(action) = rx.next().await {
         match match action {
-            UserManagementAction::LoadAllUsers => {
-                load_all_users().await;
-                load_all_user_sales_person_links().await;
-                load_all_user_roles().await;
-                Ok(())
-            }
-            UserManagementAction::LoadAllSalesPersons => {
-                load_all_sales_persons().await;
-                load_all_sales_person_user_links().await;
-                Ok(())
-            }
             UserManagementAction::LoadPersonDirectory => {
                 // Success Criterion 5: genau **ein** Netzwerk-Aufruf in diesem
                 // Arm — ein zweiter waere ein Rueckfall in das abgeloeste
@@ -536,8 +396,9 @@ pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAct
             UserManagementAction::SaveSalesPersonAndNavigate => {
                 match save_sales_person().await {
                     Ok(_) => {
-                        // Refresh the sales persons list after successful save
-                        load_all_sales_persons().await;
+                        // Success Criterion 5: Auffrischen ueber das Aggregat
+                        // statt ueber den abgeloesten Sammel-Loader.
+                        load_person_directory().await;
                         USER_MANAGEMENT_STORE.write().save_success = true;
                         Ok(())
                     }
@@ -574,14 +435,16 @@ pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAct
             }
             UserManagementAction::AddUser(user) => match add_user(user).await {
                 Ok(()) => {
-                    load_all_users().await;
+                    // Success Criterion 5: Auffrischen ueber das Aggregat.
+                    load_person_directory().await;
                     Ok(())
                 }
                 Err(err) => Err(err),
             },
             UserManagementAction::DeleteUser(user) => match delete_user(user).await {
                 Ok(()) => {
-                    load_all_users().await;
+                    // Success Criterion 5: Auffrischen ueber das Aggregat.
+                    load_person_directory().await;
                     Ok(())
                 }
                 Err(err) => Err(err),
@@ -642,8 +505,6 @@ pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAct
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     /// Success Criterion 5 (Phase 62): genau **ein** Netzwerk-Aufruf fuellt das
     /// Personen-Verzeichnis. Der Nachweis ist eine Quell-Assertion ueber den
     /// Coroutine-Arm der Lade-Action — unabhaengig von seiner Zeilenzahl darf
@@ -669,76 +530,5 @@ mod tests {
             1,
             "expected exactly one `.await` in the LoadPersonDirectory arm, got: {arm}"
         );
-    }
-
-    fn sample_error() -> ShiftyError {
-        // ComponentRange is constructible via an out-of-range time; cheaper
-        // than fabricating a reqwest::Error.
-        time::Time::from_hms(99, 0, 0).unwrap_err().into()
-    }
-
-    #[test]
-    fn partition_results_empty_yields_empty_map() {
-        let input: Vec<(Uuid, Result<Option<ImStr>, ShiftyError>)> = Vec::new();
-        let (map, errors) = partition_results(input);
-        assert!(map.is_empty());
-        assert!(errors.is_empty());
-    }
-
-    #[test]
-    fn partition_results_keeps_ok_entries() {
-        let id_a = Uuid::new_v4();
-        let id_b = Uuid::new_v4();
-        let input: Vec<(Uuid, Result<Option<ImStr>, ShiftyError>)> =
-            vec![(id_a, Ok(Some(ImStr::from("alex")))), (id_b, Ok(None))];
-        let (map, errors) = partition_results(input);
-        assert_eq!(map.len(), 2);
-        assert_eq!(map.get(&id_a), Some(&Some(ImStr::from("alex"))));
-        assert_eq!(map.get(&id_b), Some(&None));
-        assert!(errors.is_empty());
-    }
-
-    #[test]
-    fn partition_results_skips_err_entries_but_keeps_others() {
-        let id_a = Uuid::new_v4();
-        let id_b = Uuid::new_v4();
-        let id_c = Uuid::new_v4();
-        let input: Vec<(Uuid, Result<Option<ImStr>, ShiftyError>)> = vec![
-            (id_a, Ok(Some(ImStr::from("alex")))),
-            (id_b, Err(sample_error())),
-            (id_c, Ok(None)),
-        ];
-        let (map, errors) = partition_results(input);
-        assert_eq!(map.len(), 2);
-        assert!(map.contains_key(&id_a));
-        assert!(!map.contains_key(&id_b));
-        assert!(map.contains_key(&id_c));
-        assert_eq!(errors.len(), 1);
-    }
-
-    #[test]
-    fn partition_results_keys_match_input() {
-        let id_a = Uuid::new_v4();
-        let id_b = Uuid::new_v4();
-        let input: Vec<(Uuid, Result<u32, ShiftyError>)> = vec![(id_a, Ok(1)), (id_b, Ok(2))];
-        let (map, _) = partition_results(input);
-        let keys: std::collections::HashSet<Uuid> = map.keys().copied().collect();
-        let expected: std::collections::HashSet<Uuid> = [id_a, id_b].into_iter().collect();
-        assert_eq!(keys, expected);
-    }
-
-    #[test]
-    fn partition_results_supports_imstr_keys() {
-        // reason: test-local fixture typed for readability; extracting alias would spread noise
-        #[allow(clippy::type_complexity)]
-        let input: Vec<(ImStr, Result<Rc<[ImStr]>, ShiftyError>)> = vec![
-            (ImStr::from("alex"), Ok(vec![ImStr::from("admin")].into())),
-            (ImStr::from("bob"), Err(sample_error())),
-        ];
-        let (map, errors) = partition_results(input);
-        assert_eq!(map.len(), 1);
-        assert!(map.contains_key(&ImStr::from("alex")));
-        assert!(!map.contains_key(&ImStr::from("bob")));
-        assert_eq!(errors.len(), 1);
     }
 }
