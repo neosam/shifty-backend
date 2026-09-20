@@ -435,6 +435,104 @@ pub enum Key {
     /// Fliesstext desselben Leer-Zustands.
     PersonDirectorySearchEmptyBody,
 
+    // Personen-Detailansicht (Phase 63 — PADM-02, PADM-03, PADM-04, PADM-05, PADM-07)
+    // Seitenrahmen
+    /// Verknuepfungs-Zeile der Detailansicht, nur bei `PersonKind::Linked`.
+    /// Bewusst Fliesstext ohne Farbfuellung — ein farbiges Badge wurde im
+    /// Phase-62-UAT wegen Farbkollision mit dem Bezahlt/Freiwillig-Chip entfernt.
+    PersonDetailLinkedNote,
+    /// Leer-Zustand, wenn der Detail-Ladepfad 404 liefert (veralteter Bookmark).
+    PersonDetailNotFound,
+
+    // Anlege-Dialog
+    /// D-63-03: der EINE Anlege-Einstieg. Ersetzt die beiden heutigen Knoepfe
+    /// („Neuen Verkaeufer erstellen" / „Neuen Benutzer hinzufuegen") in der
+    /// Toolbar von `page/user_management.rs` und dient zugleich als Dialogtitel —
+    /// deshalb genau ein Key, kein Duplikat fuer den Titel.
+    CreatePersonEntry,
+    /// Feldbeschriftung „Anzeigename" im Anlege-Dialog.
+    CreatePersonEntryDisplayName,
+    /// Umschalter 1: Der neue Eintrag bekommt ein Login.
+    CreatePersonEntryWantsLogin,
+    /// Umschalter 2: Der neue Eintrag bekommt einen Verkaeufer-Datensatz.
+    CreatePersonEntryWantsSalesPerson,
+    /// Dauerhafter Hinweis unter den beiden Umschaltern: mindestens einer muss
+    /// an sein. Der Server validiert unabhaengig davon (ASVS V5).
+    CreatePersonEntryValidationHint,
+    /// Primaerknopf des Anlege-Dialogs.
+    CreatePersonEntrySubmit,
+
+    // Facet-Add
+    /// PADM-03, D-63-02: woertliche Seed-Benennung, nicht umbenennen.
+    AddLoginToEntry,
+    /// PADM-03, D-63-02: woertliche Seed-Benennung, nicht umbenennen.
+    AddSalesPersonToEntry,
+
+    // Missing-Facet-Karte
+    /// Ueberschrift der Karte, die den fehlenden Benutzer-Teil ersetzt.
+    MissingLoginHeading,
+    /// Fliesstext derselben Karte.
+    MissingLoginBody,
+    /// Ueberschrift der Karte, die den fehlenden Verkaeufer-Teil ersetzt.
+    MissingSalesPersonHeading,
+    /// Fliesstext derselben Karte.
+    MissingSalesPersonBody,
+
+    // Kandidaten-Picker
+    /// Sekundaer-Aktion neben der Login-Karte und zugleich Titel des
+    /// Kandidaten-Picker-Dialogs (Benutzer-Variante) — nur ein Key.
+    LinkExistingUser,
+    /// Sekundaer-Aktion neben der Verkaeufer-Karte und zugleich Titel des
+    /// Kandidaten-Picker-Dialogs (Verkaeufer-Variante) — nur ein Key.
+    LinkExistingSalesPerson,
+    /// Leer-Zustand des Pickers, wenn kein unverknuepftes Benutzerkonto existiert.
+    CandidatePickerEmptyUser,
+    /// Leer-Zustand des Pickers, wenn kein unverknuepfter Verkaeufer existiert.
+    CandidatePickerEmptySalesPerson,
+    /// Primaerknopf des Kandidaten-Pickers.
+    LinkCandidateConfirm,
+    /// Toast bei HTTP 409 (D-61-04): das Ziel wurde zwischen Laden und Absenden
+    /// anderweitig verknuepft.
+    PersonLinkConflict,
+
+    // Verknuepfung loesen
+    /// D-63-05: harmlos und umkehrbar — deshalb Sekundaer-, keine
+    /// Danger-Beschriftung. Dient auch als Beschriftung des Bestaetigungsknopfes.
+    UnlinkAction,
+    /// Titel der Bestaetigung zum Loesen der Verknuepfung.
+    UnlinkConfirmTitle,
+    /// Fliesstext der Bestaetigung, parametrisch ueber `{name}`.
+    UnlinkConfirmBody,
+
+    // Login loeschen
+    /// Danger-Aktion am Fuss des Rollen-/Einladungs-Blocks (D-63-05: getrennt
+    /// von der Verkaeufer-Loeschung, nie ein Sammelknopf).
+    DeleteLoginAction,
+    /// Titel der Login-Loesch-Bestaetigung.
+    DeleteLoginConfirmTitle,
+    /// D-63-08: woertlich festgelegter Satz. Nicht umformulieren, nicht kuerzen,
+    /// nicht mit dem Zusatz-Key zusammenziehen.
+    DeleteLoginConfirmBody,
+
+    // Verkaeufer loeschen
+    /// Danger-Aktion am Fuss des Stammdaten-/Schichtplan-Blocks (D-63-05).
+    DeleteSalesPersonAction,
+    /// Titel der Verkaeufer-Loesch-Bestaetigung.
+    DeleteSalesPersonConfirmTitle,
+    /// D-63-08: woertlich festgelegter Satz. Nicht umformulieren, nicht kuerzen,
+    /// nicht mit dem Zusatz-Key zusammenziehen.
+    DeleteSalesPersonConfirmBody,
+    /// D-63-06 (Auflage): nennt „inaktiv setzen" als schonende Alternative,
+    /// parametrisch ueber `{name}`.
+    DeleteSalesPersonConfirmHint,
+
+    // Gemeinsame Zusaetze beider Loesch-Bestaetigungen
+    /// Zusatz unter dem jeweiligen D-63-08-Satz.
+    DeleteConfirmIrreversible,
+    /// Zusatz, der nur erscheint, wenn die geloeschte Auspraegung die letzte des
+    /// Eintrags ist — dann verschwindet der Eintrag selbst.
+    DeleteConfirmLastFacet,
+
     // Impersonation (Phase 32 — D-32-08)
     /// Person-list action label ("Act as this person" / "Als diese Person agieren").
     ImpersonateActAs,
@@ -2189,6 +2287,89 @@ mod tests {
                     locale,
                     ph,
                     preview
+                );
+            }
+        }
+    }
+
+    /// Phase 63 (PADM-02/03/04/05/07): jeder Text der Personen-Detailansicht,
+    /// des Anlege-Dialogs, des Kandidaten-Pickers und der drei Bestaetigungen
+    /// existiert in allen drei Sprachen. Faellt aus, sobald ein Key in einer
+    /// Locale-Datei fehlt (dann liefert `t` den Platzhalter `??`).
+    #[test]
+    fn i18n_person_detail_keys_present_in_all_locales() {
+        for locale in [Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(locale);
+            for key in [
+                // Seitenrahmen
+                Key::PersonDetailLinkedNote,
+                Key::PersonDetailNotFound,
+                // Anlege-Dialog
+                Key::CreatePersonEntry,
+                Key::CreatePersonEntryDisplayName,
+                Key::CreatePersonEntryWantsLogin,
+                Key::CreatePersonEntryWantsSalesPerson,
+                Key::CreatePersonEntryValidationHint,
+                Key::CreatePersonEntrySubmit,
+                // Facet-Add
+                Key::AddLoginToEntry,
+                Key::AddSalesPersonToEntry,
+                // Missing-Facet-Karte
+                Key::MissingLoginHeading,
+                Key::MissingLoginBody,
+                Key::MissingSalesPersonHeading,
+                Key::MissingSalesPersonBody,
+                // Kandidaten-Picker
+                Key::LinkExistingUser,
+                Key::LinkExistingSalesPerson,
+                Key::CandidatePickerEmptyUser,
+                Key::CandidatePickerEmptySalesPerson,
+                Key::LinkCandidateConfirm,
+                Key::PersonLinkConflict,
+                // Verknuepfung loesen
+                Key::UnlinkAction,
+                Key::UnlinkConfirmTitle,
+                Key::UnlinkConfirmBody,
+                // Login loeschen
+                Key::DeleteLoginAction,
+                Key::DeleteLoginConfirmTitle,
+                Key::DeleteLoginConfirmBody,
+                // Verkaeufer loeschen
+                Key::DeleteSalesPersonAction,
+                Key::DeleteSalesPersonConfirmTitle,
+                Key::DeleteSalesPersonConfirmBody,
+                Key::DeleteSalesPersonConfirmHint,
+                // Gemeinsame Zusaetze
+                Key::DeleteConfirmIrreversible,
+                Key::DeleteConfirmLastFacet,
+            ] {
+                let value = i18n.t(key);
+                assert!(
+                    !value.is_empty() && value.as_ref() != "??",
+                    "missing translation for {:?} in {:?}: got `{}`",
+                    key,
+                    locale,
+                    value
+                );
+            }
+        }
+    }
+
+    /// Placeholder-Garantie fuer die zwei parametrischen Phase-63-Texte: beide
+    /// tragen `{name}` in allen drei Sprachen, damit die Laufzeit-Ersetzung
+    /// greift (T-63-03-A/B).
+    #[test]
+    fn i18n_person_detail_templates_carry_name_placeholder() {
+        for locale in [Locale::En, Locale::De, Locale::Cs] {
+            let i18n = generate(locale);
+            for key in [Key::UnlinkConfirmBody, Key::DeleteSalesPersonConfirmHint] {
+                let value = i18n.t(key);
+                assert!(
+                    value.contains("{name}"),
+                    "{:?} for {:?} lost {{name}}: `{}`",
+                    key,
+                    locale,
+                    value
                 );
             }
         }
