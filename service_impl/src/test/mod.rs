@@ -132,3 +132,5 @@ pub mod person_creation;
 pub mod person_self_gate;
 #[cfg(test)]
 pub mod person_merge;
+#[cfg(test)]
+pub mod person_directory_dao;

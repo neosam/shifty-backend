@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT user_role.user_name AS \"user_name!: String\",\n                      user_role.role_name AS \"role_name!: String\"\n               FROM user_role",
+  "describe": {
+    "columns": [
+      {
+        "name": "user_name!: String",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "role_name!: String",
+        "ordinal": 1,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "bf2298570b899c89bd3cae9aac7017d65f7cbfb725e83ba1e643db94043ed2af"
+}

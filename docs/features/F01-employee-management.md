@@ -272,6 +272,40 @@ regression guard is
 every fixture row has a non-NULL `person_id`, and both candidate sets are
 still non-empty.
 
+### `PersonDirectoryDao` — the person directory read path (v2.7, Phase 62)
+
+`dao/src/person_directory.rs` + `dao_impl_sqlite/src/person_directory.rs`.
+A deliberately separate trait, **not** a fifth method on `PersonDao`: that
+trait is pinned to exactly four methods, and the directory is a different
+reading of the same tables — `PersonDao` serves identity and candidate
+anti-joins, this DAO serves the aggregate across all three shapes.
+
+| Method | Purpose |
+| --- | --- |
+| `list_directory_entries(tx)` | All directory rows in exactly one statement — a three-way outer join `person` ↔ `sales_person` ↔ `user` [D-62-02]. Unsorted; ordering belongs to the business-logic service so it stays testable and locale-independent. |
+| `all_user_roles(tx)` | All role assignments of all users as a **single** bulk query. `PermissionDao::roles_for_user` stays untouched — it has its place in the auth path, but one call per directory row would be exactly the N+1 pattern this phase removes. |
+
+`PersonDirectoryRow` is flat. The sales-person side (`sales_person_id`,
+`sales_person_name`, `background_color`, `is_paid`, `inactive`) is empty
+exactly when the person carries no *live* sales person; `username` is empty
+exactly when the person carries no login account. At least one side is always
+filled.
+
+**Two join rules carry the whole semantics:**
+
+- `AND sp.deleted IS NULL` sits in the **`ON` clause**, never in `WHERE`. In
+  `WHERE` the LEFT JOIN degenerates into an INNER JOIN and every person
+  without a sales person would drop out of the directory — the same trap as
+  WR-02 in the candidate read path. Guard:
+  `service_impl::test::person_directory_dao::soft_geloeschte_sales_person_laesst_benutzer_sichtbar`.
+- `WHERE sp.id IS NOT NULL OR u.name IS NOT NULL` excludes carrier-less
+  `person` rows — a person with neither a live sales person nor a login
+  account has nothing to show. Guard:
+  `service_impl::test::person_directory_dao::person_ohne_traeger_erscheint_nicht`.
+
+Soft-deleted sales persons do not appear, inactive ones do [D-62-04]:
+"inactive" is a display state with its own badge, "deleted" is absence.
+
 ### Migrations
 
 Chronological history (only the files from `migrations/sqlite/` that are

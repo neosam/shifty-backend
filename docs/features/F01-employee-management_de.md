@@ -273,6 +273,41 @@ fehlt*. Der Regressionsschutz dafür ist
 jede Fixture-Zeile trägt ein nicht-NULL `person_id`, und beide
 Kandidaten-Mengen sind trotzdem nicht leer.
 
+### `PersonDirectoryDao` — der Lesepfad des Personen-Verzeichnisses (v2.7, Phase 62)
+
+`dao/src/person_directory.rs` + `dao_impl_sqlite/src/person_directory.rs`.
+Bewusst ein eigenes Trait und **keine** fünfte Methode auf `PersonDao`: jenes
+Trait ist auf genau vier Methoden festgezurrt, und das Verzeichnis ist eine
+andere Lesart derselben Tabellen — `PersonDao` liefert Identität und
+Kandidaten-Anti-Joins, dieser DAO liefert das Aggregat über alle drei
+Ausprägungen.
+
+| Methode | Zweck |
+| --- | --- |
+| `list_directory_entries(tx)` | Alle Verzeichniszeilen in genau einem Statement — ein Drei-Wege-Outer-Join `person` ↔ `sales_person` ↔ `user` [D-62-02]. Unsortiert; die Sortierung gehört in den Business-Logic-Service, damit sie testbar und locale-unabhängig bleibt. |
+| `all_user_roles(tx)` | Alle Rollen-Zuordnungen aller Benutzer als **eine** Bulk-Query. `PermissionDao::roles_for_user` bleibt unangetastet — es hat seinen Platz im Auth-Pfad, aber ein Aufruf pro Verzeichniszeile wäre genau das N+1-Muster, das diese Phase abbaut. |
+
+`PersonDirectoryRow` ist flach. Die Verkäufer-Seite (`sales_person_id`,
+`sales_person_name`, `background_color`, `is_paid`, `inactive`) ist genau dann
+leer, wenn die Person keine *lebende* Sales Person trägt; `username` ist genau
+dann leer, wenn die Person kein Benutzerkonto trägt. Mindestens eine der beiden
+Seiten ist immer gefüllt.
+
+**Zwei Join-Regeln tragen die gesamte Semantik:**
+
+- `AND sp.deleted IS NULL` steht in der **`ON`-Klausel**, niemals in `WHERE`.
+  In `WHERE` degeneriert der LEFT JOIN zum INNER JOIN, und jede Person ohne
+  Sales Person fiele aus dem Verzeichnis — dieselbe Falle wie WR-02 im
+  Kandidaten-Lesepfad. Regressionsschutz:
+  `service_impl::test::person_directory_dao::soft_geloeschte_sales_person_laesst_benutzer_sichtbar`.
+- `WHERE sp.id IS NOT NULL OR u.name IS NOT NULL` schließt trägerlose
+  `person`-Zeilen aus — eine Person ohne lebende Sales Person und ohne
+  Benutzerkonto hat nichts anzuzeigen. Regressionsschutz:
+  `service_impl::test::person_directory_dao::person_ohne_traeger_erscheint_nicht`.
+
+Soft-gelöschte Sales Persons erscheinen nicht, inaktive schon [D-62-04]:
+„Inaktiv" ist ein Anzeige-Zustand mit eigenem Badge, „gelöscht" ist Abwesenheit.
+
 ### Migrations
 
 Chronologische Historie (nur die für dieses Cluster relevanten Files aus
