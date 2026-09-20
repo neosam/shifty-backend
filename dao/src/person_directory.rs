@@ -89,4 +89,23 @@ pub trait PersonDirectoryDao {
     /// Auth-Pfad. Fuer das Verzeichnis waere ein Aufruf pro Zeile genau das
     /// N+1-Muster, das diese Phase abbaut (Success Criterion 5).
     async fn all_user_roles(&self, tx: Self::Transaction) -> Result<Arc<[UserRoleRow]>, DaoError>;
+
+    /// Genau EINE Verzeichniszeile — der Lesepfad der Detailansicht (PADM-05).
+    ///
+    /// Liefert **dieselbe** Rohzeile wie `list_directory_entries`, aus
+    /// demselben Drei-Wege-Outer-Join mit demselben Soft-Delete-Filter in der
+    /// `ON`-Klausel (D-62-05 / WR-02). Das ist der ganze Zweck der Methode:
+    /// `service_impl::person_directory::entry_from_row` leitet Anzeigename und
+    /// Auspraegung bereits aus dieser Form ab und wird unveraendert
+    /// wiederverwendet. Eine zweite Ableitung derselben Anzeigelogik in der
+    /// Detailansicht waere genau die Doppelwahrheit, die PADM-06 verbietet.
+    ///
+    /// `None` fuer eine unbekannte `person_id` — und ebenso fuer eine Person
+    /// ohne lebenden Traeger: sie ist hier genauso unsichtbar wie in der Liste
+    /// (D-62-04 / Research Pitfall 5).
+    async fn find_directory_entry(
+        &self,
+        person_id: Uuid,
+        tx: Self::Transaction,
+    ) -> Result<Option<PersonDirectoryRow>, DaoError>;
 }

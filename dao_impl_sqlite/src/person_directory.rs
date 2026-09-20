@@ -143,4 +143,47 @@ impl PersonDirectoryDao for PersonDirectoryDaoImpl {
         .map(UserRoleRow::try_from)
         .collect::<Result<Arc<[UserRoleRow]>, DaoError>>()?)
     }
+
+    async fn find_directory_entry(
+        &self,
+        person_id: Uuid,
+        tx: Self::Transaction,
+    ) -> Result<Option<PersonDirectoryRow>, DaoError> {
+        let person_id_vec = person_id.as_bytes().to_vec();
+        Ok(query_as!(
+            PersonDirectoryDb,
+            // Bewusst dieselbe Join- und Filter-Semantik wie
+            // `list_directory_entries` (PADM-05): `sp.deleted IS NULL` steht in
+            // der ON-Klausel, NIEMALS in WHERE — in WHERE degeneriert der LEFT
+            // JOIN zum INNER JOIN (D-62-04 / WR-02), und eine Person mit reinem
+            // Benutzerkonto verschwaende aus der Detailansicht.
+            //
+            // Wer die eine Query aufraeumt, muss die andere mitziehen: zwei
+            // divergierende Definitionen von „lebende Sales Person" waeren
+            // genau der Bug, den Phase 62 gefixt hat.
+            //
+            // Die Traeger-Bedingung bleibt ebenfalls erhalten: eine traegerlos
+            // gewordene Person ist hier so unsichtbar wie in der Liste
+            // (Research Pitfall 5) — und genau dieser Zustand ist es, den
+            // D-63-01 anschliessend aufraeumt.
+            r#"SELECT p.id AS "person_id!: Vec<u8>",
+                      sp.id AS "sales_person_id?: Vec<u8>",
+                      sp.name AS "sales_person_name?: String",
+                      sp.background_color AS "background_color?: String",
+                      sp.is_paid AS "is_paid?: bool",
+                      sp.inactive AS "inactive?: bool",
+                      u.name AS "username?: String"
+               FROM person p
+               LEFT JOIN sales_person sp ON sp.person_id = p.id AND sp.deleted IS NULL
+               LEFT JOIN user u ON u.person_id = p.id
+               WHERE p.id = ? AND (sp.id IS NOT NULL OR u.name IS NOT NULL)"#,
+            person_id_vec,
+        )
+        .fetch_optional(tx.tx.lock().await.as_mut())
+        .await
+        .map_db_error()?
+        .as_ref()
+        .map(PersonDirectoryRow::try_from)
+        .transpose()?)
+    }
 }
