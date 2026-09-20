@@ -174,4 +174,59 @@ pub trait PersonDetailService {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<Uuid, ServiceError>;
+
+    /// Schaltet einem bestehenden Eintrag die fehlende Auspraegung zu
+    /// (PADM-03, Success Criterion 3).
+    ///
+    /// SC-3 woertlich: „Auf einem Eintrag mit fehlender Auspraegung entsteht
+    /// genau das fehlende Objekt und ist verknuepft; das bereits vorhandene
+    /// Objekt bleibt unveraendert." Pflichtfeld je Seite: `username` fuer
+    /// `PersonFacet::User`, `display_name` fuer `PersonFacet::SalesPerson` —
+    /// fehlt es, ist das `ServiceError::ValidationError`. Ist die angefragte
+    /// Seite bereits besetzt, ist das `ServiceError::EntityAlreadyExists`
+    /// (409, derselbe Vertrag wie in Phase 61, D-61-04).
+    ///
+    /// **Die Rueckgabe kann von der Eingabe abweichen — Aufrufer muessen sie
+    /// verwenden.** Bekommt ein reiner Benutzer-Eintrag eine Sales Person
+    /// dazu, gibt es keinen gemeinsamen Vorlauf wie beim kombinierten Anlegen:
+    /// die neue Sales Person bringt ihre eigene Identitaet mit (D-61-01), und
+    /// das Zusammenfuehren der beiden laesst nach D-61-03 **die Sales Person
+    /// gewinnen** — der Benutzer wandert auf sie, die absorbierte Person
+    /// verschwindet. Der Eintrag wechselt damit seine `person_id`. Diese
+    /// Methode gibt die **resultierende** id zurueck, nicht die uebergebene;
+    /// wer stattdessen die Eingabe weiterverwendet, zeigt ins Leere.
+    ///
+    /// **Verlangt das Admin-Privileg** (D-62-08, PADM-08), als erste
+    /// Anweisung, vor der Validierung und vor jedem Datenbankzugriff.
+    async fn add_facet(
+        &self,
+        person_id: Uuid,
+        facet: PersonFacet,
+        display_name: Option<Arc<str>>,
+        username: Option<Arc<str>>,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Uuid, ServiceError>;
+
+    /// Dieselbe Verzeichniszeile wie `get_detail`, aber ueber die
+    /// `sales_person_id` aufgeloest (PADM-04, Success Criterion 4).
+    ///
+    /// Wofuer sie existiert: Wird ein **bestehender** Verkaeufer ueber den
+    /// unveraenderten Endpoint `POST /sales-person/{id}/user` mit einem Login
+    /// verknuepft, kennt das Frontend hinterher nur die `sales_person_id`. Die
+    /// `person_id` hat sich durch das Zusammenfuehren geaendert (D-61-03, siehe
+    /// `add_facet`), und ohne diesen Lesepfad koennte die Detailansicht nach
+    /// dem Verknuepfen nicht auf sich selbst zurueckfinden.
+    ///
+    /// Laesst sich die Sales Person zu keiner Person aufloesen, ist das
+    /// `ServiceError::EntityNotFoundGeneric` mit der Sales-Person-Id als Text.
+    ///
+    /// **Verlangt das Admin-Privileg** (D-62-08, PADM-08), als erste
+    /// Anweisung, vor jedem Datenbankzugriff.
+    async fn get_detail_by_sales_person(
+        &self,
+        sales_person_id: Uuid,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<PersonEntry, ServiceError>;
 }

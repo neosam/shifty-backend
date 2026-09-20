@@ -48,10 +48,11 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use dao::person::PersonDao;
 use dao::person_directory::PersonDirectoryDao;
+use dao::sales_person::SalesPersonDao;
 use dao::{PermissionDao, TransactionDao};
 use service::permission::Authentication;
 use service::person::PersonService;
-use service::person_detail::{CreatePersonEntry, PersonDetailService};
+use service::person_detail::{CreatePersonEntry, PersonDetailService, PersonFacet};
 use service::person_directory::PersonEntry;
 use service::sales_person::{SalesPerson, SalesPersonService};
 use service::{PermissionService, ServiceError, ValidationFailureItem};
@@ -78,10 +79,64 @@ gen_service_impl! {
         PersonDirectoryDao: PersonDirectoryDao<Transaction = Self::Transaction> = person_directory_dao,
         PersonDao: PersonDao<Transaction = Self::Transaction> = person_dao,
         PermissionDao: PermissionDao<Transaction = Self::Transaction> = permission_dao,
+        SalesPersonDao: SalesPersonDao<Transaction = Self::Transaction> = sales_person_dao,
         PersonService: PersonService<Context = Self::Context, Transaction = Self::Transaction> = person_service,
         SalesPersonService: SalesPersonService<Context = Self::Context, Transaction = Self::Transaction> = sales_person_service,
         PermissionService: PermissionService<Context = Self::Context> = permission_service,
         TransactionDao: TransactionDao<Transaction = Self::Transaction> = transaction_dao
+    }
+}
+
+impl<Deps: PersonDetailServiceDeps> PersonDetailServiceImpl<Deps> {
+    /// Baut die Verzeichniszeile zu einer `person_id` auf einer **bereits
+    /// offenen** Transaktion — der gemeinsame Rumpf von `get_detail` und
+    /// `get_detail_by_sales_person`.
+    ///
+    /// Die Zusammenbau-Logik steht genau hier und genau einmal; zwei Aufrufer,
+    /// die sie getrennt nachbauen, waeren dieselbe Doppelwahrheit, die PADM-06
+    /// fuer Anzeigename und Auspraegung verbietet.
+    ///
+    /// **Committet nicht.** Der Aufrufer entscheidet ueber Commit bzw.
+    /// Verwerfen — auf dem Fehlerpfad wird die Transaktion verworfen (P-61-B).
+    async fn build_entry(
+        &self,
+        person_id: Uuid,
+        tx: Deps::Transaction,
+    ) -> Result<PersonEntry, ServiceError> {
+        let row = self
+            .person_directory_dao
+            .find_directory_entry(person_id, tx.clone())
+            .await?;
+
+        // Eine unbekannte ODER traegerlos gewordene Person ist nicht auffindbar
+        // — nie eine halbleere Antwort. Der DAO liefert `None` fuer beide
+        // Faelle, weil die Detail-Query dieselbe Traeger-Bedingung traegt wie
+        // die Liste (D-62-04).
+        let Some(row) = row else {
+            return Err(ServiceError::EntityNotFound(person_id));
+        };
+
+        let role_rows = self.person_directory_dao.all_user_roles(tx.clone()).await?;
+
+        // Genau zwei Abfragen fuer genau EINE Person — kein Aufruf pro Zeile
+        // einer Liste. Aus der Rollen-Bulk-Antwort wird nur der eine Benutzer
+        // uebernommen, der zu dieser Zeile gehoert; `entry_from_row` schlaegt
+        // ohnehin nur unter `row.username` nach.
+        let mut roles_by_user: HashMap<Arc<str>, Vec<Arc<str>>> = HashMap::new();
+        for role_row in role_rows
+            .iter()
+            .filter(|role_row| Some(&role_row.user_name) == row.username.as_ref())
+        {
+            roles_by_user
+                .entry(role_row.user_name.clone())
+                .or_default()
+                .push(role_row.role_name.clone());
+        }
+
+        // PADM-06: dieselbe freie Funktion, die die Liste benutzt. Eine zweite
+        // Ableitung von `kind` und `display_name` waere die Doppelwahrheit, die
+        // das Fat-Backend-Prinzip dieser Phase verbietet.
+        Ok(entry_from_row(&row, &roles_by_user))
     }
 }
 
@@ -104,43 +159,10 @@ impl<Deps: PersonDetailServiceDeps> PersonDetailService for PersonDetailServiceI
             .await?;
 
         let tx = self.transaction_dao.use_transaction(tx).await?;
-
-        let row = self
-            .person_directory_dao
-            .find_directory_entry(person_id, tx.clone())
-            .await?;
-
-        // Kein Commit auf diesem Pfad: die Transaktion wird verworfen (P-61-B).
-        // Eine unbekannte ODER traegerlos gewordene Person ist nicht auffindbar
-        // — nie eine halbleere Antwort. Der DAO liefert `None` fuer beide
-        // Faelle, weil die Detail-Query dieselbe Traeger-Bedingung traegt wie
-        // die Liste (D-62-04).
-        let Some(row) = row else {
-            return Err(ServiceError::EntityNotFound(person_id));
-        };
-
-        let role_rows = self.person_directory_dao.all_user_roles(tx.clone()).await?;
+        let entry = self.build_entry(person_id, tx.clone()).await?;
         self.transaction_dao.commit(tx).await?;
 
-        // Genau zwei Abfragen fuer genau EINE Person — kein Aufruf pro Zeile
-        // einer Liste. Aus der Rollen-Bulk-Antwort wird nur der eine Benutzer
-        // uebernommen, der zu dieser Zeile gehoert; `entry_from_row` schlaegt
-        // ohnehin nur unter `row.username` nach.
-        let mut roles_by_user: HashMap<Arc<str>, Vec<Arc<str>>> = HashMap::new();
-        for role_row in role_rows
-            .iter()
-            .filter(|role_row| Some(&role_row.user_name) == row.username.as_ref())
-        {
-            roles_by_user
-                .entry(role_row.user_name.clone())
-                .or_default()
-                .push(role_row.role_name.clone());
-        }
-
-        // PADM-06: dieselbe freie Funktion, die die Liste benutzt. Eine zweite
-        // Ableitung von `kind` und `display_name` waere die Doppelwahrheit, die
-        // das Fat-Backend-Prinzip dieser Phase verbietet.
-        Ok(entry_from_row(&row, &roles_by_user))
+        Ok(entry)
     }
 
     async fn unlinked_sales_person_candidates(
@@ -329,5 +351,166 @@ impl<Deps: PersonDetailServiceDeps> PersonDetailService for PersonDetailServiceI
 
         self.transaction_dao.commit(tx).await?;
         Ok(person_id)
+    }
+
+    async fn add_facet(
+        &self,
+        person_id: Uuid,
+        facet: PersonFacet,
+        display_name: Option<Arc<str>>,
+        username: Option<Arc<str>>,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Uuid, ServiceError> {
+        // T-63-05-A: Gate als ERSTE Anweisung.
+        self.permission_service
+            .check_permission("admin", context)
+            .await?;
+
+        // Pflichtfeld je Seite, vor jedem Datenbankzugriff geprueft.
+        let value = match facet {
+            PersonFacet::User => username,
+            PersonFacet::SalesPerson => display_name,
+        };
+        let Some(value) = value.filter(|value| !value.trim().is_empty()) else {
+            return Err(ServiceError::ValidationError(
+                [ValidationFailureItem::InvalidValue(match facet {
+                    PersonFacet::User => "username".into(),
+                    PersonFacet::SalesPerson => "display_name".into(),
+                })]
+                .into(),
+            ));
+        };
+
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+
+        let Some(entry) = self
+            .person_directory_dao
+            .find_directory_entry(person_id, tx.clone())
+            .await?
+        else {
+            // Kein Commit: die Transaktion wird verworfen (P-61-B).
+            return Err(ServiceError::EntityNotFound(person_id));
+        };
+
+        let resulting_person_id = match facet {
+            PersonFacet::User => {
+                if entry.username.is_some() {
+                    return Err(ServiceError::EntityAlreadyExists(person_id));
+                }
+                // Der Benutzer wird direkt an die bestehende Person gehaengt.
+                // Die Sales Person dieser Person wird dabei nicht angefasst —
+                // sie behaelt id, version und Namen (SC-3).
+                self.permission_dao
+                    .create_user(
+                        &dao::UserEntity { name: value },
+                        Some(person_id),
+                        PERSON_DETAIL_SERVICE_PROCESS,
+                        tx.clone(),
+                    )
+                    .await?;
+                person_id
+            }
+            PersonFacet::SalesPerson => {
+                if entry.sales_person_id.is_some() {
+                    return Err(ServiceError::EntityAlreadyExists(person_id));
+                }
+                // Ohne Benutzerkonto haette der Eintrag keinen Traeger und
+                // waere im Verzeichnis gar nicht sichtbar (D-62-04) — der DAO
+                // haette oben `None` geliefert.
+                let Some(existing_username) = entry.username.clone() else {
+                    return Err(ServiceError::EntityNotFound(person_id));
+                };
+
+                let sales_person = SalesPerson {
+                    id: Uuid::nil(),
+                    version: Uuid::nil(),
+                    name: value,
+                    background_color: DEFAULT_BACKGROUND_COLOR.into(),
+                    is_paid: Some(false),
+                    inactive: false,
+                    deleted: None,
+                };
+                // `Authentication::Full` erst nach dem eigenen, strengeren
+                // Admin-Gate — siehe `create_combined`.
+                let created = self
+                    .sales_person_service
+                    .create(&sales_person, Authentication::Full, Some(tx.clone()))
+                    .await?;
+
+                // Das Verknuepfen laeuft ueber den bestehenden, seit Phase 61
+                // getesteten Schreibpfad des Sales-Person-DAO. Es wird bewusst
+                // KEIN zweiter Verknuepfungs-Pfad gebaut: die Merge-Richtung
+                // (D-61-03, die Sales Person gewinnt), die Konflikt-Erkennung
+                // und das Aufraeumen der absorbierten Person stecken
+                // vollstaendig dort.
+                match self
+                    .sales_person_dao
+                    .assign_to_user(
+                        created.id,
+                        existing_username.as_ref(),
+                        PERSON_DETAIL_SERVICE_PROCESS,
+                        tx.clone(),
+                    )
+                    .await
+                {
+                    Ok(()) => {}
+                    // Derselbe 409-Vertrag wie in Phase 61 (D-61-04): ein
+                    // Race-Verlierer ist ein Konflikt, kein Serverfehler. Kein
+                    // Commit — die Transaktion wird verworfen und nimmt die
+                    // eben angelegte Sales Person mit (P-61-B).
+                    Err(dao::DaoError::EntityAlreadyExists) => {
+                        return Err(ServiceError::EntityAlreadyExists(person_id));
+                    }
+                    Err(other) => return Err(other.into()),
+                }
+
+                // Der Eintrag hat jetzt eine ANDERE Identitaet: der Benutzer
+                // ist auf die Person der Sales Person gewandert, die
+                // urspruengliche Person wurde absorbiert. Die resultierende id
+                // steht nur noch auf der Traeger-Seite.
+                self.person_dao
+                    .find_by_sales_person(created.id, tx.clone())
+                    .await?
+                    .ok_or_else(|| {
+                        ServiceError::EntityNotFoundGeneric(
+                            format!("person of sales person {}", created.id).into(),
+                        )
+                    })?
+                    .id
+            }
+        };
+
+        self.transaction_dao.commit(tx).await?;
+        Ok(resulting_person_id)
+    }
+
+    async fn get_detail_by_sales_person(
+        &self,
+        sales_person_id: Uuid,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<PersonEntry, ServiceError> {
+        self.permission_service
+            .check_permission("admin", context)
+            .await?;
+
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+
+        let Some(person) = self
+            .person_dao
+            .find_by_sales_person(sales_person_id, tx.clone())
+            .await?
+        else {
+            // Kein Commit (P-61-B).
+            return Err(ServiceError::EntityNotFoundGeneric(
+                format!("sales person {sales_person_id}").into(),
+            ));
+        };
+
+        let entry = self.build_entry(person.id, tx.clone()).await?;
+        self.transaction_dao.commit(tx).await?;
+
+        Ok(entry)
     }
 }

@@ -53,7 +53,7 @@ use dao_impl_sqlite::{PermissionDaoImpl, TransactionDaoImpl, TransactionImpl};
 use service::clock::MockClockService;
 use service::permission::Authentication;
 use service::person::MockPersonService;
-use service::person_detail::{CreatePersonEntry, PersonDetailService};
+use service::person_detail::{CreatePersonEntry, PersonDetailService, PersonFacet};
 use service::person_directory::{PersonEntry, PersonKind};
 use service::sales_person::{MockSalesPersonService, SalesPersonService};
 use service::uuid_service::MockUuidService;
@@ -93,6 +93,7 @@ impl PersonDetailServiceDeps for MockDeps {
     type PersonDirectoryDao = MockPersonDirectoryDao;
     type PersonDao = MockPersonDao;
     type PermissionDao = MockPermissionDao;
+    type SalesPersonDao = dao::sales_person::MockSalesPersonDao;
     type PersonService = MockPersonService;
     type SalesPersonService = MockSalesPersonService;
     type PermissionService = MockPermissionService;
@@ -128,6 +129,7 @@ fn build_mock_service(
         person_directory_dao: Arc::new(person_directory_dao),
         person_dao: Arc::new(MockPersonDao::new()),
         permission_dao: Arc::new(MockPermissionDao::new()),
+        sales_person_dao: Arc::new(dao::sales_person::MockSalesPersonDao::new()),
         person_service: Arc::new(person_service),
         sales_person_service: Arc::new(MockSalesPersonService::new()),
         permission_service: Arc::new(permission_service),
@@ -305,6 +307,7 @@ impl PersonDetailServiceDeps for IntegrationDeps {
     type PersonDirectoryDao = PersonDirectoryDaoImpl;
     type PersonDao = PersonDaoImpl;
     type PermissionDao = PermissionDaoImpl;
+    type SalesPersonDao = dao_impl_sqlite::sales_person::SalesPersonDaoImpl;
     type PersonService = PersonServiceImpl<PersonIntegrationDeps>;
     type SalesPersonService = SalesPersonServiceImpl<SalesPersonIntegrationDeps>;
     type PermissionService = MockPermissionService;
@@ -361,6 +364,9 @@ fn build_service(
         person_directory_dao: Arc::new(PersonDirectoryDaoImpl::new(pool.clone())),
         person_dao: Arc::new(PersonDaoImpl::new(pool.clone())),
         permission_dao: Arc::new(PermissionDaoImpl::new(pool.clone())),
+        sales_person_dao: Arc::new(dao_impl_sqlite::sales_person::SalesPersonDaoImpl::new(
+            pool.clone(),
+        )),
         person_service: Arc::new(person_service),
         sales_person_service: Arc::new(sales_person_service),
         permission_service: Arc::new(build_perm(admin)),
@@ -930,5 +936,338 @@ async fn create_combined_teilfehler_laesst_keine_haelfte_zurueck() {
         1,
         count(pool.as_ref(), "SELECT COUNT(*) FROM user").await,
         "der bestehende Benutzer bleibt unveraendert",
+    );
+}
+
+// ─── A-1 … A-7 / G-1 … G-3: add_facet und get_detail_by_sales_person ────────
+//                            (Plan 63-05 / PADM-03 / SC-3 / SC-4)
+
+async fn add_facet(
+    pool: &Arc<sqlx::SqlitePool>,
+    admin: bool,
+    person_id: Uuid,
+    facet: PersonFacet,
+    display_name: Option<&str>,
+    username: Option<&str>,
+) -> Result<Uuid, ServiceError> {
+    build_service(pool.clone(), admin)
+        .add_facet(
+            person_id,
+            facet,
+            display_name.map(Arc::<str>::from),
+            username.map(Arc::<str>::from),
+            Authentication::Context(()),
+            None,
+        )
+        .await
+}
+
+async fn person_exists(pool: &sqlx::SqlitePool, person_id: Uuid) -> bool {
+    sqlx::query_scalar::<_, Vec<u8>>("SELECT id FROM person WHERE id = ?")
+        .bind(person_id.as_bytes().to_vec())
+        .fetch_optional(pool)
+        .await
+        .expect("person lookup")
+        .is_some()
+}
+
+/// Version und Name der Sales Person — der Nachweis, dass das bereits
+/// vorhandene Objekt beim Zuschalten der Gegenseite **unveraendert** bleibt
+/// (SC-3).
+async fn sales_person_fingerprint(pool: &sqlx::SqlitePool, id: Uuid) -> (String, Vec<u8>) {
+    sqlx::query_as::<_, (String, Vec<u8>)>(
+        "SELECT name, update_version FROM sales_person WHERE id = ?",
+    )
+    .bind(id.as_bytes().to_vec())
+    .fetch_one(pool)
+    .await
+    .expect("sales person fingerprint")
+}
+
+/// A-1 (PADM-03, SC-3): „Login hinzufuegen" auf einem reinen Verkaeufer-
+/// Eintrag. Der Benutzer entsteht auf derselben Person, die Sales Person
+/// bleibt unangetastet, und die zurueckgegebene id ist die unveraenderte
+/// Eingabe — dieser Pfad fuehrt keine Identitaeten zusammen.
+#[tokio::test]
+async fn add_facet_benutzer_auf_verkaeufer_eintrag_laesst_verkaeufer_unveraendert() {
+    let pool = setup_pool().await;
+    let person_id = Uuid::new_v4();
+    let sales_person_id = Uuid::new_v4();
+    seed_person(pool.as_ref(), person_id).await;
+    seed_live_sales_person(pool.as_ref(), sales_person_id, "Dana Ohne Login", person_id).await;
+    let vorher = sales_person_fingerprint(pool.as_ref(), sales_person_id).await;
+
+    let resultierend = add_facet(
+        &pool,
+        true,
+        person_id,
+        PersonFacet::User,
+        None,
+        Some("dana"),
+    )
+    .await
+    .expect("add_facet should succeed for admin");
+
+    assert_eq!(
+        person_id, resultierend,
+        "ohne Zusammenfuehren behaelt der Eintrag seine person_id",
+    );
+    assert_eq!(Some(person_id), person_of_user(pool.as_ref(), "dana").await);
+    assert_eq!(
+        vorher,
+        sales_person_fingerprint(pool.as_ref(), sales_person_id).await,
+        "die vorhandene Sales Person bleibt unveraendert — gleicher Name, gleiche Version (SC-3)",
+    );
+
+    let entry = detail(&pool, resultierend).await;
+    assert_eq!(PersonKind::Linked, entry.kind);
+}
+
+/// A-2 (PADM-03, SC-3, D-61-03): „Person hinzufuegen" auf einem reinen
+/// Benutzer-Eintrag. Hier fuehrt der bestehende Schreibpfad zwei Identitaeten
+/// zusammen, und **die Sales Person gewinnt** — der Eintrag wechselt seine
+/// `person_id`. Der Test prueft beide Seiten: die Rueckgabe ist NICHT die
+/// Eingabe, und die urspruengliche Person existiert nicht mehr.
+#[tokio::test]
+async fn add_facet_verkaeufer_auf_benutzer_eintrag_liefert_neue_person_id() {
+    let pool = setup_pool().await;
+    let person_id = Uuid::new_v4();
+    seed_person(pool.as_ref(), person_id).await;
+    seed_user(pool.as_ref(), "carl", person_id).await;
+
+    let resultierend = add_facet(
+        &pool,
+        true,
+        person_id,
+        PersonFacet::SalesPerson,
+        Some("Carl Verkauf"),
+        None,
+    )
+    .await
+    .expect("add_facet should succeed for admin");
+
+    assert_ne!(
+        person_id, resultierend,
+        "der Merge laesst die Sales Person gewinnen — die person_id wechselt (D-61-03)",
+    );
+    assert!(
+        !person_exists(pool.as_ref(), person_id).await,
+        "die absorbierte Person darf nicht zurueckbleiben",
+    );
+    assert_eq!(
+        Some(resultierend),
+        person_of_sales_person(pool.as_ref(), "Carl Verkauf").await,
+    );
+    assert_eq!(
+        Some(resultierend),
+        person_of_user(pool.as_ref(), "carl").await,
+        "der Benutzer ist auf die gewinnende Person gewandert",
+    );
+    assert_eq!(
+        1,
+        count(pool.as_ref(), "SELECT COUNT(*) FROM person").await,
+        "genau eine Person bleibt uebrig",
+    );
+
+    let entry = detail(&pool, resultierend).await;
+    assert_eq!(PersonKind::Linked, entry.kind);
+    assert_eq!(Arc::<str>::from("Carl Verkauf"), entry.display_name);
+}
+
+/// A-3 (D-61-04): Die Benutzer-Seite ist bereits besetzt → 409-Vertrag, kein
+/// Schreibzugriff.
+#[tokio::test]
+async fn add_facet_auf_besetzte_benutzer_seite_ist_entity_already_exists() {
+    let pool = setup_pool().await;
+    let person_id = Uuid::new_v4();
+    seed_person(pool.as_ref(), person_id).await;
+    seed_live_sales_person(pool.as_ref(), Uuid::new_v4(), "Bea Verknuepft", person_id).await;
+    seed_user(pool.as_ref(), "bea", person_id).await;
+
+    let result = add_facet(
+        &pool,
+        true,
+        person_id,
+        PersonFacet::User,
+        None,
+        Some("zweitkonto"),
+    )
+    .await;
+
+    assert!(
+        matches!(result, Err(ServiceError::EntityAlreadyExists(id)) if id == person_id),
+        "eine besetzte Seite darf nicht stillschweigend ueberschrieben werden: {result:?}",
+    );
+    assert_eq!(
+        1,
+        count(pool.as_ref(), "SELECT COUNT(*) FROM user").await,
+        "die Ablehnung darf keinen zweiten Benutzer angelegt haben",
+    );
+}
+
+/// A-4 (D-61-04, Gegenstueck zu A-3): Die Verkaeufer-Seite ist bereits besetzt.
+#[tokio::test]
+async fn add_facet_auf_besetzte_verkaeufer_seite_ist_entity_already_exists() {
+    let pool = setup_pool().await;
+    let person_id = Uuid::new_v4();
+    seed_person(pool.as_ref(), person_id).await;
+    seed_live_sales_person(pool.as_ref(), Uuid::new_v4(), "Bea Verknuepft", person_id).await;
+    seed_user(pool.as_ref(), "bea", person_id).await;
+
+    let result = add_facet(
+        &pool,
+        true,
+        person_id,
+        PersonFacet::SalesPerson,
+        Some("Zweiter Verkaeufer"),
+        None,
+    )
+    .await;
+
+    assert!(
+        matches!(result, Err(ServiceError::EntityAlreadyExists(id)) if id == person_id),
+        "eine besetzte Seite darf nicht stillschweigend ueberschrieben werden: {result:?}",
+    );
+    assert_eq!(
+        1,
+        count(pool.as_ref(), "SELECT COUNT(*) FROM sales_person").await,
+        "die Ablehnung darf keine zweite Sales Person angelegt haben",
+    );
+}
+
+/// A-5: Fehlendes Pflichtfeld je Seite — Benutzername bei `User`,
+/// Anzeigename bei `SalesPerson`.
+#[tokio::test]
+async fn add_facet_ohne_pflichtfeld_ist_validation_error() {
+    let pool = setup_pool().await;
+    let person_id = Uuid::new_v4();
+    seed_person(pool.as_ref(), person_id).await;
+    seed_live_sales_person(pool.as_ref(), Uuid::new_v4(), "Dana Ohne Login", person_id).await;
+
+    let ohne_benutzername = add_facet(&pool, true, person_id, PersonFacet::User, None, None).await;
+    assert!(
+        matches!(ohne_benutzername, Err(ServiceError::ValidationError(_))),
+        "User ohne Benutzernamen muss abgelehnt werden: {ohne_benutzername:?}",
+    );
+
+    let leerer_anzeigename = add_facet(
+        &pool,
+        true,
+        person_id,
+        PersonFacet::SalesPerson,
+        Some("  "),
+        None,
+    )
+    .await;
+    assert!(
+        matches!(leerer_anzeigename, Err(ServiceError::ValidationError(_))),
+        "SalesPerson ohne Anzeigenamen muss abgelehnt werden: {leerer_anzeigename:?}",
+    );
+
+    assert_eq!(0, count(pool.as_ref(), "SELECT COUNT(*) FROM user").await);
+}
+
+/// A-6: Eine unbekannte `person_id` ist `EntityNotFound` — dieselbe
+/// Sichtbarkeitsregel wie im Lesepfad.
+#[tokio::test]
+async fn add_facet_unbekannte_person_ist_entity_not_found() {
+    let pool = setup_pool().await;
+    let unbekannt = Uuid::new_v4();
+
+    let result = add_facet(
+        &pool,
+        true,
+        unbekannt,
+        PersonFacet::User,
+        None,
+        Some("niemand"),
+    )
+    .await;
+
+    assert!(
+        matches!(result, Err(ServiceError::EntityNotFound(id)) if id == unbekannt),
+        "unbekannte person_id muss EntityNotFound liefern: {result:?}",
+    );
+    assert_eq!(0, count(pool.as_ref(), "SELECT COUNT(*) FROM user").await);
+}
+
+/// A-7 (T-63-05-A, PADM-08): Ohne Admin-Privileg wird nichts geschrieben.
+#[tokio::test]
+async fn add_facet_ohne_admin_privileg_ist_forbidden() {
+    let pool = setup_pool().await;
+    let person_id = Uuid::new_v4();
+    seed_person(pool.as_ref(), person_id).await;
+    seed_live_sales_person(pool.as_ref(), Uuid::new_v4(), "Dana Ohne Login", person_id).await;
+
+    let result = add_facet(
+        &pool,
+        false,
+        person_id,
+        PersonFacet::User,
+        None,
+        Some("dana"),
+    )
+    .await;
+
+    assert!(
+        matches!(result, Err(ServiceError::Forbidden)),
+        "ohne Admin-Privileg muss add_facet Forbidden liefern: {result:?}",
+    );
+    assert_eq!(0, count(pool.as_ref(), "SELECT COUNT(*) FROM user").await);
+}
+
+/// G-1 (SC-4): Ueber die `sales_person_id` kommt genau dieselbe Zeile heraus
+/// wie ueber die `person_id` — der Weg zurueck in die Detailansicht, nachdem
+/// ein bestehender Verkaeufer verknuepft wurde und die Identitaet gewechselt
+/// hat.
+#[tokio::test]
+async fn get_detail_by_sales_person_liefert_dieselbe_zeile_wie_get_detail() {
+    let pool = setup_pool().await;
+    let person_id = Uuid::new_v4();
+    let sales_person_id = Uuid::new_v4();
+    seed_person(pool.as_ref(), person_id).await;
+    seed_live_sales_person(pool.as_ref(), sales_person_id, "Bea Verknuepft", person_id).await;
+    seed_user(pool.as_ref(), "bea", person_id).await;
+    seed_user_role(pool.as_ref(), "bea", "hr").await;
+
+    let ueber_person = detail(&pool, person_id).await;
+    let ueber_sales_person = build_service(pool.clone(), true)
+        .get_detail_by_sales_person(sales_person_id, Authentication::Context(()), None)
+        .await
+        .expect("get_detail_by_sales_person should succeed for admin");
+
+    assert_eq!(ueber_person, ueber_sales_person);
+    assert_eq!(person_id, ueber_sales_person.person_id);
+}
+
+/// G-2: Eine Sales Person ohne aufloesbare Person ist
+/// `EntityNotFoundGeneric` — die Id steht als Text drin, weil der Fehler sich
+/// nicht auf eine `person_id` beziehen kann.
+#[tokio::test]
+async fn get_detail_by_sales_person_ohne_aufloesbare_person_ist_entity_not_found_generic() {
+    let pool = setup_pool().await;
+
+    let result = build_service(pool.clone(), true)
+        .get_detail_by_sales_person(Uuid::new_v4(), Authentication::Context(()), None)
+        .await;
+
+    assert!(
+        matches!(result, Err(ServiceError::EntityNotFoundGeneric(_))),
+        "eine unbekannte sales_person_id muss EntityNotFoundGeneric liefern: {result:?}",
+    );
+}
+
+/// G-3 (T-63-05-A): Auch dieser Lesepfad gatet auf `admin`.
+#[tokio::test]
+async fn get_detail_by_sales_person_ohne_admin_privileg_ist_forbidden() {
+    let pool = setup_pool().await;
+
+    let result = build_service(pool.clone(), false)
+        .get_detail_by_sales_person(Uuid::new_v4(), Authentication::Context(()), None)
+        .await;
+
+    assert!(
+        matches!(result, Err(ServiceError::Forbidden)),
+        "ohne Admin-Privileg darf auch dieser Lesepfad nichts preisgeben: {result:?}",
     );
 }
