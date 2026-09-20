@@ -212,7 +212,7 @@ Code-Diff (MEMORY `feedback_docs_always_current_no_followup`).
       umgeschrieben inkl. der Selbst-Zugriffs-Prüfung, Verknüpfen/Lösen mit
       Konflikt-Ablehnung (Backend-only)
 
-- [ ] **Phase 62: Personen-Verzeichnis — eine Liste statt Tabs** — Business-Logic-
+- [x] **Phase 62: Personen-Verzeichnis — eine Liste statt Tabs** — Business-Logic- (completed 2026-09-20)
       Lese-Aggregat + `PersonEntryTO` + ein Aggregat-Endpoint + admin-gated
       Listenansicht unter `/user_management/` mit Ausprägungs-Badge und Suche
 
@@ -447,7 +447,7 @@ Entitäten — kein Neuschnitt nötig), `shifty-dioxus/Dioxus.toml`, i18n de/en/
 
 **UI hint**: yes
 
-**Plans:** 7 plans
+**Plans:** 7/7 plans complete
 
 Plans:
 

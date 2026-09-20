@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v2.7
 milestone_name: — Personenverwaltung & Planungs-Soll
-current_phase: 62
-current_phase_name: personen-verzeichnis-eine-liste-statt-tabs
-status: executing
-stopped_at: 62-07 Task 1 abgeschlossen (Laufzeit-Smoke gruen) — Task 2 blockierender human-verify-Checkpoint offen
-last_updated: "2026-09-20T08:50:00.000Z"
+current_phase: 63
+current_phase_name: Personen-Detailansicht + Ausprägungs-Aktionen
+status: Phase 62 abgeschlossen und verifiziert (9/9 must-haves). Bereit fuer Phase 63.
+stopped_at: 62-07 (Laufzeit-Verifikation + UAT) abgeschlossen — 2/2 Tasks
+last_updated: "2026-09-20T13:28:40.055Z"
 last_activity: 2026-09-20
-last_activity_desc: 62-07 Task 1 abgeschlossen (Proxy-Smoke 200/200); Task 2 wartet auf menschliche Freigabe
+last_activity_desc: Phase 62 complete, transitioned to Phase 63
 progress:
   total_phases: 5
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 20
   completed_plans: 20
-  percent: 40
+  percent: 60
 ---
 
 # Project State: Shifty Backend
@@ -28,59 +28,29 @@ progress:
 - **Codebase**: `shifty-backend/CLAUDE.md` (architecture, conventions); Frontend in `shifty-dioxus/CLAUDE.md` + `.planning/codebase/frontend/`
 - **Last shipped/closed**: **v2.6 Freiwillige-Stunden-Ausgleich für gedeckelte Mitarbeiter** (shipped 2026-07-31, deployed; Planungs-Archiv 2026-09-15; Phasen 54, 54.5, 55, 56, 57 — 29 Pläne, 19/19 Requirements, Audit `passed`, `override_closeout`)
 - **Current milestone**: **v2.7 Personenverwaltung & Planungs-Soll** (in Arbeit; Roadmap erstellt 2026-09-16, Phasen 60–64; 1/5 Phasen abgeschlossen).
-- **Current focus**: **Phase 62 geplant, bereit zur Ausführung** — 7 Pläne in 4 Wellen (`/gsd-execute-phase 62`). Phase 61 ist abgeschlossen; ihre Gap-Closure-Wellen 61-07 bis 61-10 haben CR-01, CR-02, WR-04, WR-05 und WR-06 geschlossen. Offen bis zum Deploy: CR-02 Pre-Flight-Query (siehe **v2.7 Deploy-Gates**). WR-02 wird in Phase 62 mitgefixt (D-62-05). Die zwei ausgearbeiteten Entwürfe **Phase 58** (Werktags-Stundenverteilung, Snapshot-Bump 13→14) und **Phase 59** (E2E-Playwright) bleiben bewusst außerhalb von v2.7; ihre Nummern sind reserviert.
+- **Current focus**: **Phase 62 abgeschlossen (7/7 Plaene, Verifikation `passed`, 9/9 must-haves) — Phase 63 ist die naechste, noch ungeplant.** `/user_management/` zeigt eine durchsuchbare Liste statt zweier Tabs, gespeist von `GET /person-directory` mit Admin-Gate im Service. WR-02 ist mit Phase 62 gefixt (D-62-05). **Zwei Punkte fuer Phase 63:** (1) D-63-03 in der ROADMAP — der neue Anlege-Dialog (SC-2) muss die beiden heutigen Knoepfe „Neuen Verkaeufer erstellen“ / „Neuen Benutzer hinzufuegen“ **ersetzen**, nicht ergaenzen (UAT-Befund Phase 62: seit dem Tab-Merge stehen sie kontextlos nebeneinander). (2) Das Auspraegungs-Badge wurde im UAT von 62-07 auf Produktentscheidung **entfernt** (Farbkollision mit dem Bezahlt/Freiwillig-Chip); `PersonKindTO` bleibt und steuert Aktions-Sichtbarkeit und Bearbeiten-Link — die drei i18n-Keys stehen fuer die Detailansicht bereit. Offen bis zum Deploy: CR-02 Pre-Flight-Query (siehe **v2.7 Deploy-Gates**). Die Entwuerfe **Phase 58** (Werktags-Stundenverteilung, Snapshot-Bump 13→14) und **Phase 59** (E2E-Playwright) bleiben ausserhalb von v2.7; ihre Nummern sind reserviert.
 - **Snapshot-Schema-Version**: aktuell **13** (Bump 12→13 in Phase 57, D-57-10). **v2.7 bumpt nicht** — `person` ist rein administrativ, das Planungs-Soll ein reines Anzeigefeld. Phase 58 (nicht in v2.7) würde auf 14 heben.
 
 ## Current Position
 
-Phase: 62 (personen-verzeichnis-eine-liste-statt-tabs) — EXECUTING
-Plan: 7 of 7 — CHECKPOINT PENDING
-Status: Wellen 1-3 abgeschlossen. 62-01 (DAO-Schicht) —
-WR-02 geschlossen, `PersonDirectoryDao` liefert den Drei-Wege-Outer-Join.
-62-02 (DTO + i18n) — `PersonEntryTO`/`PersonKindTO` in `rest-types` und sechs
-neue Beschriftungen in de/en/cs. 62-03 (Business-Logic-Service) —
-`PersonDirectoryService` mit Admin-Gate (D-62-08), Ausprägungs-Klassifikation,
-`display_name`-Ableitung, case-insensitiver Sortierung und dem
-`From`-Mapping auf `PersonEntryTO`; acht Tests grün, Clippy sauber. Der
-Service hat seinen Laufzeit-Aufrufer seit 62-05.
-62-04 (Frontend-Umbau) — ein Aggregat-Request statt 2+N+2M, `/user_management/`
-zeigt eine admin-gegatete Liste mit Auspraegungs-Badge, die Tab-Leiste ist
-geloescht; 835 Frontend-Tests gruen, beide Clippy-Gates sauber.
-62-05 (REST + DI + Dev-Proxy) — `GET /person-directory` admin-gegatet, in der
-OpenAPI-Doku registriert, Business-Logic-Service nach dem Basic-Block
-verdrahtet, `[[web.proxy]]`-Eintrag im selben Commit; zwei HTTP-Tests fuer
-beide Gate-Seiten gruen, Workspace + Clippy + OIDC-Build sauber.
-62-06 (Doku) — F01 beschreibt das Verzeichnis bis zum Endpoint und ersetzt die
-WR-02-Fehlinformation durch die verallgemeinerte ON-vs-WHERE-Regel mit
-namentlichem Regressionstest; die Tier-Doku fuehrt `PersonDirectoryService`
-samt Klarstellung der Faustregel, der Laufzeit-Graph zeigt den Knoten im
-Business-Teilgraph. EN/DE strukturgleich (33/33 bzw. 7/7 Ueberschriften), eine
-Phase-56-Drift in der deutschen Tier-Doku nebenbei geschlossen.
-62-07 (Laufzeit-Verifikation) — **Task 1 abgeschlossen, Task 2 OFFEN**.
-Task 1 belegt: Praefix-Konsistenz ueber vier Fundstellen (`wc -l` = 1),
-Backend-Smoke `GET /person-directory` = 200, **Dev-Proxy-Smoke ueber Port 8080
-ebenfalls 200 mit byte-gleichem Body** (der 3x wiederholte Proxy-Incident tritt
-nicht auf), `load_directory_ist_ein_request` gruen, Fat-Backend-Grep = 0 und
-`UserManagementTabBar` = 0 Treffer. Beide Dev-Server wieder beendet.
-Task 2 ist ein **blockierender `checkpoint:human-verify`**: die neun
-Browser-Schritte (Badge-Unterscheidbarkeit, Suche ueber beide Namen,
-Netzwerk-Tab-Request-Zahl, D-62-06/D-62-07, Ablehnungstext beim Direktaufruf
-ohne Admin-Rolle) sind **nicht** bestaetigt. Die lokale `localdb.sqlite3` enthaelt
-nur zwei `user_only`-Eintraege — Schritt 1 (drei Auspraegungen ueber die
-Oberflaeche anlegen) ist Pflicht.
-Planungs-Artefakte
-vollständig: CONTEXT, RESEARCH, PATTERNS,
-UI-SPEC (6/6 Dimensionen approved), VALIDATION, 7 PLAN.md in 4 Wellen.
-Gates: plan-checker PASSED · Requirements 3/3 (PADM-01, PADM-06, PADM-08) ·
-Decisions 8/8 (D-62-01..08) · UI-Gate entsperrt.
-Wellen: 1) 62-01 DAO (WR-02-Fix + `PersonDirectoryDao`) ∥ 62-02 DTO + i18n ·
-2) 62-03 Business-Logic-Service + Admin-Gate ∥ 62-04 Frontend-Umbau ·
-3) 62-05 REST + DI + `Dioxus.toml`-Proxy · 4) 62-06 Docs-Gate (EN+DE) ∥ 62-07 Laufzeit-Verifikation.
-Aus Phase 61 offen: CR-02 (Pre-Flight-Query) bleibt Deploy-Gate, siehe **v2.7 Deploy-Gates** unten.
-WR-02 wird in Phase 62 geschlossen (D-62-05, Plan 62-01); WR-01, WR-03, WR-07 und IN-01..IN-07 bleiben Backlog.
-Last activity: 2026-09-20 — 62-07 Task 1 abgeschlossen; Task 2 (human-verify) offen
-Next: **Menschliche Freigabe fuer 62-07 Task 2.** Server erneut starten (Kommandos im PLAN-Toolchain-Block), die neun Schritte durchgehen, dann mit "approved" oder den abweichenden Beobachtungen antworten. PADM-01/06/08 bleiben bis dahin offen.
-Resume file: .planning/phases/62-personen-verzeichnis-eine-liste-statt-tabs/62-07-PLAN.md (Task 2)
+Phase: 63 — Personen-Detailansicht + Ausprägungs-Aktionen
+Plan: Not started
+Status: Phase 62 abgeschlossen — alle 7 Pläne, Verifikation `passed` (9/9).
+
+Was Phase 62 geliefert hat:
+- 62-01 `PersonDirectoryDao` mit Drei-Wege-Outer-Join; WR-02 (Soft-Delete in der
+  `ON`-Klausel) geschlossen.
+- 62-02 `PersonEntryTO`/`PersonKindTO` in `rest-types`, sechs Beschriftungen in de/en/cs.
+- 62-03 `PersonDirectoryService` — Admin-Gate als erste Anweisung (D-62-08),
+  Ausprägungs-Klassifikation, `display_name`-Ableitung, case-insensitive Sortierung.
+- 62-04 Frontend: eine Liste statt Tabs, Aggregat-Ladepfad statt N+1, Suche über
+  Anzeige- und Benutzername, Component-Level-Admin-Guard.
+- 62-05 `GET /person-directory` mit OpenAPI, DI nach dem Basic-Block,
+  `Dioxus.toml`-Proxy im selben Commit; Integrationstests 200/403.
+- 62-06 Docs-Freshness-Gate: F01 und 02-service-tiers je EN+DE, Runtime-Graph.
+- 62-07 Laufzeit-Verifikation + UAT mit dem Nutzer; zwei Änderungen ausgelöst
+  (Badge entfernt, Spaltenüberschrift „Verkäufer" → „Name") und D-63-03 gepinnt.
+
 
 ## Quick Tasks Completed
 

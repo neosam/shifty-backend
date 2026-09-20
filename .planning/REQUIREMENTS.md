@@ -30,14 +30,14 @@ defined: 2026-09-16
 
 ### Personenverwaltung (PADM)
 
-- [ ] **PADM-01**: Ein Admin sieht **eine** Liste aller Einträge — verknüpfte, reine Benutzer und reine Verkäufer — mit erkennbarer Ausprägung und Suche, ohne Tab-Wechsel.
+- [x] **PADM-01**: Ein Admin sieht **eine** Liste aller Einträge — verknüpfte, reine Benutzer und reine Verkäufer — mit erkennbarer Ausprägung und Suche, ohne Tab-Wechsel.
 - [ ] **PADM-02**: Beim Anlegen erfasst der Admin **einen** Eintrag und schaltet dabei zu, ob er ein Benutzerkonto und/oder einen Verkäufer-Datensatz bekommt; die nötigen Objekte werden automatisch angelegt und verknüpft.
 - [ ] **PADM-03**: Bei einem bestehenden Eintrag kann eine fehlende Ausprägung nachträglich zugeschaltet werden — der Verkäufer-Datensatz bzw. das Benutzerkonto wird angelegt und mit der Person verknüpft.
 - [ ] **PADM-04**: Zwei bereits getrennt bestehende Objekte können ausnahmsweise nachträglich verknüpft werden, per Auswahl aus den noch unverknüpften Kandidaten statt durch exaktes Eintippen eines Benutzernamens.
 - [ ] **PADM-05**: Eine Detailansicht zeigt alles zu einem Eintrag an einem Ort — Stammdaten und Schichtplan-Zuordnung für die Verkäufer-Seite, Rollen und Einladungen für die Benutzer-Seite — und blendet aus, was die jeweilige Ausprägung nicht hat.
-- [ ] **PADM-06**: Der Anzeigename eines Eintrags kommt fertig vom Backend, sodass jeder Eintrag in Liste und Detailansicht beschriftet ist — auch ein reines Benutzerkonto ohne Verkäufernamen.
+- [x] **PADM-06**: Der Anzeigename eines Eintrags kommt fertig vom Backend, sodass jeder Eintrag in Liste und Detailansicht beschriftet ist — auch ein reines Benutzerkonto ohne Verkäufernamen.
 - [ ] **PADM-07**: Beim Entfernen einer Ausprägung oder beim Löschen eines Eintrags sagt die Bestätigung, was genau verschwindet und was bestehen bleibt.
-- [ ] **PADM-08**: Die Personenverwaltung ist vollständig admin-gated — sie öffnet sich nur für Nutzer mit Admin-Rolle.
+- [x] **PADM-08**: Die Personenverwaltung ist vollständig admin-gated — sie öffnet sich nur für Nutzer mit Admin-Rolle.
 
 ### Planungs-Soll (PSOLL)
 
@@ -87,14 +87,14 @@ Gefüllt bei der Roadmap-Erstellung am 2026-09-16 (`.planning/ROADMAP.md`, Miles
 | PERS-04 | Phase 60 | Complete |
 | PERS-05 | Phase 61 | Complete |
 | PERS-06 | Phase 60 | Complete |
-| PADM-01 | Phase 62 | Pending |
+| PADM-01 | Phase 62 | Complete |
 | PADM-02 | Phase 63 | Pending |
 | PADM-03 | Phase 63 | Pending |
 | PADM-04 | Phase 63 | Pending |
 | PADM-05 | Phase 63 | Pending |
-| PADM-06 | Phase 62 | Pending |
+| PADM-06 | Phase 62 | Complete |
 | PADM-07 | Phase 63 | Pending |
-| PADM-08 | Phase 62 | Pending |
+| PADM-08 | Phase 62 | Complete |
 | PSOLL-01 | Phase 64 | Pending |
 | PSOLL-02 | Phase 64 | Pending |
 | PSOLL-03 | Phase 64 | Pending |
