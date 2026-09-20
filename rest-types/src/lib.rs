@@ -59,7 +59,7 @@ impl From<&ShiftplanTO> for service::shiftplan_catalog::Shiftplan {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct UserTO {
     pub name: String,
 }
@@ -204,7 +204,7 @@ impl From<&service::booking_log::BookingLog> for BookingLogTO {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, ToSchema)]
 pub struct SalesPersonTO {
     #[serde(default)]
     pub id: Uuid,
