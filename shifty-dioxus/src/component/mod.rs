@@ -37,7 +37,7 @@ pub mod weekly_overview_chart;
 pub mod working_hours_mini_overview;
 pub mod working_hours_overview_layout_toggle;
 
-pub use atoms::{Btn, BtnVariant, NavBtn, PersonChip};
+pub use atoms::{Btn, BtnVariant, NavBtn, PersonChip, PersonKindBadge};
 pub use contract_modal::ContractModal;
 pub use impersonation_banner::ImpersonationBanner;
 pub use manual_rebooking_modal::ManualRebookingModal;

@@ -14,6 +14,8 @@
 //!   detail panels and summaries.
 //! - [`NavBtn`] — 28×28 mono-glyph square button used for prev/next
 //!   navigation in week and year contexts.
+//! - [`PersonKindBadge`] — Auspraegungs-Pille des Personen-Verzeichnisses
+//!   (Phase 62, D-62-01); drei Varianten aus bereits vorhandenen Tokens.
 //!
 //! All atoms consume the design tokens introduced in the
 //! `design-tokens` capability — none of them carry hardcoded colors or
@@ -23,6 +25,7 @@ pub mod btn;
 pub mod media_query;
 pub mod nav_btn;
 pub mod person_chip;
+pub mod person_kind_badge;
 pub mod tuple_row;
 pub mod week_status_badge;
 
@@ -30,5 +33,6 @@ pub use btn::{Btn, BtnVariant};
 pub use media_query::use_media_query;
 pub use nav_btn::NavBtn;
 pub use person_chip::PersonChip;
+pub use person_kind_badge::PersonKindBadge;
 pub use tuple_row::TupleRow;
 pub use week_status_badge::WeekStatusBadge;

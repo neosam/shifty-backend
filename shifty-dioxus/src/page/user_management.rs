@@ -11,17 +11,21 @@ use crate::{
     base_types::ImStr,
     component::{
         atoms::btn::build_class as btn_build_class, Btn, BtnVariant, Dialog, DialogVariant, Field,
-        PersonChip, TextInput, TopBar, UserManagementTabBar, UserMgmtTab,
+        PersonChip, PersonKindBadge, TextInput, TopBar, UserManagementTabBar, UserMgmtTab,
     },
     i18n::Key,
     router::Route,
     service::{
+        auth::AUTH,
         i18n::I18N,
         impersonate::ImpersonateAction,
         user_management::{UserManagementAction, USER_MANAGEMENT_STORE},
     },
+    state::AuthInfo,
 };
 use dioxus::prelude::*;
+use rest_types::PersonEntryTO;
+use std::rc::Rc;
 
 const SEARCH_INPUT_CLASSES: &str =
     "h-[34px] px-[10px] border border-border-strong rounded-md bg-surface text-ink text-body w-full min-w-0 form-input";
@@ -498,6 +502,35 @@ fn UsersTabContent(props: UsersTabContentProps) -> Element {
     }
 }
 
+
+/// D-62-08 / T-62-02: Admin-Praedikat des Component-Level-Guards. Bewusst eine
+/// freie Funktion, damit es ohne Dioxus-Laufzeit pruefbar ist.
+pub(crate) fn is_admin(_auth_info: Option<&AuthInfo>) -> bool {
+    false
+}
+
+/// Ablehnungs-Ansicht des Guards.
+#[component]
+pub fn NotAuthorizedView() -> Element {
+    rsx! {}
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct PersonDirectoryTableProps {
+    entries: Rc<[PersonEntryTO]>,
+    search: Signal<String>,
+    on_open_add_user: EventHandler<()>,
+    on_request_delete: EventHandler<ImStr>,
+    on_impersonate: EventHandler<ImStr>,
+}
+
+/// Die eine Liste des Personen-Verzeichnisses (PADM-01).
+#[component]
+fn PersonDirectoryTable(props: PersonDirectoryTableProps) -> Element {
+    let _ = &props;
+    rsx! {}
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -850,6 +883,225 @@ mod tests {
         // Danger button uses bad tokens.
         assert!(html.contains("text-bad"), "missing danger tokens: {html}");
         assert!(html.contains("border-bad"), "missing danger border: {html}");
+    }
+
+
+    // ── Personen-Verzeichnis (Phase 62) ──────────────────────────────────────
+
+    use crate::component::atoms::person_kind_badge::person_kind_badge_class;
+    use rest_types::PersonKindTO;
+    use std::sync::Arc;
+
+    /// Rendert die eine Liste mit injizierten Eintraegen — ohne Store, ohne
+    /// Netzwerk. Ersetzt die beiden Tab-Harnesse.
+    fn render_directory(entries: Vec<PersonEntryTO>, search_initial: &str) -> String {
+        #[derive(Props, Clone, PartialEq)]
+        struct WrapperProps {
+            entries: Rc<[PersonEntryTO]>,
+            initial: String,
+        }
+        #[component]
+        fn DirectoryWrapper(props: WrapperProps) -> Element {
+            let search = use_signal(|| props.initial.clone());
+            let _ = search.read();
+            rsx! {
+                PersonDirectoryTable {
+                    entries: props.entries.clone(),
+                    search,
+                    on_open_add_user: |_| {},
+                    on_request_delete: |_: ImStr| {},
+                    on_impersonate: |_: ImStr| {},
+                }
+            }
+        }
+        let mut vdom = VirtualDom::new_with_props(
+            DirectoryWrapper,
+            WrapperProps {
+                entries: Rc::from(entries),
+                initial: search_initial.to_string(),
+            },
+        );
+        vdom.rebuild_in_place();
+        dioxus_ssr::render(&vdom)
+    }
+
+    /// Fixture. `sales_person` steuert die vier Verkaeufer-Felder gemeinsam —
+    /// sie sind laut DTO-Invariante genau dann gefuellt, wenn die Person eine
+    /// lebende Sales Person traegt.
+    fn sample_entry(
+        kind: PersonKindTO,
+        display_name: &str,
+        username: Option<&str>,
+        sales_person: bool,
+    ) -> PersonEntryTO {
+        PersonEntryTO {
+            person_id: Uuid::new_v4(),
+            kind,
+            display_name: Arc::from(display_name),
+            username: username.map(Arc::from),
+            sales_person_id: if sales_person {
+                Some(Uuid::new_v4())
+            } else {
+                None
+            },
+            background_color: if sales_person {
+                Some(Arc::from("#dbe0ff"))
+            } else {
+                None
+            },
+            is_paid: if sales_person { Some(true) } else { None },
+            inactive: if sales_person { Some(false) } else { None },
+            roles: Vec::new(),
+        }
+    }
+
+    /// PADM-01, Success Criterion 1: alle drei Auspraegungen stehen
+    /// nebeneinander und tragen je ein unterscheidbares Badge.
+    #[test]
+    fn directory_row_renders_kind_badge() {
+        let entries = vec![
+            sample_entry(PersonKindTO::Linked, "Lena", Some("lena"), true),
+            sample_entry(PersonKindTO::SalesPersonOnly, "Tom", None, true),
+            sample_entry(PersonKindTO::UserOnly, "Zoe", Some("zoe"), false),
+        ];
+        let html = render_directory(entries, "");
+        for kind in [
+            PersonKindTO::Linked,
+            PersonKindTO::SalesPersonOnly,
+            PersonKindTO::UserOnly,
+        ] {
+            let cls = person_kind_badge_class(&kind);
+            assert!(
+                !cls.is_empty(),
+                "badge class for {kind:?} must not be empty — an empty class \
+                 would make `contains` trivially true"
+            );
+            assert!(
+                html.contains(cls),
+                "missing badge class for {kind:?} ({cls}) in: {html}"
+            );
+        }
+    }
+
+    /// Success Criterion 2: ein Suchfeld findet ueber Anzeigename ODER
+    /// Benutzername.
+    #[test]
+    fn directory_search_matches_both_names() {
+        let entries = vec![
+            sample_entry(PersonKindTO::Linked, "Lena", Some("lmueller"), true),
+            sample_entry(PersonKindTO::UserOnly, "Tom", Some("tom"), false),
+            sample_entry(PersonKindTO::SalesPersonOnly, "Zoe", None, true),
+        ];
+
+        // Treffer ausschliesslich im Benutzernamen.
+        let html = render_directory(entries.clone(), "mueller");
+        assert!(html.contains(">Lena<"), "display name row missing: {html}");
+        assert!(!html.contains(">Tom<"), "third entry not filtered: {html}");
+        assert!(!html.contains(">Zoe<"), "third entry not filtered: {html}");
+
+        // Treffer ausschliesslich im Anzeigenamen.
+        let html = render_directory(entries, "lena");
+        assert!(html.contains("lmueller"), "username cell missing: {html}");
+        assert!(!html.contains(">Tom<"), "third entry not filtered: {html}");
+        assert!(!html.contains(">Zoe<"), "third entry not filtered: {html}");
+    }
+
+    /// PADM-06: ein reines Benutzerkonto rendert einen nicht-leeren
+    /// Anzeigenamen — das Backend liefert ihn, das Frontend hat keine
+    /// Fallback-Regel.
+    #[test]
+    fn directory_user_only_row_has_display_name() {
+        let entries = vec![sample_entry(
+            PersonKindTO::UserOnly,
+            "alex",
+            Some("alex"),
+            false,
+        )];
+        let html = render_directory(entries, "");
+        assert!(
+            html.contains("text-ink\">alex<"),
+            "user-only row must render a non-empty display name: {html}"
+        );
+        assert!(html.contains("font-mono"), "username cell missing: {html}");
+    }
+
+    /// D-62-06: Impersonation und Loeschen haengen an der Benutzer-Auspraegung.
+    #[test]
+    fn directory_actions_only_for_user_side() {
+        let sp_only = vec![sample_entry(
+            PersonKindTO::SalesPersonOnly,
+            "Tom",
+            None,
+            true,
+        )];
+        let html = render_directory(sp_only, "");
+        assert!(
+            !html.contains("Act as"),
+            "sales-person-only row must not offer impersonation: {html}"
+        );
+        assert!(
+            !html.contains("🗑"),
+            "sales-person-only row must not offer delete: {html}"
+        );
+
+        for entry in [
+            sample_entry(PersonKindTO::Linked, "Lena", Some("lena"), true),
+            sample_entry(PersonKindTO::UserOnly, "Zoe", Some("zoe"), false),
+        ] {
+            let html = render_directory(vec![entry], "");
+            assert!(
+                html.contains("Act as"),
+                "user-side row must offer impersonation: {html}"
+            );
+            assert!(
+                html.contains("🗑"),
+                "user-side row must offer delete: {html}"
+            );
+        }
+    }
+
+    /// D-62-04: inaktive Verkaeufer bleiben abgeblendet und tragen das
+    /// Inaktiv-Badge.
+    #[test]
+    fn directory_inactive_row_is_dimmed() {
+        let mut entry = sample_entry(PersonKindTO::Linked, "Old", Some("old"), true);
+        entry.inactive = Some(true);
+        let html = render_directory(vec![entry], "");
+        assert!(html.contains("opacity-60"), "row not dimmed: {html}");
+        assert!(html.contains("bg-bad-soft"), "inactive badge missing: {html}");
+        assert!(html.contains("text-bad"), "inactive badge missing: {html}");
+    }
+
+    /// PADM-08 / D-62-08: der Component-Level-Guard faengt den direkten
+    /// URL-Aufruf ab, den die Nav-Ausblendung durchlaesst.
+    #[test]
+    fn non_admin_sees_not_authorized() {
+        assert!(!is_admin(None), "missing auth info must not pass the guard");
+
+        let no_privileges = AuthInfo {
+            user: "zoe".into(),
+            privileges: Rc::new([]),
+            authenticated: true,
+        };
+        assert!(
+            !is_admin(Some(&no_privileges)),
+            "auth info without admin privilege must not pass the guard"
+        );
+
+        let admin = AuthInfo {
+            user: "root".into(),
+            privileges: Rc::new([Rc::from("admin")]),
+            authenticated: true,
+        };
+        assert!(is_admin(Some(&admin)), "admin must pass the guard");
+
+        let mut vdom = VirtualDom::new(NotAuthorizedView);
+        vdom.rebuild_in_place();
+        let html = dioxus_ssr::render(&vdom);
+        assert!(
+            html.contains("Not authorized."),
+            "denial view must render the denial text: {html}"
+        );
     }
 
     #[test]
