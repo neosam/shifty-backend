@@ -549,7 +549,7 @@ Plans:
 
 **Wave 1** *(parallel — keine gemeinsamen Dateien)*
 
-- [ ] 63-01-PLAN.md — `PermissionDao::create_user`/`delete_user` auf die geteilte Transaktion heben (SC-2-Atomarität, Voraussetzung für den D-63-01-Orphan-Cleanup); `PermissionService`-Oberfläche bleibt eingefroren
+- [x] 63-01-PLAN.md — `PermissionDao::create_user`/`delete_user` auf die geteilte Transaktion heben (SC-2-Atomarität, Voraussetzung für den D-63-01-Orphan-Cleanup); `PermissionService`-Oberfläche bleibt eingefroren
 - [ ] 63-02-PLAN.md — `PersonDao::delete`/`has_live_facets`/Rückwärts-Lookups + `PersonDirectoryDao::find_directory_entry`; D-63-01-Lesart (b) festgeschrieben und getestet
 - [ ] 63-03-PLAN.md — 32 i18n-Keys in de/en/cs nach dem Copywriting-Contract der UI-SPEC, inkl. der zwei wörtlich gesperrten D-63-08-Sätze
 

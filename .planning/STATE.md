@@ -3,17 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.7
 milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 63
-current_phase_name: Personen-Detailansicht + Ausprägungs-Aktionen
-status: Phase 63 geplant — 11 Plaene in 9 Wellen, Plan-Checker `VERIFICATION PASSED`. Bereit fuer /gsd-execute-phase 63.
-stopped_at: Phase 63 planned (11 plans, 9 waves)
-last_updated: "2026-09-20T17:43:02.647Z"
-last_activity: 2026-09-20
-last_activity_desc: Phase 63 geplant — RESEARCH, VALIDATION, UI-SPEC, PATTERNS, 11 PLAN.md
+current_phase_name: personen-detailansicht-auspr-gungs-aktionen
+status: executing
+stopped_at: Completed 63-01-PLAN.md
+last_updated: "2026-09-20T19:34:42.585Z"
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 31
-  completed_plans: 20
+  completed_plans: 22
   percent: 60
 ---
 
@@ -33,25 +31,30 @@ progress:
 
 ## Current Position
 
-Phase: 63 — Personen-Detailansicht + Ausprägungs-Aktionen
-Plan: 0/11 (geplant, noch nicht ausgeführt)
-Status: Phase 63 geplant — 11 Pläne in 9 Wellen, Plan-Checker `VERIFICATION PASSED`,
-Requirements 5/5 und Entscheidungen 8/8 abgedeckt. Bereit für `/gsd-execute-phase 63`.
+Phase: 63 (personen-detailansicht-auspr-gungs-aktionen) — EXECUTING
+Plan: 2 of 11 (63-01 abgeschlossen)
+Status: Welle 1 laeuft. 63-01 hat `PermissionDao::create_user`/`delete_user` auf die
+geteilte Transaktion gehoben — SC-2-Atomaritaet und der D-63-01-Orphan-Cleanup sind
+damit ueberhaupt erst konstruierbar. `service::PermissionService` bleibt eingefroren.
 
 Was Phase 62 geliefert hat:
+
 - 62-01 `PersonDirectoryDao` mit Drei-Wege-Outer-Join; WR-02 (Soft-Delete in der
   `ON`-Klausel) geschlossen.
+
 - 62-02 `PersonEntryTO`/`PersonKindTO` in `rest-types`, sechs Beschriftungen in de/en/cs.
 - 62-03 `PersonDirectoryService` — Admin-Gate als erste Anweisung (D-62-08),
   Ausprägungs-Klassifikation, `display_name`-Ableitung, case-insensitive Sortierung.
+
 - 62-04 Frontend: eine Liste statt Tabs, Aggregat-Ladepfad statt N+1, Suche über
   Anzeige- und Benutzername, Component-Level-Admin-Guard.
+
 - 62-05 `GET /person-directory` mit OpenAPI, DI nach dem Basic-Block,
   `Dioxus.toml`-Proxy im selben Commit; Integrationstests 200/403.
+
 - 62-06 Docs-Freshness-Gate: F01 und 02-service-tiers je EN+DE, Runtime-Graph.
 - 62-07 Laufzeit-Verifikation + UAT mit dem Nutzer; zwei Änderungen ausgelöst
   (Badge entfernt, Spaltenüberschrift „Verkäufer" → „Name") und D-63-03 gepinnt.
-
 
 ## Quick Tasks Completed
 
@@ -310,9 +313,9 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-09-20T17:43:02.639Z
-**Stopped at:** Phase 63 planned (11 plans, 9 waves)
-**Resume file:** .planning/phases/63-personen-detailansicht-auspr-gungs-aktionen/63-01-PLAN.md
+**Last session:** 2026-09-20T19:33:34.966Z
+**Stopped at:** Completed 63-01-PLAN.md
+**Resume file:** .planning/phases/63-personen-detailansicht-auspr-gungs-aktionen/63-02-PLAN.md
 
 **To resume work in a new session:**
 
@@ -447,6 +450,8 @@ D-63-01/02, D-64-01/02/03).
 - [Phase 62]: 62-06: Tier-Faustregel in 02-service-tiers §Rules Nr. 3 praezisiert — Dependency-Zaehlung ist Indikator, die Aggregat-Frage entscheidet; PersonDirectoryService ist Business-Logic trotz Basic-aussehender Dep-Liste
 - [Phase 62]: 62-06: PersonDirectory-Knoten im Runtime-Graph bewusst ohne Kante — Deps sind per Kopf-Konvention ausgeblendet; Tier folgt der Aggregat-Eigenschaft, nicht der Kantenzahl
 - [Phase 62]: 62-06: vorgefundene Phase-56-Drift geschlossen (VoluntaryRebookingScheduler fehlte in 02-service-tiers_de.md) statt das Paritaets-Kriterium durch Weglassen in der EN-Fassung zu erfuellen
+- [Phase ?]: D-63-01-A: Transaktions-Assoziationstyp sitzt auf dao::PermissionDao, nicht auf service::PermissionService — das Service-Trait bleibt eingefroren (rund 20 Konsumenten).
+- [Phase ?]: D-63-01-B: PermissionDao bleibt ein bewusst gemischtes Trait — nur create_user und delete_user nehmen die geteilte Transaktion, keine Vorratshaltung.
 
 ## Performance Metrics
 
@@ -512,3 +517,4 @@ D-63-01/02, D-64-01/02/03).
 | Phase 62 P04 | 22min | 3 tasks | 9 files |
 | Phase 62 P05 | 7min | 2 tasks | 6 files |
 | Phase 62 P06 | 18min | 2 tasks | 5 files |
+| Phase 63 P01 | 38min | 3 tasks | 9 files |
