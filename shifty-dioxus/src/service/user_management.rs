@@ -542,25 +542,24 @@ pub enum UserManagementAction {
     LoadShiftplanAssignments(Uuid),
     UpdateShiftplanAssignments(Vec<ShiftplanAssignment>),
 
-    // Die neun Varianten dieser Phase tragen bis zur Detailseite (Plan 63-08)
-    // noch keinen Absender. Sie sind deshalb einzeln als bewusst noch nicht
-    // konstruiert markiert — nicht die ganze Aufzaehlung, damit eine kuenftig
-    // wirklich tote Variante weiterhin auffaellt. Mit der Seite faellt die
-    // Markierung Variante fuer Variante wieder weg.
+    // Die Varianten dieser Phase bekommen ihren Absender mit der
+    // Detailansicht (Plan 63-08). Solange eine noch keinen hat, traegt sie
+    // eine eigene Markierung — nicht die ganze Aufzaehlung, damit eine
+    // kuenftig wirklich tote Variante weiterhin auffaellt.
     /// Phase 63 (PADM-05): fuellt die Detailansicht mit genau einem Request.
-    #[allow(dead_code)]
     LoadPersonDetail(Uuid),
     /// Phase 63 (PADM-02 / SC-2 / D-63-07).
+    ///
+    /// Absender ist die Werkzeugleiste der Listenseite, die Plan 63-09
+    /// umbaut — der Dialog dazu steht bereits in `page/person_detail.rs`.
     #[allow(dead_code)]
     CreatePersonEntry(CreatePersonEntryTO),
     /// Phase 63 (PADM-03 / SC-3).
-    #[allow(dead_code)]
     AddPersonFacet {
         person_id: Uuid,
         request: AddPersonFacetTO,
     },
     /// Phase 63 (PADM-07 / SC-5).
-    #[allow(dead_code)]
     RemovePersonFacet {
         person_id: Uuid,
         facet: PersonFacetTO,
@@ -578,12 +577,10 @@ pub enum UserManagementAction {
         username: ImStr,
     },
     /// Phase 63 (PADM-07).
-    #[allow(dead_code)]
     UnlinkFacet {
         sales_person_id: Uuid,
     },
     /// Phase 63 (PADM-07 / D-63-06).
-    #[allow(dead_code)]
     DeleteSalesPerson {
         sales_person_id: Uuid,
     },

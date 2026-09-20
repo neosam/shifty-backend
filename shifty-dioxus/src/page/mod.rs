@@ -28,6 +28,7 @@ pub use home::Home;
 pub use my_employee_details::MyEmployeeDetails;
 pub use my_shifts::MyShifts;
 pub use not_authenticated::NotAuthenticated;
+pub use person_detail::PersonDetail;
 pub use sales_person_details::SalesPersonDetails;
 pub use settings::SettingsPage;
 pub use shiftplan::ShiftPlan;

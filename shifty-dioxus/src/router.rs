@@ -15,6 +15,7 @@ pub use crate::page::Employees;
 pub use crate::page::Home;
 pub use crate::page::MyEmployeeDetails;
 pub use crate::page::MyShifts;
+pub use crate::page::PersonDetail;
 pub use crate::page::SalesPersonDetails;
 pub use crate::page::SettingsPage as Settings;
 pub use crate::page::ShiftPlan;
@@ -48,6 +49,11 @@ pub enum Route {
     UserDetails { user_id: String },
     #[route("/sales_person_details/:sales_person_id/")]
     SalesPersonDetails { sales_person_id: String },
+    /// Phase 63 (D-63-04): die EINE Personen-Detailroute fuer alle drei
+    /// Auspraegungen. Plan 63-09 entfernt die beiden Routen darueber
+    /// ersatzlos — bis dahin stehen sie nebeneinander.
+    #[route("/person/:person_id/")]
+    PersonDetail { person_id: String },
     #[route("/custom_extra_hours/")]
     CustomExtraHoursManagement {},
     #[route("/text_templates/")]
