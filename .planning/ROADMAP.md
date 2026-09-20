@@ -579,7 +579,7 @@ Plans:
 
 **Wave 8** *(blockiert durch Wave 7)*
 
-- [ ] 63-10-PLAN.md — Docs-Freshness-Gate: F01, 02-service-tiers, Runtime-Graph, 04-auth, F12, 05-transactions, 06-frontend — je EN + DE
+- [x] 63-10-PLAN.md — Docs-Freshness-Gate: F01, 02-service-tiers, Runtime-Graph, 04-auth, F12, 05-transactions, 06-frontend — je EN + DE
 
 **Wave 9** *(blockiert durch Wave 8)*
 
@@ -677,7 +677,7 @@ als unsicher).
 | 60. Person-Datenmodell + Backfill | 0/? | Not started | — |
 | 61. PersonService + Auflösung `sales_person_user` | 10/10 | Complete | 2026-09-17 |
 | 62. Personen-Verzeichnis — eine Liste statt Tabs | 7/7 | Complete | 2026-09-20 |
-| 63. Personen-Detailansicht + Ausprägungs-Aktionen | 9/11 | In Progress | — |
+| 63. Personen-Detailansicht + Ausprägungs-Aktionen | 10/11 | In Progress | — |
 | 64. Planungs-Soll für dynamische Verträge | 0/? | Not started | — |
 
 **Requirements-Coverage: 18/18 gemappt**, keine Waisen, keine Doppelung.

@@ -5,13 +5,13 @@ milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 63
 current_phase_name: personen-detailansicht-auspr-gungs-aktionen
 status: executing
-stopped_at: Completed 63-09-PLAN.md
-last_updated: "2026-09-20T22:31:19.008Z"
+stopped_at: Completed 63-10-PLAN.md
+last_updated: "2026-09-20T22:52:32.690Z"
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 31
-  completed_plans: 30
+  completed_plans: 31
   percent: 60
 ---
 
@@ -32,7 +32,7 @@ progress:
 ## Current Position
 
 Phase: 63 (personen-detailansicht-auspr-gungs-aktionen) — EXECUTING
-Plan: 10 of 11 (63-01, 63-02, 63-03, 63-04, 63-05, 63-06, 63-07, 63-08, 63-09 abgeschlossen)
+Plan: 11 of 11 (63-01 bis 63-10 abgeschlossen; offen ist nur noch 63-11 — Human-UAT)
 Status: Welle 1 und der erste Plan von Welle 2 abgeschlossen. 63-01 hat `PermissionDao::create_user`/`delete_user` auf die
 geteilte Transaktion gehoben — SC-2-Atomaritaet und der D-63-01-Orphan-Cleanup sind
 damit ueberhaupt erst konstruierbar. `service::PermissionService` bleibt eingefroren.
@@ -85,6 +85,19 @@ ist weg, ohne ein neues an anderer Stelle. **Fuer 63-10 wichtig:** die Doku-Fael
 fuer `docs/architecture/06-frontend.md` + `_de.md` waechst um die entfallenen Routen,
 Seiten und Aktionen; 63-11 soll die Entscheidung „keine Zeilen-Loeschung" im UAT
 ausdruecklich bestaetigen.
+63-10 hat das Docs-Freshness-Gate der Phase geschlossen: siebzehn Doku-Dateien, paarweise
+EN und DE. Neu sind `F01 §4.7` (`PersonDetailService` — Trait-Auszug, sieben admin-Gates,
+acht Deps, Randfaelle) und `F01 §5.5` (die sieben `/person`-Operationen mit 404/409/422),
+dazu der Knoten `PersonDetail` im Runtime-Graphen, die transaktionsfaehigen
+`PermissionDao`-Schreibpfade in `04-auth`/`F12`, `PermissionDao` als bewusst gemischtes
+Trait in `05-transactions` und ein erstmals angelegtes Routen-/Seiten-Inventar in
+`06-frontend`. Der Konsistenz-Durchlauf fand drei Aussagen, die durch diese Phase nicht
+unvollstaendig, sondern **falsch** geworden waren: `03-data-model` behauptete „in v2.7
+wird keine Person geloescht" (seit 63-05 falsch), `F12` fuehrte die alte
+`create_user`-Signatur ohne `person_id`/`tx`, und `F10` zeigte an vier Stellen auf die von
+63-09 geloeschte `page/user_details.rs`. Alle drei korrigiert. **Fuer 63-11 wichtig:** die
+bekannte Kante T-63-05-E (`session.user_id` ohne Kaskade → generischer 500) ist jetzt an
+drei Stellen dokumentiert, damit sie im UAT nicht als Defekt gelesen wird.
 
 Was Phase 62 geliefert hat:
 
@@ -362,8 +375,8 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-09-20T22:31:10.953Z
-**Stopped at:** Completed 63-09-PLAN.md
+**Last session:** 2026-09-20T22:52:32.682Z
+**Stopped at:** Completed 63-10-PLAN.md
 **Resume file:** None
 
 **To resume work in a new session:**
@@ -522,6 +535,8 @@ D-63-01/02, D-64-01/02/03).
 - [Phase 63]: 63-08: Praesentations-Zwilling EntryDetailView neben der store-verbundenen Seite PersonDetail — dieselbe Teilung wie PersonDirectoryTable, und die Voraussetzung fuer SSR-Rendertests ohne Store und Koroutine
 - [Phase 63]: D-63-09-A: Der Rueckbau entfernt fuenf Store-Aktionen statt der einen im Plan genannten (CreateNewSalesPerson, AddUser, DeleteUser, UpdateSalesPersonUser, RemoveSalesPersonUser) plus acht Loader-/API-Primitive — alle verlieren mit den beiden geloeschten Seiten und der entfallenen Zeilen-Loeschung ihren letzten Absender. Kein neues #[allow(dead_code)].
 - [Phase 63]: D-63-09-B: Die vierzehn durch den Rueckbau verwaisten i18n-Keys bleiben in de/en/cs registriert und werden nur benannt — Uebersetzungsdaten unter dem Key-Mengen-Test, kein funktionaler Gewinn durch Loeschen.
+- [Phase 63]: [D-63-10-A] Doku-Behauptungen werden gegen die Codebasis geprueft, nicht gegen die SUMMARYs — der Konsistenz-Durchlauf fand drei Aussagen, die durch Phase 63 FALSCH (nicht nur unvollstaendig) geworden waren: 03-data-model 'keine Person wird geloescht', F12 'create_user-Signatur unveraendert', F10 vier Verweise auf die geloeschte page/user_details.rs
+- [Phase 63]: [D-63-10-B] Ein Rueckbau macht Doku in FREMDEN Features falsch — die Dangling-Reference-Jagd laeuft ueber den ganzen docs/-Baum, nicht nur ueber die files_modified des Plans
 
 ## Performance Metrics
 
@@ -596,3 +611,4 @@ D-63-01/02, D-64-01/02/03).
 | Phase 63 P07 | 34min | 3 tasks | 4 files |
 | Phase 63 P08 | 38min | 3 tasks | 4 files |
 | Phase 63 P09 | 25min | 3 tasks | 10 files |
+| Phase 63 P10 | 58min | 3 tasks | 17 files |
