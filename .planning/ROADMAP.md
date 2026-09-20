@@ -563,7 +563,7 @@ Plans:
 
 **Wave 4** *(blockiert durch Wave 3)*
 
-- [ ] 63-06-PLAN.md — sieben `/person`-Routen mit OpenAPI, DI im Business-Logic-Abschnitt, `Dioxus.toml`-Proxy im selben Commit, HTTP-Integrationstests inkl. 403 auf allen Routen und 409-Regressionsschutz
+- [x] 63-06-PLAN.md — sieben `/person`-Routen mit OpenAPI, DI im Business-Logic-Abschnitt, `Dioxus.toml`-Proxy im selben Commit, HTTP-Integrationstests inkl. 403 auf allen Routen und 409-Regressionsschutz
 
 **Wave 5** *(blockiert durch Wave 4)*
 
@@ -677,7 +677,7 @@ als unsicher).
 | 60. Person-Datenmodell + Backfill | 0/? | Not started | — |
 | 61. PersonService + Auflösung `sales_person_user` | 10/10 | Complete | 2026-09-17 |
 | 62. Personen-Verzeichnis — eine Liste statt Tabs | 7/7 | Complete | 2026-09-20 |
-| 63. Personen-Detailansicht + Ausprägungs-Aktionen | 5/11 | In Progress | — |
+| 63. Personen-Detailansicht + Ausprägungs-Aktionen | 6/11 | In Progress | — |
 | 64. Planungs-Soll für dynamische Verträge | 0/? | Not started | — |
 
 **Requirements-Coverage: 18/18 gemappt**, keine Waisen, keine Doppelung.

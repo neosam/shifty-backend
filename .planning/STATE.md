@@ -5,14 +5,14 @@ milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 63
 current_phase_name: personen-detailansicht-auspr-gungs-aktionen
 status: executing
-stopped_at: Completed 63-05-PLAN.md
-last_updated: "2026-09-20T20:53:05.493Z"
+stopped_at: Completed 63-06-PLAN.md
+last_updated: "2026-09-20T21:18:46.795Z"
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 31
-  completed_plans: 26
-  percent: 60
+  completed_plans: 27
+  percent: 87
 ---
 
 # Project State: Shifty Backend
@@ -32,7 +32,7 @@ progress:
 ## Current Position
 
 Phase: 63 (personen-detailansicht-auspr-gungs-aktionen) — EXECUTING
-Plan: 6 of 11 (63-01, 63-02, 63-03, 63-04, 63-05 abgeschlossen)
+Plan: 7 of 11 (63-01, 63-02, 63-03, 63-04, 63-05, 63-06 abgeschlossen)
 Status: Welle 1 und der erste Plan von Welle 2 abgeschlossen. 63-01 hat `PermissionDao::create_user`/`delete_user` auf die
 geteilte Transaktion gehoben — SC-2-Atomaritaet und der D-63-01-Orphan-Cleanup sind
 damit ueberhaupt erst konstruierbar. `service::PermissionService` bleibt eingefroren.
@@ -338,8 +338,8 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-09-20T20:52:31.159Z
-**Stopped at:** Completed 63-05-PLAN.md
+**Last session:** 2026-09-20T21:18:46.787Z
+**Stopped at:** Completed 63-06-PLAN.md
 **Resume file:** None
 
 **To resume work in a new session:**
@@ -487,6 +487,9 @@ D-63-01/02, D-64-01/02/03).
 - [Phase 63]: 63-05: add_facet gibt die RESULTIERENDE person_id zurueck, nicht die uebergebene — beim Zuschalten einer Sales Person gewinnt sie nach D-61-03 und der Eintrag wechselt seine Identitaet.
 - [Phase 63]: 63-05: Beide Anlege-Pfade validieren Benutzername UND Anzeigename serverseitig vor jedem Datenbankzugriff (D-63-07, ASVS V5).
 - [Phase 63]: 63-05: session.user_id ohne ON DELETE CASCADE bleibt ungefixt (T-63-05-E, accept) und ist im Modulkopf als bekannte Kante fuer Plan 63-11 dokumentiert.
+- [Phase 63]: 63-06: add_person_facet antwortet mit 200 + CreatedPersonEntryTO statt 204 — die RESULTIERENDE person_id muss den Aufrufer erreichen (D-61-03)
+- [Phase 63]: 63-06: rest::sales_person wird pub-exportiert (Datei unveraendert), damit der 409-Regressionstest den unveraenderten Phase-61-Endpoint via tower::oneshot befaehrt
+- [Phase 63]: 63-06: der [[web.proxy]]-Eintrag /person steht HINTER /person-directory — der Dev-Server-Proxy matcht praefix-literal
 
 ## Performance Metrics
 
@@ -557,3 +560,4 @@ D-63-01/02, D-64-01/02/03).
 | Phase 63 P03 | 18min | 2 tasks | 4 files |
 | Phase 63 P04 | 44min | 3 tasks | 8 files |
 | Phase 63 P05 | 21min | 3 tasks | 3 files |
+| Phase 63 P06 | 27min | 3 tasks | 6 files |
