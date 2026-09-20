@@ -481,3 +481,95 @@ also spezifiziert und eingeplant, aber erst nach dieser Phase.
 heutigen Knoepfe **ersetzen**, nicht ergaenzen. Sonst steht der vereinheitlichte
 Einstieg neben den zwei alten und der Zustand wird schlechter statt besser.
 Als Discuss-Point D-63-03 in der ROADMAP gepinnt.
+
+---
+
+## Auspraegungs-Badge entfernt und Spaltenueberschrift korrigiert (UAT-Ergebnis)
+
+**Beobachtung woertlich:** „Ja, die sieht man aber die Badges sind verwirrend. Die
+wuerde ich weglassen. Man sieht ja Verkaeufer und Benutzername in der Tabelle."
+
+**Vom Nutzer nach Vorlage der Diagnose freigegeben** („ja, mach das").
+
+### Zwei Befunde
+
+**1. Farbsprachen-Kollision in der Spalte „Typ" (Ursache der Verwirrung).** Die
+Zelle stapelte bis zu drei Chips in zwei Farbsprachen, die dieselben Token
+verschieden belegen:
+
+| Farbe | Auspraegungs-Badge | Bezahlt/Freiwillig-Chip |
+|---|---|---|
+| accent | „Verknuepft" | „Bezahlt" (`#eaecfb`) |
+| warn | „Nur Verkaeufer" | „Freiwillig" (`#fef0d6`) |
+
+Eine verknuepfte, bezahlte Person zeigte zwei accent-farbene Chips nebeneinander
+mit voellig verschiedener Bedeutung; ein bezahlter „Nur Verkaeufer" zeigte warn
+neben accent, also widerspruechliche Signale. 62-UI-SPEC Open Question 2 hat genau
+dieses Risiko benannt („pick this if reusing `warn`/`accent` for a non-evaluative
+distinction feels misleading") und die farbige Variante dennoch gewaehlt.
+
+**2. Falsche Spaltenueberschrift (eigenstaendiger Mangel in Phase-62-Scope).** Die
+erste Spalte trug `Key::SalesPersons` („Verkaeufer"), enthaelt aber den
+`display_name` **jeder** Auspraegung. Ein reines Benutzerkonto stand damit unter
+der Ueberschrift „Verkaeufer". Vor dem Tab-Merge war die Ueberschrift korrekt,
+weil die Spalte im Verkaeufer-Tab lag; nach dem Merge nicht mehr.
+
+### Warum die Auspraegung ohne Badge ablesbar bleibt
+
+Zwei bereits vorhandene Zellen kodieren sie vollstaendig:
+
+| Auspraegung | Bezahlt/Freiwillig-Chip | Benutzername-Zelle |
+|---|---|---|
+| `Linked` | ja | gefuellt |
+| `SalesPersonOnly` | ja | leer (Gedankenstrich) |
+| `UserOnly` | nein | gefuellt |
+
+Der Chip rendert nur bei vorhandenem Verkaeufer-Datensatz (`has_sales_person`),
+die Benutzername-Zelle nur bei vorhandenem Login.
+
+### Aenderungen
+
+- `shifty-dioxus/src/page/user_management.rs` — Spaltenueberschrift
+  `Key::SalesPersons` → `Key::Name` (existierte bereits in de/en/cs, kein neuer
+  Key noetig); `PersonKindBadge` aus der Zeile entfernt; `kind`-Binding und Import
+  entfernt; Modul-Doku auf den neuen Stand gebracht.
+- `shifty-dioxus/src/component/atoms/person_kind_badge.rs` — **geloescht**. Ohne
+  Aufrufer waere es toter Code und haette den Clippy-Gate gerissen.
+- `component/atoms/mod.rs`, `component/mod.rs` — Modul- und Re-Export-Eintraege
+  entfernt.
+- Test `directory_row_renders_kind_badge` ersetzt durch
+  `directory_row_encodes_kind_without_badge`: prueft beide Richtungen — kein
+  Badge-Rest im Markup (drei Klassenketten woertlich eingebettet, da der
+  erzeugende Helfer geloescht ist) **und** die beiden Ersatz-Signale je
+  Auspraegung korrekt.
+
+### Bewusst NICHT geaendert
+
+`PersonKindTO` bleibt im Transport-Objekt und im Service. Die Auspraegung steuert
+weiterhin Aktions-Sichtbarkeit (D-62-06) und das Ziel des Bearbeiten-Links
+(D-62-07) — entfernt wurde nur die visuelle Pille, nicht das Konzept. Die drei
+i18n-Keys `PersonKindLinked` / `PersonKindSalesPersonOnly` / `PersonKindUserOnly`
+bleiben erhalten: Phase 63 braucht Auspraegungs-Beschriftungen fuer die
+Detailansicht, und sie sind durch den i18n-Paritaetstest weiter abgedeckt.
+
+### Abweichung von D-62-01 — ausdruecklich protokolliert
+
+D-62-01 (gepinnt in der discuss-phase) verlangt die Auspraegung als explizites
+Enum **und** als sichtbares Badge. Der Enum-Teil bleibt unveraendert; der
+Badge-Teil ist auf Entscheidung des Produktverantwortlichen entfallen. PADM-01
+fordert eine Liste „mit erkennbarer Auspraegung" — sie ist nach dieser Aenderung
+*erschliessbar* (Chip + Benutzername) statt *benannt*. Das ist eine bewusste
+Produktentscheidung, kein stiller Rueckbau; `62-04-SUMMARY.md` traegt denselben
+Vermerk an seinem betroffenen `must_have`.
+
+### Gates nach der Aenderung
+
+| Gate | Ergebnis |
+|---|---|
+| `cargo test` (shifty-dioxus) | 830 passed, 0 failed |
+| `cargo clippy --manifest-path shifty-dioxus/Cargo.toml --all-targets -- -D warnings` | ohne Befund |
+| `cargo clippy --workspace -- -D warnings` | ohne Befund |
+| `cargo test --workspace` | 904 + 11 + 33 + 17 + 13 + 9 + 3 + 3 + 2 + 11, 0 failed |
+
+Die Frontend-Suite faellt von 835 auf 830 Tests: fuenf Tests gehoerten zur
+geloeschten Badge-Komponente, ein Test wurde ersetzt (835 − 5 = 830).

@@ -419,3 +419,19 @@ Alle im SUMMARY genannten Dateien existieren auf der Platte (die
 Tab-Leisten-Datei ist bestaetigt geloescht), und alle fuenf Task-Commits
 (`c7f9cd30`, `2855b30d`, `4389427f`, `a97d328c`, `5f4af01c`) sind in der
 Git-Historie auffindbar.
+
+---
+
+## Nachtraegliche Aenderung aus dem UAT (Plan 62-07) — Auspraegungs-Badge entfernt
+
+**Betrifft ein `must_have` dieses Plans.** Der Plan fordert: „Jede Zeile traegt ein
+sichtbares Auspraegungs-Badge (PADM-01, D-62-01)." Dieses `must_have` ist seit dem
+UAT-Durchgang von Plan 62-07 **bewusst nicht mehr erfuellt**. Begruendung, Beleg
+und Ersatz-Nachweis stehen in `62-07-SUMMARY.md`, Abschnitt „Auspraegungs-Badge
+entfernt und Spaltenueberschrift korrigiert".
+
+Kurzfassung: das Badge sprach dieselbe accent/warn-Farbsprache wie der
+Bezahlt/Freiwillig-Chip in derselben Tabellenzelle und war dadurch irrefuehrend.
+Die Auspraegung bleibt ablesbar (Chip + Benutzername). `PersonKindTO` bleibt
+vollstaendig erhalten und steuert weiterhin Aktions-Sichtbarkeit (D-62-06) und das
+Ziel des Bearbeiten-Links (D-62-07) — entfernt wurde nur die visuelle Pille.

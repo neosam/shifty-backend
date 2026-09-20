@@ -3,11 +3,17 @@
 //! N+1-Ladepfade sind entfallen; alle Zeilen kommen aus einem einzigen
 //! Aggregat-Request (`LoadPersonDirectory`, Success Criterion 5).
 //!
-//! Jede Zeile traegt ein Auspraegungs-Badge (`PersonKindBadge`). Anzeigename
-//! und Benutzername werden stumpf interpoliert — im Frontend existiert keine
+//! Die Auspraegung wird **nicht** als eigenes Badge gerendert (UAT Phase 62,
+//! bewusste Abweichung von D-62-01): sie ist bereits an zwei Zellen ablesbar —
+//! der Bezahlt/Freiwillig-Chip erscheint nur bei vorhandenem Verkaeufer-
+//! Datensatz, der Benutzername nur bei vorhandenem Login. Ein zusaetzliches
+//! Badge sprach dieselbe accent/warn-Farbsprache wie der Bezahlt/Freiwillig-
+//! Chip direkt daneben und war dadurch irrefuehrend. Anzeigename und
+//! Benutzername werden stumpf interpoliert — im Frontend existiert keine
 //! Namens-Fallback-Regel (PADM-06, Success Criterion 3), und die Auspraegung
-//! kommt als Backend-Enum, wird also nie aus leeren Feldern abgeleitet
-//! (T-62-09).
+//! kommt weiterhin als Backend-Enum, wird also nie aus leeren Feldern
+//! abgeleitet (T-62-09); sie steuert Aktions-Sichtbarkeit (D-62-06) und das
+//! Ziel des Bearbeiten-Links (D-62-07).
 //!
 //! Die Seite traegt einen Component-Level-Admin-Guard (PADM-08, D-62-08):
 //! die Nav-Ausblendung faengt einen direkten URL-Aufruf nicht ab. Anlegen,
@@ -19,7 +25,7 @@ use crate::{
     base_types::ImStr,
     component::{
         atoms::btn::build_class as btn_build_class, Btn, BtnVariant, Dialog, DialogVariant, Field,
-        PersonChip, PersonKindBadge, TextInput, TopBar,
+        PersonChip, TextInput, TopBar,
     },
     i18n::Key,
     router::Route,
@@ -317,7 +323,7 @@ fn PersonDirectoryTable(props: PersonDirectoryTableProps) -> Element {
         table { class: "w-full text-left",
             thead { class: "border-b border-border text-micro font-bold uppercase text-ink-muted",
                 tr {
-                    th { class: "py-2 px-3 font-semibold", "{i18n.t(Key::SalesPersons)}" }
+                    th { class: "py-2 px-3 font-semibold", "{i18n.t(Key::Name)}" }
                     th { class: "py-2 px-3 font-semibold", "{i18n.t(Key::ColumnType)}" }
                     th { class: "py-2 px-3 font-semibold", "{i18n.t(Key::ColumnUsername)}" }
                     th { class: "py-2 px-3 font-semibold", "{i18n.t(Key::ColumnRoles)}" }
@@ -350,7 +356,6 @@ fn PersonDirectoryTable(props: PersonDirectoryTableProps) -> Element {
                         let login: Option<ImStr> = entry.username.as_deref().map(ImStr::from);
                         let login_for_impersonate = login.clone();
                         let login_for_delete = login.clone();
-                        let kind = entry.kind;
                         let roles = entry.roles.clone();
                         // D-62-07: Verkaeufer-Seite vorhanden -> Verkaeufer-
                         // Detailroute, sonst Benutzer-Detailroute. Diese Phase
@@ -385,7 +390,6 @@ fn PersonDirectoryTable(props: PersonDirectoryTableProps) -> Element {
                                 }
                                 td { class: "py-2 px-3",
                                     div { class: "flex items-center gap-2 flex-wrap",
-                                        PersonKindBadge { kind }
                                         if has_sales_person {
                                             PersonChip {
                                                 name: ImStr::from(pill_label.as_ref()),
@@ -467,7 +471,6 @@ fn PersonDirectoryTable(props: PersonDirectoryTableProps) -> Element {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::component::atoms::person_kind_badge::person_kind_badge_class;
     use rest_types::PersonKindTO;
     use std::sync::Arc;
     use uuid::Uuid;
@@ -550,31 +553,79 @@ mod tests {
         }
     }
 
-    /// PADM-01, Success Criterion 1: alle drei Auspraegungen stehen
-    /// nebeneinander und tragen je ein unterscheidbares Badge.
+    /// UAT Phase 62 — bewusste Abweichung von D-62-01: die Auspraegung wird
+    /// **nicht** als eigenes Badge gerendert. Grund: das Badge sprach dieselbe
+    /// accent/warn-Farbsprache wie der Bezahlt/Freiwillig-Chip in derselben
+    /// Zelle und war dadurch irrefuehrend. Die Auspraegung bleibt ablesbar —
+    /// Bezahlt/Freiwillig-Chip nur bei Verkaeufer-Datensatz, Benutzername nur
+    /// bei Login. Dieser Test haelt beide Richtungen fest: kein Badge-Rest im
+    /// Markup, und die beiden Ersatz-Signale sind je Auspraegung korrekt.
     #[test]
-    fn directory_row_renders_kind_badge() {
-        let entries = vec![
-            sample_entry(PersonKindTO::Linked, "Lena", Some("lena"), true),
-            sample_entry(PersonKindTO::SalesPersonOnly, "Tom", None, true),
-            sample_entry(PersonKindTO::UserOnly, "Zoe", Some("zoe"), false),
-        ];
-        let html = render_directory(entries, "");
-        for kind in [
-            PersonKindTO::Linked,
-            PersonKindTO::SalesPersonOnly,
-            PersonKindTO::UserOnly,
+    fn directory_row_encodes_kind_without_badge() {
+        // Je Auspraegung einzeln rendern, damit jedes Signal eindeutig einer
+        // Zeile gehoert.
+        let linked = render_directory(
+            vec![sample_entry(PersonKindTO::Linked, "Lena", Some("lena"), true)],
+            "",
+        );
+        let sales_only = render_directory(
+            vec![sample_entry(PersonKindTO::SalesPersonOnly, "Tom", None, true)],
+            "",
+        );
+        let user_only = render_directory(
+            vec![sample_entry(PersonKindTO::UserOnly, "Zoe", Some("zoe"), false)],
+            "",
+        );
+
+        // Signal 1: Verkaeufer-Datensatz vorhanden <=> Bezahlt/Freiwillig-Chip.
+        // PersonChip interpoliert die Farbe als Inline-Style, der Hex-Wert ist
+        // daher ein direkter Nachweis (Rollen-Chips nutzen Tailwind-Klassen,
+        // keine Hex-Werte — keine Kollision).
+        assert!(
+            linked.contains(ACCENT_SOFT_HEX),
+            "verknuepfter Eintrag muss den Bezahlt-Chip tragen: {linked}"
+        );
+        assert!(
+            sales_only.contains(ACCENT_SOFT_HEX),
+            "reiner Verkaeufer muss den Bezahlt-Chip tragen: {sales_only}"
+        );
+        assert!(
+            !user_only.contains(ACCENT_SOFT_HEX) && !user_only.contains(WARN_SOFT_HEX),
+            "reines Benutzerkonto darf keinen Bezahlt/Freiwillig-Chip tragen: {user_only}"
+        );
+
+        // Signal 2: Login vorhanden <=> Benutzername-Zelle (font-mono).
+        assert!(
+            linked.contains("font-mono") && linked.contains("lena"),
+            "verknuepfter Eintrag muss den Benutzernamen zeigen: {linked}"
+        );
+        assert!(
+            user_only.contains("font-mono") && user_only.contains("zoe"),
+            "reines Benutzerkonto muss den Benutzernamen zeigen: {user_only}"
+        );
+        assert!(
+            !sales_only.contains("font-mono"),
+            "reiner Verkaeufer darf keine Benutzernamen-Zelle fuellen: {sales_only}"
+        );
+
+        // Kein Rest des entfernten Auspraegungs-Badges. Die Klassenketten sind
+        // hier absichtlich wortwoertlich eingebettet: der Helfer, der sie
+        // erzeugt hat, ist mit dem Badge geloescht worden.
+        for cls in [
+            "bg-accent-soft border-accent text-accent",
+            "bg-warn-soft border-warn text-warn",
+            "border-dashed border-border-strong",
         ] {
-            let cls = person_kind_badge_class(&kind);
-            assert!(
-                !cls.is_empty(),
-                "badge class for {kind:?} must not be empty — an empty class \
-                 would make `contains` trivially true"
-            );
-            assert!(
-                html.contains(cls),
-                "missing badge class for {kind:?} ({cls}) in: {html}"
-            );
+            for (name, html) in [
+                ("linked", &linked),
+                ("sales_only", &sales_only),
+                ("user_only", &user_only),
+            ] {
+                assert!(
+                    !html.contains(cls),
+                    "Auspraegungs-Badge ({cls}) ist in {name} zurueckgekehrt: {html}"
+                );
+            }
         }
     }
 
