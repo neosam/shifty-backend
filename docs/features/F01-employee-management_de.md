@@ -408,6 +408,7 @@ klassifiziert:
 | `SalesPersonUnavailableService` | Grenzfall / **Business-Logic-lite** | dito, für Auth-Helfer |
 | `SalesPersonShiftplanService` | **Business-Logic** | konsumiert `SalesPersonService` (Existence + Aggregat-Listing für `get_bookable_sales_persons`) |
 | `PersonService` (v2.7, Phase 61) | **Basic** | nein — nur `PersonDao`, `PermissionService`, `ClockService`, `UuidService`, `TransactionDao` |
+| `PersonDirectoryService` (v2.7, Phase 62) | **Business-Logic** | nein — nur `PersonDirectoryDao`, `PermissionService`, `TransactionDao`. Business-Logic, weil er zwei Aggregate zusammenführt und mit `PersonKind` eine Cross-Entity-Invariante pflegt, nicht weil er einen anderen Service konsumiert. |
 
 Die drei Grenzfall-Services nutzen `SalesPersonService` **nur** zur
 Autorisierung ("ist der Aufrufer selbst dieser Sales-Person-Datensatz?")
@@ -604,6 +605,74 @@ Datei genau darauf.
 REST-Route — der Accessor existiert, damit das `RestStateImpl`-Feld einen
 Leser hat (`cargo clippy --workspace -- -D warnings` ist hartes Gate) und als
 Vorarbeit für Phase 62.
+
+### 4.6 `PersonDirectoryService` (v2.7, Phase 62)
+
+Trait: `service/src/person_directory.rs`.
+Implementierung: `service_impl/src/person_directory.rs`.
+
+```rust
+async fn list(&self, ctx, tx) -> Result<Arc<[PersonEntry]>, ServiceError>;
+```
+
+Das Aggregat hinter der einen Personen-Liste, die die bisherigen Tabs der
+Benutzerverwaltung ablöst. `PersonEntry` trägt `person_id`, `kind`,
+`display_name`, `username`, `sales_person_id`, `background_color`, `is_paid`,
+`inactive` und `roles`.
+
+**Fat Backend [PADM-06, D-62-03].** Anzeigename und Ausprägung werden genau
+einmal berechnet — hier, im Service. Der Anzeigename ist der Verkäufername,
+wo vorhanden, sonst der Benutzername; er ist nie `Option` und nie leer. Diese
+Ableitung ist bewusst *kein* SQL-`COALESCE` und *kein* Frontend-Fallback: eine
+zweite Quelle derselben Wahrheit ist genau der Weg, auf dem beide
+auseinanderlaufen. `PersonKind` (`Linked` / `SalesPersonOnly` / `UserOnly`)
+ist ein expliziter Backend-Fakt [D-62-01] und wird nie clientseitig aus leeren
+`Option`s abgeleitet.
+
+Die Sortierung ist case-insensitiv nach Anzeigename und liegt ebenfalls im
+Service, nicht im SQL: SQLite vergleicht `TEXT` per Voreinstellung
+case-sensitiv, eine Sortierung in der Abfrage würde also `Zacharias` vor `mia`
+einordnen.
+
+**Auth-Gates** (`service_impl/src/person_directory.rs`):
+
+| Methode | Erlaubte Rollen |
+| --- | --- |
+| `list` | admin |
+
+`check_permission("admin", …)` ist die **erste Anweisung** der Methode, vor
+jedem Datenbankzugriff [D-62-08, PADM-08, Threats T-62-01 / T-62-05]. Das ist
+genau die Verschärfung, die der Modulkopf von `PersonService` (§4.5)
+angekündigt hat: das Verzeichnis ist die Personenverwaltung des
+Administrators, und es gibt Benutzernamen und Rollenzuordnungen preis. Das
+Privileg ist das String-Literal `"admin"` — dasselbe, das
+`PermissionServiceImpl::get_all_users` verlangt; eine
+`ADMIN_PRIVILEGE`-Konstante existiert im Repo bewusst nicht.
+
+Bei fehlendem Privileg wird der Fehler **propagiert**. Es gibt keine Redaktion
+auf leere Felder wie bei `VoluntaryStatsService` — eine redigierte Antwort
+wäre von einem leeren Verzeichnis ununterscheidbar. Absicherung:
+`service_impl::test::person_directory::list_ohne_admin_privileg_ist_forbidden`.
+Der Permission-Mock in jener Testdatei akzeptiert nur das Literal `"admin"`,
+eine HR-gegatete Implementierung fällt also in jedem Test der Datei um.
+
+**Randfälle.**
+
+- Eine Verzeichniszeile ohne jeden Träger ist `unreachable!()` — das SQL
+  schließt diesen Fall bereits aus (62-01). Ein Panic hier ist darum ein
+  Datenintegritäts-Alarm über eine verletzte
+  `person`/`sales_person`/`user`-Invariante [D-61-01, D-61-05], akzeptiert als
+  Threat T-62-10.
+- Soft-gelöschte Verkäufer erscheinen nicht, inaktive schon, mit
+  `inactive == Some(true)` [D-62-04].
+- Rollen kommen aus einer einzigen Bulk-Query und werden im Service nach
+  Benutzernamen gruppiert [D-62-06]. Eine Person ohne Benutzerkonto bekommt
+  eine leere Rollenliste, nie `None`.
+
+**Transport.** `impl From<&PersonEntry> for PersonEntryTO` und
+`impl From<&PersonKind> for PersonKindTO` liegen in `rest-types/src/lib.rs`
+hinter `#[cfg(feature = "service-impl")]`. Das Mapping ist rein feldweise; es
+rechnet nichts nach, insbesondere nicht den Anzeigenamen.
 
 ## 5. REST-Endpoints
 

@@ -404,6 +404,7 @@ All services are classified according to the convention in
 | `SalesPersonUnavailableService` | edge case / **Business-Logic-lite** | same, for auth helper |
 | `SalesPersonShiftplanService` | **Business-Logic** | consumes `SalesPersonService` (existence + aggregate listing for `get_bookable_sales_persons`) |
 | `PersonService` (v2.7, Phase 61) | **Basic** | no — only `PersonDao`, `PermissionService`, `ClockService`, `UuidService`, `TransactionDao` |
+| `PersonDirectoryService` (v2.7, Phase 62) | **Business-Logic** | no — only `PersonDirectoryDao`, `PermissionService`, `TransactionDao`. Business-Logic because it merges two aggregates and maintains the `PersonKind` cross-entity invariant, not because it consumes another service. |
 
 The three edge-case services use `SalesPersonService` **only** for
 authorization ("is the caller themselves this Sales Person record?")
@@ -598,6 +599,70 @@ exposed via `RestStateDef::person_service`. There is no REST route in
 Phase 61 — the accessor exists so the `RestStateImpl` field has a reader
 (`cargo clippy --workspace -- -D warnings` is a hard gate) and as
 groundwork for Phase 62.
+
+### 4.6 `PersonDirectoryService` (v2.7, Phase 62)
+
+Trait: `service/src/person_directory.rs`.
+Implementation: `service_impl/src/person_directory.rs`.
+
+```rust
+async fn list(&self, ctx, tx) -> Result<Arc<[PersonEntry]>, ServiceError>;
+```
+
+The aggregate behind the single person list that replaces the former tabs of
+the user administration. `PersonEntry` carries `person_id`, `kind`,
+`display_name`, `username`, `sales_person_id`, `background_color`, `is_paid`,
+`inactive` and `roles`.
+
+**Fat backend [PADM-06, D-62-03].** Display name and shape are computed
+exactly once — here, in the service. The display name is the sales person
+name where present, otherwise the username; it is never `Option` and never
+empty. This derivation is deliberately *not* a SQL `COALESCE` and *not* a
+frontend fallback: a second source of the same truth is how the two drift
+apart. `PersonKind` (`Linked` / `SalesPersonOnly` / `UserOnly`) is an explicit
+backend fact [D-62-01], never derived client-side from empty `Option`s.
+
+Sorting is case-insensitive by display name and also lives in the service, not
+in the SQL: SQLite compares `TEXT` case-sensitively by default, so ordering in
+the query would make `Zacharias` sort before `mia`.
+
+**Auth gates** (`service_impl/src/person_directory.rs`):
+
+| Method | Allowed roles |
+| --- | --- |
+| `list` | admin |
+
+`check_permission("admin", …)` is the **first statement** of the method,
+before any database access [D-62-08, PADM-08, threats T-62-01 / T-62-05].
+This is the deliberate tightening the module header of `PersonService` (§4.5)
+announced: the directory is the administrator's person management, and it
+discloses usernames and role assignments. The privilege is the string literal
+`"admin"` — the same one `PermissionServiceImpl::get_all_users` requires; an
+`ADMIN_PRIVILEGE` constant deliberately does not exist in the repo.
+
+On a missing privilege the error is **propagated**. There is no redaction to
+empty fields as in `VoluntaryStatsService` — a redacted response would be
+indistinguishable from an empty directory. Guard:
+`service_impl::test::person_directory::list_ohne_admin_privileg_ist_forbidden`.
+The permission mock in that test file only accepts the literal `"admin"`, so
+an HR-gated implementation fails every test in the file.
+
+**Edge cases.**
+
+- A directory row without any carrier is `unreachable!()` — the SQL already
+  excludes that case (62-01), so a panic here is a data-integrity alarm about
+  a violated `person`/`sales_person`/`user` invariant [D-61-01, D-61-05],
+  accepted as threat T-62-10.
+- Soft-deleted sales persons do not appear, inactive ones do, with
+  `inactive == Some(true)` [D-62-04].
+- Roles come from a single bulk query and are grouped by username in the
+  service [D-62-06]. A person without a login account gets an empty role list,
+  never `None`.
+
+**Transport.** `impl From<&PersonEntry> for PersonEntryTO` and
+`impl From<&PersonKind> for PersonKindTO` live in `rest-types/src/lib.rs`
+behind `#[cfg(feature = "service-impl")]`. The mapping is purely field-wise;
+it recomputes nothing, in particular not the display name.
 
 ## 5. REST endpoints
 

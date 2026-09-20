@@ -12,6 +12,8 @@ use service::booking_information::{
 #[cfg(feature = "service-impl")]
 use service::{booking::Booking, sales_person::SalesPerson};
 #[cfg(feature = "service-impl")]
+use service::person_directory::{PersonEntry, PersonKind};
+#[cfg(feature = "service-impl")]
 use shifty_utils::{derive_from_reference, LazyLoad};
 use time::{PrimitiveDateTime, Weekday};
 use utoipa::ToSchema;
@@ -2880,6 +2882,40 @@ pub struct PersonEntryTO {
     pub inactive: Option<bool>,
     /// Rollen des Benutzerkontos. Bei fehlendem Benutzerkonto leer.
     pub roles: Vec<Arc<str>>,
+}
+
+/// Phase 62 (62-03): Transport-Mapping des Personen-Verzeichnisses.
+///
+/// Rein feldweise — es rechnet nichts nach. Insbesondere leitet es den
+/// Anzeigenamen NICHT ab: der kommt fertig aus
+/// `service_impl::person_directory` (PADM-06, Success Criterion 3). Ein
+/// `COALESCE` an dieser Stelle waere eine zweite Quelle derselben Wahrheit.
+#[cfg(feature = "service-impl")]
+impl From<&PersonKind> for PersonKindTO {
+    fn from(kind: &PersonKind) -> Self {
+        match kind {
+            PersonKind::Linked => PersonKindTO::Linked,
+            PersonKind::SalesPersonOnly => PersonKindTO::SalesPersonOnly,
+            PersonKind::UserOnly => PersonKindTO::UserOnly,
+        }
+    }
+}
+
+#[cfg(feature = "service-impl")]
+impl From<&PersonEntry> for PersonEntryTO {
+    fn from(entry: &PersonEntry) -> Self {
+        Self {
+            person_id: entry.person_id,
+            kind: PersonKindTO::from(&entry.kind),
+            display_name: entry.display_name.clone(),
+            username: entry.username.clone(),
+            sales_person_id: entry.sales_person_id,
+            background_color: entry.background_color.clone(),
+            is_paid: entry.is_paid,
+            inactive: entry.inactive,
+            roles: entry.roles.iter().cloned().collect(),
+        }
+    }
 }
 
 /// Phase 62 (62-02): Wire-Form des Personen-Verzeichnis-DTOs.
