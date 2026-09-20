@@ -5,15 +5,15 @@ milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 62
 current_phase_name: personen-verzeichnis-eine-liste-statt-tabs
 status: executing
-stopped_at: Phase 62 geplant (7 Pläne, 4 Wellen)
-last_updated: "2026-09-20T07:24:16.468Z"
+stopped_at: 62-02 (DTO + i18n) abgeschlossen, 2/2 Tasks
+last_updated: "2026-09-20T07:35:36.867Z"
 last_activity: 2026-09-20
-last_activity_desc: 62-01 (DAO-Schicht) abgeschlossen, 3/3 Tasks
+last_activity_desc: 62-02 (DTO + i18n) abgeschlossen, 2/2 Tasks
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 20
-  completed_plans: 15
+  completed_plans: 16
   percent: 40
 ---
 
@@ -34,9 +34,11 @@ progress:
 ## Current Position
 
 Phase: 62 (personen-verzeichnis-eine-liste-statt-tabs) — EXECUTING
-Plan: 2 of 7
-Status: Wave 1 läuft. 62-01 (DAO-Schicht) abgeschlossen — WR-02 geschlossen,
-`PersonDirectoryDao` liefert den Drei-Wege-Outer-Join. Planungs-Artefakte
+Plan: 3 of 7
+Status: Welle 1 abgeschlossen. 62-01 (DAO-Schicht) — WR-02 geschlossen,
+`PersonDirectoryDao` liefert den Drei-Wege-Outer-Join. 62-02 (DTO + i18n) —
+`PersonEntryTO`/`PersonKindTO` in `rest-types` (noch ohne `From`-Impl) und
+sechs neue Beschriftungen in de/en/cs. Planungs-Artefakte
 vollständig: CONTEXT, RESEARCH, PATTERNS,
 UI-SPEC (6/6 Dimensionen approved), VALIDATION, 7 PLAN.md in 4 Wellen.
 Gates: plan-checker PASSED · Requirements 3/3 (PADM-01, PADM-06, PADM-08) ·
@@ -46,9 +48,9 @@ Wellen: 1) 62-01 DAO (WR-02-Fix + `PersonDirectoryDao`) ∥ 62-02 DTO + i18n ·
 3) 62-05 REST + DI + `Dioxus.toml`-Proxy · 4) 62-06 Docs-Gate (EN+DE) ∥ 62-07 Laufzeit-Verifikation.
 Aus Phase 61 offen: CR-02 (Pre-Flight-Query) bleibt Deploy-Gate, siehe **v2.7 Deploy-Gates** unten.
 WR-02 wird in Phase 62 geschlossen (D-62-05, Plan 62-01); WR-01, WR-03, WR-07 und IN-01..IN-07 bleiben Backlog.
-Last activity: 2026-09-20 — 62-01 (DAO-Schicht) abgeschlossen, 3/3 Tasks
-Next: `/gsd-execute-phase 62` (Welle 1 fortsetzen: 62-02 DTO + i18n)
-Resume file: .planning/phases/62-personen-verzeichnis-eine-liste-statt-tabs/62-02-PLAN.md
+Last activity: 2026-09-20 — 62-02 (DTO + i18n) abgeschlossen, 2/2 Tasks
+Next: `/gsd-execute-phase 62` (Welle 2: 62-03 Business-Logic-Service ∥ 62-04 Frontend-Umbau)
+Resume file: .planning/phases/62-personen-verzeichnis-eine-liste-statt-tabs/62-03-PLAN.md
 
 ## Quick Tasks Completed
 
@@ -307,9 +309,9 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-09-20T07:24:16.461Z
-**Stopped at:** Phase 62 UI-SPEC approved
-**Resume file:** .planning/phases/62-personen-verzeichnis-eine-liste-statt-tabs/62-UI-SPEC.md
+**Last session:** 2026-09-20T07:35:00.496Z
+**Stopped at:** 62-02 (DTO + i18n) abgeschlossen — Welle 1 fertig
+**Resume file:** .planning/phases/62-personen-verzeichnis-eine-liste-statt-tabs/62-03-PLAN.md
 
 **To resume work in a new session:**
 
@@ -430,6 +432,9 @@ D-63-01/02, D-64-01/02/03).
 - [Phase 61]: D-61-10c: Der Repo-Sweep nach dem alten Tabellennamen kann nicht 0 liefern und soll es auch nicht — migrations/sqlite/*.sql bleiben byte-identisch (sqlx-Checksumme je Datei), shifty_bin/src/person_link_migration_test.rs baut den Vor-Phase-61-Zustand absichtlich nach, und die Treffer in rest/ und shifty-dioxus/ sind Bezeichner (get_sales_person_user, sales_person_user_links), keine Tabellenverweise. Die pruefbare Aussage ist 'kein Dokument beschreibt die Tabelle als aktuelles Schema', nicht 'kein Vorkommen des Strings'.
 - [Phase 62]: D-62-05/WR-02 geschlossen: Soft-Delete-Filter in der ON-Klausel des LEFT JOIN, nicht in WHERE — In WHERE degeneriert der LEFT JOIN zum INNER JOIN. Ein Benutzer, dessen einzige Sales Person soft-geloescht ist, fiel vorher aus beiden Kandidatenlisten und war nie wieder verknuepfbar.
 - [Phase 62]: Das Personen-Verzeichnis bekommt ein eigenes DAO-Trait (PersonDirectoryDao) statt einer fuenften Methode auf PersonDao — PersonDao ist im Modulkopf auf genau vier Methoden festgezurrt; das Verzeichnis ist eine andere Lesart derselben Tabellen (Aggregat statt Identitaet/Anti-Join). Zwei Zustaendigkeiten, zwei Traits.
+- [Phase 62]: 62-02 — PersonEntryTO landet ohne From-Impl in Welle 1 (Domain-Typ folgt in 62-03), damit Frontend- und Business-Logic-Plan parallel starten koennen
+- [Phase 62]: 62-02 — Neuer i18n-Key ColumnUsername statt Wiederverwendung von ColumnLinkedUser — seit D-62-03 zeigt jede Zeile einen Benutzernamen
+- [Phase 62]: 62-02 — Akzeptanzbefehle mit 'cargo test -- --exact' muessen den Modulpfad tragen, sonst laufen sie gruen mit 0 Tests
 
 ## Performance Metrics
 
@@ -490,3 +495,4 @@ D-63-01/02, D-64-01/02/03).
 | Phase 61 P09 | ~25min | 2 tasks | 5 files |
 | Phase 61 P10 | ~30min | 2 tasks | 1 files |
 | Phase 62 P01 | 32min | 3 tasks | 12 files |
+| Phase 62 P02 | 13 min | 2 tasks | 5 files |

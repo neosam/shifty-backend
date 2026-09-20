@@ -454,7 +454,7 @@ Plans:
 **Wave 1**
 
 - [x] 62-01-PLAN.md — DAO-Schicht: WR-02-Soft-Delete-Fix in der `ON`-Klausel (D-62-05) plus neues `PersonDirectoryDao` mit Drei-Wege-Outer-Join und Rollen-Bulk-Query
-- [ ] 62-02-PLAN.md — Transport-DTO `PersonEntryTO`/`PersonKindTO` (D-62-01/D-62-03) und sechs neue i18n-Keys in de/en/cs
+- [x] 62-02-PLAN.md — Transport-DTO `PersonEntryTO`/`PersonKindTO` (D-62-01/D-62-03) und sechs neue i18n-Keys in de/en/cs
 
 **Wave 2** *(blocked on Wave 1)*
 
@@ -627,7 +627,7 @@ als unsicher).
 |-------|----------------|--------|-----------|
 | 60. Person-Datenmodell + Backfill | 0/? | Not started | — |
 | 61. PersonService + Auflösung `sales_person_user` | 10/10 | Complete | 2026-09-17 |
-| 62. Personen-Verzeichnis — eine Liste statt Tabs | 0/7 | Planned | — |
+| 62. Personen-Verzeichnis — eine Liste statt Tabs | 2/7 | In Progress | — |
 | 63. Personen-Detailansicht + Ausprägungs-Aktionen | 0/? | Not started | — |
 | 64. Planungs-Soll für dynamische Verträge | 0/? | Not started | — |
 
