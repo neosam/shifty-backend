@@ -677,6 +677,101 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         "Try a different name or username.",
     );
 
+    // Personen-Detailansicht (Phase 63)
+    // Seitenrahmen
+    i18n.add_text(
+        Locale::En,
+        Key::PersonDetailLinkedNote,
+        "Linked — this entry's sales-person and user record share the same identity.",
+    );
+    i18n.add_text(Locale::En, Key::PersonDetailNotFound, "This entry no longer exists.");
+
+    // Anlege-Dialog (D-63-03: der eine Anlege-Einstieg, zugleich Dialogtitel)
+    i18n.add_text(Locale::En, Key::CreatePersonEntry, "Add entry");
+    i18n.add_text(Locale::En, Key::CreatePersonEntryDisplayName, "Display name");
+    i18n.add_text(Locale::En, Key::CreatePersonEntryWantsLogin, "Gets a login");
+    i18n.add_text(Locale::En, Key::CreatePersonEntryWantsSalesPerson, "Gets a sales-person record");
+    i18n.add_text(
+        Locale::En,
+        Key::CreatePersonEntryValidationHint,
+        "At least a login or a sales-person record is required.",
+    );
+    i18n.add_text(Locale::En, Key::CreatePersonEntrySubmit, "Create");
+
+    // Facet-Add (PADM-03, D-63-02: woertliche Seed-Benennung)
+    i18n.add_text(Locale::En, Key::AddLoginToEntry, "Add login");
+    i18n.add_text(Locale::En, Key::AddSalesPersonToEntry, "Add sales person");
+
+    // Missing-Facet-Karte
+    i18n.add_text(Locale::En, Key::MissingLoginHeading, "No login yet");
+    i18n.add_text(Locale::En, Key::MissingLoginBody, "This entry has no user account yet.");
+    i18n.add_text(Locale::En, Key::MissingSalesPersonHeading, "No sales-person record yet");
+    i18n.add_text(
+        Locale::En,
+        Key::MissingSalesPersonBody,
+        "This entry has no sales-person record yet.",
+    );
+
+    // Kandidaten-Picker (PADM-04, D-63-02)
+    i18n.add_text(Locale::En, Key::LinkExistingUser, "Link existing user");
+    i18n.add_text(Locale::En, Key::LinkExistingSalesPerson, "Link existing sales person");
+    i18n.add_text(
+        Locale::En,
+        Key::CandidatePickerEmptyUser,
+        "No unlinked user accounts available.",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::CandidatePickerEmptySalesPerson,
+        "No unlinked sales persons available.",
+    );
+    i18n.add_text(Locale::En, Key::LinkCandidateConfirm, "Link");
+    i18n.add_text(
+        Locale::En,
+        Key::PersonLinkConflict,
+        "This target was already linked in the meantime. Refreshing the list.",
+    );
+
+    // Verknuepfung loesen (D-63-05: harmlos und umkehrbar)
+    i18n.add_text(Locale::En, Key::UnlinkAction, "Unlink");
+    i18n.add_text(Locale::En, Key::UnlinkConfirmTitle, "Unlink entry?");
+    i18n.add_text(
+        Locale::En,
+        Key::UnlinkConfirmBody,
+        "{name} will be split into two separate entries: one for the sales person, one for the user. Both are fully preserved.",
+    );
+
+    // Login loeschen (Hard Delete)
+    i18n.add_text(Locale::En, Key::DeleteLoginAction, "Delete login");
+    i18n.add_text(Locale::En, Key::DeleteLoginConfirmTitle, "Delete login?");
+    i18n.add_text(
+        Locale::En,
+        Key::DeleteLoginConfirmBody,
+        "Login, roles, and open invitations are permanently deleted.",
+    );
+
+    // Verkaeufer loeschen (Soft Delete, D-63-06)
+    i18n.add_text(Locale::En, Key::DeleteSalesPersonAction, "Delete sales person");
+    i18n.add_text(Locale::En, Key::DeleteSalesPersonConfirmTitle, "Delete sales person?");
+    i18n.add_text(
+        Locale::En,
+        Key::DeleteSalesPersonConfirmBody,
+        "Shifts, hour balances, and billing history remain in the database, but disappear from every view.",
+    );
+    i18n.add_text(
+        Locale::En,
+        Key::DeleteSalesPersonConfirmHint,
+        "Alternative: mark {name} inactive to take them out of planning without removing history.",
+    );
+
+    // Gemeinsame Zusaetze beider Loesch-Bestaetigungen
+    i18n.add_text(Locale::En, Key::DeleteConfirmIrreversible, "This cannot be undone.");
+    i18n.add_text(
+        Locale::En,
+        Key::DeleteConfirmLastFacet,
+        "This is the entry's only remaining facet — after deletion the entry disappears from the list entirely.",
+    );
+
     // Working-hours mini overview (cards / table layout toggle)
     i18n.add_text(Locale::En, Key::WorkingHoursLayoutCards, "Cards");
     i18n.add_text(Locale::En, Key::WorkingHoursLayoutTable, "Table");

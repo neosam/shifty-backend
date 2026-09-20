@@ -722,6 +722,101 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         "Zkuste jiné jméno nebo uživatelské jméno.",
     );
 
+    // Personen-Detailansicht (Phase 63)
+    // Seitenrahmen
+    i18n.add_text(
+        Locale::Cs,
+        Key::PersonDetailLinkedNote,
+        "Propojeno — záznam prodejce a uživatele sdílí tuto identitu.",
+    );
+    i18n.add_text(Locale::Cs, Key::PersonDetailNotFound, "Tento záznam již neexistuje.");
+
+    // Anlege-Dialog (D-63-03: der eine Anlege-Einstieg, zugleich Dialogtitel)
+    i18n.add_text(Locale::Cs, Key::CreatePersonEntry, "Přidat záznam");
+    i18n.add_text(Locale::Cs, Key::CreatePersonEntryDisplayName, "Zobrazované jméno");
+    i18n.add_text(Locale::Cs, Key::CreatePersonEntryWantsLogin, "Dostane přihlášení");
+    i18n.add_text(Locale::Cs, Key::CreatePersonEntryWantsSalesPerson, "Dostane záznam prodejce");
+    i18n.add_text(
+        Locale::Cs,
+        Key::CreatePersonEntryValidationHint,
+        "Je potřeba alespoň přihlášení nebo záznam prodejce.",
+    );
+    i18n.add_text(Locale::Cs, Key::CreatePersonEntrySubmit, "Vytvořit");
+
+    // Facet-Add (PADM-03, D-63-02: woertliche Seed-Benennung)
+    i18n.add_text(Locale::Cs, Key::AddLoginToEntry, "Přidat přihlášení");
+    i18n.add_text(Locale::Cs, Key::AddSalesPersonToEntry, "Přidat prodejce");
+
+    // Missing-Facet-Karte
+    i18n.add_text(Locale::Cs, Key::MissingLoginHeading, "Zatím žádné přihlášení");
+    i18n.add_text(Locale::Cs, Key::MissingLoginBody, "Tento záznam ještě nemá uživatelský účet.");
+    i18n.add_text(Locale::Cs, Key::MissingSalesPersonHeading, "Zatím žádný záznam prodejce");
+    i18n.add_text(
+        Locale::Cs,
+        Key::MissingSalesPersonBody,
+        "Tento záznam ještě nemá záznam prodejce.",
+    );
+
+    // Kandidaten-Picker (PADM-04, D-63-02)
+    i18n.add_text(Locale::Cs, Key::LinkExistingUser, "Propojit stávajícího uživatele");
+    i18n.add_text(Locale::Cs, Key::LinkExistingSalesPerson, "Propojit stávajícího prodejce");
+    i18n.add_text(
+        Locale::Cs,
+        Key::CandidatePickerEmptyUser,
+        "Nejsou k dispozici žádné nepropojené uživatelské účty.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::CandidatePickerEmptySalesPerson,
+        "Nejsou k dispozici žádní nepropojení prodejci.",
+    );
+    i18n.add_text(Locale::Cs, Key::LinkCandidateConfirm, "Propojit");
+    i18n.add_text(
+        Locale::Cs,
+        Key::PersonLinkConflict,
+        "Tento cíl byl mezitím již propojen. Seznam se aktualizuje.",
+    );
+
+    // Verknuepfung loesen (D-63-05: harmlos und umkehrbar)
+    i18n.add_text(Locale::Cs, Key::UnlinkAction, "Zrušit propojení");
+    i18n.add_text(Locale::Cs, Key::UnlinkConfirmTitle, "Zrušit propojení?");
+    i18n.add_text(
+        Locale::Cs,
+        Key::UnlinkConfirmBody,
+        "{name} bude rozdělen na dva samostatné záznamy: jeden pro prodejce, jeden pro uživatele. Oba zůstanou zcela zachovány.",
+    );
+
+    // Login loeschen (Hard Delete)
+    i18n.add_text(Locale::Cs, Key::DeleteLoginAction, "Smazat přihlášení");
+    i18n.add_text(Locale::Cs, Key::DeleteLoginConfirmTitle, "Smazat přihlášení?");
+    i18n.add_text(
+        Locale::Cs,
+        Key::DeleteLoginConfirmBody,
+        "Přihlášení, role a otevřené pozvánky budou trvale smazány.",
+    );
+
+    // Verkaeufer loeschen (Soft Delete, D-63-06)
+    i18n.add_text(Locale::Cs, Key::DeleteSalesPersonAction, "Smazat prodejce");
+    i18n.add_text(Locale::Cs, Key::DeleteSalesPersonConfirmTitle, "Smazat prodejce?");
+    i18n.add_text(
+        Locale::Cs,
+        Key::DeleteSalesPersonConfirmBody,
+        "Směny, evidence hodin a historie vyúčtování zůstanou v databázi zachovány, ale zmizí ze všech pohledů.",
+    );
+    i18n.add_text(
+        Locale::Cs,
+        Key::DeleteSalesPersonConfirmHint,
+        "Alternativa: nastavte {name} jako neaktivní a vyřaďte je z plánování, aniž byste odstranili historii.",
+    );
+
+    // Gemeinsame Zusaetze beider Loesch-Bestaetigungen
+    i18n.add_text(Locale::Cs, Key::DeleteConfirmIrreversible, "Tuto akci nelze vrátit zpět.");
+    i18n.add_text(
+        Locale::Cs,
+        Key::DeleteConfirmLastFacet,
+        "Toto je jediná zbývající podoba tohoto záznamu — po smazání záznam zcela zmizí ze seznamu.",
+    );
+
     // Working-hours mini overview (cards / table layout toggle)
     i18n.add_text(Locale::Cs, Key::WorkingHoursLayoutCards, "Karty");
     i18n.add_text(Locale::Cs, Key::WorkingHoursLayoutTable, "Tabulka");

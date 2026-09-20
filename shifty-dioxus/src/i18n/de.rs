@@ -740,6 +740,109 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         "Anderen Namen oder Benutzernamen versuchen.",
     );
 
+    // Personen-Detailansicht (Phase 63)
+    // Seitenrahmen
+    i18n.add_text(
+        Locale::De,
+        Key::PersonDetailLinkedNote,
+        "Verknüpft — Verkäufer und Benutzer teilen sich diesen Eintrag.",
+    );
+    i18n.add_text(Locale::De, Key::PersonDetailNotFound, "Dieser Eintrag existiert nicht mehr.");
+
+    // Anlege-Dialog (D-63-03: der eine Anlege-Einstieg, zugleich Dialogtitel)
+    i18n.add_text(Locale::De, Key::CreatePersonEntry, "Eintrag anlegen");
+    i18n.add_text(Locale::De, Key::CreatePersonEntryDisplayName, "Anzeigename");
+    i18n.add_text(Locale::De, Key::CreatePersonEntryWantsLogin, "Bekommt ein Login");
+    i18n.add_text(
+        Locale::De,
+        Key::CreatePersonEntryWantsSalesPerson,
+        "Bekommt einen Verkäufer-Datensatz",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::CreatePersonEntryValidationHint,
+        "Mindestens ein Login oder ein Verkäufer-Datensatz ist nötig.",
+    );
+    i18n.add_text(Locale::De, Key::CreatePersonEntrySubmit, "Anlegen");
+
+    // Facet-Add (PADM-03, D-63-02: woertliche Seed-Benennung)
+    i18n.add_text(Locale::De, Key::AddLoginToEntry, "Login hinzufügen");
+    i18n.add_text(Locale::De, Key::AddSalesPersonToEntry, "Person hinzufügen");
+
+    // Missing-Facet-Karte
+    i18n.add_text(Locale::De, Key::MissingLoginHeading, "Noch kein Login");
+    i18n.add_text(Locale::De, Key::MissingLoginBody, "Dieser Eintrag hat noch kein Benutzerkonto.");
+    i18n.add_text(Locale::De, Key::MissingSalesPersonHeading, "Noch kein Verkäufer-Datensatz");
+    i18n.add_text(
+        Locale::De,
+        Key::MissingSalesPersonBody,
+        "Dieser Eintrag hat noch keinen Verkäufer-Datensatz.",
+    );
+
+    // Kandidaten-Picker (PADM-04, D-63-02)
+    i18n.add_text(Locale::De, Key::LinkExistingUser, "Bestehenden Benutzer verknüpfen");
+    i18n.add_text(Locale::De, Key::LinkExistingSalesPerson, "Bestehenden Verkäufer verknüpfen");
+    i18n.add_text(
+        Locale::De,
+        Key::CandidatePickerEmptyUser,
+        "Keine unverknüpften Benutzerkonten verfügbar.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::CandidatePickerEmptySalesPerson,
+        "Keine unverknüpften Verkäufer verfügbar.",
+    );
+    i18n.add_text(Locale::De, Key::LinkCandidateConfirm, "Verknüpfen");
+    i18n.add_text(
+        Locale::De,
+        Key::PersonLinkConflict,
+        "Dieses Ziel wurde inzwischen bereits verknüpft. Die Liste wird aktualisiert.",
+    );
+
+    // Verknuepfung loesen (D-63-05: harmlos und umkehrbar)
+    i18n.add_text(Locale::De, Key::UnlinkAction, "Verknüpfung lösen");
+    i18n.add_text(Locale::De, Key::UnlinkConfirmTitle, "Verknüpfung lösen?");
+    i18n.add_text(
+        Locale::De,
+        Key::UnlinkConfirmBody,
+        "{name} wird in zwei getrennte Einträge aufgeteilt: einen für den Verkäufer, einen für den Benutzer. Beide bleiben vollständig erhalten.",
+    );
+
+    // Login loeschen (Hard Delete)
+    i18n.add_text(Locale::De, Key::DeleteLoginAction, "Login löschen");
+    i18n.add_text(Locale::De, Key::DeleteLoginConfirmTitle, "Login löschen?");
+    i18n.add_text(
+        Locale::De,
+        Key::DeleteLoginConfirmBody,
+        "Login, Rollen und offene Einladungen werden endgültig gelöscht.",
+    );
+
+    // Verkaeufer loeschen (Soft Delete, D-63-06)
+    i18n.add_text(Locale::De, Key::DeleteSalesPersonAction, "Verkäufer löschen");
+    i18n.add_text(Locale::De, Key::DeleteSalesPersonConfirmTitle, "Verkäufer löschen?");
+    i18n.add_text(
+        Locale::De,
+        Key::DeleteSalesPersonConfirmBody,
+        "Schichten, Stundenkonto und Abrechnungs-Historie bleiben in der Datenbank erhalten, verschwinden aber aus allen Ansichten.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::DeleteSalesPersonConfirmHint,
+        "Alternative: {name} über „inaktiv setzen“ aus der Planung nehmen, ohne die Historie zu entfernen.",
+    );
+
+    // Gemeinsame Zusaetze beider Loesch-Bestaetigungen
+    i18n.add_text(
+        Locale::De,
+        Key::DeleteConfirmIrreversible,
+        "Das kann nicht rückgängig gemacht werden.",
+    );
+    i18n.add_text(
+        Locale::De,
+        Key::DeleteConfirmLastFacet,
+        "Das ist die einzige verbleibende Ausprägung dieses Eintrags — nach dem Löschen verschwindet der Eintrag vollständig aus der Liste.",
+    );
+
     // Working-hours mini overview (cards / table layout toggle)
     i18n.add_text(Locale::De, Key::WorkingHoursLayoutCards, "Karten");
     i18n.add_text(Locale::De, Key::WorkingHoursLayoutTable, "Tabelle");
