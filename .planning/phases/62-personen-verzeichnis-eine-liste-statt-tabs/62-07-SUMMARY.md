@@ -331,3 +331,94 @@ es (T-62-18).
 - Keine Quelldateien erstellt oder geaendert (planmaessig)
 
 ## Self-Check: PASSED (fuer Task 1; Task 2 offen)
+
+---
+
+## Nachtrag Orchestrator — Laufzeit-Belege zu Task 2 (Checkpoint bleibt OFFEN)
+
+Erhoben am 2026-09-20 gegen die laufenden Dev-Server (Backend 3000, `dx serve` 8080).
+Die Browser-Erweiterung war nicht verbunden, eine DOM-Pruefung im echten Browser
+konnte deshalb **nicht** stattfinden. Dieser Abschnitt behauptet an keiner Stelle,
+dass ein Mensch die gerenderte Seite gesehen hat. `status` bleibt `checkpoint-pending`.
+
+### Schritt 1 — Testdaten angelegt (ueber die REST-API, nicht ueber die Oberflaeche)
+
+Die lokale `localdb.sqlite3` enthielt nur `admin` und `DEVUSER`, beide `user_only`.
+Die Schritte 3, 4, 7 und 8 waren damit nicht pruefbar. Angelegt wurden:
+
+| Objekt | Kommando | Ergebnis |
+|---|---|---|
+| Verkaeufer ohne Login | `POST /sales-person` `{"name":"Rosa Verkauf","background_color":"#8ecae6",...}` | 200, id `d907198e-9620-4840-abd7-b0dea0cf5e57` |
+| Verkaeufer fuer Verknuepfung | `POST /sales-person` `{"name":"Béla Verknüpft","background_color":"#ffb703",...}` | 200, id `100e013e-2ed4-4da3-8c70-a37110d1da2e` |
+| Benutzerkonto ohne Verkaeufer | `POST /permission/user` `{"name":"nur.benutzer"}` | 201 |
+| Benutzer fuer Verknuepfung | `POST /permission/user` `{"name":"bela.login"}` | 201 |
+| Verknuepfung | `POST /sales-person/100e013e-.../user` `"bela.login"` | 204 |
+
+### Laufzeit-Zustand des Aggregats (`GET /person-directory`)
+
+```
+user_only          "admin"                username="admin"          roles=["admin"]
+linked             "Béla Verknüpft"       username="bela.login"     roles=[]
+user_only          "DEVUSER"              username="DEVUSER"        roles=["admin"]
+user_only          "nur.benutzer"         username="nur.benutzer"   roles=[]
+sales_person_only  "Rosa Verkauf"         username=(null)           roles=[]
+```
+
+- Alle drei Auspraegungen stehen nebeneinander (Success Criterion 1, Datenhaelfte).
+- `display_name` ist in keiner Zeile leer. Beim verknuepften Eintrag steht der
+  Verkaeufername (`Béla Verknüpft`), **nicht** der Benutzername (`bela.login`) — D-62-03.
+- Beim reinen Benutzerkonto faellt der Anzeigename auf den Benutzernamen zurueck —
+  die Regel liegt im Service, nicht im Frontend (Success Criterion 3, PADM-06).
+- `sales_person_only` traegt `username = null` — die Datengrundlage fuer D-62-06.
+- Case-insensitive Sortierung am Live-Ergebnis bestaetigt
+  (`admin`, `Béla`, `DEVUSER`, `nur.benutzer`, `Rosa`).
+
+### Schritt 6 — Ein-Request-Nachweis ueber den Dev-Proxy (Laufzeit)
+
+```
+grep -c 'FROM person p' backend.log   # vor dem Request:  2
+curl http://localhost:8080/person-directory   -> HTTP 200
+grep -c 'FROM person p' backend.log   # nach dem Request: 3
+```
+
+Genau ein Proxy-Request erzeugt genau einen DAO-Join. Body ueber Port 8080 und
+Port 3000 per `cmp` byte-gleich.
+
+### Schritt 9 — Ablehnung fuer Nicht-Admin (Laufzeit, nicht nur Integrationstest)
+
+```
+POST /admin/impersonate/nur.benutzer    -> 200 {"impersonating":true,"user_id":"nur.benutzer"}
+GET  /person-directory                  -> 403
+DELETE /admin/impersonate               -> 200 {"impersonating":false,"user_id":null}
+```
+
+Der Impersonations-Zustand wurde wieder aufgehoben.
+
+### Schritte 3, 4, 5, 7, 8, 9 — Abdeckung durch SSR-Rendertests
+
+`cargo test user_management` im aktuellen Stand: **18 passed, 0 failed**. Die Tests
+rendern den echten Komponentenbaum nach HTML (`dioxus_ssr::render`), sind also
+staerker als eine Quelltext-Inspektion und schwaecher als eine Browser-Pruefung:
+
+| Schritt | Test | Ergebnis |
+|---|---|---|
+| 3 Badge je Zeile | `directory_row_renders_kind_badge` | ok |
+| 4 Suche ueber beide Namen | `directory_search_matches_both_names`, `matches_search_is_case_insensitive` | ok |
+| 5 Anzeigename beim reinen Benutzerkonto | `directory_user_only_row_has_display_name` | ok |
+| 7 Aktionen nur auf der Benutzer-Seite | `directory_actions_only_for_user_side` | ok |
+| 9 Ablehnungsansicht | `non_admin_sees_not_authorized` — rendert `Not authorized.` | ok |
+
+Schritt 8 (Ziel des Bearbeiten-Links) ist quelltextseitig belegt
+(`page/user_management.rs:358-370`): `sales_person_id.is_some()` fuehrt auf
+`Route::SalesPersonDetails`, sonst auf `Route::UserDetails` — deckt verknuepft und
+reiner Verkaeufer gegen reines Benutzerkonto ab. Kein eigener Rendertest.
+
+### Was offen bleibt und einen echten Browser braucht
+
+- Visuelle **Unterscheidbarkeit** der Badges (Farbe, Kontrast, Lesbarkeit).
+- Beobachtung der Request-Zahl im **Netzwerk-Tab** waehrend eines echten Seitenaufrufs
+  (der Log-Zaehler oben ist ein validierter Ersatz, kein Browser-Beleg).
+- **Interaktives** Verhalten: Tippen im Suchfeld, Oeffnen der Dialoge, tatsaechliche
+  Navigation des Bearbeiten-Links.
+- Der im Browser **angezeigte** Ablehnungstext beim Direktaufruf ohne Admin-Rolle
+  (die Zeichenkette `Not authorized.` ist im Rendertest belegt).
