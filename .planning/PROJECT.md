@@ -580,11 +580,15 @@ rückwirkenden Backfill, und in Phase 57 die Korrektur, die den Übertrag
 überhaupt erst wirksam gemacht hat (siehe „Zuletzt geshipt" oben).
 Snapshot-Schema-Version steht seit D-57-10 auf **13**.
 
-**v2.7 in Arbeit — Phase 61 abgeschlossen (2026-09-17).** 2 von 5 Phasen fertig.
+**v2.7 in Arbeit — Phase 62 abgeschlossen (2026-09-20).** 3 von 5 Phasen fertig.
 Phase 60 legte `person` plus die nullable `person_id`-FKs und den Backfill an;
 Phase 61 hat die Verknüpfungstabelle `sales_person_user` aufgelöst und alle
-Lese- und Schreibpfade auf die geteilte `person`-Identität umgestellt.
-Validiert in Phase 61: **PERS-05**.
+Lese- und Schreibpfade auf die geteilte `person`-Identität umgestellt;
+Phase 62 hat die beiden Tabs unter `/user_management/` durch **eine**
+durchsuchbare Liste ersetzt, gespeist von einem einzigen Aggregat-Request
+(`GET /person-directory`) hinter einem Admin-Gate im Service.
+Validiert in Phase 61: **PERS-05**. Validiert in Phase 62: **PADM-01**,
+**PADM-06**, **PADM-08**.
 
 Die Phase lief in zwei Runden — sechs geplante Pläne, danach vier
 Gap-Closure-Pläne gegen die eigenen Code-Review-Befunde. Der teuerste davon:
@@ -596,8 +600,20 @@ trägerlose Personen wegräumen) statt zu divergieren.
 Sicherheitsrelevanter Kern des Milestones: das Selbst-Zugriffs-Gate
 entscheidet ausschließlich im SQL-Join über `person_id`; ein
 `Option<Uuid>`-Vergleich in Rust wäre an dieser Stelle fail-open gewesen.
-`PersonService` existiert, hat aber bewusst noch keinen Konsumenten — Phase 62
-bringt den ersten Endpoint.
+`PersonService` hat seit Phase 62 seinen ersten Laufzeit-Konsumenten: der
+Aggregat-Endpoint `GET /person-directory`, dessen Admin-Gate als erste
+Anweisung vor jedem Datenbankzugriff steht.
+
+Aus dem UAT von Phase 62 stehen zwei Dinge für Phase 63 fest. Erstens wurde
+das Ausprägungs-Badge auf Produktentscheidung wieder **entfernt** — es sprach
+dieselbe accent/warn-Farbsprache wie der Bezahlt/Freiwillig-Chip in derselben
+Zelle und war dadurch irreführend; die Ausprägung bleibt über zwei andere
+Zellen ablesbar, `PersonKindTO` steuert weiterhin Aktions-Sichtbarkeit und
+Bearbeiten-Link. Zweitens ist das **Anlegen** weiterhin nach Ausprägung
+getrennt („Neuen Verkäufer erstellen" neben „Neuen Benutzer hinzufügen"), was
+dem Milestone-Ziel einer Personen-Sicht widerspricht. Phase 63 löst das über
+ihr Success Criterion 2; D-63-03 in der ROADMAP hält fest, dass der neue
+Dialog die beiden Knöpfe **ersetzen** und nicht ergänzen muss.
 
 Snapshot-Schema-Version bleibt **13** (v2.7 hat sie bisher nicht berührt).
 Zwei Phasen-Entwürfe liegen weiter ausgearbeitet bereit (58 Werktags-
