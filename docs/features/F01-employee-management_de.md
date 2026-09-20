@@ -8,11 +8,11 @@
 **Status:** produktiv
 **Erstmalig eingeführt:** v0.1 (Basistabellen 2024-05), sukzessiv erweitert bis v2.4
 **Zuständige Crates:**
-`service::{sales_person, sales_person_shiftplan, sales_person_unavailable, employee_work_details}`,
-`service_impl::{sales_person, sales_person_shiftplan, sales_person_unavailable, employee_work_details}`,
-`dao::{sales_person, sales_person_shiftplan, sales_person_unavailable, employee_work_details}`,
-`dao_impl_sqlite::{sales_person, sales_person_shiftplan, sales_person_unavailable, employee_work_details}`,
-`rest::{sales_person, sales_person_shiftplan, employee_work_details}`
+`service::{sales_person, sales_person_shiftplan, sales_person_unavailable, employee_work_details, person, person_directory}`,
+`service_impl::{sales_person, sales_person_shiftplan, sales_person_unavailable, employee_work_details, person, person_directory}`,
+`dao::{sales_person, sales_person_shiftplan, sales_person_unavailable, employee_work_details, person, person_directory}`,
+`dao_impl_sqlite::{sales_person, sales_person_shiftplan, sales_person_unavailable, employee_work_details, person, person_directory}`,
+`rest::{sales_person, sales_person_shiftplan, employee_work_details, person_directory}`
 
 ---
 
@@ -272,6 +272,22 @@ fehlt*. Der Regressionsschutz dafür ist
 `service_impl::test::person_candidates::kandidat_trotz_gesetzter_person_id`:
 jede Fixture-Zeile trägt ein nicht-NULL `person_id`, und beide
 Kandidaten-Mengen sind trotzdem nicht leer.
+
+**Ein Soft-Delete-Filter auf der optionalen Seite eines Outer Joins gehört in
+die `ON`-Klausel, niemals in die `WHERE`-Klausel [D-62-05 / WR-02].** In
+`WHERE` degeneriert der LEFT JOIN zum INNER JOIN, und der Anti-Join verliert
+genau die Zeilen, für die es ihn gibt. Genau das hielt der Phase-61-Review als
+Befund WR-02 zu `users_without_sales_person` fest: ein User, dessen einzige
+Sales Person soft-gelöscht war, hatte weiterhin einen *formalen* Join-Partner
+und fiel deshalb aus **beiden** Kandidatenlisten — die Sales Person war wegen
+des Lösch-Filters kein „Login hinzufügen"-Kandidat, und der User war wegen des
+Join-Partners kein „Person hinzufügen"-Kandidat. Er war nie wieder
+verknüpfbar. Der Wachhund für den Fix ist
+`service_impl::test::person_candidates::user_mit_nur_soft_geloeschter_sales_person_ist_kandidat`:
+er seedet genau diese Konstellation und assertet, dass der User Kandidat ist.
+Dieselbe Regel trägt den Verzeichnis-Join weiter unten; beide Vorkommen in
+`dao_impl_sqlite` tragen einen Zeilenkommentar mit D-62-05 / WR-02, damit ein
+Zurückschieben des Filters nach `WHERE` sofort als Widerspruch auffällt.
 
 ### `PersonDirectoryDao` — der Lesepfad des Personen-Verzeichnisses (v2.7, Phase 62)
 
@@ -656,6 +672,57 @@ wäre von einem leeren Verzeichnis ununterscheidbar. Absicherung:
 Der Permission-Mock in jener Testdatei akzeptiert nur das Literal `"admin"`,
 eine HR-gegatete Implementierung fällt also in jedem Test der Datei um.
 
+**Bewusste Verhaltensänderung — HR ohne Admin verliert die
+Sales-Person-Verwaltung [PADM-08, D-62-08].** Heute sind `create` / `update` /
+`delete` im Sales-Person-Aggregat auf `HR_PRIVILEGE` gegated
+(`service_impl/src/sales_person.rs`), während die Benutzerverwaltung bereits
+`"admin"` verlangt (`service_impl/src/permission.rs`). Die zusammengelegte
+Seite kann nicht zwei Gates tragen, also trägt sie das strengere: ein
+HR-Nutzer ohne Admin-Rolle verliert den Zugang zur Sales-Person-Verwaltung.
+Das hat der Nutzer am **2026-09-16** ausdrücklich so entschieden, nachdem die
+Konsequenz benannt worden war — siehe `.planning/REQUIREMENTS.md`
+§„Bewusste Änderung gegenüber heute". Dass HR abschnittsweise Teile der
+Personenverwaltung zurückbekommt, ist als PADM-F-02 (Future) vorgemerkt und
+kein Defekt. Beide Seiten des Gates sind über HTTP nachgewiesen, nicht nur auf
+Service-Ebene:
+`shifty_bin::integration_test::person_directory::admin_bekommt_200` und
+`shifty_bin::integration_test::person_directory::hr_ohne_admin_bekommt_403`.
+Der Negativtest assertet zusätzlich, dass der Antwort-Body keinen der
+geseedeten Namen trägt — ein `200` mit leerer oder redigierter Liste wäre damit
+kein stiller Bestehensfall.
+
+**Tier.** Business-Logic. Der `gen_service_impl!`-Block bindet genau drei
+Dependencies — `PersonDirectoryDao`, `PermissionService`, `TransactionDao` —
+und bewusst keinen weiteren Domain-Service. Er ist trotzdem Business-Logic und
+nicht Basic: er führt die beiden Träger-Aggregate einer Person zu einer Sicht
+zusammen und pflegt über sie hinweg die `PersonKind`-Invariante.
+`shifty_bin/src/main.rs` konstruiert ihn im Business-Logic-Block, also nach den
+Basic Services und damit strikt nach `person_service` — kein `OnceLock`, keine
+Forward-Declaration. Die Tier-Regel, die dieser Fall schärft, steht in
+`docs/architecture/02-service-tiers_de.md`.
+
+**REST.** `GET /person-directory` antwortet mit `200` und `[PersonEntryTO]`,
+mit `403` für Nicht-Admins und sonst mit `500`; Handler
+`rest::person_directory::get_person_directory`. Der Handler trägt **keine**
+zweite Rechteprüfung — die Trust Boundary ist `PersonDirectoryService::list`,
+und zwei Gate-Stellen wären zwei Wahrheiten, von denen die schwächere die
+Lücke ist (T-62-13). Die OpenAPI-Registrierung ist `PersonDirectoryApiDoc`,
+eingehängt in den `ApiDoc`-Merge in `rest/src/lib.rs` (`CLAUDE.md` §REST API).
+Der Präfix ist ein Vertrag über vier Stellen: Router-Nest, `ApiDoc`-Nest,
+Frontend-URL (`shifty-dioxus/src/api.rs`) und der `[[web.proxy]]`-Eintrag in
+`shifty-dioxus/Dioxus.toml`. **Der Dev-Proxy-Eintrag gehört zum Pfad**, nicht
+in eine spätere Aufräumrunde — ein fehlender hat dieses Repo bereits dreimal
+einen ausgelieferten 404 im Dev-Server gekostet (T-62-14). Details in §5.4.
+
+**Abgrenzung.** Phase 62 liefert die Liste, sonst nichts. Eine gemeinsame
+Detailansicht der zusammengeführten Person und die Mutationen je Ausprägung
+(Nachschalten einer fehlenden Ausprägung, Kandidaten-Picker,
+ausprägungs-spezifische Lösch-Bestätigung) sind Phase 63
+[PADM-02/03/04/05/07]. Eine Zeile in Phase 62 verlinkt deshalb weiterhin auf
+die bestehenden Detailseiten — `Route::SalesPersonDetails` für verknüpfte
+Einträge und reine Verkäufer, `Route::UserDetails` für reine Benutzerkonten
+[D-62-07].
+
 **Randfälle.**
 
 - Eine Verzeichniszeile ohne jeden Träger ist `unreachable!()` — das SQL
@@ -747,6 +814,24 @@ existiert).
 `SalesPersonShiftplanApiDoc`. **[Zu prüfen]** ob das ein bekannter Gap ist,
 den man beim nächsten OpenAPI-Sweep schließen möchte.
 
+### 5.4 Personen-Verzeichnis (`/person-directory`, v2.7, Phase 62)
+
+| Methode | Pfad | Beschreibung | DTO In | DTO Out | Fehler |
+| --- | --- | --- | --- | --- | --- |
+| `GET` | `/person-directory` | Das gesamte Personen-Verzeichnis — verknüpfte Personen, reine Benutzerkonten und reine Verkäufer nebeneinander, case-insensitiv nach Anzeigename sortiert | — | `[PersonEntryTO]` | 403 (kein Admin) / 500 |
+
+Handler in `rest/src/person_directory.rs`, gemountet in `rest/src/lib.rs` als
+`.nest("/person-directory", person_directory::generate_route())`. Anders als
+die Employee-Work-Details-Handler weiter oben ist dieser Endpoint in der
+OpenAPI-Doku **registriert**: `PersonDirectoryApiDoc` ist Teil des
+`ApiDoc`-Merge, und der Handler trägt eine `#[utoipa::path]`-Annotation. Das
+Admin-Gate liegt im Service (§4.6), nicht im Handler.
+
+- `PersonEntryTO` / `PersonKindTO` — `rest-types/src/lib.rs`, beide mit
+  `ToSchema`. `display_name` ist ein einfacher `String` und nie leer; `kind`
+  ist ein expliziter Enum-Wert und nichts, was der Client aus leeren
+  `Option`s ableitet [D-62-01, PADM-06].
+
 ## 6. Frontend-Integration
 
 ### Pages (`shifty-dioxus/src/page/`)
@@ -796,6 +881,11 @@ Vorhandene Einträge für dieses Cluster:
   Pfad schreibt, muss den Proxy nachziehen (Randfall §11 in
   `docs/domain/edge-cases.md`).
 - `http://localhost:3000/sales-person-shiftplan` (Zeile 96)
+- `http://localhost:3000/person-directory` (Zeile 118) — im **selben Commit**
+  wie die Route selbst ergänzt (Phase 62, T-62-14). Ohne ihn beantwortet der
+  Dev-Server den Verzeichnis-Aufruf mit 404, während die Produktion
+  funktioniert; dieser Fehlermodus wurde in diesem Repo bereits dreimal
+  ausgeliefert.
 
 ### i18n
 

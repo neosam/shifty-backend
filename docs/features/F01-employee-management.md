@@ -9,11 +9,11 @@
 **Status:** production
 **First introduced:** v0.1 (base tables 2024-05), successively extended up to v2.4
 **Responsible crates:**
-`service::{sales_person, sales_person_shiftplan, sales_person_unavailable, employee_work_details}`,
-`service_impl::{sales_person, sales_person_shiftplan, sales_person_unavailable, employee_work_details}`,
-`dao::{sales_person, sales_person_shiftplan, sales_person_unavailable, employee_work_details}`,
-`dao_impl_sqlite::{sales_person, sales_person_shiftplan, sales_person_unavailable, employee_work_details}`,
-`rest::{sales_person, sales_person_shiftplan, employee_work_details}`
+`service::{sales_person, sales_person_shiftplan, sales_person_unavailable, employee_work_details, person, person_directory}`,
+`service_impl::{sales_person, sales_person_shiftplan, sales_person_unavailable, employee_work_details, person, person_directory}`,
+`dao::{sales_person, sales_person_shiftplan, sales_person_unavailable, employee_work_details, person, person_directory}`,
+`dao_impl_sqlite::{sales_person, sales_person_shiftplan, sales_person_unavailable, employee_work_details, person, person_directory}`,
+`rest::{sales_person, sales_person_shiftplan, employee_work_details, person_directory}`
 
 ---
 
@@ -271,6 +271,22 @@ regression guard is
 `service_impl::test::person_candidates::kandidat_trotz_gesetzter_person_id`:
 every fixture row has a non-NULL `person_id`, and both candidate sets are
 still non-empty.
+
+**A soft-delete filter on the optional side of an outer join belongs in the
+`ON` clause, never in the `WHERE` clause [D-62-05 / WR-02].** Put into `WHERE`,
+the LEFT JOIN degenerates into an INNER JOIN and the anti-join loses exactly
+the rows it exists to find. That is what the Phase 61 review recorded as
+finding WR-02 on `users_without_sales_person`: a user whose only sales person
+had been soft-deleted still had a *formal* join partner and therefore dropped
+out of **both** candidate lists — the sales person was no "add login"
+candidate because of the delete filter, and the user was no "add person"
+candidate because of the join partner. He could never be linked again. The
+watchdog for the fix is
+`service_impl::test::person_candidates::user_mit_nur_soft_geloeschter_sales_person_ist_kandidat`:
+it seeds exactly that constellation and asserts the user is a candidate. The
+same rule carries the directory join below; both occurrences in
+`dao_impl_sqlite` are marked with a line comment naming D-62-05 / WR-02, so
+moving the filter back into `WHERE` reads as a contradiction on the spot.
 
 ### `PersonDirectoryDao` — the person directory read path (v2.7, Phase 62)
 
@@ -647,6 +663,53 @@ indistinguishable from an empty directory. Guard:
 The permission mock in that test file only accepts the literal `"admin"`, so
 an HR-gated implementation fails every test in the file.
 
+**Deliberate behaviour change — HR without admin loses the sales person
+administration [PADM-08, D-62-08].** Today `create` / `update` / `delete` on
+the Sales Person aggregate are gated on `HR_PRIVILEGE`
+(`service_impl/src/sales_person.rs`), while the user administration already
+demands `"admin"` (`service_impl/src/permission.rs`). The merged page cannot
+carry two gates, so it carries the stricter one: an HR user without the admin
+role loses access to the sales person administration. This was decided
+explicitly by the user on **2026-09-16**, after the consequence had been
+named — see `.planning/REQUIREMENTS.md` §"Bewusste Änderung gegenüber heute".
+Handing HR a section-wise part of the person administration back is tracked as
+PADM-F-02 (future), not as a defect. Both sides of the gate are proven over
+HTTP, not only at service level:
+`shifty_bin::integration_test::person_directory::admin_bekommt_200` and
+`shifty_bin::integration_test::person_directory::hr_ohne_admin_bekommt_403`.
+The negative test additionally asserts that the response body carries none of
+the seeded names, so a `200` with an empty or redacted list would not pass
+silently.
+
+**Tier.** Business-Logic. The `gen_service_impl!` block binds exactly three
+dependencies — `PersonDirectoryDao`, `PermissionService`, `TransactionDao` —
+and deliberately no other domain service. It is still Business-Logic and not
+Basic: it merges the two carrier aggregates of a person into one view and owns
+the `PersonKind` invariant across them. `shifty_bin/src/main.rs` constructs it
+in the business-logic block, i.e. after the basic services and therefore
+strictly after `person_service` — no `OnceLock`, no forward declaration. See
+`docs/architecture/02-service-tiers.md` for the tier rule this case sharpens.
+
+**REST.** `GET /person-directory` answers `200` with `[PersonEntryTO]`, `403`
+for non-admins and `500` otherwise; handler
+`rest::person_directory::get_person_directory`. The handler carries **no**
+second permission check — the trust boundary is `PersonDirectoryService::list`,
+and two gate sites would be two truths of which the weaker one is the hole
+(T-62-13). OpenAPI registration is `PersonDirectoryApiDoc`, merged into
+`ApiDoc` in `rest/src/lib.rs` (`CLAUDE.md` §REST API). The prefix is a
+four-place contract: router nest, `ApiDoc` nest, frontend URL
+(`shifty-dioxus/src/api.rs`) and the `[[web.proxy]]` entry in
+`shifty-dioxus/Dioxus.toml`. **The dev-proxy entry belongs to the path**, not
+to a later cleanup — a missing one has already cost this repo three shipped
+dev-server 404s (T-62-14). Details in §5.4.
+
+**Scope boundary.** Phase 62 delivers the list, nothing else. A shared detail
+view for the merged person and the mutations per shape (adding a missing
+shape, the candidate picker, shape-aware delete confirmation) are Phase 63
+[PADM-02/03/04/05/07]. A Phase 62 row therefore still links to the existing
+detail pages — `Route::SalesPersonDetails` for linked and sales-person-only
+rows, `Route::UserDetails` for user-only rows [D-62-07].
+
 **Edge cases.**
 
 - A directory row without any carrier is `unreachable!()` — the SQL already
@@ -737,6 +800,24 @@ in `rest/src/lib.rs:568-598` — only `SalesPersonApiDoc` and
 `SalesPersonShiftplanApiDoc`. **[To verify]** whether this is a known
 gap to close in the next OpenAPI sweep.
 
+### 5.4 Person Directory (`/person-directory`, v2.7, Phase 62)
+
+| Method | Path | Description | DTO In | DTO Out | Errors |
+| --- | --- | --- | --- | --- | --- |
+| `GET` | `/person-directory` | The whole person directory — linked persons, user-only accounts and sales-person-only rows side by side, sorted case-insensitively by display name | — | `[PersonEntryTO]` | 403 (not an admin) / 500 |
+
+Handler in `rest/src/person_directory.rs`, mounted in `rest/src/lib.rs` as
+`.nest("/person-directory", person_directory::generate_route())`. Unlike the
+Employee Work Details handlers above, this endpoint **is** registered in the
+OpenAPI docs: `PersonDirectoryApiDoc` is part of the `ApiDoc` merge and the
+handler carries a `#[utoipa::path]` annotation. The admin gate lives in the
+service (§4.6), not in the handler.
+
+- `PersonEntryTO` / `PersonKindTO` — `rest-types/src/lib.rs`, both with
+  `ToSchema`. `display_name` is a plain `String` and never empty; `kind` is an
+  explicit enum value and not something the client derives from empty
+  `Option`s [D-62-01, PADM-06].
+
 ## 6. Frontend integration
 
 ### Pages (`shifty-dioxus/src/page/`)
@@ -786,6 +867,10 @@ Existing entries for this cluster:
   path must add the proxy (edge case §11 in
   `docs/domain/edge-cases.md`).
 - `http://localhost:3000/sales-person-shiftplan` (line 96)
+- `http://localhost:3000/person-directory` (line 118) — added in the **same
+  commit** as the route itself (Phase 62, T-62-14). Without it the dev server
+  answers the directory call with a 404 while production works; that failure
+  mode has shipped three times in this repo.
 
 ### i18n
 
