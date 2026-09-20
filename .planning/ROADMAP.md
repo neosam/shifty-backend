@@ -550,7 +550,7 @@ Plans:
 **Wave 1** *(parallel — keine gemeinsamen Dateien)*
 
 - [x] 63-01-PLAN.md — `PermissionDao::create_user`/`delete_user` auf die geteilte Transaktion heben (SC-2-Atomarität, Voraussetzung für den D-63-01-Orphan-Cleanup); `PermissionService`-Oberfläche bleibt eingefroren
-- [ ] 63-02-PLAN.md — `PersonDao::delete`/`has_live_facets`/Rückwärts-Lookups + `PersonDirectoryDao::find_directory_entry`; D-63-01-Lesart (b) festgeschrieben und getestet
+- [x] 63-02-PLAN.md — `PersonDao::delete`/`has_live_facets`/Rückwärts-Lookups + `PersonDirectoryDao::find_directory_entry`; D-63-01-Lesart (b) festgeschrieben und getestet
 - [ ] 63-03-PLAN.md — 32 i18n-Keys in de/en/cs nach dem Copywriting-Contract der UI-SPEC, inkl. der zwei wörtlich gesperrten D-63-08-Sätze
 
 **Wave 2** *(blockiert durch Wave 1)*
@@ -677,7 +677,7 @@ als unsicher).
 | 60. Person-Datenmodell + Backfill | 0/? | Not started | — |
 | 61. PersonService + Auflösung `sales_person_user` | 10/10 | Complete | 2026-09-17 |
 | 62. Personen-Verzeichnis — eine Liste statt Tabs | 7/7 | Complete | 2026-09-20 |
-| 63. Personen-Detailansicht + Ausprägungs-Aktionen | 0/? | Not started | — |
+| 63. Personen-Detailansicht + Ausprägungs-Aktionen | 2/11 | In Progress | — |
 | 64. Planungs-Soll für dynamische Verträge | 0/? | Not started | — |
 
 **Requirements-Coverage: 18/18 gemappt**, keine Waisen, keine Doppelung.

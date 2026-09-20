@@ -5,13 +5,13 @@ milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 63
 current_phase_name: personen-detailansicht-auspr-gungs-aktionen
 status: executing
-stopped_at: Completed 63-01-PLAN.md
-last_updated: "2026-09-20T19:34:42.585Z"
+stopped_at: Completed 63-02-PLAN.md
+last_updated: "2026-09-20T19:51:21.851Z"
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 31
-  completed_plans: 22
+  completed_plans: 23
   percent: 60
 ---
 
@@ -32,10 +32,13 @@ progress:
 ## Current Position
 
 Phase: 63 (personen-detailansicht-auspr-gungs-aktionen) — EXECUTING
-Plan: 2 of 11 (63-01 abgeschlossen)
-Status: Welle 1 laeuft. 63-01 hat `PermissionDao::create_user`/`delete_user` auf die
+Plan: 3 of 11 (63-01, 63-02 abgeschlossen)
+Status: Welle 1 abgeschlossen. 63-01 hat `PermissionDao::create_user`/`delete_user` auf die
 geteilte Transaktion gehoben — SC-2-Atomaritaet und der D-63-01-Orphan-Cleanup sind
 damit ueberhaupt erst konstruierbar. `service::PermissionService` bleibt eingefroren.
+63-02 hat die DAO-Primitive nachgezogen (`PersonDao::delete`/`has_live_facets`/
+`find_by_sales_person`/`find_by_user`, `PersonDirectoryDao::find_directory_entry`) und
+D-63-01 als Lesart (b) festgeschrieben.
 
 Was Phase 62 geliefert hat:
 
@@ -313,9 +316,9 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-09-20T19:33:34.966Z
-**Stopped at:** Completed 63-01-PLAN.md
-**Resume file:** .planning/phases/63-personen-detailansicht-auspr-gungs-aktionen/63-02-PLAN.md
+**Last session:** 2026-09-20T19:51:02.077Z
+**Stopped at:** Completed 63-02-PLAN.md
+**Resume file:** .planning/phases/63-personen-detailansicht-auspr-gungs-aktionen/63-03-PLAN.md
 
 **To resume work in a new session:**
 
@@ -452,6 +455,8 @@ D-63-01/02, D-64-01/02/03).
 - [Phase 62]: 62-06: vorgefundene Phase-56-Drift geschlossen (VoluntaryRebookingScheduler fehlte in 02-service-tiers_de.md) statt das Paritaets-Kriterium durch Weglassen in der EN-Fassung zu erfuellen
 - [Phase ?]: D-63-01-A: Transaktions-Assoziationstyp sitzt auf dao::PermissionDao, nicht auf service::PermissionService — das Service-Trait bleibt eingefroren (rund 20 Konsumenten).
 - [Phase ?]: D-63-01-B: PermissionDao bleibt ein bewusst gemischtes Trait — nur create_user und delete_user nehmen die geteilte Transaktion, keine Vorratshaltung.
+- [Phase 63]: D-63-01 als Lesart (b): Person ist traegerlos, wenn keine user-Zeile und keine sales_person-Zeile mit deleted IS NULL mehr auf sie zeigt (63-02)
+- [Phase 63]: Haengender person_id auf soft-geloeschten sales_person-Zeilen ist akzeptierte Konsequenz von D-63-01, kein Bug (63-02)
 
 ## Performance Metrics
 
@@ -518,3 +523,4 @@ D-63-01/02, D-64-01/02/03).
 | Phase 62 P05 | 7min | 2 tasks | 6 files |
 | Phase 62 P06 | 18min | 2 tasks | 5 files |
 | Phase 63 P01 | 38min | 3 tasks | 9 files |
+| Phase 63 P02 | 42min | 3 tasks | 6 files |
