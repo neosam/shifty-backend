@@ -40,7 +40,13 @@ pub mod rebooking;
 // `/report/{id}/voluntary-stats` HR/Non-HR redaction end-to-end — same pattern
 // as `pub mod feature_flag;` (Plan 08-07 Gap-Closure).
 pub mod report;
-mod sales_person;
+// Phase 63 (63-06): pub-export analog `pub mod person_directory;` — der
+// shifty_bin-Integrationstest erreicht `sales_person::generate_route` via
+// tower::oneshot, um den UNVERAENDERTEN Phase-61-Pfad
+// `POST /sales-person/{id}/user` als 409-Regressionsschutz zu befahren
+// (Success Criterion 4, D-61-04). Die Datei `rest/src/sales_person.rs` selbst
+// bleibt dabei unangetastet.
+pub mod sales_person;
 mod sales_person_shiftplan;
 pub mod session;
 mod shiftplan;

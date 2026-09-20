@@ -1477,4 +1477,6 @@ mod feature_flag;
 mod voluntary_stats;
 #[cfg(test)]
 mod person_directory;
+#[cfg(test)]
+mod person_detail;
 mod dev_seed;
