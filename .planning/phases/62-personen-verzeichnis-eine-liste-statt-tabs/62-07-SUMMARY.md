@@ -422,3 +422,52 @@ reiner Verkaeufer gegen reines Benutzerkonto ab. Kein eigener Rendertest.
   Navigation des Bearbeiten-Links.
 - Der im Browser **angezeigte** Ablehnungstext beim Direktaufruf ohne Admin-Rolle
   (die Zeichenkette `Not authorized.` ist im Rendertest belegt).
+
+---
+
+## GAP-62-01 — Anlegen bleibt nach Ausprägung getrennt (UAT-Beobachtung, Nutzer)
+
+**Beobachtung woertlich:** „Es gibt jetzt trotzdem neuen benutzer und neuen
+verkaeufer separat. Das checkt niemand."
+
+**Verursachender Plan:** 62-04 (Frontend-Umbau).
+
+**Befund, belegt:** `shifty-dioxus/src/page/user_management.rs:296-315` rendert in
+derselben Toolbar zwei getrennte Anlege-Einstiege:
+
+| Element | i18n-Key | Text (de) | Wirkung |
+|---|---|---|---|
+| Sekundaer-Link | `Key::CreateNewSalesPerson` | „Neuen Verkäufer erstellen" | Navigation zu `Route::SalesPersonDetails` mit leerer ID |
+| Primaer-Button | `Key::AddNewUser` | „Neuen Benutzer hinzufügen" | oeffnet `AddUserDialog` |
+
+Der Admin muss vor dem Klick entscheiden, ob er ein Benutzerkonto oder einen
+Verkaeufer anlegt. Nichts auf der Seite erklaert den Unterschied.
+
+**Warum das ein echter Gap ist, keine Geschmacksfrage:** PROJECT.md nennt als
+Milestone-Ziel „Benutzer- und Sales-Person-Verwaltung werden zu **einer**
+Personen-Sicht zusammengefuehrt" und schreibt fuer `/user_management/`
+ausdruecklich: „‚Login hinzufuegen' und ‚Person hinzufuegen' werden **Aktionen auf
+dem Eintrag**, die eine Auspraegung in die andere ueberfuehren." Die Leseseite
+erfuellt das (Success Criterion 1, verifiziert), die Anlegeseite nicht.
+
+**Regression gegenueber dem Vorzustand:** Vor Phase 62 lagen die beiden Knoepfe in
+getrennten Tabs. Der Tab-Kontext hat implizit erklaert, welche Auspraegung
+entsteht. Nach dem Merge steht beides kontextlos nebeneinander — fuer diesen
+Teilaspekt ist der Zustand schlechter als vorher, nicht besser.
+
+**Warum es beim Planen durchgerutscht ist:** 62-UI-SPEC Open Question 1 hat den
+Fall beruehrt, aber ausschliesslich als Frage der **Button-Hierarchie** (zwei
+Primaer-Akzente nebeneinander vermeiden → „Neuen Verkäufer erstellen" auf
+Sekundaer demoten). Ob zwei getrennte Anlege-Einstiege nach dem Zusammenfuehren
+der Liste konzeptionell noch aufgehen, wurde nicht gefragt. Der Quelltext traegt
+den Verweis auf diese Open Question woertlich (`user_management.rs:295-296`).
+
+**Wo der Fix hingehoert:** Phase 63, Success Criterion 2 — „Beim Anlegen erfasst
+der Admin **einen** Eintrag und schaltet dabei zu, ob er ein Benutzerkonto
+und/oder einen Verkaeufer-Datensatz bekommt." Und Success Criterion 3 fuer
+„Login hinzufuegen" / „Person hinzufuegen" als Eintrags-Aktionen. Der Fix ist
+also spezifiziert und eingeplant, aber erst nach dieser Phase.
+
+**Offene Entscheidung fuer den Nutzer:** Phase 62 mit diesem Gap schliessen und
+den Fix Phase 63 ueberlassen, oder die vereinheitlichte Anlege-Aktion in Phase 62
+vorziehen (Scope-Erweiterung).
