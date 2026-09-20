@@ -5,15 +5,15 @@ milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 62
 current_phase_name: personen-verzeichnis-eine-liste-statt-tabs
 status: executing
-stopped_at: 62-03 (Business-Logic-Service + Admin-Gate) abgeschlossen — 2/2 Tasks
-last_updated: "2026-09-20T07:50:52.915Z"
+stopped_at: 62-04 (Frontend-Umbau) abgeschlossen — 3/3 Tasks
+last_updated: "2026-09-20T08:15:48.794Z"
 last_activity: 2026-09-20
-last_activity_desc: 62-03 (Business-Logic-Service + Admin-Gate) abgeschlossen, 2/2 Tasks
+last_activity_desc: 62-04 (Frontend-Umbau) abgeschlossen, 3/3 Tasks
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 20
-  completed_plans: 17
+  completed_plans: 18
   percent: 40
 ---
 
@@ -34,7 +34,7 @@ progress:
 ## Current Position
 
 Phase: 62 (personen-verzeichnis-eine-liste-statt-tabs) — EXECUTING
-Plan: 4 of 7
+Plan: 5 of 7
 Status: Welle 1 abgeschlossen, Welle 2 zur Haelfte. 62-01 (DAO-Schicht) —
 WR-02 geschlossen, `PersonDirectoryDao` liefert den Drei-Wege-Outer-Join.
 62-02 (DTO + i18n) — `PersonEntryTO`/`PersonKindTO` in `rest-types` und sechs
@@ -43,7 +43,11 @@ neue Beschriftungen in de/en/cs. 62-03 (Business-Logic-Service) —
 `display_name`-Ableitung, case-insensitiver Sortierung und dem
 `From`-Mapping auf `PersonEntryTO`; acht Tests grün, Clippy sauber. Der
 Service hat noch keinen Laufzeit-Aufrufer — DI + REST kommen in 62-05.
-Offen in Welle 2: 62-04 (Frontend-Umbau). Planungs-Artefakte
+62-04 (Frontend-Umbau) — ein Aggregat-Request statt 2+N+2M, `/user_management/`
+zeigt eine admin-gegatete Liste mit Auspraegungs-Badge, die Tab-Leiste ist
+geloescht; 835 Frontend-Tests gruen, beide Clippy-Gates sauber. Welle 2 ist
+damit abgeschlossen; als naechstes Welle 3 mit 62-05 (REST + DI + Dev-Proxy).
+Planungs-Artefakte
 vollständig: CONTEXT, RESEARCH, PATTERNS,
 UI-SPEC (6/6 Dimensionen approved), VALIDATION, 7 PLAN.md in 4 Wellen.
 Gates: plan-checker PASSED · Requirements 3/3 (PADM-01, PADM-06, PADM-08) ·
@@ -53,9 +57,9 @@ Wellen: 1) 62-01 DAO (WR-02-Fix + `PersonDirectoryDao`) ∥ 62-02 DTO + i18n ·
 3) 62-05 REST + DI + `Dioxus.toml`-Proxy · 4) 62-06 Docs-Gate (EN+DE) ∥ 62-07 Laufzeit-Verifikation.
 Aus Phase 61 offen: CR-02 (Pre-Flight-Query) bleibt Deploy-Gate, siehe **v2.7 Deploy-Gates** unten.
 WR-02 wird in Phase 62 geschlossen (D-62-05, Plan 62-01); WR-01, WR-03, WR-07 und IN-01..IN-07 bleiben Backlog.
-Last activity: 2026-09-20 — 62-03 (Business-Logic-Service + Admin-Gate) abgeschlossen, 2/2 Tasks
-Next: `/gsd-execute-phase 62` (Rest von Welle 2: 62-04 Frontend-Umbau, danach Welle 3: 62-05 REST + DI)
-Resume file: .planning/phases/62-personen-verzeichnis-eine-liste-statt-tabs/62-04-PLAN.md
+Last activity: 2026-09-20 — 62-04 (Frontend-Umbau) abgeschlossen, 3/3 Tasks
+Next: `/gsd-execute-phase 62` (Welle 3: 62-05 REST + DI + `Dioxus.toml`-Proxy)
+Resume file: .planning/phases/62-personen-verzeichnis-eine-liste-statt-tabs/62-05-PLAN.md
 
 ## Quick Tasks Completed
 
@@ -314,9 +318,9 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-09-20T07:50:52.908Z
-**Stopped at:** 62-03 (Business-Logic-Service + Admin-Gate) abgeschlossen — 2/2 Tasks
-**Resume file:** .planning/phases/62-personen-verzeichnis-eine-liste-statt-tabs/62-04-PLAN.md
+**Last session:** 2026-09-20T08:15:33.525Z
+**Stopped at:** 62-04 (Frontend-Umbau) abgeschlossen — 3/3 Tasks
+**Resume file:** .planning/phases/62-personen-verzeichnis-eine-liste-statt-tabs/62-05-PLAN.md
 
 **To resume work in a new session:**
 
@@ -443,6 +447,8 @@ D-63-01/02, D-64-01/02/03).
 - [Phase 62]: D-62-08 umgesetzt — PersonDirectoryService gated auf das Literal "admin" (Vorbild PermissionServiceImpl::get_all_users), bewusst NICHT HR_PRIVILEGE des Basic-Tier PersonService
 - [Phase 62]: Fehler statt Redaktion — bei fehlendem Admin-Privileg propagiert list() ServiceError::Forbidden; von VoluntaryStatsService wird nur Tier-/DI-Form uebernommen, nicht die None-Redaktion
 - [Phase 62]: Gate-Wahl als Test-Invariante — der Permission-Mock akzeptiert nur das Literal "admin", ein falsches Gate faellt in allen acht Tests um statt nur im Gate-Test
+- [Phase 62]: Auspraegung kommt als Backend-Enum ins Frontend; keine clientseitige Namens-Fallback-Regel (grep-verifiziert)
+- [Phase 62]: load_all_users/get_all_users/state::User als begruendetes dead_code fuer Phase 63 konserviert statt geloescht
 
 ## Performance Metrics
 
@@ -505,3 +511,4 @@ D-63-01/02, D-64-01/02/03).
 | Phase 62 P01 | 32min | 3 tasks | 12 files |
 | Phase 62 P02 | 13 min | 2 tasks | 5 files |
 | Phase 62 P03 | 10min | 2 tasks | 9 files |
+| Phase 62 P04 | 22min | 3 tasks | 9 files |
