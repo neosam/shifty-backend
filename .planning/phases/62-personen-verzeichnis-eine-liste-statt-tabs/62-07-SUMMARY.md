@@ -425,12 +425,21 @@ reiner Verkaeufer gegen reines Benutzerkonto ab. Kein eigener Rendertest.
 
 ---
 
-## GAP-62-01 — Anlegen bleibt nach Ausprägung getrennt (UAT-Beobachtung, Nutzer)
+## Hinweis an Phase 63 — Anlegen bleibt nach Auspraegung getrennt (UAT-Beobachtung, Nutzer)
+
+**KEIN Gap dieser Phase.** Ursprünglich als `GAP-62-01` notiert, nach Rueckfrage
+des Nutzers korrigiert: Phase 62 hat die Vereinheitlichung des Anlegens nie
+zugesagt — ihre `must_haves` (eine Liste ohne Tabs, Badge je Zeile, Suche ueber
+beide Namen, kein Frontend-Fallback, Admin-Gate, ein Aggregat-Request) sind
+vollstaendig erfuellt. Die Vereinheitlichung steht seit der Roadmap-Erstellung in
+Phase 63 (SC-2). Dies ist ein **bekannter Zwischenzustand** des Milestones plus
+eine Beobachtung, die in die Phase-63-Discussion gehoert — kein Mangel, der
+Gap-Closure fuer Phase 62 ausloesen darf.
 
 **Beobachtung woertlich:** „Es gibt jetzt trotzdem neuen benutzer und neuen
 verkaeufer separat. Das checkt niemand."
 
-**Verursachender Plan:** 62-04 (Frontend-Umbau).
+**Ausgeloest durch:** 62-04 (Frontend-Umbau) — plangemaess, nicht fehlerhaft.
 
 **Befund, belegt:** `shifty-dioxus/src/page/user_management.rs:296-315` rendert in
 derselben Toolbar zwei getrennte Anlege-Einstiege:
@@ -443,7 +452,7 @@ derselben Toolbar zwei getrennte Anlege-Einstiege:
 Der Admin muss vor dem Klick entscheiden, ob er ein Benutzerkonto oder einen
 Verkaeufer anlegt. Nichts auf der Seite erklaert den Unterschied.
 
-**Warum das ein echter Gap ist, keine Geschmacksfrage:** PROJECT.md nennt als
+**Warum die Beobachtung trotzdem zaehlt:** PROJECT.md nennt als
 Milestone-Ziel „Benutzer- und Sales-Person-Verwaltung werden zu **einer**
 Personen-Sicht zusammengefuehrt" und schreibt fuer `/user_management/`
 ausdruecklich: „‚Login hinzufuegen' und ‚Person hinzufuegen' werden **Aktionen auf
@@ -468,6 +477,7 @@ und/oder einen Verkaeufer-Datensatz bekommt." Und Success Criterion 3 fuer
 „Login hinzufuegen" / „Person hinzufuegen" als Eintrags-Aktionen. Der Fix ist
 also spezifiziert und eingeplant, aber erst nach dieser Phase.
 
-**Offene Entscheidung fuer den Nutzer:** Phase 62 mit diesem Gap schliessen und
-den Fix Phase 63 ueberlassen, oder die vereinheitlichte Anlege-Aktion in Phase 62
-vorziehen (Scope-Erweiterung).
+**Mitzunehmen nach Phase 63:** Der neue Anlege-Dialog aus SC-2 muss die beiden
+heutigen Knoepfe **ersetzen**, nicht ergaenzen. Sonst steht der vereinheitlichte
+Einstieg neben den zwei alten und der Zustand wird schlechter statt besser.
+Als Discuss-Point D-63-03 in der ROADMAP gepinnt.

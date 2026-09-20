@@ -526,6 +526,15 @@ Entscheidungen".
   verknüpfen"? Zwei getrennt beschriftete Aktionen statt eines mehrdeutigen Feldes
   (FEATURES-Empfehlung, Keycloak-Präzedenz).
 
+- **D-63-03:** Der neue Anlege-Dialog (SC-2) muss die beiden heutigen Knöpfe
+  „Neuen Verkäufer erstellen" und „Neuen Benutzer hinzufügen" in
+  `page/user_management.rs` **ersetzen**, nicht ergänzen. Aus dem UAT von Phase 62:
+  seit dem Tab-Merge stehen beide kontextlos nebeneinander, und nichts erklärt den
+  Unterschied („Das checkt niemand"). 62-UI-SPEC Open Question 1 hat nur die
+  Button-Hierarchie geprüft, nicht die Frage, ob zwei getrennte Anlege-Einstiege
+  nach dem Merge noch aufgehen. Beim Planen von 63 explizit den Rückbau
+  mitnehmen.
+
 **Verifikations-Hinweis:** Die Ausprägungs-abhängige Sektions-Sichtbarkeit ist
 DOM-Rendering-Logik, die sich in Dioxus/WASM headless schlecht prüfen lässt
 (PITFALLS Nr. 10, dieselbe Klasse wie die zwei `human_needed`-Overrides aus v2.6).
