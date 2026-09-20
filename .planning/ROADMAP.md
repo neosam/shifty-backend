@@ -463,7 +463,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2)*
 
-- [ ] 62-05-PLAN.md — REST-Endpoint `GET /person-directory`, OpenAPI, DI nach dem Basic-Block, `Dioxus.toml`-Proxy im selben Commit, Integrationstests Admin→200 / HR-ohne-Admin→403
+- [x] 62-05-PLAN.md — REST-Endpoint `GET /person-directory`, OpenAPI, DI nach dem Basic-Block, `Dioxus.toml`-Proxy im selben Commit, Integrationstests Admin→200 / HR-ohne-Admin→403
 
 **Wave 4** *(blocked on Wave 3)*
 
@@ -627,7 +627,7 @@ als unsicher).
 |-------|----------------|--------|-----------|
 | 60. Person-Datenmodell + Backfill | 0/? | Not started | — |
 | 61. PersonService + Auflösung `sales_person_user` | 10/10 | Complete | 2026-09-17 |
-| 62. Personen-Verzeichnis — eine Liste statt Tabs | 4/7 | In Progress | — |
+| 62. Personen-Verzeichnis — eine Liste statt Tabs | 5/7 | In Progress | — |
 | 63. Personen-Detailansicht + Ausprägungs-Aktionen | 0/? | Not started | — |
 | 64. Planungs-Soll für dynamische Verträge | 0/? | Not started | — |
 

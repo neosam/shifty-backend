@@ -5,15 +5,15 @@ milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 62
 current_phase_name: personen-verzeichnis-eine-liste-statt-tabs
 status: executing
-stopped_at: 62-04 (Frontend-Umbau) abgeschlossen — 3/3 Tasks
-last_updated: "2026-09-20T08:15:48.794Z"
+stopped_at: 62-05 (REST-Endpoint + DI + Dev-Proxy) abgeschlossen — 2/2 Tasks
+last_updated: "2026-09-20T08:28:29.258Z"
 last_activity: 2026-09-20
-last_activity_desc: 62-04 (Frontend-Umbau) abgeschlossen, 3/3 Tasks
+last_activity_desc: 62-05 (REST-Endpoint + DI + Dev-Proxy) abgeschlossen, 2/2 Tasks
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 20
-  completed_plans: 18
+  completed_plans: 19
   percent: 40
 ---
 
@@ -34,19 +34,23 @@ progress:
 ## Current Position
 
 Phase: 62 (personen-verzeichnis-eine-liste-statt-tabs) — EXECUTING
-Plan: 5 of 7
-Status: Welle 1 abgeschlossen, Welle 2 zur Haelfte. 62-01 (DAO-Schicht) —
+Plan: 6 of 7
+Status: Wellen 1-3 abgeschlossen. 62-01 (DAO-Schicht) —
 WR-02 geschlossen, `PersonDirectoryDao` liefert den Drei-Wege-Outer-Join.
 62-02 (DTO + i18n) — `PersonEntryTO`/`PersonKindTO` in `rest-types` und sechs
 neue Beschriftungen in de/en/cs. 62-03 (Business-Logic-Service) —
 `PersonDirectoryService` mit Admin-Gate (D-62-08), Ausprägungs-Klassifikation,
 `display_name`-Ableitung, case-insensitiver Sortierung und dem
 `From`-Mapping auf `PersonEntryTO`; acht Tests grün, Clippy sauber. Der
-Service hat noch keinen Laufzeit-Aufrufer — DI + REST kommen in 62-05.
+Service hat seinen Laufzeit-Aufrufer seit 62-05.
 62-04 (Frontend-Umbau) — ein Aggregat-Request statt 2+N+2M, `/user_management/`
 zeigt eine admin-gegatete Liste mit Auspraegungs-Badge, die Tab-Leiste ist
-geloescht; 835 Frontend-Tests gruen, beide Clippy-Gates sauber. Welle 2 ist
-damit abgeschlossen; als naechstes Welle 3 mit 62-05 (REST + DI + Dev-Proxy).
+geloescht; 835 Frontend-Tests gruen, beide Clippy-Gates sauber.
+62-05 (REST + DI + Dev-Proxy) — `GET /person-directory` admin-gegatet, in der
+OpenAPI-Doku registriert, Business-Logic-Service nach dem Basic-Block
+verdrahtet, `[[web.proxy]]`-Eintrag im selben Commit; zwei HTTP-Tests fuer
+beide Gate-Seiten gruen, Workspace + Clippy + OIDC-Build sauber. Welle 3 ist
+damit abgeschlossen; als naechstes 62-06 (Doku + Laufzeit-Nachweis).
 Planungs-Artefakte
 vollständig: CONTEXT, RESEARCH, PATTERNS,
 UI-SPEC (6/6 Dimensionen approved), VALIDATION, 7 PLAN.md in 4 Wellen.
@@ -318,9 +322,9 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-09-20T08:15:33.525Z
-**Stopped at:** 62-04 (Frontend-Umbau) abgeschlossen — 3/3 Tasks
-**Resume file:** .planning/phases/62-personen-verzeichnis-eine-liste-statt-tabs/62-05-PLAN.md
+**Last session:** 2026-09-20T08:28:01.354Z
+**Stopped at:** 62-05 (REST-Endpoint + DI + Dev-Proxy) abgeschlossen — 2/2 Tasks
+**Resume file:** .planning/phases/62-personen-verzeichnis-eine-liste-statt-tabs/62-06-PLAN.md
 
 **To resume work in a new session:**
 
@@ -449,6 +453,8 @@ D-63-01/02, D-64-01/02/03).
 - [Phase 62]: Gate-Wahl als Test-Invariante — der Permission-Mock akzeptiert nur das Literal "admin", ein falsches Gate faellt in allen acht Tests um statt nur im Gate-Test
 - [Phase 62]: Auspraegung kommt als Backend-Enum ins Frontend; keine clientseitige Namens-Fallback-Regel (grep-verifiziert)
 - [Phase 62]: load_all_users/get_all_users/state::User als begruendetes dead_code fuer Phase 63 konserviert statt geloescht
+- [Phase 62]: Das Admin-Gate des Personen-Verzeichnisses bleibt allein im Service; der REST-Handler prueft bewusst nicht doppelt (T-62-13).
+- [Phase 62]: Routen-Praefix /person-directory als Vier-Stellen-Vertrag (Router-Nest, OpenAPI-Nest, Frontend-URL, Dev-Proxy); der Proxy-Eintrag ist Pflichtinhalt desselben Commits.
 
 ## Performance Metrics
 
@@ -512,3 +518,4 @@ D-63-01/02, D-64-01/02/03).
 | Phase 62 P02 | 13 min | 2 tasks | 5 files |
 | Phase 62 P03 | 10min | 2 tasks | 9 files |
 | Phase 62 P04 | 22min | 3 tasks | 9 files |
+| Phase 62 P05 | 7min | 2 tasks | 6 files |
