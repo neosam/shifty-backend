@@ -88,11 +88,13 @@ pub(crate) fn is_active_for(target: NavTarget, route: &Route) -> bool {
             route,
             Route::BillingPeriods {} | Route::BillingPeriodDetails { .. }
         ),
+        // Phase 63 (D-63-04): unter der Liste haengt genau eine
+        // Detailroute. Die beiden bisherigen Detailrouten sind entfallen —
+        // welche Abschnitte ein Eintrag zeigt, entscheidet die Zielseite
+        // anhand seiner Auspraegung, nicht mehr der Pfad.
         NavTarget::UserManagement => matches!(
             route,
-            Route::UserManagementPage {}
-                | Route::UserDetails { .. }
-                | Route::SalesPersonDetails { .. }
+            Route::UserManagementPage {} | Route::PersonDetail { .. }
         ),
         NavTarget::Templates => matches!(route, Route::TextTemplateManagement {}),
         NavTarget::Settings => matches!(route, Route::Settings {}),
@@ -872,23 +874,25 @@ mod tests {
         assert!(!is_active_for(NavTarget::Employees, &Route::ShiftPlan {}));
     }
 
+    /// Phase 63 (D-63-04): die Liste und die EINE Detailroute darunter
+    /// markieren denselben Navigationspunkt. Vorher standen hier zwei
+    /// Detail-Zusicherungen — eine je Auspraegung; genau diese Aufspaltung
+    /// baut die Phase ab.
     #[test]
-    fn is_active_for_user_management_matches_all_three_variants() {
+    fn is_active_for_user_management_matches_list_and_detail() {
         assert!(is_active_for(
             NavTarget::UserManagement,
             &Route::UserManagementPage {}
         ));
         assert!(is_active_for(
             NavTarget::UserManagement,
-            &Route::UserDetails {
-                user_id: "u".into()
+            &Route::PersonDetail {
+                person_id: "p".into()
             }
         ));
-        assert!(is_active_for(
+        assert!(!is_active_for(
             NavTarget::UserManagement,
-            &Route::SalesPersonDetails {
-                sales_person_id: "s".into()
-            }
+            &Route::Employees {}
         ));
     }
 
