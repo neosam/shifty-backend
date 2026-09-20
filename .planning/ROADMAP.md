@@ -543,7 +543,47 @@ Human-UAT-Durchgang von vornherein einplanen, statt ihn beim Close zu entdecken.
 
 **UI hint**: yes
 
-**Plans:** TBD
+**Plans:** 11 plans
+
+Plans:
+
+**Wave 1** *(parallel — keine gemeinsamen Dateien)*
+
+- [ ] 63-01-PLAN.md — `PermissionDao::create_user`/`delete_user` auf die geteilte Transaktion heben (SC-2-Atomarität, Voraussetzung für den D-63-01-Orphan-Cleanup); `PermissionService`-Oberfläche bleibt eingefroren
+- [ ] 63-02-PLAN.md — `PersonDao::delete`/`has_live_facets`/Rückwärts-Lookups + `PersonDirectoryDao::find_directory_entry`; D-63-01-Lesart (b) festgeschrieben und getestet
+- [ ] 63-03-PLAN.md — 32 i18n-Keys in de/en/cs nach dem Copywriting-Contract der UI-SPEC, inkl. der zwei wörtlich gesperrten D-63-08-Sätze
+
+**Wave 2** *(blockiert durch Wave 1)*
+
+- [ ] 63-04-PLAN.md — Transport-Objekte + `PersonDetailService`-Trait + Lesepfad (`get_detail`, zwei Kandidatenlisten), admin-gegated; Zuschnitt: Kern-Aggregat plus gezielte Nachladepfade
+
+**Wave 3** *(blockiert durch Wave 2)*
+
+- [ ] 63-05-PLAN.md — Schreibpfade: `create_combined` (PADM-02), `add_facet` (PADM-03), `remove_facet` mit Person-Aufräumung (PADM-07/D-63-01); serverseitige „mindestens ein Umschalter"-Regel
+
+**Wave 4** *(blockiert durch Wave 3)*
+
+- [ ] 63-06-PLAN.md — sieben `/person`-Routen mit OpenAPI, DI im Business-Logic-Abschnitt, `Dioxus.toml`-Proxy im selben Commit, HTTP-Integrationstests inkl. 403 auf allen Routen und 409-Regressionsschutz
+
+**Wave 5** *(blockiert durch Wave 4)*
+
+- [ ] 63-07-PLAN.md — Frontend-Datenschicht: acht API-Funktionen, acht Loader, Store-Felder und neun Aktionen; erstmals ein Aufrufpfad zum Verkäufer-Löschen (D-63-06)
+
+**Wave 6** *(blockiert durch Wave 5)*
+
+- [ ] 63-08-PLAN.md — `page/person_detail.rs`: drei reine Helfer (`visible_sections`, `is_last_facet`, `delete_confirmation_copy`), ausprägungs-abhängige Abschnitte, Missing-Facet-Karte, fünf Dialoge, SSR-Rendertests je `PersonKindTO`
+
+**Wave 7** *(blockiert durch Wave 6)*
+
+- [ ] 63-09-PLAN.md — Rückbau: beide alten Detailrouten und -seiten entfernt (D-63-04), ein Anlege-Einstieg statt zweier (D-63-03), Zeilen-Löschung entfällt zugunsten der Detailseite
+
+**Wave 8** *(blockiert durch Wave 7)*
+
+- [ ] 63-10-PLAN.md — Docs-Freshness-Gate: F01, 02-service-tiers, Runtime-Graph, 04-auth, F12, 05-transactions, 06-frontend — je EN + DE
+
+**Wave 9** *(blockiert durch Wave 8)*
+
+- [ ] 63-11-PLAN.md — Phasen-Verifikation: fünf automatisierte Gates, Fat-Backend- und Rückbau-Grep, `dx serve`-Proxy-Smoke und Human-UAT (von vornherein eingeplant, nicht beim Close entdeckt)
 
 ---
 
