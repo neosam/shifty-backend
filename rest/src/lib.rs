@@ -21,6 +21,11 @@ mod my_block;
 mod pdf_export_config;
 mod pdf_shiftplan;
 mod permission;
+// Phase 62 (62-05): pub-export analog `pub mod report;` / `pub mod feature_flag;`
+// — der shifty_bin-Integrationstest erreicht `person_directory::generate_route`
+// via tower::oneshot und prueft damit beide Seiten des Admin-Gates (PADM-08)
+// end-to-end ueber HTTP.
+pub mod person_directory;
 // Phase 55 (55-03): pub-export analog `pub mod report;` — der shifty_bin
 // integration test kann `rebooking::generate_route` / `generate_suggestions_route`
 // via tower::oneshot erreichen.
@@ -476,6 +481,13 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
+    // Phase 62 (62-05, PADM-01/PADM-08): Business-Logic-Tier Aggregat hinter
+    // `GET /person-directory`. Traegt das Admin-Gate (D-62-08) selbst; der
+    // Handler prueft bewusst nicht doppelt.
+    type PersonDirectoryService: service::person_directory::PersonDirectoryService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
     type BasicDao: dao::BasicDao + Send + Sync + 'static;
 
     fn backend_version(&self) -> Arc<str>;
@@ -519,6 +531,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn pdf_export_scheduler(&self) -> Arc<Self::PdfExportScheduler>;
     fn pdf_shiftplan_service(&self) -> Arc<Self::PdfShiftplanService>;
     fn person_service(&self) -> Arc<Self::PersonService>;
+    fn person_directory_service(&self) -> Arc<Self::PersonDirectoryService>;
     fn basic_dao(&self) -> Arc<Self::BasicDao>;
 }
 
@@ -624,6 +637,7 @@ pub async fn auth_info<RestState: RestStateDef>(
         (path = "/week-message", api = week_message::WeekMessageApiDoc),
         (path = "/week-status", api = week_status::WeekStatusApiDoc),
         (path = "/permission", api = permission::PermissionApiDoc),
+        (path = "/person-directory", api = person_directory::PersonDirectoryApiDoc),
         (path = "/special-days", api = special_day::SpecialDayApiDoc),
         (path = "/text-templates", api = TextTemplateApiDoc),
         (path = "/user-invitation", api = UserInvitationApiDoc),
@@ -687,6 +701,9 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
         .route("/auth-info", get(auth_info::<RestState>))
         .route("/version", get(get_version::<RestState>))
         .nest("/permission", permission::generate_route())
+        // Phase 62 (62-05): der Praefix ist zeichengleich mit der Frontend-URL
+        // und dem `[[web.proxy]]`-Eintrag in `shifty-dioxus/Dioxus.toml`.
+        .nest("/person-directory", person_directory::generate_route())
         .nest("/slot", slot::generate_route())
         .nest("/sales-person", sales_person::generate_route())
         .nest("/booking", booking::generate_route())

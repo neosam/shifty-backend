@@ -114,3 +114,5 @@ backend = "http://localhost:3000/rebooking"
 backend = "http://localhost:3000/rebooking-suggestions"
 [[web.proxy]]
 backend = "http://localhost:3000/admin/rebooking"
+[[web.proxy]]
+backend = "http://localhost:3000/person-directory"

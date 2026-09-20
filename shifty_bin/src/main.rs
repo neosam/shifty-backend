@@ -70,6 +70,9 @@ type RebookingBatchDao = dao_impl_sqlite::rebooking_batch::RebookingBatchDaoImpl
 // Phase 61 (PERS-05, D-61-02): Basic-Tier Person-DAO inkl. der beiden
 // Kandidaten-Lesepfade.
 type PersonDao = dao_impl_sqlite::person::PersonDaoImpl;
+// Phase 62 (PADM-01, D-62-02): Lesepfad-DAO des Personen-Verzeichnisses —
+// ein Drei-Wege-Outer-Join plus eine Bulk-Query fuer die Rollen.
+type PersonDirectoryDao = dao_impl_sqlite::person_directory::PersonDirectoryDaoImpl;
 // Phase 48 (EXP-02/EXP-03): Basic-Config-DAO für den Nextcloud-PDF-Export.
 type PdfExportConfigDao = dao_impl_sqlite::pdf_export_config::PdfExportConfigDaoImpl;
 
@@ -347,6 +350,30 @@ impl service_impl::person::PersonServiceDeps for PersonServiceDependencies {
     type TransactionDao = TransactionDao;
 }
 type PersonService = service_impl::person::PersonServiceImpl<PersonServiceDependencies>;
+
+// Phase 62 (PADM-01/PADM-08, 62-05): PersonDirectoryServiceImpl ist
+// Business-Logic-Tier — das Aggregat fuehrt zwei Fach-Objekte zusammen (Sales
+// Person und Benutzerkonto) und pflegt mit `PersonKind` eine
+// Cross-Entity-Invariante; ein Entity-Manager im Sinne der CLAUDE.md-Konvention
+// ist es damit nicht. Die Dependencies bleiben trotzdem auf DAO + Permission +
+// Transaction beschraenkt: ein Domain-Service als Dep wuerde ueber
+// PermissionService einen DI-Zyklus schliessen.
+// Konstruktions-Reihenfolge: strikt NACH dem Basic-Block (insbesondere nach
+// `person_service`), im Business-Logic-Abschnitt neben `voluntary_stats_service`.
+// Kein `OnceLock`, keine Forward-Declaration (CLAUDE.md
+// §Service-Tier-Konventionen, Roadmap-Constraint 5).
+pub struct PersonDirectoryServiceDependencies;
+impl service_impl::person_directory::PersonDirectoryServiceDeps
+    for PersonDirectoryServiceDependencies
+{
+    type Context = Context;
+    type Transaction = Transaction;
+    type PersonDirectoryDao = PersonDirectoryDao;
+    type PermissionService = PermissionService;
+    type TransactionDao = TransactionDao;
+}
+type PersonDirectoryService =
+    service_impl::person_directory::PersonDirectoryServiceImpl<PersonDirectoryServiceDependencies>;
 
 // Phase 54 (VOL-STAT + VOL-ACCT, Plan 03 + Gap-Closure 54-09-Ist-Fix):
 // VoluntaryStatsServiceImpl ist Business-Logic-Tier. Konsumiert
@@ -835,6 +862,9 @@ pub struct RestStateImpl {
     // REST-Endpoint in Phase 61 — nur via RestStateDef exponiert (Vorarbeit
     // Phase 62, und damit das Feld einen Leser hat).
     person_service: Arc<PersonService>,
+    // Phase 62 Plan 05 (PADM-01/PADM-08): Business-Logic-Tier Aggregat hinter
+    // `GET /person-directory`. Traegt das Admin-Gate selbst (D-62-08).
+    person_directory_service: Arc<PersonDirectoryService>,
     // Phase 54 Plan 03 (VOL-STAT + VOL-ACCT): Business-Logic-Tier
     // HR-only Voluntary-Stundenkonto-Sicht. Kein REST-Endpoint in Phase 54
     // Plan 03 — der Endpoint kommt in Plan 04.
@@ -896,6 +926,7 @@ impl rest::RestStateDef for RestStateImpl {
     type PdfExportScheduler = PdfExportSchedulerService;
     type PdfShiftplanService = PdfShiftplanService;
     type PersonService = PersonService;
+    type PersonDirectoryService = PersonDirectoryService;
     type BasicDao = BasicDaoImpl;
 
     fn backend_version(&self) -> Arc<str> {
@@ -1020,6 +1051,9 @@ impl rest::RestStateDef for RestStateImpl {
     fn person_service(&self) -> Arc<Self::PersonService> {
         self.person_service.clone()
     }
+    fn person_directory_service(&self) -> Arc<Self::PersonDirectoryService> {
+        self.person_directory_service.clone()
+    }
     fn basic_dao(&self) -> Arc<Self::BasicDao> {
         self.basic_dao.clone()
     }
@@ -1036,6 +1070,8 @@ impl RestStateImpl {
         let rebooking_batch_dao = Arc::new(RebookingBatchDao::new(pool.clone()));
         // Phase 61 (PERS-05): Basic-Tier Person-DAO.
         let person_dao = Arc::new(PersonDao::new(pool.clone()));
+        // Phase 62 (PADM-01, D-62-02): Lesepfad-DAO des Personen-Verzeichnisses.
+        let person_directory_dao = Arc::new(PersonDirectoryDao::new(pool.clone()));
         let pdf_export_config_dao = Arc::new(PdfExportConfigDao::new(pool.clone()));
         let sales_person_dao = SalesPersonDao::new(pool.clone());
         let booking_dao = BookingDao::new(pool.clone());
@@ -1320,6 +1356,23 @@ impl RestStateImpl {
                 // konstruiert, siehe absence_service = Arc::new(...)) fuer
                 // die whole-week-out-Soll-Angleichung.
                 absence_service: absence_service.clone(),
+                permission_service: permission_service.clone(),
+                transaction_dao: transaction_dao.clone(),
+            },
+        );
+
+        // Phase 62 Plan 05 (PADM-01/PADM-08): Business-Logic-Tier
+        // PersonDirectoryService — konstruiert HIER, im Business-Logic-
+        // Abschnitt und damit strikt NACH dem Basic-Block (insbesondere nach
+        // `person_service`, oben). Deps sind nur DAO + Permission +
+        // Transaction, alle bereits gebaut; kein `OnceLock`, keine
+        // Forward-Declaration (CLAUDE.md §Service-Tier-Konventionen).
+        // Kein Zyklus — kein anderer Service konsumiert das Verzeichnis.
+        let person_directory_service = Arc::new(
+            service_impl::person_directory::PersonDirectoryServiceImpl::<
+                PersonDirectoryServiceDependencies,
+            > {
+                person_directory_dao,
                 permission_service: permission_service.clone(),
                 transaction_dao: transaction_dao.clone(),
             },
@@ -1627,6 +1680,7 @@ impl RestStateImpl {
             voluntary_rebooking_scheduler,
             pdf_shiftplan_service,
             person_service,
+            person_directory_service,
             basic_dao: Arc::new(BasicDaoImpl::new(pool)),
         }
     }
