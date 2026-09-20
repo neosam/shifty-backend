@@ -3,13 +3,15 @@ use std::rc::Rc;
 use rest_types::{
     AbsenceListWithProjectionTO, AbsencePeriodCreateResultTO, AbsencePeriodTO,
     BillingPeriodTO, BlockTO, BookingConflictTO, BookingCreateResultTO, BookingLogTO, BookingTO,
-    ConvertExtraHoursRequestTO, CreateBillingPeriodRequestTO, CreateTextTemplateRequestTO,
+    AddPersonFacetTO, ConvertExtraHoursRequestTO, CreateBillingPeriodRequestTO,
+    CreatePersonEntryTO, CreateTextTemplateRequestTO, CreatedPersonEntryTO,
     CustomExtraHoursTO,
     DayOfWeekTO, EmployeeAttendanceStatisticsTO, EmployeeReportTO, EmployeeWeeklyStatisticsTO,
     EmployeeWorkDetailsTO,
     ExtraHoursCategoryTO,
     ExtraHoursTO, FeatureFlagTO, GenerateInvitationRequest, ImpersonateTO, InvitationResponse,
-    PdfExportConfigTO, PersonEntryTO, RoleTO, SalesPersonTO, SalesPersonUnavailableTO, ShiftplanTO,
+    PdfExportConfigTO, PersonEntryTO, PersonFacetTO, RoleTO, SalesPersonTO,
+    SalesPersonUnavailableTO, ShiftplanTO,
     ShortEmployeeReportTO, SlotTO, SpecialDayTO, TextTemplateTO, UpdateTextTemplateRequestTO,
     UserRole, UserTO, VacationBalanceTO, VacationEntitlementOffsetTO, VacationPayloadTO,
     VoluntaryStatsTO, WeekMessageTO, WeekStatusTO, WeeklySummaryTO,
@@ -886,7 +888,193 @@ pub async fn get_person_directory(config: Config) -> Result<Rc<[PersonEntryTO]>,
     Ok(res)
 }
 
-#[allow(dead_code)] // reason: Phase 62 loest den N+1-Ladepfad der User-Management-Seite ab; Phase 63 braucht diesen Pfad fuer den Kandidaten-Picker wieder.
+// ─── Personen-Detailansicht (Phase 63, PADM-02/03/04/05/07) ──────────────────
+//
+// Der Praefix `/person` ist an vier Stellen zeichengleich zu halten: im
+// `.nest(...)` des Routers und im ApiDoc-Nest (beide `rest/src/lib.rs`), in den
+// Aufruf-URLs dieses Blocks und im `[[web.proxy]]`-Eintrag von `Dioxus.toml`.
+// Weicht eine der vier ab, faellt das erst zur Laufzeit als 404 auf — dieselbe
+// Falle, die `get_person_directory` oben schon benennt.
+//
+// Im Dev-Proxy ist ausserdem die Reihenfolge semantisch: `/person` ist ein
+// Praefix von `/person-directory`, und der Dev-Server matcht praefix-literal.
+// Der generische Eintrag steht dort deshalb als letzter.
+
+/// Drahtform der Auspraegungs-Kennung fuer den Pfad-Parameter von
+/// `DELETE /person/{person_id}/facet/{facet}`.
+///
+/// Reine Transportkonvertierung: sie schreibt den Enum-Wert in genau die
+/// `snake_case`-Form, die `serde` auf der Serverseite aus dem Pfad liest. Sie
+/// erschliesst nichts aus anderen Feldern und ist damit keine
+/// Auspraegungs-Ableitung im Sinne von PADM-06.
+fn facet_path_segment(facet: PersonFacetTO) -> &'static str {
+    match facet {
+        PersonFacetTO::User => "user",
+        PersonFacetTO::SalesPerson => "sales_person",
+    }
+}
+
+/// `GET /person/{person_id}` (PADM-05). Liefert die Verzeichniszeile des
+/// Eintrags. Die vier Abschnitte der Detailseite laden weiterhin ueber ihre
+/// bestehenden Endpoints — das Aggregat bleibt bewusst schmal.
+///
+/// Eine unbekannte oder unsichtbare Person antwortet mit 404; die Uebersetzung
+/// in den „existiert nicht mehr"-Zustand macht `loader::load_person_detail`.
+pub async fn get_person_detail(
+    config: Config,
+    person_id: Uuid,
+) -> Result<PersonEntryTO, reqwest::Error> {
+    info!("Fetching person detail {person_id}");
+    let url = format!("{}/person/{}", config.backend, person_id);
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched");
+    Ok(res)
+}
+
+/// `GET /person/by-sales-person/{sales_person_id}` (PADM-04 / SC-4). Der
+/// Rueckweg in die Detailansicht, nachdem eine Verknuepfung den Eintrag auf
+/// eine andere `person_id` verschoben haben kann (D-61-03).
+pub async fn get_person_by_sales_person(
+    config: Config,
+    sales_person_id: Uuid,
+) -> Result<PersonEntryTO, reqwest::Error> {
+    info!("Fetching person by sales person {sales_person_id}");
+    let url = format!("{}/person/by-sales-person/{}", config.backend, sales_person_id);
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched");
+    Ok(res)
+}
+
+/// `POST /person` (PADM-02 / SC-2). Legt Benutzerkonto und Verkaeufer-Datensatz
+/// in einer Transaktion an und antwortet mit 201 und der `person_id` des neuen
+/// Eintrags (D-63-07: der Dialog leitet dorthin weiter).
+///
+/// Ein bereits vergebener Benutzername antwortet mit 409, eine Eingabe ohne
+/// angeschalteten Umschalter mit 422 — beide kommen unterscheidbar an.
+pub async fn post_person_entry(
+    config: Config,
+    body: CreatePersonEntryTO,
+) -> Result<CreatedPersonEntryTO, ShiftyError> {
+    info!("Creating person entry {}", body.display_name);
+    let url = format!("{}/person", config.backend);
+    let client = reqwest::Client::new();
+    let response = client.post(url).json(&body).send().await?;
+    if response.status() == reqwest::StatusCode::CONFLICT {
+        info!("Create person entry returned 409 Conflict");
+        return Err(ShiftyError::Conflict(String::new()));
+    }
+    if response.status() == reqwest::StatusCode::UNPROCESSABLE_ENTITY {
+        let text = response.text().await.unwrap_or_default();
+        info!("Create person entry returned 422 Validation: {}", text);
+        return Err(ShiftyError::Validation(text));
+    }
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Created");
+    Ok(res)
+}
+
+/// `POST /person/{person_id}/facet` (PADM-03 / SC-3). Schaltet die fehlende
+/// Auspraegung zu.
+///
+/// Die Antwort traegt die **resultierende** `person_id`, nicht die aus dem
+/// Pfad: schaltet man einem reinen Benutzer-Eintrag eine Sales Person zu,
+/// gewinnt nach D-61-03 die Sales Person, und der Eintrag wechselt seine
+/// Identitaet. Wer die Pfad-id weiterverwendet, zeigt danach ins Leere.
+pub async fn post_person_facet(
+    config: Config,
+    person_id: Uuid,
+    body: AddPersonFacetTO,
+) -> Result<CreatedPersonEntryTO, ShiftyError> {
+    info!("Adding facet to person {person_id}");
+    let url = format!("{}/person/{}/facet", config.backend, person_id);
+    let client = reqwest::Client::new();
+    let response = client.post(url).json(&body).send().await?;
+    if response.status() == reqwest::StatusCode::CONFLICT {
+        info!("Add facet returned 409 Conflict");
+        return Err(ShiftyError::Conflict(String::new()));
+    }
+    if response.status() == reqwest::StatusCode::UNPROCESSABLE_ENTITY {
+        let text = response.text().await.unwrap_or_default();
+        info!("Add facet returned 422 Validation: {}", text);
+        return Err(ShiftyError::Validation(text));
+    }
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Added");
+    Ok(res)
+}
+
+/// `DELETE /person/{person_id}/facet/{facet}` (PADM-07 / SC-5). Entfernt genau
+/// eine Auspraegung. Es gibt bewusst keinen Sammelweg, der beide auf einmal
+/// entfernt (D-63-05).
+pub async fn delete_person_facet(
+    config: Config,
+    person_id: Uuid,
+    facet: PersonFacetTO,
+) -> Result<(), reqwest::Error> {
+    info!("Removing facet from person {person_id}");
+    let url = format!(
+        "{}/person/{}/facet/{}",
+        config.backend,
+        person_id,
+        facet_path_segment(facet)
+    );
+    let client = reqwest::Client::new();
+    let response = client.delete(url).send().await?;
+    response.error_for_status_ref()?;
+    info!("Removed");
+    Ok(())
+}
+
+/// `GET /person/candidates/sales-persons` (PADM-04). Verkaeufer ohne
+/// Benutzerkonto — die Liste hinter „Login hinzufuegen".
+pub async fn get_unlinked_sales_persons(
+    config: Config,
+) -> Result<Rc<[SalesPersonTO]>, reqwest::Error> {
+    info!("Fetching unlinked sales persons");
+    let url = format!("{}/person/candidates/sales-persons", config.backend);
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched");
+    Ok(res)
+}
+
+/// `GET /person/candidates/users` (PADM-04). Benutzerkonten ohne Verkaeufer —
+/// die Liste hinter „Person hinzufuegen".
+pub async fn get_unlinked_users(config: Config) -> Result<Rc<[UserTO]>, reqwest::Error> {
+    info!("Fetching unlinked users");
+    let url = format!("{}/person/candidates/users", config.backend);
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched");
+    Ok(res)
+}
+
+/// `DELETE /sales-person/{id}` (D-63-06, PADM-07). Der Backend-Pfad besteht
+/// seit Langem und ist HR-gegatet; neu ist ausschliesslich dieser Aufrufer —
+/// bis Phase 63 hatte das Frontend nur den Benutzer-Loeschpfad. Die Semantik
+/// ist ein Soft Delete: die Historie bleibt in der Datenbank.
+pub async fn delete_sales_person(
+    config: Config,
+    sales_person_id: Uuid,
+) -> Result<(), reqwest::Error> {
+    info!("Deleting sales person {sales_person_id}");
+    let url = format!("{}/sales-person/{}", config.backend, sales_person_id);
+    let client = reqwest::Client::new();
+    let response = client.delete(url).send().await?;
+    response.error_for_status_ref()?;
+    info!("Deleted");
+    Ok(())
+}
+
+#[allow(dead_code)] // reason: Phase 62 loest den N+1-Ladepfad der User-Management-Seite ab. Der Kandidaten-Picker nutzt statt dieser Vollliste die gefilterte Route `get_unlinked_users`; der Pfad bleibt als allgemeiner Benutzer-Lesezugriff erhalten.
 pub async fn get_all_users(config: Config) -> Result<Rc<[UserTO]>, reqwest::Error> {
     info!("Fetching all users");
     let url = format!("{}/permission/user", config.backend);
