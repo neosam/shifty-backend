@@ -26,6 +26,11 @@ mod permission;
 // via tower::oneshot und prueft damit beide Seiten des Admin-Gates (PADM-08)
 // end-to-end ueber HTTP.
 pub mod person_directory;
+// Phase 63 (63-06): pub-export analog `pub mod person_directory;` — der
+// shifty_bin-Integrationstest erreicht `person_detail::generate_route` via
+// tower::oneshot und prueft damit beide Seiten des Admin-Gates (PADM-08) auf
+// allen sieben Operationen end-to-end ueber HTTP.
+pub mod person_detail;
 // Phase 55 (55-03): pub-export analog `pub mod report;` — der shifty_bin
 // integration test kann `rebooking::generate_route` / `generate_suggestions_route`
 // via tower::oneshot erreichen.
@@ -488,6 +493,14 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
         + Send
         + Sync
         + 'static;
+    // Phase 63 (63-06, PADM-02 … PADM-05/PADM-07/PADM-08): Business-Logic-Tier
+    // Aggregat hinter den sieben `/person`-Operationen. Traegt das Admin-Gate
+    // (D-62-08) in jeder einzelnen Methode selbst; die Handler pruefen bewusst
+    // nicht doppelt.
+    type PersonDetailService: service::person_detail::PersonDetailService<Context = Context>
+        + Send
+        + Sync
+        + 'static;
     type BasicDao: dao::BasicDao + Send + Sync + 'static;
 
     fn backend_version(&self) -> Arc<str>;
@@ -532,6 +545,7 @@ pub trait RestStateDef: Clone + Send + Sync + 'static {
     fn pdf_shiftplan_service(&self) -> Arc<Self::PdfShiftplanService>;
     fn person_service(&self) -> Arc<Self::PersonService>;
     fn person_directory_service(&self) -> Arc<Self::PersonDirectoryService>;
+    fn person_detail_service(&self) -> Arc<Self::PersonDetailService>;
     fn basic_dao(&self) -> Arc<Self::BasicDao>;
 }
 
@@ -638,6 +652,10 @@ pub async fn auth_info<RestState: RestStateDef>(
         (path = "/week-status", api = week_status::WeekStatusApiDoc),
         (path = "/permission", api = permission::PermissionApiDoc),
         (path = "/person-directory", api = person_directory::PersonDirectoryApiDoc),
+        // Phase 63 (63-06): die Detailansicht und ihre Auspraegungs-Aktionen.
+        // Der Praefix ist zeichengleich mit dem `.nest(...)`-Aufruf weiter
+        // unten, der Frontend-URL und dem `[[web.proxy]]`-Eintrag.
+        (path = "/person", api = person_detail::PersonDetailApiDoc),
         (path = "/special-days", api = special_day::SpecialDayApiDoc),
         (path = "/text-templates", api = TextTemplateApiDoc),
         (path = "/user-invitation", api = UserInvitationApiDoc),
@@ -704,6 +722,12 @@ pub async fn start_server<RestState: RestStateDef>(rest_state: RestState) {
         // Phase 62 (62-05): der Praefix ist zeichengleich mit der Frontend-URL
         // und dem `[[web.proxy]]`-Eintrag in `shifty-dioxus/Dioxus.toml`.
         .nest("/person-directory", person_directory::generate_route())
+        // Phase 63 (63-06): die Detailansicht steht direkt neben dem
+        // Verzeichnis, damit beide Praefixe zusammen sichtbar bleiben. Axum
+        // routet praefix-genau, die Reihenfolge der beiden `.nest`-Aufrufe ist
+        // hier also unkritisch — im Dev-Server-Proxy ist sie es NICHT (dort
+        // matcht der Praefix literal, siehe Modulkopf von `person_detail`).
+        .nest("/person", person_detail::generate_route())
         .nest("/slot", slot::generate_route())
         .nest("/sales-person", sales_person::generate_route())
         .nest("/booking", booking::generate_route())
