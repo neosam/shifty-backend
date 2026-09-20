@@ -607,6 +607,33 @@ pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAct
 mod tests {
     use super::*;
 
+    /// Success Criterion 5 (Phase 62): genau **ein** Netzwerk-Aufruf fuellt das
+    /// Personen-Verzeichnis. Der Nachweis ist eine Quell-Assertion ueber den
+    /// Coroutine-Arm der Lade-Action — unabhaengig von seiner Zeilenzahl darf
+    /// darin genau ein `.await` stehen. Ein zweiter `.await` waere ein
+    /// Rueckfall in das abgeloeste N+1-Muster.
+    #[test]
+    fn load_directory_ist_ein_request() {
+        const MARKER: &str = "UserManagementAction::LoadPersonDirectory =>";
+        let src = include_str!("user_management.rs");
+        // Nur der Nicht-Test-Teil der Datei — sonst faende `find` den Marker im
+        // Literal dieses Tests selbst (Muster aus `no_legacy_classes_in_source`).
+        let prod = &src[..src.find("#[cfg(test)]").expect("test module marker missing")];
+        let start = prod
+            .find(MARKER)
+            .expect("LoadPersonDirectory arm missing in the coroutine match");
+        let rest = &prod[start + MARKER.len()..];
+        let end = rest
+            .find("UserManagementAction::")
+            .unwrap_or(rest.len());
+        let arm = &rest[..end];
+        assert_eq!(
+            arm.matches(".await").count(),
+            1,
+            "expected exactly one `.await` in the LoadPersonDirectory arm, got: {arm}"
+        );
+    }
+
     fn sample_error() -> ShiftyError {
         // ComponentRange is constructible via an out-of-range time; cheaper
         // than fabricating a reqwest::Error.
