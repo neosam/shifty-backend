@@ -378,6 +378,42 @@ impl service_impl::person_directory::PersonDirectoryServiceDeps
 type PersonDirectoryService =
     service_impl::person_directory::PersonDirectoryServiceImpl<PersonDirectoryServiceDependencies>;
 
+// Phase 63 (PADM-02 … PADM-05/PADM-07, 63-06): PersonDetailServiceImpl ist
+// Business-Logic-Tier. Der Service orchestriert ueber zwei Fach-Objekte hinweg
+// (Sales Person und Benutzerkonto) und pflegt mit dem Auspraegungs-Lebenszyklus
+// — Anlegen, Zuschalten, Entfernen, plus dem Abbau der traegerlos gewordenen
+// Person (D-63-01) — eine Cross-Entity-Invariante. Ein Entity-Manager im Sinne
+// der CLAUDE.md-Konvention ist er damit nicht.
+//
+// **Warum zwei Basic-Services als Dependencies zulaessig und zyklenfrei sind.**
+// Die Business-Logic-Schicht darf Basic-Services konsumieren; verboten ist nur
+// die Gegenrichtung. `PersonService` und `SalesPersonService` sind beide
+// Entity-Manager (nur DAO + Permission + Clock + Uuid + Transaction) und kennen
+// das Detail-Aggregat nicht — es gibt also keine Kante zurueck und damit keinen
+// Zyklus. Ebenso konsumiert kein anderer Service dieses Aggregat; es haengt
+// ausschliesslich an den REST-Handlern.
+//
+// Konstruktions-Reihenfolge: strikt NACH dem Basic-Block (insbesondere nach
+// `person_service`, `sales_person_service` und `permission_service`), im
+// Business-Logic-Abschnitt direkt hinter `person_directory_service`. Kein
+// `OnceLock`, keine Forward-Declaration (CLAUDE.md §Service-Tier-Konventionen,
+// Roadmap-Constraint 5).
+pub struct PersonDetailServiceDependencies;
+impl service_impl::person_detail::PersonDetailServiceDeps for PersonDetailServiceDependencies {
+    type Context = Context;
+    type Transaction = Transaction;
+    type PersonDirectoryDao = PersonDirectoryDao;
+    type PersonDao = PersonDao;
+    type PermissionDao = PermissionDao;
+    type SalesPersonDao = SalesPersonDao;
+    type PersonService = PersonService;
+    type SalesPersonService = SalesPersonService;
+    type PermissionService = PermissionService;
+    type TransactionDao = TransactionDao;
+}
+type PersonDetailService =
+    service_impl::person_detail::PersonDetailServiceImpl<PersonDetailServiceDependencies>;
+
 // Phase 54 (VOL-STAT + VOL-ACCT, Plan 03 + Gap-Closure 54-09-Ist-Fix):
 // VoluntaryStatsServiceImpl ist Business-Logic-Tier. Konsumiert
 // ReportingService (Business-Logic, aggregiert volunteer_hours aus allen
@@ -868,6 +904,10 @@ pub struct RestStateImpl {
     // Phase 62 Plan 05 (PADM-01/PADM-08): Business-Logic-Tier Aggregat hinter
     // `GET /person-directory`. Traegt das Admin-Gate selbst (D-62-08).
     person_directory_service: Arc<PersonDirectoryService>,
+    // Phase 63 Plan 06 (PADM-02 … PADM-05/PADM-07/PADM-08): Business-Logic-Tier
+    // Aggregat hinter den sieben `/person`-Operationen. Traegt das Admin-Gate
+    // in jeder Methode selbst (D-62-08); die Handler pruefen nicht doppelt.
+    person_detail_service: Arc<PersonDetailService>,
     // Phase 54 Plan 03 (VOL-STAT + VOL-ACCT): Business-Logic-Tier
     // HR-only Voluntary-Stundenkonto-Sicht. Kein REST-Endpoint in Phase 54
     // Plan 03 — der Endpoint kommt in Plan 04.
@@ -930,6 +970,7 @@ impl rest::RestStateDef for RestStateImpl {
     type PdfShiftplanService = PdfShiftplanService;
     type PersonService = PersonService;
     type PersonDirectoryService = PersonDirectoryService;
+    type PersonDetailService = PersonDetailService;
     type BasicDao = BasicDaoImpl;
 
     fn backend_version(&self) -> Arc<str> {
@@ -1057,6 +1098,9 @@ impl rest::RestStateDef for RestStateImpl {
     fn person_directory_service(&self) -> Arc<Self::PersonDirectoryService> {
         self.person_directory_service.clone()
     }
+    fn person_detail_service(&self) -> Arc<Self::PersonDetailService> {
+        self.person_detail_service.clone()
+    }
     fn basic_dao(&self) -> Arc<Self::BasicDao> {
         self.basic_dao.clone()
     }
@@ -1077,6 +1121,12 @@ impl RestStateImpl {
         let person_directory_dao = Arc::new(PersonDirectoryDao::new(pool.clone()));
         let pdf_export_config_dao = Arc::new(PdfExportConfigDao::new(pool.clone()));
         let sales_person_dao = SalesPersonDao::new(pool.clone());
+        // Phase 63 (63-06): zweite Instanz fuer das Detail-Aggregat. Der Handle
+        // oben wird per `into()` in den `SalesPersonService` verschoben; der
+        // DAO ist zustandslos ueber dem geteilten Pool, eine zweite Instanz ist
+        // dieselbe Form, die die Datei auch sonst fuer mehrfach genutzte DAOs
+        // verwendet (z.B. `BillingPeriodSalesPersonDao::new(pool.clone())`).
+        let person_detail_sales_person_dao = Arc::new(SalesPersonDao::new(pool.clone()));
         let booking_dao = BookingDao::new(pool.clone());
         let booking_log_dao = Arc::new(dao_impl_sqlite::booking_log::BookingLogDaoImpl);
         let absence_dao = Arc::new(AbsenceDao::new(pool.clone()));
@@ -1281,7 +1331,9 @@ impl RestStateImpl {
         // rebooking_reconciliation_service).
         let person_service = Arc::new(
             service_impl::person::PersonServiceImpl::<PersonServiceDependencies> {
-                person_dao,
+                // Phase 63 (63-06): geklont statt verschoben — das
+                // Detail-Aggregat weiter unten braucht denselben Handle.
+                person_dao: person_dao.clone(),
                 permission_service: permission_service.clone(),
                 clock_service: clock_service.clone(),
                 uuid_service: uuid_service.clone(),
@@ -1376,7 +1428,31 @@ impl RestStateImpl {
             service_impl::person_directory::PersonDirectoryServiceImpl::<
                 PersonDirectoryServiceDependencies,
             > {
+                // Phase 63 (63-06): geklont statt verschoben — das
+                // Detail-Aggregat direkt darunter braucht denselben Handle.
+                person_directory_dao: person_directory_dao.clone(),
+                permission_service: permission_service.clone(),
+                transaction_dao: transaction_dao.clone(),
+            },
+        );
+
+        // Phase 63 Plan 06 (PADM-02 … PADM-05/PADM-07): Business-Logic-Tier
+        // PersonDetailService — konstruiert HIER, im Business-Logic-Abschnitt
+        // und damit strikt NACH dem Basic-Block: `person_service` und
+        // `sales_person_service` sind beide Entity-Manager und stehen oben,
+        // `permission_service` ebenso. Kein `OnceLock`, keine
+        // Forward-Declaration (CLAUDE.md §Service-Tier-Konventionen).
+        // Kein Zyklus — kein anderer Service konsumiert das Detail-Aggregat.
+        let person_detail_service = Arc::new(
+            service_impl::person_detail::PersonDetailServiceImpl::<
+                PersonDetailServiceDependencies,
+            > {
                 person_directory_dao,
+                person_dao,
+                permission_dao: permission_dao.clone(),
+                sales_person_dao: person_detail_sales_person_dao,
+                person_service: person_service.clone(),
+                sales_person_service: sales_person_service.clone(),
                 permission_service: permission_service.clone(),
                 transaction_dao: transaction_dao.clone(),
             },
@@ -1685,6 +1761,7 @@ impl RestStateImpl {
             pdf_shiftplan_service,
             person_service,
             person_directory_service,
+            person_detail_service,
             basic_dao: Arc::new(BasicDaoImpl::new(pool)),
         }
     }

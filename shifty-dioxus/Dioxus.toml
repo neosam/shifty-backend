@@ -116,3 +116,15 @@ backend = "http://localhost:3000/rebooking-suggestions"
 backend = "http://localhost:3000/admin/rebooking"
 [[web.proxy]]
 backend = "http://localhost:3000/person-directory"
+# Phase 63 (63-06): die Personen-Detailansicht und ihre Auspraegungs-Aktionen.
+#
+# Dieser Eintrag MUSS hinter `/person-directory` stehen. Der Dev-Server-Proxy
+# matcht praefix-literal, und `/person` ist ein Praefix von `/person-directory`;
+# stuende er davor, finge er die Verzeichnis-Anfragen mit ab.
+#
+# Der Eintrag ist nur ueber einen laufenden `dx serve` nachweisbar, nicht ueber
+# `cargo test` — dieselbe Fehlerklasse ist in diesem Repo dreimal ausgeliefert
+# worden (v1.6 `/toggle`, v1.8 `/vacation-entitlement-offset`,
+# v1.10 `/special-days`).
+[[web.proxy]]
+backend = "http://localhost:3000/person"
