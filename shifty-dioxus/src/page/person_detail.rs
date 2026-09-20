@@ -48,7 +48,8 @@ use crate::{
         auth::AUTH,
         i18n::I18N,
         user_management::{
-            RoleAssignment, SelectedSalesPerson, UserManagementAction, USER_MANAGEMENT_STORE,
+            RoleAssignment, SelectedSalesPerson, UserManagementAction, UserManagementStore,
+            USER_MANAGEMENT_STORE,
         },
     },
     state::{shiftplan::SalesPerson, ShiftplanAssignment},
@@ -252,6 +253,7 @@ pub fn PersonDetail(props: PersonDetailProps) -> Element {
     let mut delete_login_open = use_signal(|| false);
     let mut delete_sales_person_open = use_signal(|| false);
     let mut picker_target: Signal<Option<FacetKind>> = use_signal(|| None);
+    let mut picker_selection: Signal<Option<ImStr>> = use_signal(|| None);
     let mut sections_loaded_for: Signal<Option<Uuid>> = use_signal(|| None);
 
     use_effect({
@@ -317,15 +319,22 @@ pub fn PersonDetail(props: PersonDetailProps) -> Element {
     // danach ins Leere.
     let dialog_entry = entry.clone();
     let dialog_kind = dialog_entry.as_ref().map(|entry| entry.kind);
-    let dialog_name: ImStr = dialog_entry
-        .as_ref()
-        .map(|entry| ImStr::from(entry.display_name.as_ref()))
-        .unwrap_or_else(|| ImStr::from(""));
+    // Kein Fallback auf einen abgeleiteten Namen: liegt kein Eintrag vor,
+    // rendert keiner der Dialoge, und der Wert wird nie gezeigt (PADM-06).
+    let dialog_name: ImStr = match dialog_entry.as_ref() {
+        Some(entry) => ImStr::from(entry.display_name.as_ref()),
+        None => ImStr::from(""),
+    };
     let sales_person_id = dialog_entry.as_ref().and_then(|entry| entry.sales_person_id);
     let username: Option<ImStr> = dialog_entry
         .as_ref()
         .and_then(|entry| entry.username.as_deref().map(ImStr::from));
     let person_id = dialog_entry.as_ref().map(|entry| entry.person_id);
+    let picker_username = username.clone();
+    let picker_facet = *picker_target.read();
+    let picker_candidates = picker_facet
+        .map(|facet| candidates_for(facet, &store))
+        .unwrap_or_default();
 
     rsx! {
         TopBar {}
@@ -396,6 +405,21 @@ pub fn PersonDetail(props: PersonDetailProps) -> Element {
                                 }
                             }
                             DetailIntent::LinkExisting(facet) => {
+                                // Erst laden, dann oeffnen: der Picker zeigt
+                                // ausschliesslich noch unverknuepfte Ziele,
+                                // und die Liste kann zwischen zwei Besuchen
+                                // veraltet sein.
+                                match facet {
+                                    FacetKind::User => {
+                                        user_management_service
+                                            .send(UserManagementAction::LoadUnlinkedUsers)
+                                    }
+                                    FacetKind::SalesPerson => {
+                                        user_management_service
+                                            .send(UserManagementAction::LoadUnlinkedSalesPersons)
+                                    }
+                                }
+                                picker_selection.set(None);
                                 picker_target.set(Some(facet));
                             }
                             DetailIntent::RequestUnlink => unlink_open.set(true),
@@ -458,6 +482,47 @@ pub fn PersonDetail(props: PersonDetailProps) -> Element {
                 }
                 delete_sales_person_open.set(false);
             },
+        }
+
+        if let Some(facet) = picker_facet {
+            CandidatePickerDialog {
+                open: true,
+                facet,
+                candidates: picker_candidates.clone(),
+                selected: picker_selection.read().clone(),
+                conflict: store.person_link_conflict,
+                on_select: move |value: ImStr| picker_selection.set(Some(value)),
+                on_cancel: move |_| picker_target.set(None),
+                on_confirm: move |value: ImStr| {
+                    // Verknuepft wird immer ueber den Verkaeufer: die eine
+                    // Seite bringt ihre id mit, die andere kommt aus der
+                    // Auswahl.
+                    match facet {
+                        FacetKind::User => {
+                            if let Some(sales_person_id) = sales_person_id {
+                                user_management_service
+                                    .send(UserManagementAction::LinkCandidate {
+                                        sales_person_id,
+                                        username: value,
+                                    });
+                            }
+                        }
+                        FacetKind::SalesPerson => {
+                            if let (Ok(sales_person_id), Some(username)) = (
+                                Uuid::parse_str(value.as_str()),
+                                picker_username.clone(),
+                            ) {
+                                user_management_service
+                                    .send(UserManagementAction::LinkCandidate {
+                                        sales_person_id,
+                                        username,
+                                    });
+                            }
+                        }
+                    }
+                    picker_target.set(None);
+                },
+            }
         }
     }
 }
@@ -1218,9 +1283,243 @@ pub(crate) fn DeleteSalesPersonConfirmDialog(
     }
 }
 
+// ── Anlege-Dialog ───────────────────────────────────────────────────────────
+
+#[derive(Props, Clone, PartialEq)]
+pub struct CreatePersonEntryDialogProps {
+    pub open: bool,
+    pub display_name: ImStr,
+    pub wants_login: bool,
+    pub wants_sales_person: bool,
+    pub username: ImStr,
+    pub on_display_name_change: EventHandler<ImStr>,
+    pub on_wants_login_change: EventHandler<bool>,
+    pub on_wants_sales_person_change: EventHandler<bool>,
+    pub on_username_change: EventHandler<ImStr>,
+    pub on_cancel: EventHandler<()>,
+    pub on_create: EventHandler<()>,
+}
+
+/// „Eintrag anlegen" (PADM-02, D-63-07) — bewusst schlank: Anzeigename, zwei
+/// Umschalter, Benutzername nur solange die Login-Seite zugeschaltet ist.
+/// Farbe, Bezahlt-Kennzeichen, Inaktiv-Kennzeichen und Schichtplan-Zuordnung
+/// fragt der Dialog nicht ab; sie werden danach in der Detailansicht gepflegt,
+/// in die der Anlegevorgang weiterleitet.
+///
+/// Der Dialog lebt in dieser Datei, obwohl ihn ab Plan 63-09 die Werkzeugleiste
+/// der Listenseite oeffnet: er gehoert inhaltlich zur Personen-Detailwelt.
+#[component]
+pub fn CreatePersonEntryDialog(props: CreatePersonEntryDialogProps) -> Element {
+    if !props.open {
+        return rsx! {};
+    }
+    let i18n = I18N.read().clone();
+    // Die Sperre ist reine Bequemlichkeit — die verbindliche Pruefung liegt im
+    // Service (D-63-07, ASVS V5, Plan 63-05). Der Endpoint lehnt eine Anfrage
+    // ohne gesetzten Umschalter unabhaengig vom Client-Zustand ab.
+    let no_facet_selected = !props.wants_login && !props.wants_sales_person;
+    let login_without_name = props.wants_login && props.username.as_str().trim().is_empty();
+    let submit_disabled = no_facet_selected || login_without_name;
+
+    let on_close = props.on_cancel;
+    let on_cancel = props.on_cancel;
+    let on_create = props.on_create;
+    let on_display_name_change = props.on_display_name_change;
+    let on_wants_login_change = props.on_wants_login_change;
+    let on_wants_sales_person_change = props.on_wants_sales_person_change;
+    let on_username_change = props.on_username_change;
+
+    rsx! {
+        Dialog {
+            open: true,
+            on_close: move |_| on_close.call(()),
+            title: ImStr::from(i18n.t(Key::CreatePersonEntry).as_ref()),
+            variant: DialogVariant::Auto,
+            width: 420,
+            footer: Some(rsx! {
+                Btn {
+                    variant: BtnVariant::Secondary,
+                    on_click: move |_| on_cancel.call(()),
+                    "{i18n.t(Key::Cancel)}"
+                }
+                Btn {
+                    variant: BtnVariant::Primary,
+                    disabled: submit_disabled,
+                    on_click: move |_| on_create.call(()),
+                    "{i18n.t(Key::CreatePersonEntrySubmit)}"
+                }
+            }),
+            div { class: "flex flex-col gap-4",
+                Field { label: ImStr::from(i18n.t(Key::CreatePersonEntryDisplayName).as_ref()),
+                    TextInput {
+                        value: props.display_name.clone(),
+                        on_change: move |value: ImStr| on_display_name_change.call(value),
+                    }
+                }
+
+                div { class: "flex flex-col gap-2",
+                    FormCheckbox {
+                        value: props.wants_login,
+                        on_change: move |value: bool| on_wants_login_change.call(value),
+                        label: rsx! {
+                            "{i18n.t(Key::CreatePersonEntryWantsLogin)}"
+                        },
+                    }
+                    FormCheckbox {
+                        value: props.wants_sales_person,
+                        on_change: move |value: bool| on_wants_sales_person_change.call(value),
+                        label: rsx! {
+                            "{i18n.t(Key::CreatePersonEntryWantsSalesPerson)}"
+                        },
+                    }
+                    // Der Hinweis steht dauerhaft, nicht erst nach einem
+                    // abgelehnten Klick: die Bedingung soll sichtbar sein,
+                    // bevor jemand sie verletzt.
+                    p { class: "text-micro text-ink-muted",
+                        "{i18n.t(Key::CreatePersonEntryValidationHint)}"
+                    }
+                }
+
+                if props.wants_login {
+                    Field { label: ImStr::from(i18n.t(Key::ColumnUsername).as_ref()),
+                        TextInput {
+                            value: props.username.clone(),
+                            on_change: move |value: ImStr| on_username_change.call(value),
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Kandidaten-Picker ───────────────────────────────────────────────────────
+
+/// Ein waehlbares Ziel: die Drahtform und die Beschriftung.
+#[derive(Clone, PartialEq)]
+pub(crate) struct CandidateOption {
+    pub value: ImStr,
+    pub label: ImStr,
+}
+
+#[derive(Props, Clone, PartialEq)]
+pub(crate) struct CandidatePickerDialogProps {
+    pub open: bool,
+    /// Welche Seite verknuepft werden soll — sie bestimmt Titel, Leer-Text und
+    /// die Herkunft der Liste.
+    pub facet: FacetKind,
+    pub candidates: Vec<CandidateOption>,
+    pub selected: Option<ImStr>,
+    pub conflict: bool,
+    pub on_select: EventHandler<ImStr>,
+    pub on_cancel: EventHandler<()>,
+    pub on_confirm: EventHandler<ImStr>,
+}
+
+/// Bietet ausschliesslich noch unverknuepfte Ziele an (SC-4, PADM-04).
+///
+/// Ein einziges Auswahlfeld, bewusst ohne Such- oder Filtermechanik: die
+/// Ausserhalb-des-Umfangs-Tabelle der Requirements schliesst Namens-Matching
+/// fuer diese Organisationsgroesse ausdruecklich aus. Ist die Liste leer,
+/// erscheint der Leer-Text statt eines leeren Auswahlfeldes.
+#[component]
+pub(crate) fn CandidatePickerDialog(props: CandidatePickerDialogProps) -> Element {
+    if !props.open {
+        return rsx! {};
+    }
+    let i18n = I18N.read().clone();
+    let (title_key, empty_key) = match props.facet {
+        FacetKind::User => (Key::LinkExistingUser, Key::CandidatePickerEmptyUser),
+        FacetKind::SalesPerson => (
+            Key::LinkExistingSalesPerson,
+            Key::CandidatePickerEmptySalesPerson,
+        ),
+    };
+    // Ohne ausdrueckliche Wahl gilt der erste Eintrag — genau der, den das
+    // Auswahlfeld auch anzeigt. Sonst laege die sichtbare Vorauswahl neben der
+    // tatsaechlich abgeschickten.
+    let effective = props
+        .selected
+        .clone()
+        .or_else(|| props.candidates.first().map(|option| option.value.clone()));
+    let candidates = props.candidates.clone();
+
+    let on_close = props.on_cancel;
+    let on_cancel = props.on_cancel;
+    let on_confirm = props.on_confirm;
+    let on_select = props.on_select;
+    let confirm_value = effective.clone();
+
+    rsx! {
+        Dialog {
+            open: true,
+            on_close: move |_| on_close.call(()),
+            title: ImStr::from(i18n.t(title_key).as_ref()),
+            variant: DialogVariant::Auto,
+            width: 420,
+            footer: Some(rsx! {
+                Btn {
+                    variant: BtnVariant::Secondary,
+                    on_click: move |_| on_cancel.call(()),
+                    "{i18n.t(Key::Cancel)}"
+                }
+                Btn {
+                    variant: BtnVariant::Primary,
+                    disabled: confirm_value.is_none(),
+                    on_click: move |_| {
+                        if let Some(value) = confirm_value.clone() {
+                            on_confirm.call(value);
+                        }
+                    },
+                    "{i18n.t(Key::LinkCandidateConfirm)}"
+                }
+            }),
+            if candidates.is_empty() {
+                p { class: "text-body text-ink-muted", "{i18n.t(empty_key)}" }
+            } else {
+                Field { label: ImStr::from(i18n.t(title_key).as_ref()),
+                    SelectInput {
+                        value: effective.clone(),
+                        on_change: move |value: ImStr| on_select.call(value),
+                        for option in candidates.iter() {
+                            option { value: "{option.value}", "{option.label}" }
+                        }
+                    }
+                }
+            }
+            if props.conflict {
+                p { class: "text-body text-warn mt-3", "{i18n.t(Key::PersonLinkConflict)}" }
+            }
+        }
+    }
+}
+
+/// Welche Ziele der Picker fuer diese Seite anbietet.
+fn candidates_for(facet: FacetKind, store: &UserManagementStore) -> Vec<CandidateOption> {
+    match facet {
+        FacetKind::User => store
+            .unlinked_user_candidates
+            .iter()
+            .map(|user| CandidateOption {
+                value: ImStr::from(user.name.as_str()),
+                label: ImStr::from(user.name.as_str()),
+            })
+            .collect(),
+        FacetKind::SalesPerson => store
+            .unlinked_sales_person_candidates
+            .iter()
+            .map(|sales_person| CandidateOption {
+                value: ImStr::from(sales_person.id.to_string()),
+                label: ImStr::from(sales_person.name.as_ref()),
+            })
+            .collect(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
 
     /// Durchsetzungsmechanismus der Retokenization-Auflage aus der UI-SPEC:
     /// diese Datei portiert Markup aus zwei Seiten, die aelter sind als die
@@ -1257,6 +1556,378 @@ mod tests {
                 "legacy class `{forbidden}` found in source"
             );
         }
+    }
+
+    // ── SSR-Rendertests je Auspraegung ───────────────────────────────────────
+
+    /// Fixture. `sales_person` steuert die vier Verkaeufer-Felder gemeinsam —
+    /// sie sind laut DTO-Invariante genau dann gefuellt, wenn die Person eine
+    /// lebende Sales Person traegt.
+    fn sample_entry(
+        kind: PersonKindTO,
+        display_name: &str,
+        username: Option<&str>,
+        sales_person: bool,
+    ) -> PersonEntryTO {
+        PersonEntryTO {
+            person_id: Uuid::new_v4(),
+            kind,
+            display_name: Arc::from(display_name),
+            username: username.map(Arc::from),
+            sales_person_id: if sales_person {
+                Some(Uuid::new_v4())
+            } else {
+                None
+            },
+            background_color: if sales_person {
+                Some(Arc::from("#dbe0ff"))
+            } else {
+                None
+            },
+            is_paid: if sales_person { Some(true) } else { None },
+            inactive: if sales_person { Some(false) } else { None },
+            roles: Vec::new(),
+        }
+    }
+
+    /// Rendert die Ansicht mit injiziertem Eintrag — ohne Store, ohne
+    /// Koroutine, ohne Netzwerk.
+    fn render_detail(entry: PersonEntryTO) -> String {
+        #[derive(Props, Clone, PartialEq)]
+        struct WrapperProps {
+            entry: PersonEntryTO,
+        }
+        #[component]
+        fn DetailWrapper(props: WrapperProps) -> Element {
+            rsx! {
+                EntryDetailView {
+                    entry: props.entry.clone(),
+                    sales_person: None,
+                    shiftplan_catalog: Rc::from(Vec::<ShiftplanTO>::new()),
+                    role_assignments: Rc::from(Vec::<RoleAssignment>::new()),
+                    invitations: Rc::from(Vec::<InvitationResponse>::new()),
+                    invitations_load_error: None,
+                    on_intent: |_: DetailIntent| {},
+                }
+            }
+        }
+        let mut vdom = VirtualDom::new_with_props(DetailWrapper, WrapperProps { entry });
+        vdom.rebuild_in_place();
+        dioxus_ssr::render(&vdom)
+    }
+
+    const MISSING_CARD_CLASSES: &str = "border-dashed border-border-strong";
+
+    /// Success Criterion 1, Positiv-Richtung: der verknuepfte Eintrag zeigt
+    /// alle vier Abschnitte und keine Missing-Facet-Karte.
+    #[test]
+    fn detail_linked_renders_every_section() {
+        let html = render_detail(sample_entry(
+            PersonKindTO::Linked,
+            "Lena",
+            Some("lena"),
+            true,
+        ));
+        for heading in [
+            "Basic Information",
+            "Shiftplan Assignments",
+            "Role Assignments",
+            "User Invitations",
+        ] {
+            assert!(html.contains(heading), "Abschnitt {heading} fehlt: {html}");
+        }
+        assert!(
+            !html.contains(MISSING_CARD_CLASSES),
+            "verknuepfter Eintrag darf keine Missing-Facet-Karte tragen: {html}"
+        );
+    }
+
+    /// Success Criterion 1, Negativ-Richtung: der fehlende Abschnitt steht
+    /// NICHT als leere Ueberschrift im Markup — an seiner Stelle steht genau
+    /// eine Karte.
+    #[test]
+    fn detail_sales_person_only_hides_the_user_side() {
+        let html = render_detail(sample_entry(
+            PersonKindTO::SalesPersonOnly,
+            "Tom",
+            None,
+            true,
+        ));
+        assert!(html.contains("Basic Information"), "{html}");
+        assert!(html.contains("Shiftplan Assignments"), "{html}");
+        assert!(
+            !html.contains("Role Assignments"),
+            "leerer Platzhalter-Abschnitt gerendert: {html}"
+        );
+        assert!(
+            !html.contains("User Invitations"),
+            "leerer Platzhalter-Abschnitt gerendert: {html}"
+        );
+        assert_eq!(
+            html.matches(MISSING_CARD_CLASSES).count(),
+            1,
+            "genau eine Karte fuer die fehlende Seite erwartet: {html}"
+        );
+        assert!(html.contains("No login yet"), "{html}");
+    }
+
+    #[test]
+    fn detail_user_only_hides_the_sales_person_side() {
+        let html = render_detail(sample_entry(
+            PersonKindTO::UserOnly,
+            "Zoe",
+            Some("zoe"),
+            false,
+        ));
+        assert!(html.contains("Role Assignments"), "{html}");
+        assert!(html.contains("User Invitations"), "{html}");
+        assert!(
+            !html.contains("Basic Information"),
+            "leerer Platzhalter-Abschnitt gerendert: {html}"
+        );
+        assert!(
+            !html.contains("Shiftplan Assignments"),
+            "leerer Platzhalter-Abschnitt gerendert: {html}"
+        );
+        assert_eq!(
+            html.matches(MISSING_CARD_CLASSES).count(),
+            1,
+            "genau eine Karte fuer die fehlende Seite erwartet: {html}"
+        );
+        assert!(html.contains("No sales-person record yet"), "{html}");
+    }
+
+    /// Der Verknuepfungs-Hinweis erscheint nur bei der verknuepften
+    /// Auspraegung und ist Fliesstext — kein wiederbelebtes Badge.
+    #[test]
+    fn detail_linked_note_is_plain_text_and_only_when_linked() {
+        const NOTE: &str = "share the same identity";
+        let linked = render_detail(sample_entry(
+            PersonKindTO::Linked,
+            "Lena",
+            Some("lena"),
+            true,
+        ));
+        let position = linked
+            .find(NOTE)
+            .unwrap_or_else(|| panic!("Verknuepfungs-Hinweis fehlt: {linked}"));
+        let element_start = linked[..position]
+            .rfind('<')
+            .expect("kein oeffnendes Element vor dem Hinweis");
+        let element = &linked[element_start..position];
+        assert!(
+            element.contains("text-ink-soft"),
+            "Hinweis traegt nicht die gedaempfte Textfarbe: {element}"
+        );
+        for chip_class in [
+            "rounded-full",
+            "bg-accent-soft",
+            "bg-warn-soft",
+            "border-accent",
+            "border-warn",
+        ] {
+            assert!(
+                !element.contains(chip_class),
+                "Auspraegungs-Badge ({chip_class}) ist zurueckgekehrt: {element}"
+            );
+        }
+
+        for entry in [
+            sample_entry(PersonKindTO::SalesPersonOnly, "Tom", None, true),
+            sample_entry(PersonKindTO::UserOnly, "Zoe", Some("zoe"), false),
+        ] {
+            let html = render_detail(entry);
+            assert!(
+                !html.contains(NOTE),
+                "Verknuepfungs-Hinweis bei nicht verknuepftem Eintrag: {html}"
+            );
+        }
+    }
+
+    /// PADM-06 / Success Criterion 3: der Anzeigename wird stumpf
+    /// interpoliert. Keine Zeile, die ihn anfasst, darf eine Fallback-Regel
+    /// tragen — die gehoert ins Backend, sonst gibt es zwei Quellen derselben
+    /// Wahrheit.
+    #[test]
+    fn no_display_name_fallback_in_source() {
+        let src = include_str!("person_detail.rs");
+        let prefix = &src[..src.find("#[cfg(test)]").expect("test module marker missing")];
+        for line in prefix.lines() {
+            if !line.contains("display_name") {
+                continue;
+            }
+            assert!(
+                !line.contains("unwrap_or") && !line.contains(".or("),
+                "Fallback-Regel auf dem Anzeigenamen: {line}"
+            );
+        }
+    }
+
+    // ── Anlege-Dialog ────────────────────────────────────────────────────────
+
+    fn render_create_dialog(open: bool, wants_login: bool, wants_sales_person: bool) -> String {
+        #[derive(Props, Clone, PartialEq)]
+        struct WrapperProps {
+            open: bool,
+            wants_login: bool,
+            wants_sales_person: bool,
+        }
+        #[component]
+        fn CreateWrapper(props: WrapperProps) -> Element {
+            rsx! {
+                CreatePersonEntryDialog {
+                    open: props.open,
+                    display_name: ImStr::from(""),
+                    wants_login: props.wants_login,
+                    wants_sales_person: props.wants_sales_person,
+                    username: ImStr::from(""),
+                    on_display_name_change: |_: ImStr| {},
+                    on_wants_login_change: |_: bool| {},
+                    on_wants_sales_person_change: |_: bool| {},
+                    on_username_change: |_: ImStr| {},
+                    on_cancel: |_| {},
+                    on_create: |_| {},
+                }
+            }
+        }
+        let mut vdom = VirtualDom::new_with_props(
+            CreateWrapper,
+            WrapperProps {
+                open,
+                wants_login,
+                wants_sales_person,
+            },
+        );
+        vdom.rebuild_in_place();
+        dioxus_ssr::render(&vdom)
+    }
+
+    #[test]
+    fn create_person_entry_dialog_closed_renders_nothing() {
+        let html = render_create_dialog(false, false, false);
+        assert!(
+            !html.contains("role=\"dialog\""),
+            "geschlossener Dialog rendert Markup: {html}"
+        );
+    }
+
+    /// D-63-07: der Hinweis steht sofort, und der Absende-Knopf ist gesperrt —
+    /// nicht erst nach einem abgelehnten Klick.
+    #[test]
+    fn create_person_entry_dialog_without_a_toggle_blocks_and_explains() {
+        let html = render_create_dialog(true, false, false);
+        assert!(html.contains("role=\"dialog\""), "{html}");
+        assert!(
+            html.contains("At least a login or a sales-person record is required."),
+            "Hinweistext fehlt: {html}"
+        );
+        assert!(
+            html.contains("cursor-not-allowed"),
+            "Absende-Knopf ist nicht gesperrt: {html}"
+        );
+    }
+
+    #[test]
+    fn create_person_entry_dialog_shows_username_only_with_the_login_toggle() {
+        let with_login = render_create_dialog(true, true, false);
+        assert!(
+            with_login.contains("Username"),
+            "Benutzername-Feld fehlt bei zugeschaltetem Login: {with_login}"
+        );
+
+        let without_login = render_create_dialog(true, false, true);
+        assert!(
+            !without_login.contains("Username"),
+            "Benutzername-Feld steht ohne Login im Markup: {without_login}"
+        );
+        // Ohne Login, aber mit Verkaeufer-Datensatz ist die Eingabe gueltig.
+        assert!(
+            !without_login.contains("cursor-not-allowed"),
+            "ein gesetzter Umschalter genuegt: {without_login}"
+        );
+    }
+
+    // ── Kandidaten-Picker ────────────────────────────────────────────────────
+
+    fn render_picker(facet: FacetKind, candidates: Vec<CandidateOption>) -> String {
+        #[derive(Props, Clone, PartialEq)]
+        struct WrapperProps {
+            facet: FacetKind,
+            candidates: Vec<CandidateOption>,
+        }
+        #[component]
+        fn PickerWrapper(props: WrapperProps) -> Element {
+            rsx! {
+                CandidatePickerDialog {
+                    open: true,
+                    facet: props.facet,
+                    candidates: props.candidates.clone(),
+                    selected: None,
+                    conflict: false,
+                    on_select: |_: ImStr| {},
+                    on_cancel: |_| {},
+                    on_confirm: |_: ImStr| {},
+                }
+            }
+        }
+        let mut vdom =
+            VirtualDom::new_with_props(PickerWrapper, WrapperProps { facet, candidates });
+        vdom.rebuild_in_place();
+        dioxus_ssr::render(&vdom)
+    }
+
+    #[test]
+    fn candidate_picker_empty_list_shows_the_empty_state_instead_of_a_select() {
+        let html = render_picker(FacetKind::User, Vec::new());
+        assert!(
+            html.contains("No unlinked user accounts available."),
+            "Leer-Text fehlt: {html}"
+        );
+        assert!(
+            !html.contains("<select"),
+            "leeres Auswahlfeld gerendert: {html}"
+        );
+        assert!(
+            html.contains("cursor-not-allowed"),
+            "Absende-Knopf ist nicht gesperrt: {html}"
+        );
+    }
+
+    /// SC-4: genau ein Auswahlfeld mit je einer Option pro Kandidat — und
+    /// nirgends ein Freitextfeld.
+    #[test]
+    fn candidate_picker_lists_one_option_per_candidate() {
+        let candidates = vec![
+            CandidateOption {
+                value: ImStr::from("lena"),
+                label: ImStr::from("lena"),
+            },
+            CandidateOption {
+                value: ImStr::from("tom"),
+                label: ImStr::from("tom"),
+            },
+        ];
+        let html = render_picker(FacetKind::User, candidates);
+        assert_eq!(html.matches("<select").count(), 1, "{html}");
+        assert_eq!(html.matches("<option").count(), 2, "{html}");
+        assert!(html.contains("lena") && html.contains("tom"), "{html}");
+        assert!(
+            !html.contains("type=\"text\""),
+            "Freitexteingabe im Picker: {html}"
+        );
+        assert!(
+            !html.contains("cursor-not-allowed"),
+            "mit Kandidaten ist der Absende-Knopf frei: {html}"
+        );
+    }
+
+    #[test]
+    fn candidate_picker_sales_person_variant_has_its_own_empty_state() {
+        let html = render_picker(FacetKind::SalesPerson, Vec::new());
+        assert!(
+            html.contains("No unlinked sales persons available."),
+            "Leer-Text der Verkaeufer-Variante fehlt: {html}"
+        );
     }
 
     // ── is_last_facet ────────────────────────────────────────────────────────

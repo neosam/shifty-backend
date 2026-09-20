@@ -565,13 +565,10 @@ pub enum UserManagementAction {
         facet: PersonFacetTO,
     },
     /// Phase 63 (PADM-04).
-    #[allow(dead_code)]
     LoadUnlinkedSalesPersons,
     /// Phase 63 (PADM-04).
-    #[allow(dead_code)]
     LoadUnlinkedUsers,
     /// Phase 63 (PADM-04 / SC-4).
-    #[allow(dead_code)]
     LinkCandidate {
         sales_person_id: Uuid,
         username: ImStr,
