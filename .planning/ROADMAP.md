@@ -555,7 +555,7 @@ Plans:
 
 **Wave 2** *(blockiert durch Wave 1)*
 
-- [ ] 63-04-PLAN.md — Transport-Objekte + `PersonDetailService`-Trait + Lesepfad (`get_detail`, zwei Kandidatenlisten), admin-gegated; Zuschnitt: Kern-Aggregat plus gezielte Nachladepfade
+- [x] 63-04-PLAN.md — Transport-Objekte + `PersonDetailService`-Trait + Lesepfad (`get_detail`, zwei Kandidatenlisten), admin-gegated; Zuschnitt: Kern-Aggregat plus gezielte Nachladepfade
 
 **Wave 3** *(blockiert durch Wave 2)*
 
@@ -677,7 +677,7 @@ als unsicher).
 | 60. Person-Datenmodell + Backfill | 0/? | Not started | — |
 | 61. PersonService + Auflösung `sales_person_user` | 10/10 | Complete | 2026-09-17 |
 | 62. Personen-Verzeichnis — eine Liste statt Tabs | 7/7 | Complete | 2026-09-20 |
-| 63. Personen-Detailansicht + Ausprägungs-Aktionen | 3/11 | In Progress | — |
+| 63. Personen-Detailansicht + Ausprägungs-Aktionen | 4/11 | In Progress | — |
 | 64. Planungs-Soll für dynamische Verträge | 0/? | Not started | — |
 
 **Requirements-Coverage: 18/18 gemappt**, keine Waisen, keine Doppelung.

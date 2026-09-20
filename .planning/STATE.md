@@ -5,14 +5,14 @@ milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 63
 current_phase_name: personen-detailansicht-auspr-gungs-aktionen
 status: executing
-stopped_at: Completed 63-03-PLAN.md
-last_updated: "2026-09-20T19:59:45.368Z"
+stopped_at: Completed 63-04-PLAN.md
+last_updated: "2026-09-20T20:23:08.016Z"
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 31
-  completed_plans: 24
-  percent: 77
+  completed_plans: 25
+  percent: 81
 ---
 
 # Project State: Shifty Backend
@@ -32,8 +32,8 @@ progress:
 ## Current Position
 
 Phase: 63 (personen-detailansicht-auspr-gungs-aktionen) — EXECUTING
-Plan: 4 of 11 (63-01, 63-02, 63-03 abgeschlossen)
-Status: Welle 1 abgeschlossen. 63-01 hat `PermissionDao::create_user`/`delete_user` auf die
+Plan: 5 of 11 (63-01, 63-02, 63-03, 63-04 abgeschlossen)
+Status: Welle 1 und der erste Plan von Welle 2 abgeschlossen. 63-01 hat `PermissionDao::create_user`/`delete_user` auf die
 geteilte Transaktion gehoben — SC-2-Atomaritaet und der D-63-01-Orphan-Cleanup sind
 damit ueberhaupt erst konstruierbar. `service::PermissionService` bleibt eingefroren.
 63-02 hat die DAO-Primitive nachgezogen (`PersonDao::delete`/`has_live_facets`/
@@ -44,6 +44,14 @@ Kandidaten-Picker und die drei Bestaetigungen stehen in de/en/cs bereit, abgesic
 durch einen Key-Mengen- und einen `{name}`-Platzhalter-Test. Die zwei D-63-08-Saetze
 stehen zeichengleich in `de.rs`; es gibt genau einen Anlege-Einstieg
 (`Key::CreatePersonEntry`, D-63-03) und keinen Sammel-Loesch-Text (D-63-05).
+63-04 hat den Lesepfad der Detailansicht gebaut: vier Transport-Objekte
+(`CreatePersonEntryTO`, `CreatedPersonEntryTO`, `PersonFacetTO`, `AddPersonFacetTO`),
+das Business-Logic-Trait `PersonDetailService` mit drei admin-gegateten Lesemethoden und
+`PersonDetailServiceImpl`. Der Zuschnitt des Aggregats ist entschieden (D-63-04-A:
+Kern-Aggregat plus Nachladepfade), und `entry_from_row` ist `pub(crate)`, damit
+Auspraegung und Anzeigename genau eine Definition behalten. Der Service ist noch **nicht**
+in `shifty_bin/src/main.rs` verdrahtet und hat noch keinen REST-Handler — beides ist
+Sache von 63-05/63-06.
 
 Was Phase 62 geliefert hat:
 
@@ -321,8 +329,8 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-09-20T19:59:45.358Z
-**Stopped at:** Completed 63-03-PLAN.md
+**Last session:** 2026-09-20T20:23:08.008Z
+**Stopped at:** Completed 63-04-PLAN.md
 **Resume file:** None
 
 **To resume work in a new session:**
@@ -464,6 +472,9 @@ D-63-01/02, D-64-01/02/03).
 - [Phase 63]: Haengender person_id auf soft-geloeschten sales_person-Zeilen ist akzeptierte Konsequenz von D-63-01, kein Bug (63-02)
 - [Phase 63]: 63-03: Die zwei D-63-08-Saetze stehen zeichengleich in de.rs; die Zusaetze sind eigene Keys und verlaengern den gesperrten Satz nicht.
 - [Phase 63]: 63-03: Neben dem geforderten Key-Mengen-Test gibt es einen Platzhalter-Test, der {name} in UnlinkConfirmBody und DeleteSalesPersonConfirmHint ueber alle drei Sprachen garantiert (T-63-03-A).
+- [Phase 63]: D-63-04-A: Zuschnitt des Detail-Aggregats = Kern-Aggregat plus gezielte Nachladepfade — GET /person/{id} liefert genau die Verzeichniszeile, die vier Abschnitte laden ihre bestehenden Endpoints
+- [Phase 63]: D-63-04-B: entry_from_row wird pub(crate) statt einer zweiten Ableitung — kind und display_name behalten genau eine Definition (PADM-06)
+- [Phase 63]: D-63-04-C: Kandidatenlisten rufen den HR-gegateten PersonService mit Authentication::Full, erst nach dem eigenen Admin-Gate
 
 ## Performance Metrics
 
@@ -532,3 +543,4 @@ D-63-01/02, D-64-01/02/03).
 | Phase 63 P01 | 38min | 3 tasks | 9 files |
 | Phase 63 P02 | 42min | 3 tasks | 6 files |
 | Phase 63 P03 | 18min | 2 tasks | 4 files |
+| Phase 63 P04 | 44min | 3 tasks | 8 files |
