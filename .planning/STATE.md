@@ -5,10 +5,10 @@ milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 62
 current_phase_name: personen-verzeichnis-eine-liste-statt-tabs
 status: executing
-stopped_at: 62-06 (Docs-Freshness-Gate-Nachzug) abgeschlossen — 2/2 Tasks
-last_updated: "2026-09-20T08:39:04.648Z"
+stopped_at: 62-07 Task 1 abgeschlossen (Laufzeit-Smoke gruen) — Task 2 blockierender human-verify-Checkpoint offen
+last_updated: "2026-09-20T08:50:00.000Z"
 last_activity: 2026-09-20
-last_activity_desc: 62-04 (Frontend-Umbau) abgeschlossen, 3/3 Tasks
+last_activity_desc: 62-07 Task 1 abgeschlossen (Proxy-Smoke 200/200); Task 2 wartet auf menschliche Freigabe
 progress:
   total_phases: 5
   completed_phases: 2
@@ -34,7 +34,7 @@ progress:
 ## Current Position
 
 Phase: 62 (personen-verzeichnis-eine-liste-statt-tabs) — EXECUTING
-Plan: 7 of 7
+Plan: 7 of 7 — CHECKPOINT PENDING
 Status: Wellen 1-3 abgeschlossen. 62-01 (DAO-Schicht) —
 WR-02 geschlossen, `PersonDirectoryDao` liefert den Drei-Wege-Outer-Join.
 62-02 (DTO + i18n) — `PersonEntryTO`/`PersonKindTO` in `rest-types` und sechs
@@ -55,8 +55,19 @@ WR-02-Fehlinformation durch die verallgemeinerte ON-vs-WHERE-Regel mit
 namentlichem Regressionstest; die Tier-Doku fuehrt `PersonDirectoryService`
 samt Klarstellung der Faustregel, der Laufzeit-Graph zeigt den Knoten im
 Business-Teilgraph. EN/DE strukturgleich (33/33 bzw. 7/7 Ueberschriften), eine
-Phase-56-Drift in der deutschen Tier-Doku nebenbei geschlossen. Welle 4 laeuft;
-als naechstes 62-07 (UAT + Laufzeit-Nachweis).
+Phase-56-Drift in der deutschen Tier-Doku nebenbei geschlossen.
+62-07 (Laufzeit-Verifikation) — **Task 1 abgeschlossen, Task 2 OFFEN**.
+Task 1 belegt: Praefix-Konsistenz ueber vier Fundstellen (`wc -l` = 1),
+Backend-Smoke `GET /person-directory` = 200, **Dev-Proxy-Smoke ueber Port 8080
+ebenfalls 200 mit byte-gleichem Body** (der 3x wiederholte Proxy-Incident tritt
+nicht auf), `load_directory_ist_ein_request` gruen, Fat-Backend-Grep = 0 und
+`UserManagementTabBar` = 0 Treffer. Beide Dev-Server wieder beendet.
+Task 2 ist ein **blockierender `checkpoint:human-verify`**: die neun
+Browser-Schritte (Badge-Unterscheidbarkeit, Suche ueber beide Namen,
+Netzwerk-Tab-Request-Zahl, D-62-06/D-62-07, Ablehnungstext beim Direktaufruf
+ohne Admin-Rolle) sind **nicht** bestaetigt. Die lokale `localdb.sqlite3` enthaelt
+nur zwei `user_only`-Eintraege — Schritt 1 (drei Auspraegungen ueber die
+Oberflaeche anlegen) ist Pflicht.
 Planungs-Artefakte
 vollständig: CONTEXT, RESEARCH, PATTERNS,
 UI-SPEC (6/6 Dimensionen approved), VALIDATION, 7 PLAN.md in 4 Wellen.
@@ -67,9 +78,9 @@ Wellen: 1) 62-01 DAO (WR-02-Fix + `PersonDirectoryDao`) ∥ 62-02 DTO + i18n ·
 3) 62-05 REST + DI + `Dioxus.toml`-Proxy · 4) 62-06 Docs-Gate (EN+DE) ∥ 62-07 Laufzeit-Verifikation.
 Aus Phase 61 offen: CR-02 (Pre-Flight-Query) bleibt Deploy-Gate, siehe **v2.7 Deploy-Gates** unten.
 WR-02 wird in Phase 62 geschlossen (D-62-05, Plan 62-01); WR-01, WR-03, WR-07 und IN-01..IN-07 bleiben Backlog.
-Last activity: 2026-09-20 — 62-04 (Frontend-Umbau) abgeschlossen, 3/3 Tasks
-Next: `/gsd-execute-phase 62` (Welle 3: 62-05 REST + DI + `Dioxus.toml`-Proxy)
-Resume file: .planning/phases/62-personen-verzeichnis-eine-liste-statt-tabs/62-05-PLAN.md
+Last activity: 2026-09-20 — 62-07 Task 1 abgeschlossen; Task 2 (human-verify) offen
+Next: **Menschliche Freigabe fuer 62-07 Task 2.** Server erneut starten (Kommandos im PLAN-Toolchain-Block), die neun Schritte durchgehen, dann mit "approved" oder den abweichenden Beobachtungen antworten. PADM-01/06/08 bleiben bis dahin offen.
+Resume file: .planning/phases/62-personen-verzeichnis-eine-liste-statt-tabs/62-07-PLAN.md (Task 2)
 
 ## Quick Tasks Completed
 
