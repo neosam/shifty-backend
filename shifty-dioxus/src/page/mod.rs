@@ -8,6 +8,7 @@ pub mod home;
 pub mod my_employee_details;
 pub mod my_shifts;
 pub mod not_authenticated;
+pub mod person_detail;
 pub mod sales_person_details;
 pub mod settings;
 pub mod shiftplan;
