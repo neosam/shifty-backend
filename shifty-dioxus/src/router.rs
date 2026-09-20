@@ -16,12 +16,10 @@ pub use crate::page::Home;
 pub use crate::page::MyEmployeeDetails;
 pub use crate::page::MyShifts;
 pub use crate::page::PersonDetail;
-pub use crate::page::SalesPersonDetails;
 pub use crate::page::SettingsPage as Settings;
 pub use crate::page::ShiftPlan;
 pub use crate::page::ShiftPlanDeep;
 pub use crate::page::TextTemplateManagement;
-pub use crate::page::UserDetails;
 pub use crate::page::UserManagementPage;
 pub use crate::page::WeeklyOverview;
 
@@ -45,13 +43,12 @@ pub enum Route {
     MyEmployeeDetails {},
     #[route("/user_management/")]
     UserManagementPage {},
-    #[route("/user_details/:user_id/")]
-    UserDetails { user_id: String },
-    #[route("/sales_person_details/:sales_person_id/")]
-    SalesPersonDetails { sales_person_id: String },
     /// Phase 63 (D-63-04): die EINE Personen-Detailroute fuer alle drei
-    /// Auspraegungen. Plan 63-09 entfernt die beiden Routen darueber
-    /// ersatzlos — bis dahin stehen sie nebeneinander.
+    /// Auspraegungen. Die beiden bisherigen Detailrouten sind mit Phase 63
+    /// ersatzlos entfallen — bewusst ohne Weiterleitungs-Huellen, damit es
+    /// je Sache genau einen Pfad gibt. Ein gespeichertes Lesezeichen auf
+    /// einen der alten Pfade laeuft ins Leere; das Nachruesten einer
+    /// Weiterleitung bleibt moeglich, ist aber keine stille Schuld.
     #[route("/person/:person_id/")]
     PersonDetail { person_id: String },
     #[route("/custom_extra_hours/")]

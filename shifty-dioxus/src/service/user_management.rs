@@ -61,9 +61,9 @@ pub struct UserManagementStore {
     /// when `list_user_invitations` failed — typically a
     /// `ShiftyError::InvitationParse` from a schema-drift response body.
     ///
-    /// Rendered as a persistent inline red banner on
-    /// `page/user_details.rs` so the empty-list state can no longer be
-    /// confused with a parse failure. The central `ERROR_STORE` overlay
+    /// Rendered as a persistent inline red banner in the invitations
+    /// section of `page/person_detail.rs` so the empty-list state can no
+    /// longer be confused with a parse failure. The central `ERROR_STORE` overlay
     /// is still fired in parallel — the two channels are complementary
     /// (overlay = one-shot toast, banner = page-scoped persistent).
     pub user_invitations_load_error: Option<ImStr>,
@@ -292,7 +292,7 @@ pub async fn load_user_invitations(username: ImStr) {
         }
         Err(err) => {
             // BUG-02 (v2.2): mirror the error into a persistent per-page
-            // store field so `user_details.rs` can render an inline banner,
+            // store field so `person_detail.rs` can render an inline banner,
             // and clear the stale invitation list so the empty state does
             // NOT appear "successful" underneath the banner.
             let msg: String = err.to_string();
@@ -513,11 +513,8 @@ pub enum UserManagementAction {
     LoadPersonDirectory,
     LoadSalesPerson(Uuid),
     UpdateSalesPerson(SalesPerson),
-    UpdateSalesPersonUser(ImStr),
-    RemoveSalesPersonUser,
     SaveSalesPersonAndNavigate,
     ClearSaveSuccess,
-    CreateNewSalesPerson,
     LoadUserRoleAssignments(ImStr),
     AssignUserToRole(ImStr, ImStr),
     RemoveUserFromRole(ImStr, ImStr),
@@ -600,24 +597,12 @@ pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAct
                 }
                 Ok(())
             }
-            UserManagementAction::UpdateSalesPersonUser(user_id) => {
-                USER_MANAGEMENT_STORE
-                    .write()
-                    .sales_person
-                    .as_mut()
-                    .unwrap()
-                    .user_id = Some(user_id);
-                Ok(())
-            }
-            UserManagementAction::RemoveSalesPersonUser => {
-                USER_MANAGEMENT_STORE
-                    .write()
-                    .sales_person
-                    .as_mut()
-                    .unwrap()
-                    .user_id = None;
-                Ok(())
-            }
+            // Die beiden Arme, die das Benutzerkonto eines Verkaeufers im
+            // Bearbeitungs-Puffer setzten und wieder leerten, sind mit
+            // Phase 63 entfallen. Verknuepft und geloest wird jetzt direkt
+            // und sofort ueber `LinkCandidate` bzw. `UnlinkFacet` (PADM-04,
+            // PADM-07) — nicht mehr als Nebenwirkung eines Speichern-Knopfes,
+            // der zwei Dinge auf einmal tat.
             UserManagementAction::SaveSalesPersonAndNavigate => {
                 match save_sales_person().await {
                     Ok(_) => {
@@ -634,21 +619,14 @@ pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAct
                 USER_MANAGEMENT_STORE.write().save_success = false;
                 Ok(())
             }
-            UserManagementAction::CreateNewSalesPerson => {
-                let new_sales_person = SalesPerson {
-                    id: Uuid::nil(),
-                    name: "Name".into(),
-                    background_color: "#FFF".into(),
-                    is_paid: false,
-                    inactive: false,
-                    version: Uuid::nil(),
-                };
-                USER_MANAGEMENT_STORE.write().sales_person =
-                    Some(SelectedSalesPerson::new(new_sales_person.clone()));
-                USER_MANAGEMENT_STORE.write().loaded_sales_person =
-                    Some(SelectedSalesPerson::new(new_sales_person));
-                Ok(())
-            }
+            // Der Arm, der eine leere Verkaeufer-Vorlage in den Store legte,
+            // ist mit Phase 63 entfallen. Er bediente ausschliesslich den
+            // Anlege-Link mit leerer Kennung: die abgeloeste Verkaeufer-Seite
+            // diente zugleich als Anlege- und als Bearbeiten-Formular und
+            // musste sich deshalb einen Platzhalter-Datensatz ausdenken
+            // („Name", „#FFF"). Angelegt wird jetzt ueber
+            // `create_person_entry` — das Backend vergibt die Kennung, und es
+            // entsteht nie ein halb ausgefuellter Datensatz im Client.
             UserManagementAction::LoadUserRoleAssignments(user) => {
                 load_role_assignments(user).await
             }

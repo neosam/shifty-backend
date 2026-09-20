@@ -1,8 +1,8 @@
 //! `PersonDetail` — **eine** Detailansicht fuer alle drei Auspraegungen einer
-//! Person (Phase 63, PADM-02/03/04/05/07). Sie loest `page/user_details.rs`
-//! und `page/sales_person_details.rs` ab (D-63-04): statt zweier Seiten mit je
-//! einer halben Wahrheit gibt es eine Route, die je nach Auspraegung genau die
-//! Abschnitte zeigt, die es zu dem Eintrag gibt.
+//! Person (Phase 63, PADM-02/03/04/05/07). Sie loest die beiden bisherigen
+//! Detailseiten ab (D-63-04, entfernt in Plan 63-09): statt zweier Seiten mit
+//! je einer halben Wahrheit gibt es eine Route, die je nach Auspraegung genau
+//! die Abschnitte zeigt, die es zu dem Eintrag gibt.
 //!
 //! **Keine leeren Platzhalter.** Fehlt eine Auspraegung, steht an ihrer Stelle
 //! keine leere Ueberschrift, sondern genau eine Karte mit den zwei getrennt
