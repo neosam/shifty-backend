@@ -1,6 +1,7 @@
 use rest_types::{
-    BlockTO, ExtraHoursTO, GenerateInvitationRequest, InvitationResponse, PersonEntryTO,
-    SalesPersonTO, UserRole, UserTO, WeekMessageTO,
+    AddPersonFacetTO, BlockTO, CreatePersonEntryTO, CreatedPersonEntryTO, ExtraHoursTO,
+    GenerateInvitationRequest, InvitationResponse, PersonEntryTO, PersonFacetTO, SalesPersonTO,
+    UserRole, UserTO, WeekMessageTO,
 };
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -59,13 +60,46 @@ pub async fn load_user_for_sales_person(
     Ok(user)
 }
 
+/// Verknuepft ein bestehendes Benutzerkonto mit einer bestehenden Sales Person
+/// ueber den seit Phase 61 unveraenderten Endpoint
+/// `POST /sales-person/{id}/user`.
+///
+/// Der 409 dieses Pfades ist die Serverseite von Success Criterion 4: das Ziel
+/// war beim Oeffnen des Pickers noch frei und ist es beim Absenden nicht mehr.
+/// Er kommt deshalb als [`ShiftyError::Conflict`] an — unterscheidbar von jedem
+/// anderen Transportfehler, damit die Oberflaeche die Konflikt-Meldung zeigen
+/// und die Kandidatenliste neu laden kann, statt einen generischen Fehler zu
+/// werfen. Die Ausblendung verknuepfter Ziele im Picker ist Bequemlichkeit;
+/// diese Ablehnung ist die Grenze (D-61-04).
 pub async fn save_user_for_sales_person(
     config: Config,
     sales_person_id: Uuid,
     user_id: ImStr,
 ) -> Result<(), ShiftyError> {
-    api::post_user_to_sales_person(config, sales_person_id, user_id).await?;
-    Ok(())
+    match api::post_user_to_sales_person(config, sales_person_id, user_id).await {
+        Ok(()) => Ok(()),
+        Err(err) => Err(classify_link_error(err)),
+    }
+}
+
+/// Uebersetzt die beiden fachlich bedeutsamen Statuscodes des
+/// Verknuepfungs-Pfades in die Varianten, die die Oberflaeche unterscheiden
+/// kann. Alles andere bleibt ein Transportfehler und landet unveraendert im
+/// zentralen Fehler-Overlay.
+///
+/// Die Meldungstexte sind bewusst nicht leer: laeuft ein Konflikt einmal nicht
+/// in eine seitenlokale Behandlung, sondern ins Overlay, soll dort etwas
+/// Lesbares stehen. Uebersetzte Texte setzt die aufrufende Seite.
+fn classify_link_error(err: reqwest::Error) -> ShiftyError {
+    match err.status() {
+        Some(reqwest::StatusCode::CONFLICT) => {
+            ShiftyError::Conflict("HTTP 409: link target is already taken".to_string())
+        }
+        Some(reqwest::StatusCode::UNPROCESSABLE_ENTITY) => {
+            ShiftyError::Validation("HTTP 422: link request rejected as invalid".to_string())
+        }
+        _ => ShiftyError::Reqwest(err),
+    }
 }
 
 pub async fn remove_user_from_sales_person(
@@ -433,6 +467,111 @@ pub(crate) fn build_working_hours_mini(
 pub async fn load_person_directory(config: Config) -> Result<Rc<[PersonEntryTO]>, ShiftyError> {
     let entries = api::get_person_directory(config).await?;
     Ok(entries)
+}
+
+// ─── Personen-Detailansicht (Phase 63, PADM-02/03/04/05/07) ──────────────────
+//
+// Acht Wrapper um die gleichnamigen `api::`-Aufrufe. Sie reichen die Antworten
+// unveraendert durch: `kind` und `display_name` kommen fertig aus dem Backend
+// (PADM-06, Fat Backend). Hier wird nichts sortiert, nichts abgeleitet und
+// kein Anzeigename nachgebaut.
+
+/// `GET /person/{person_id}` (PADM-05).
+///
+/// Ein 404 ist hier **kein** Fehler, sondern ein Zustand: der Eintrag hat seine
+/// letzte Auspraegung verloren (D-63-01) oder ist nie sichtbar gewesen. Die
+/// Seite zeigt dann „Dieser Eintrag existiert nicht mehr" statt eines
+/// generischen Overlays (UI-SPEC, not-found state). Deshalb `Option`, nicht
+/// `Err`.
+pub async fn load_person_detail(
+    config: Config,
+    person_id: Uuid,
+) -> Result<Option<PersonEntryTO>, ShiftyError> {
+    match api::get_person_detail(config, person_id).await {
+        Ok(entry) => Ok(Some(entry)),
+        Err(err) if err.status() == Some(reqwest::StatusCode::NOT_FOUND) => {
+            info!("Person {person_id} not found — rendering the not-found state");
+            Ok(None)
+        }
+        Err(err) => Err(err.into()),
+    }
+}
+
+/// `GET /person/by-sales-person/{sales_person_id}` (PADM-04 / SC-4). Loest den
+/// Eintrag nach einer Verknuepfung neu auf, weil er dabei seine `person_id`
+/// gewechselt haben kann (D-61-03).
+pub async fn load_person_by_sales_person(
+    config: Config,
+    sales_person_id: Uuid,
+) -> Result<Option<PersonEntryTO>, ShiftyError> {
+    match api::get_person_by_sales_person(config, sales_person_id).await {
+        Ok(entry) => Ok(Some(entry)),
+        Err(err) if err.status() == Some(reqwest::StatusCode::NOT_FOUND) => {
+            info!("Sales person {sales_person_id} has no visible person entry");
+            Ok(None)
+        }
+        Err(err) => Err(err.into()),
+    }
+}
+
+/// `POST /person` (PADM-02 / SC-2). Gibt die `person_id` des neuen Eintrags
+/// zurueck — der Dialog leitet danach in dessen Detailansicht (D-63-07).
+pub async fn create_person_entry(
+    config: Config,
+    body: CreatePersonEntryTO,
+) -> Result<CreatedPersonEntryTO, ShiftyError> {
+    api::post_person_entry(config, body).await
+}
+
+/// `POST /person/{person_id}/facet` (PADM-03 / SC-3). Die Rueckgabe traegt die
+/// **resultierende** `person_id`; sie kann von der uebergebenen abweichen.
+pub async fn add_person_facet(
+    config: Config,
+    person_id: Uuid,
+    body: AddPersonFacetTO,
+) -> Result<CreatedPersonEntryTO, ShiftyError> {
+    api::post_person_facet(config, person_id, body).await
+}
+
+/// `DELETE /person/{person_id}/facet/{facet}` (PADM-07 / SC-5). Entfernt genau
+/// eine Auspraegung — es gibt keinen Weg, der beide auf einmal entfernt
+/// (D-63-05).
+pub async fn remove_person_facet(
+    config: Config,
+    person_id: Uuid,
+    facet: PersonFacetTO,
+) -> Result<(), ShiftyError> {
+    api::delete_person_facet(config, person_id, facet).await?;
+    Ok(())
+}
+
+/// `GET /person/candidates/sales-persons` (PADM-04).
+pub async fn load_unlinked_sales_persons(
+    config: Config,
+) -> Result<Rc<[SalesPersonTO]>, ShiftyError> {
+    let candidates = api::get_unlinked_sales_persons(config).await?;
+    Ok(candidates)
+}
+
+/// `GET /person/candidates/users` (PADM-04).
+pub async fn load_unlinked_users(config: Config) -> Result<Rc<[UserTO]>, ShiftyError> {
+    let candidates = api::get_unlinked_users(config).await?;
+    Ok(candidates)
+}
+
+/// `DELETE /sales-person/{id}` (D-63-06, PADM-07).
+///
+/// Der Backend-Pfad existiert seit Langem und ist HR-gegatet; **neu ist
+/// ausschliesslich dieser Aufrufer** — bis Phase 63 kannte das Frontend nur den
+/// Benutzer-Loeschpfad. Die Semantik ist ein Soft Delete: der Datensatz
+/// verschwindet aus allen Listen, die Historie (Buchungen, Stunden) bleibt in
+/// der Datenbank stehen.
+pub async fn delete_sales_person(
+    config: Config,
+    sales_person_id: Uuid,
+) -> Result<(), ShiftyError> {
+    api::delete_sales_person(config, sales_person_id).await?;
+    Ok(())
 }
 
 #[allow(dead_code)] // reason: Phase 62 loest den N+1-Ladepfad der User-Management-Seite ab; Phase 63 braucht diesen Pfad fuer den Kandidaten-Picker wieder.
