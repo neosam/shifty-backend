@@ -5,13 +5,13 @@ milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 63
 current_phase_name: personen-detailansicht-auspr-gungs-aktionen
 status: executing
-stopped_at: Completed 63-08-PLAN.md
-last_updated: "2026-09-20T22:07:57.975Z"
+stopped_at: Completed 63-09-PLAN.md
+last_updated: "2026-09-20T22:31:19.008Z"
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 31
-  completed_plans: 29
+  completed_plans: 30
   percent: 60
 ---
 
@@ -32,7 +32,7 @@ progress:
 ## Current Position
 
 Phase: 63 (personen-detailansicht-auspr-gungs-aktionen) — EXECUTING
-Plan: 9 of 11 (63-01, 63-02, 63-03, 63-04, 63-05, 63-06, 63-07, 63-08 abgeschlossen)
+Plan: 10 of 11 (63-01, 63-02, 63-03, 63-04, 63-05, 63-06, 63-07, 63-08, 63-09 abgeschlossen)
 Status: Welle 1 und der erste Plan von Welle 2 abgeschlossen. 63-01 hat `PermissionDao::create_user`/`delete_user` auf die
 geteilte Transaktion gehoben — SC-2-Atomaritaet und der D-63-01-Orphan-Cleanup sind
 damit ueberhaupt erst konstruierbar. `service::PermissionService` bleibt eingefroren.
@@ -71,11 +71,20 @@ alle drei Auspraegungen, den drei reinen Helfern (`visible_sections`, `is_last_f
 `delete_confirmation_copy`), Missing-Facet-Karte, fuenf Dialogen und SSR-Rendertests je
 `PersonKindTO` (Positiv- UND Negativ-Assertions, per Mutation gegen Vakuitaet belegt).
 Die Route `/person/:person_id/` ist bereits registriert — sonst haelt rustc die Seite fuer
-toten Code und das Gate `clippy -D warnings` ist unerreichbar. **Fuer 63-09 wichtig:**
-Anlegen der Route entfaellt damit; es bleiben das Entfernen der beiden alten Routen und
-Seiten, `component/top_bar.rs` und der Toolbar-Umbau, der
-`CreatePersonEntryDialog` oeffnet — dessen Aktion `UserManagementAction::CreatePersonEntry`
-traegt als einzige der neun Varianten noch `#[allow(dead_code)]`.
+toten Code und das Gate `clippy -D warnings` ist unerreichbar.
+63-09 hat den Rueckbau durchgezogen: die beiden alten Detailrouten und ihre Seiten
+(`page/user_details.rs`, `page/sales_person_details.rs`) sind **ersatzlos** entfernt —
+keine Weiterleitungs-Huellen (D-63-04), der Nachweis-Grep ist leer. Die Werkzeugleiste
+der Personenliste traegt genau einen Anlege-Knopf, der den `CreatePersonEntryDialog`
+oeffnet und nach Erfolg zur neuen Detailroute mit der vom Backend zurueckgegebenen
+`person_id` weiterleitet (D-63-03/D-63-07). Der Bearbeiten-Link jeder Zeile zeigt fuer
+alle drei Auspraegungen auf dasselbe Ziel (SC-1); die Zeilen-Loeschung ist entfallen,
+Loeschen lebt ausschliesslich auf der Detailseite (PADM-07). Fuenf Store-Aktionen und
+acht Loader-/API-Primitive sind mitgefallen; das letzte `#[allow(dead_code)]` aus 63-07
+ist weg, ohne ein neues an anderer Stelle. **Fuer 63-10 wichtig:** die Doku-Faelligkeit
+fuer `docs/architecture/06-frontend.md` + `_de.md` waechst um die entfallenen Routen,
+Seiten und Aktionen; 63-11 soll die Entscheidung „keine Zeilen-Loeschung" im UAT
+ausdruecklich bestaetigen.
 
 Was Phase 62 geliefert hat:
 
@@ -353,8 +362,8 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-09-20T22:07:57.967Z
-**Stopped at:** Completed 63-08-PLAN.md
+**Last session:** 2026-09-20T22:31:10.953Z
+**Stopped at:** Completed 63-09-PLAN.md
 **Resume file:** None
 
 **To resume work in a new session:**
@@ -511,6 +520,8 @@ D-63-01/02, D-64-01/02/03).
 - [Phase 63]: 63-08: Route /person/:person_id/ bereits hier registriert (nicht erst 63-09) — ohne Erreichbarkeit haelt rustc die Seite fuer toten Code und das Gate clippy -D warnings ist unerreichbar
 - [Phase 63]: 63-08: Die Missing-Facet-Karte traegt ein Namensfeld — add_facet verlangt serverseitig je Seite ein Pflichtfeld; ein Knopf ohne Eingabe waere ein garantierter 422
 - [Phase 63]: 63-08: Praesentations-Zwilling EntryDetailView neben der store-verbundenen Seite PersonDetail — dieselbe Teilung wie PersonDirectoryTable, und die Voraussetzung fuer SSR-Rendertests ohne Store und Koroutine
+- [Phase 63]: D-63-09-A: Der Rueckbau entfernt fuenf Store-Aktionen statt der einen im Plan genannten (CreateNewSalesPerson, AddUser, DeleteUser, UpdateSalesPersonUser, RemoveSalesPersonUser) plus acht Loader-/API-Primitive — alle verlieren mit den beiden geloeschten Seiten und der entfallenen Zeilen-Loeschung ihren letzten Absender. Kein neues #[allow(dead_code)].
+- [Phase 63]: D-63-09-B: Die vierzehn durch den Rueckbau verwaisten i18n-Keys bleiben in de/en/cs registriert und werden nur benannt — Uebersetzungsdaten unter dem Key-Mengen-Test, kein funktionaler Gewinn durch Loeschen.
 
 ## Performance Metrics
 
@@ -584,3 +595,4 @@ D-63-01/02, D-64-01/02/03).
 | Phase 63 P06 | 27min | 3 tasks | 6 files |
 | Phase 63 P07 | 34min | 3 tasks | 4 files |
 | Phase 63 P08 | 38min | 3 tasks | 4 files |
+| Phase 63 P09 | 25min | 3 tasks | 10 files |
