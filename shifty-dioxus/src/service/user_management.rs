@@ -273,25 +273,14 @@ pub async fn remove_user_from_role(user: ImStr, role: ImStr) -> Result<(), Shift
     Ok(())
 }
 
-pub async fn add_user(user: ImStr) -> Result<(), ShiftyError> {
-    loader::add_user(CONFIG.read().clone(), user).await?;
-    Ok(())
-}
-
-pub async fn delete_user(user: ImStr) -> Result<(), ShiftyError> {
-    // First check if the user is connected to a sales person
-    let sales_person =
-        loader::load_sales_person_by_user(CONFIG.read().clone(), user.clone()).await?;
-
-    // If connected to a sales person, remove the connection first
-    if let Some(sales_person) = sales_person {
-        loader::remove_user_from_sales_person(CONFIG.read().clone(), sales_person.id).await?;
-    }
-
-    // Now proceed with deleting the user
-    loader::delete_user(CONFIG.read().clone(), user).await?;
-    Ok(())
-}
+// Die beiden frueheren Benutzer-Primitive `add_user` und `delete_user` sind
+// mit Phase 63 entfallen. Angelegt wird ueber `create_person_entry`
+// (PADM-02: Benutzerkonto und Verkaeufer-Datensatz in EINER Transaktion,
+// statt zweier Einstiege, die je nur eine Haelfte erzeugen konnten), entfernt
+// ueber `remove_person_facet` (PADM-07: mit ausprägungs-bewusster
+// Bestaetigung und dem Orphan-Cleanup aus D-63-01). Das frueher hier von Hand
+// gefahrene „erst entknuepfen, dann loeschen" macht jetzt der Service in
+// einer Transaktion — im Client war es ein Zwei-Schritt ohne Rollback.
 
 pub async fn load_user_invitations(username: ImStr) {
     let invitations = loader::load_user_invitations(CONFIG.read().clone(), username).await;
@@ -532,8 +521,6 @@ pub enum UserManagementAction {
     LoadUserRoleAssignments(ImStr),
     AssignUserToRole(ImStr, ImStr),
     RemoveUserFromRole(ImStr, ImStr),
-    AddUser(ImStr),
-    DeleteUser(ImStr),
     LoadUserInvitations(ImStr),
     GenerateInvitation(ImStr, Option<i64>),
     RevokeInvitation(Uuid),
@@ -542,17 +529,16 @@ pub enum UserManagementAction {
     LoadShiftplanAssignments(Uuid),
     UpdateShiftplanAssignments(Vec<ShiftplanAssignment>),
 
-    // Die Varianten dieser Phase bekommen ihren Absender mit der
-    // Detailansicht (Plan 63-08). Solange eine noch keinen hat, traegt sie
-    // eine eigene Markierung — nicht die ganze Aufzaehlung, damit eine
-    // kuenftig wirklich tote Variante weiterhin auffaellt.
+    // Alle Varianten dieser Phase haben seit Plan 63-09 einen Absender; es
+    // steht keine Markierung mehr ueber der Aufzaehlung, eine tote Variante
+    // faellt also wieder auf.
     /// Phase 63 (PADM-05): fuellt die Detailansicht mit genau einem Request.
     LoadPersonDetail(Uuid),
     /// Phase 63 (PADM-02 / SC-2 / D-63-07).
     ///
-    /// Absender ist die Werkzeugleiste der Listenseite, die Plan 63-09
-    /// umbaut — der Dialog dazu steht bereits in `page/person_detail.rs`.
-    #[allow(dead_code)]
+    /// Absender ist der eine Anlege-Knopf der Werkzeugleiste in
+    /// `page/user_management.rs`; der Dialog dazu steht in
+    /// `page/person_detail.rs`.
     CreatePersonEntry(CreatePersonEntryTO),
     /// Phase 63 (PADM-03 / SC-3).
     AddPersonFacet {
@@ -672,22 +658,6 @@ pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAct
             UserManagementAction::RemoveUserFromRole(user, role) => {
                 remove_user_from_role(user, role).await
             }
-            UserManagementAction::AddUser(user) => match add_user(user).await {
-                Ok(()) => {
-                    // Success Criterion 5: Auffrischen ueber das Aggregat.
-                    load_person_directory().await;
-                    Ok(())
-                }
-                Err(err) => Err(err),
-            },
-            UserManagementAction::DeleteUser(user) => match delete_user(user).await {
-                Ok(()) => {
-                    // Success Criterion 5: Auffrischen ueber das Aggregat.
-                    load_person_directory().await;
-                    Ok(())
-                }
-                Err(err) => Err(err),
-            },
             UserManagementAction::LoadUserInvitations(username) => {
                 load_user_invitations(username).await;
                 Ok(())

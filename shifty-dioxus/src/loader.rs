@@ -625,21 +625,8 @@ pub async fn remove_user_from_role(
     Ok(())
 }
 
-pub async fn add_user(config: Config, user: ImStr) -> Result<(), ShiftyError> {
-    api::add_user(
-        config,
-        UserTO {
-            name: user.to_string(),
-        },
-    )
-    .await?;
-    Ok(())
-}
-
-pub async fn delete_user(config: Config, user: ImStr) -> Result<(), ShiftyError> {
-    api::delete_user(config, user).await?;
-    Ok(())
-}
+// `add_user` und `delete_user` sind mit Phase 63 entfallen — siehe die
+// Begruendung an derselben Stelle in `api.rs`.
 
 pub async fn load_bookings_conflicts_for_week(
     config: Config,
@@ -815,14 +802,8 @@ pub async fn save_week_message(
     Ok(())
 }
 
-pub async fn load_sales_person_by_user(
-    config: Config,
-    username: ImStr,
-) -> Result<Option<SalesPerson>, ShiftyError> {
-    let sales_person_to = api::get_sales_person_by_user(config, username).await?;
-    let sales_person = sales_person_to.as_ref().map(SalesPerson::from);
-    Ok(sales_person)
-}
+// `load_sales_person_by_user` ist mit Phase 63 entfallen — siehe die
+// Begruendung an derselben Stelle in `api.rs`.
 
 pub async fn load_text_templates(config: Config) -> Result<Rc<[TextTemplate]>, ShiftyError> {
     let template_tos = api::get_text_templates(config).await?;

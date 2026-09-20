@@ -16,18 +16,25 @@
 //! Ziel des Bearbeiten-Links (D-62-07).
 //!
 //! Die Seite traegt einen Component-Level-Admin-Guard (PADM-08, D-62-08):
-//! die Nav-Ausblendung faengt einen direkten URL-Aufruf nicht ab. Anlegen,
-//! Loeschen und Impersonation leben weiter in `Dialog`s bzw. in der
-//! Aktionsspalte und sind auf Zeilen mit Benutzer-Auspraegung beschraenkt
-//! (D-62-06).
+//! die Nav-Ausblendung faengt einen direkten URL-Aufruf nicht ab.
+//!
+//! **Ein Anlege-Einstieg, ein Loeschort, ein Bearbeiten-Ziel** (Phase 63,
+//! D-63-03/D-63-04/PADM-02). Die Werkzeugleiste traegt genau einen
+//! Primaer-Knopf; er oeffnet den Anlege-Dialog aus `page/person_detail.rs`,
+//! der die Auspraegung ueber zwei Umschalter erfasst, statt sie ueber die
+//! Wahl des Knopfes zu erzwingen. Der Bearbeiten-Link jeder Zeile zeigt auf
+//! dieselbe Detailroute — welche Abschnitte dort erscheinen, entscheidet die
+//! Auspraegung erst auf der Zielseite (Success Criterion 1). Geloescht wird
+//! ausschliesslich auf der Detailseite; die Aktionsspalte fuehrt nur noch
+//! Impersonation (D-62-06) und den Bearbeiten-Link.
 
 use crate::{
     base_types::ImStr,
     component::{
-        atoms::btn::build_class as btn_build_class, Btn, BtnVariant, Dialog, DialogVariant, Field,
-        PersonChip, TextInput, TopBar,
+        atoms::btn::build_class as btn_build_class, Btn, BtnVariant, PersonChip, TopBar,
     },
     i18n::Key,
+    page::person_detail::CreatePersonEntryDialog,
     router::Route,
     service::{
         auth::AUTH,
@@ -38,8 +45,9 @@ use crate::{
     state::AuthInfo,
 };
 use dioxus::prelude::*;
-use rest_types::PersonEntryTO;
+use rest_types::{CreatePersonEntryTO, PersonEntryTO};
 use std::rc::Rc;
+use std::sync::Arc;
 
 const SEARCH_INPUT_CLASSES: &str =
     "h-[34px] px-[10px] border border-border-strong rounded-md bg-surface text-ink text-body w-full min-w-0 form-input";
@@ -96,14 +104,44 @@ pub fn UserManagementPage() -> Element {
         };
     }
 
+    let nav = navigator();
     let search = use_signal(String::new);
-    let mut show_add_user_dialog = use_signal(|| false);
-    let mut delete_user_confirm: Signal<Option<ImStr>> = use_signal(|| None);
-    let mut new_user_name: Signal<ImStr> = use_signal(|| "".into());
+    let mut show_create_dialog = use_signal(|| false);
+    let mut create_display_name: Signal<ImStr> = use_signal(|| "".into());
+    let mut create_wants_login = use_signal(|| false);
+    let mut create_wants_sales_person = use_signal(|| false);
+    let mut create_username: Signal<ImStr> = use_signal(|| "".into());
+    // D-63-07: das Anlegen leitet in die Detailansicht weiter. Dieses Flag
+    // markiert, dass die naechste gefuellte Detailzeile aus *diesem*
+    // Anlegevorgang stammt — ohne es wuerde ein Eintrag, den ein frueherer
+    // Besuch im Store hinterlassen hat, eine Weiterleitung ausloesen.
+    let mut create_pending = use_signal(|| false);
 
     use_effect(move || {
         // Success Criterion 5: ein einziger Aggregat-Aufruf fuellt die Liste.
         user_management_service.send(UserManagementAction::LoadPersonDirectory);
+    });
+
+    // D-63-07 / SC-2: Weiterleitung in die Detailansicht, sobald der
+    // Anlegevorgang die neue Zeile im Store abgelegt hat. Die Kennung kommt
+    // aus der Antwort des Backends, nicht aus einer Client-Ableitung
+    // (PADM-06) — der Anlege-Pfad des Service laedt die zurueckgegebene
+    // `person_id` nach und schreibt sie in `person_detail`.
+    //
+    // `create_pending` wird bewusst mit `peek` gelesen: das Setzen des Flags
+    // darf den Effekt nicht ausloesen, sonst liefe er noch mit dem Stand vor
+    // dem Anlegen. Ausgeloest wird er ausschliesslich von Store-Aenderungen.
+    use_effect(move || {
+        let entry = USER_MANAGEMENT_STORE.read().person_detail.clone();
+        if !*create_pending.peek() {
+            return;
+        }
+        if let Some(entry) = entry {
+            create_pending.set(false);
+            nav.push(Route::PersonDetail {
+                person_id: entry.person_id.to_string(),
+            });
+        }
     });
 
     rsx! {
@@ -117,8 +155,7 @@ pub fn UserManagementPage() -> Element {
             PersonDirectoryTable {
                 entries: user_management.directory.clone(),
                 search,
-                on_open_add_user: move |_| show_add_user_dialog.set(true),
-                on_request_delete: move |username: ImStr| delete_user_confirm.set(Some(username)),
+                on_create_entry: move |_| show_create_dialog.set(true),
                 // D-32-07 / IMP-01: start impersonation from the directory row.
                 on_impersonate: move |username: ImStr| {
                     impersonate_service.send(ImpersonateAction::Start(username))
@@ -126,124 +163,56 @@ pub fn UserManagementPage() -> Element {
             }
         }
 
-        AddUserDialog {
-            open: *show_add_user_dialog.read(),
-            value: new_user_name.read().clone(),
-            on_value_change: move |v: ImStr| new_user_name.set(v),
-            on_cancel: move |_| show_add_user_dialog.set(false),
+        CreatePersonEntryDialog {
+            open: *show_create_dialog.read(),
+            display_name: create_display_name.read().clone(),
+            wants_login: *create_wants_login.read(),
+            wants_sales_person: *create_wants_sales_person.read(),
+            username: create_username.read().clone(),
+            on_display_name_change: move |value: ImStr| create_display_name.set(value),
+            on_wants_login_change: move |value: bool| create_wants_login.set(value),
+            on_wants_sales_person_change: move |value: bool| create_wants_sales_person.set(value),
+            on_username_change: move |value: ImStr| create_username.set(value),
+            on_cancel: move |_| show_create_dialog.set(false),
             on_create: move |_| {
-                let name = new_user_name.read().clone();
-                if !name.as_str().trim().is_empty() {
-                    user_management_service.send(UserManagementAction::AddUser(name));
-                    new_user_name.set("".into());
-                    show_add_user_dialog.set(false);
+                let display_name = create_display_name.read().clone();
+                let wants_user = *create_wants_login.read();
+                let wants_sales_person = *create_wants_sales_person.read();
+                let username = create_username.read().clone();
+                // Dieselbe Bedingung, unter der der Dialog seinen Absende-Knopf
+                // sperrt. Beides ist Bequemlichkeit — verbindlich prueft der
+                // Service (ASVS V5, Plan 63-05).
+                if !wants_user && !wants_sales_person {
+                    return;
                 }
+                if wants_user && username.as_str().trim().is_empty() {
+                    return;
+                }
+                // Den vorigen Detail-Eintrag raeumen, bevor das Flag steht:
+                // sonst koennte die Weiterleitung oben eine Zeile aus einem
+                // frueheren Besuch fuer das Ergebnis dieses Anlegevorgangs
+                // halten.
+                USER_MANAGEMENT_STORE.write().person_detail = None;
+                create_pending.set(true);
+                user_management_service
+                    .send(
+                        UserManagementAction::CreatePersonEntry(CreatePersonEntryTO {
+                            display_name: Arc::from(display_name.as_str().trim()),
+                            wants_user,
+                            wants_sales_person,
+                            username: if wants_user {
+                                Some(Arc::from(username.as_str().trim()))
+                            } else {
+                                None
+                            },
+                        }),
+                    );
+                show_create_dialog.set(false);
+                create_display_name.set("".into());
+                create_username.set("".into());
+                create_wants_login.set(false);
+                create_wants_sales_person.set(false);
             },
-        }
-
-        DeleteUserConfirmDialog {
-            target: delete_user_confirm.read().clone(),
-            on_cancel: move |_| delete_user_confirm.set(None),
-            on_confirm: move |username: ImStr| {
-                user_management_service.send(UserManagementAction::DeleteUser(username));
-                delete_user_confirm.set(None);
-            },
-        }
-    }
-}
-
-#[derive(Props, Clone, PartialEq)]
-struct AddUserDialogProps {
-    open: bool,
-    value: ImStr,
-    on_value_change: EventHandler<ImStr>,
-    on_cancel: EventHandler<()>,
-    on_create: EventHandler<()>,
-}
-
-#[component]
-fn AddUserDialog(props: AddUserDialogProps) -> Element {
-    if !props.open {
-        return rsx! {};
-    }
-    let i18n = I18N.read().clone();
-    let on_cancel = props.on_cancel;
-    let on_cancel_footer = props.on_cancel;
-    let on_create = props.on_create;
-    let on_value_change = props.on_value_change;
-
-    rsx! {
-        Dialog {
-            open: true,
-            on_close: move |_| on_cancel.call(()),
-            title: ImStr::from(i18n.t(Key::AddNewUser).as_ref()),
-            variant: DialogVariant::Auto,
-            width: 420,
-            footer: Some(rsx! {
-                Btn {
-                    variant: BtnVariant::Secondary,
-                    on_click: move |_| on_cancel_footer.call(()),
-                    "{i18n.t(Key::Cancel)}"
-                }
-                Btn {
-                    variant: BtnVariant::Primary,
-                    on_click: move |_| on_create.call(()),
-                    "{i18n.t(Key::CreateUser)}"
-                }
-            }),
-            Field {
-                label: ImStr::from(i18n.t(Key::AddNewUser).as_ref()),
-                TextInput {
-                    value: props.value.clone(),
-                    on_change: move |v: ImStr| on_value_change.call(v),
-                }
-            }
-        }
-    }
-}
-
-#[derive(Props, Clone, PartialEq)]
-struct DeleteUserConfirmDialogProps {
-    target: Option<ImStr>,
-    on_cancel: EventHandler<()>,
-    on_confirm: EventHandler<ImStr>,
-}
-
-#[component]
-fn DeleteUserConfirmDialog(props: DeleteUserConfirmDialogProps) -> Element {
-    let Some(username) = props.target.clone() else {
-        return rsx! {};
-    };
-    let i18n = I18N.read().clone();
-    let body_text = i18n
-        .t(Key::DeleteUserConfirmBody)
-        .as_ref()
-        .replace("{username}", username.as_str());
-    let on_cancel = props.on_cancel;
-    let on_cancel_footer = props.on_cancel;
-    let on_confirm = props.on_confirm;
-    let username_for_confirm = username.clone();
-
-    rsx! {
-        Dialog {
-            open: true,
-            on_close: move |_| on_cancel.call(()),
-            title: ImStr::from(i18n.t(Key::DeleteUserConfirmTitle).as_ref()),
-            variant: DialogVariant::Auto,
-            width: 420,
-            footer: Some(rsx! {
-                Btn {
-                    variant: BtnVariant::Secondary,
-                    on_click: move |_| on_cancel_footer.call(()),
-                    "{i18n.t(Key::Cancel)}"
-                }
-                Btn {
-                    variant: BtnVariant::Danger,
-                    on_click: move |_| on_confirm.call(username_for_confirm.clone()),
-                    "{i18n.t(Key::DeleteUser)}"
-                }
-            }),
-            p { class: "text-body text-ink", "{body_text}" }
         }
     }
 }
@@ -252,8 +221,7 @@ fn DeleteUserConfirmDialog(props: DeleteUserConfirmDialogProps) -> Element {
 struct PersonDirectoryTableProps {
     entries: Rc<[PersonEntryTO]>,
     search: Signal<String>,
-    on_open_add_user: EventHandler<()>,
-    on_request_delete: EventHandler<ImStr>,
+    on_create_entry: EventHandler<()>,
     on_impersonate: EventHandler<ImStr>,
 }
 
@@ -267,8 +235,7 @@ fn PersonDirectoryTable(props: PersonDirectoryTableProps) -> Element {
     let placeholder = i18n.t(Key::SearchPlaceholder);
     let term = search.read().clone();
 
-    let on_open_add_user = props.on_open_add_user;
-    let on_request_delete = props.on_request_delete;
+    let on_create_entry = props.on_create_entry;
     let on_impersonate = props.on_impersonate;
 
     // Success Criterion 2: ein einziger Suchbegriff, ODER-verknuepft ueber
@@ -297,26 +264,15 @@ fn PersonDirectoryTable(props: PersonDirectoryTableProps) -> Element {
                 value: "{search.read()}",
                 oninput: move |evt| search.set(evt.value()),
             }
-            {
-                // 62-UI-SPEC Open Question 1: bewusst Sekundaer — auf der Seite
-                // steht genau ein Akzent-Button ("Neuen Benutzer anlegen").
-                let secondary_cls = btn_build_class(BtnVariant::Secondary, false);
-                let href = format!(
-                    "{}",
-                    Route::SalesPersonDetails { sales_person_id: String::new() }
-                );
-                rsx! {
-                    a {
-                        href: "{href}",
-                        class: "{secondary_cls} inline-flex items-center whitespace-nowrap",
-                        "{i18n.t(Key::CreateNewSalesPerson)}"
-                    }
-                }
-            }
+            // D-63-03: genau EIN Anlege-Einstieg. Bis Phase 62 standen hier
+            // zwei Knoepfe nebeneinander — einer je Auspraegung —, und nichts
+            // erklaerte den Unterschied (UAT-Befund: „Das checkt niemand").
+            // Der Dialog dahinter erfasst die Auspraegung ueber zwei
+            // Umschalter, statt sie ueber die Wahl des Knopfes zu erzwingen.
             Btn {
                 variant: BtnVariant::Primary,
-                on_click: move |_| on_open_add_user.call(()),
-                "{i18n.t(Key::AddNewUser)}"
+                on_click: move |_| on_create_entry.call(()),
+                "{i18n.t(Key::CreatePersonEntry)}"
             }
         }
 
@@ -355,25 +311,21 @@ fn PersonDirectoryTable(props: PersonDirectoryTableProps) -> Element {
                         let title = entry.display_name.clone();
                         let login: Option<ImStr> = entry.username.as_deref().map(ImStr::from);
                         let login_for_impersonate = login.clone();
-                        let login_for_delete = login.clone();
                         let roles = entry.roles.clone();
-                        // D-62-07: Verkaeufer-Seite vorhanden -> Verkaeufer-
-                        // Detailroute, sonst Benutzer-Detailroute. Diese Phase
-                        // legt keine neue Detail-Route an.
-                        let edit_href = if let Some(sales_person_id) = entry.sales_person_id {
-                            format!(
-                                "{}",
-                                Route::SalesPersonDetails {
-                                    sales_person_id: sales_person_id.to_string(),
-                                }
-                            )
-                        } else {
-                            let user_id = match &login {
-                                Some(value) => value.to_string(),
-                                None => String::new(),
-                            };
-                            format!("{}", Route::UserDetails { user_id })
-                        };
+                        // Success Criterion 1 / D-63-04: EIN Ziel fuer alle
+                        // drei Auspraegungen. Phase 62 musste hier noch
+                        // verzweigen, weil es zwei halbe Detailseiten gab
+                        // (D-62-07) — die Zeile musste also wissen, welche
+                        // Haelfte der Person die richtige Seite ist. Jetzt
+                        // entscheidet erst die Zielseite anhand des
+                        // Backend-`kind`, welche Abschnitte sie zeigt; die
+                        // Liste kennt nur noch die Identitaet des Eintrags.
+                        let edit_href = format!(
+                            "{}",
+                            Route::PersonDetail {
+                                person_id: entry.person_id.to_string(),
+                            }
+                        );
                         let secondary_cls = btn_build_class(BtnVariant::Secondary, false);
                         rsx! {
                             tr { class: "{row_class}",
@@ -423,10 +375,24 @@ fn PersonDirectoryTable(props: PersonDirectoryTableProps) -> Element {
                                         }
                                     }
                                 }
+                                // Aktionsspalte: Impersonation und Bearbeiten.
+                                // KEIN Loeschen. Seit Phase 63 lebt das
+                                // Loeschen ausschliesslich auf der
+                                // Detailseite, weil nur dort die
+                                // ausprägungs-bewussten Bestaetigungstexte aus
+                                // PADM-07/D-63-08 stehen — Login hart, Person
+                                // weich, je mit dem Zusatz „letzte
+                                // Auspraegung". Der frueher hier stehende
+                                // Zeilen-Knopf trug einen generischen Satz
+                                // („Soll Benutzer X wirklich geloescht
+                                // werden?"), der diese Zusage nicht halten
+                                // kann. Ein zweiter, schwaecherer Loeschweg
+                                // waere genau die Doppeldeutigkeit, die diese
+                                // Phase abbaut (63-UI-SPEC Open Question 1).
                                 td { class: "py-2 px-3 w-[1%]",
                                     div { class: "flex gap-2 whitespace-nowrap",
-                                        // D-62-06: Impersonation und Loeschen
-                                        // haengen an der Benutzer-Auspraegung.
+                                        // D-62-06: Impersonation haengt an der
+                                        // Benutzer-Auspraegung.
                                         if let Some(value) = login_for_impersonate.clone() {
                                             Btn {
                                                 variant: BtnVariant::Secondary,
@@ -438,13 +404,6 @@ fn PersonDirectoryTable(props: PersonDirectoryTableProps) -> Element {
                                             href: "{edit_href}",
                                             class: "{secondary_cls} inline-flex items-center",
                                             "{i18n.t(Key::Edit)}"
-                                        }
-                                        if let Some(value) = login_for_delete.clone() {
-                                            Btn {
-                                                variant: BtnVariant::Danger,
-                                                on_click: move |_| on_request_delete.call(value.clone()),
-                                                "🗑"
-                                            }
                                         }
                                     }
                                 }
@@ -506,8 +465,7 @@ mod tests {
                 PersonDirectoryTable {
                     entries: props.entries.clone(),
                     search,
-                    on_open_add_user: |_| {},
-                    on_request_delete: |_: ImStr| {},
+                    on_create_entry: |_| {},
                     on_impersonate: |_: ImStr| {},
                 }
             }
@@ -671,7 +629,12 @@ mod tests {
         assert!(html.contains("font-mono"), "username cell missing: {html}");
     }
 
-    /// D-62-06: Impersonation und Loeschen haengen an der Benutzer-Auspraegung.
+    /// D-62-06: Impersonation haengt an der Benutzer-Auspraegung.
+    ///
+    /// Phase 63 hat den zweiten Teil dieser Zusicherung gedreht: der
+    /// Zeilen-Loeschknopf existiert nicht mehr — fuer **keine** Auspraegung.
+    /// Geloescht wird nur noch auf der Detailseite, wo die
+    /// ausprägungs-bewussten Bestaetigungstexte stehen (PADM-07, D-63-08).
     #[test]
     fn directory_actions_only_for_user_side() {
         let sp_only = vec![sample_entry(
@@ -685,10 +648,6 @@ mod tests {
             !html.contains("Act as"),
             "sales-person-only row must not offer impersonation: {html}"
         );
-        assert!(
-            !html.contains("🗑"),
-            "sales-person-only row must not offer delete: {html}"
-        );
 
         for entry in [
             sample_entry(PersonKindTO::Linked, "Lena", Some("lena"), true),
@@ -699,7 +658,88 @@ mod tests {
                 html.contains("Act as"),
                 "user-side row must offer impersonation: {html}"
             );
-            assert!(html.contains("🗑"), "user-side row must offer delete: {html}");
+        }
+    }
+
+    /// D-63-04 / SC-5: kein Loeschweg in der Liste — fuer keine der drei
+    /// Auspraegungen. Geprueft werden beide Spuren, die der entfernte Knopf
+    /// hinterlassen haette: sein Piktogramm und die Danger-Tokens des
+    /// `Btn`-Atoms. Der Impersonations-Knopf daneben ist sekundaer, faerbt
+    /// also nicht mit.
+    #[test]
+    fn directory_row_has_no_delete_path() {
+        for entry in [
+            sample_entry(PersonKindTO::Linked, "Lena", Some("lena"), true),
+            sample_entry(PersonKindTO::UserOnly, "Zoe", Some("zoe"), false),
+            sample_entry(PersonKindTO::SalesPersonOnly, "Tom", None, true),
+        ] {
+            let html = render_directory(vec![entry], "");
+            assert!(
+                !html.contains("🗑"),
+                "row still offers a delete button: {html}"
+            );
+            assert!(
+                !html.contains("text-bad") && !html.contains("border-bad"),
+                "row still renders danger tokens — a delete path returned: {html}"
+            );
+        }
+    }
+
+    /// D-63-03: **genau ein** Anlege-Einstieg in der Werkzeugleiste. Der
+    /// UAT-Befund aus Phase 62 im Wortlaut des Nutzers: „Es gibt jetzt
+    /// trotzdem neuen benutzer und neuen verkaeufer separat. Das checkt
+    /// niemand." Gezaehlt wird die Beschriftung im gerenderten Markup — genau
+    /// einmal — und die beiden abgeloesten Beschriftungen duerfen gar nicht
+    /// mehr vorkommen.
+    #[test]
+    fn directory_toolbar_has_exactly_one_create_entry_point() {
+        let html = render_directory(
+            vec![sample_entry(
+                PersonKindTO::Linked,
+                "Lena",
+                Some("lena"),
+                true,
+            )],
+            "",
+        );
+        assert_eq!(
+            html.matches("Add entry").count(),
+            1,
+            "die Werkzeugleiste muss genau einen Anlege-Einstieg rendern: {html}"
+        );
+        for legacy in ["Add New User", "Create New Sales Person"] {
+            assert!(
+                !html.contains(legacy),
+                "abgeloester Anlege-Einstieg `{legacy}` ist zurueck: {html}"
+            );
+        }
+    }
+
+    /// Success Criterion 1: der Bearbeiten-Link zeigt fuer alle drei
+    /// Auspraegungen auf dieselbe Route — ein Pfad, ein Praefix, die
+    /// `person_id` als einziger veraenderlicher Teil. Bis Phase 62 verzweigte
+    /// die Zeile hier noch zwischen zwei Detailseiten (D-62-07).
+    #[test]
+    fn directory_edit_link_targets_one_route_for_all_kinds() {
+        for kind in [
+            PersonKindTO::Linked,
+            PersonKindTO::UserOnly,
+            PersonKindTO::SalesPersonOnly,
+        ] {
+            let entry = sample_entry(kind, "Lena", Some("lena"), kind != PersonKindTO::UserOnly);
+            let expected = format!(
+                "href=\"{}\"",
+                Route::PersonDetail {
+                    person_id: entry.person_id.to_string(),
+                }
+            );
+            let html = render_directory(vec![entry], "");
+            assert_eq!(
+                html.matches(&expected).count(),
+                1,
+                "{kind:?}: der Bearbeiten-Link muss genau einmal auf die eine \
+                 Detailroute zeigen ({expected}): {html}"
+            );
         }
     }
 
@@ -770,98 +810,11 @@ mod tests {
         );
     }
 
-    fn render_add_user_dialog(open: bool) -> String {
-        #[derive(Props, Clone, PartialEq)]
-        struct WrapperProps {
-            open: bool,
-        }
-        #[component]
-        fn AddWrapper(props: WrapperProps) -> Element {
-            rsx! {
-                AddUserDialog {
-                    open: props.open,
-                    value: ImStr::from(""),
-                    on_value_change: |_| {},
-                    on_cancel: |_| {},
-                    on_create: |_| {},
-                }
-            }
-        }
-        let mut vdom = VirtualDom::new_with_props(AddWrapper, WrapperProps { open });
-        vdom.rebuild_in_place();
-        dioxus_ssr::render(&vdom)
-    }
-
-    #[test]
-    fn add_user_dialog_closed_renders_nothing() {
-        let html = render_add_user_dialog(false);
-        // No Dialog content (no `role="dialog"`).
-        assert!(
-            !html.contains("role=\"dialog\""),
-            "expected closed dialog: {html}"
-        );
-    }
-
-    #[test]
-    fn add_user_dialog_open_renders_field_and_buttons() {
-        let html = render_add_user_dialog(true);
-        // Dialog renders.
-        assert!(
-            html.contains("role=\"dialog\""),
-            "missing dialog role: {html}"
-        );
-        // Field label: the i18n key "Add New User" is used both as title and label.
-        // TextInput class.
-        assert!(html.contains("form-input"), "missing form-input class");
-        // Two footer buttons (Cancel + Create).
-        // Cancel uses Secondary tokens; Create uses Primary.
-        assert!(html.contains("bg-accent"), "missing primary tokens: {html}");
-    }
-
-    fn render_delete_dialog(target: Option<&str>) -> String {
-        #[derive(Props, Clone, PartialEq)]
-        struct WrapperProps {
-            target: Option<ImStr>,
-        }
-        #[component]
-        fn DeleteWrapper(props: WrapperProps) -> Element {
-            rsx! {
-                DeleteUserConfirmDialog {
-                    target: props.target.clone(),
-                    on_cancel: |_| {},
-                    on_confirm: |_: ImStr| {},
-                }
-            }
-        }
-        let mut vdom = VirtualDom::new_with_props(
-            DeleteWrapper,
-            WrapperProps {
-                target: target.map(ImStr::from),
-            },
-        );
-        vdom.rebuild_in_place();
-        dioxus_ssr::render(&vdom)
-    }
-
-    #[test]
-    fn delete_user_confirm_dialog_closed_renders_nothing() {
-        let html = render_delete_dialog(None);
-        assert!(
-            !html.contains("role=\"dialog\""),
-            "expected closed dialog: {html}"
-        );
-    }
-
-    #[test]
-    fn delete_user_confirm_dialog_open_interpolates_username_and_has_danger_button() {
-        let html = render_delete_dialog(Some("alex"));
-        assert!(html.contains("role=\"dialog\""));
-        // Username appears in the body text via interpolation.
-        assert!(html.contains("alex"), "username not interpolated: {html}");
-        // Danger button uses bad tokens.
-        assert!(html.contains("text-bad"), "missing danger tokens: {html}");
-        assert!(html.contains("border-bad"), "missing danger border: {html}");
-    }
+    // Die frueheren Dialog-Rendertests dieser Datei sind mit ihren Dialogen
+    // entfallen: der Anlege-Dialog lebt seit Phase 63 in
+    // `page/person_detail.rs` und wird dort geprueft (Plan 63-08), der
+    // Zeilen-Loesch-Dialog existiert gar nicht mehr. Was er absicherte, deckt
+    // jetzt `directory_row_has_no_delete_path` — in umgekehrter Richtung.
 
     #[test]
     fn no_legacy_classes_in_source() {

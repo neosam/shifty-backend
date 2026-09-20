@@ -1133,25 +1133,11 @@ pub async fn remove_role_from_user(
     Ok(())
 }
 
-pub async fn add_user(config: Config, user: UserTO) -> Result<(), reqwest::Error> {
-    info!("Adding user");
-    let url = format!("{}/permission/user", config.backend);
-    let client = reqwest::Client::new();
-    let response = client.post(url).json(&user).send().await?;
-    response.error_for_status_ref()?;
-    info!("Added");
-    Ok(())
-}
-
-pub async fn delete_user(config: Config, user_id: ImStr) -> Result<(), reqwest::Error> {
-    info!("Deleting user {user_id}");
-    let url = format!("{}/permission/user/", config.backend);
-    let client = reqwest::Client::new();
-    let response = client.delete(url).json(&user_id.to_string()).send().await?;
-    response.error_for_status_ref()?;
-    info!("Deleted user");
-    Ok(())
-}
+// `add_user` und `delete_user` sind mit Phase 63 entfallen: der Client legt
+// Benutzerkonten nur noch ueber den Anlege-Endpoint der Personen an (PADM-02,
+// eine Transaktion ueber beide Auspraegungen) und entfernt sie nur noch ueber
+// das Entfernen der Benutzer-Auspraegung (PADM-07). Die Backend-Endpoints
+// bleiben unveraendert bestehen — sie tragen jetzt beide neuen Pfade.
 
 pub async fn get_booking_conflicts_for_week(
     config: Config,
@@ -1523,21 +1509,10 @@ pub async fn set_week_status(
     Ok(())
 }
 
-pub async fn get_sales_person_by_user(
-    config: Config,
-    username: ImStr,
-) -> Result<Option<SalesPersonTO>, reqwest::Error> {
-    info!("Fetching sales person for user {username}");
-    let url = format!("{}/sales-person/by-user/{}", config.backend, username);
-    let response = reqwest::get(url).await?;
-    if response.status() == 404 {
-        return Ok(None);
-    }
-    response.error_for_status_ref()?;
-    let res = response.json().await?;
-    info!("Fetched sales person for user");
-    Ok(Some(res))
-}
+// `get_sales_person_by_user` ist mit Phase 63 entfallen. Sein einziger
+// Aufrufer war das clientseitige „erst entknuepfen, dann loeschen" des alten
+// Benutzer-Loeschpfades; dieselbe Aufraeumarbeit macht jetzt der Service in
+// einer Transaktion (D-63-01). Der Backend-Endpoint bleibt bestehen.
 
 pub async fn delete_billing_period(config: Config, id: Uuid) -> Result<(), reqwest::Error> {
     info!("Deleting billing period {id}");
