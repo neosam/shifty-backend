@@ -33,6 +33,64 @@ shifty-dioxus/src/
 └── tests/
 ```
 
+## Routen & Seiten
+
+Die Routen-Definitionen liegen in `shifty-dioxus/src/router.rs`; zu jeder
+Route gehört genau eine Datei unter `page/`.
+
+| Route | Seite | Anmerkung |
+| --- | --- | --- |
+| `/` | `home.rs` | |
+| `/shiftplan/`, `/shiftplan/:year/:week` | `shiftplan.rs` | |
+| `/weekly_overview/` | `weekly_overview.rs` | |
+| `/employees/`, `/employees/:employee_id/` | `employees.rs`, `employee_details.rs` | Master/Detail |
+| `/my_employee_details/` | `my_employee_details.rs` | Self-Service |
+| `/my-shifts/` | `my_shifts.rs` | |
+| `/absences/`, `/absences/:employee_id/` | `absences.rs` | |
+| `/billing-periods/`, `/billing_period/:billing_period_id/` | `billing_periods.rs`, `billing_period_details.rs` | |
+| `/user_management/` | `user_management.rs` | seit v2.7 Phase 62 das eine Personen-Verzeichnis |
+| `/person/:person_id/` | `person_detail.rs` | **die** Personen-Detailroute seit v2.7 Phase 63 |
+| `/custom_extra_hours/` | `custom_extra_hours_management.rs` | |
+| `/text_templates/` | `text_template_management.rs` | |
+| `/settings/` | `settings.rs` | |
+
+**Eine Detailroute für alle drei Ausprägungen (v2.7 Phase 63, D-63-04).** Die
+beiden früheren, ausprägungs-spezifischen Detailrouten und ihre Seiten sind in
+derselben Phase **ersatzlos** entfallen — eine verknüpfte Person, ein reines
+Benutzerkonto und ein reiner Verkäufer landen alle auf
+`/person/:person_id/`, das die jeweils zutreffenden Abschnitte rendert. Eine
+Weiterleitung von den alten Routen gibt es bewusst **nicht**: sie würde zwei
+URL-Formen am Leben halten, die keine Bedeutung mehr tragen, und die einzigen
+Verweise darauf lagen in diesem Frontend.
+
+**Die `person_id` in der URL kann wechseln**, wenn einem reinen
+Benutzer-Eintrag eine Sales Person zugeschaltet wird [D-61-03]. Die Seite
+navigiert deshalb auf die `person_id`, die das Backend *zurückgegeben* hat,
+nie auf die gesendete. Siehe
+[F01 §4.7](../features/F01-employee-management_de.md).
+
+## Entscheidungslogik gehört in reine Funktionen
+
+**[Konvention, etabliert in v2.7 Phase 63]** Was eine Seite *entscheidet* —
+welche Abschnitte erscheinen, welcher Bestätigungstext gilt, ob eine Aktion
+die letzte ihrer Art ist — gehört in reine Funktionen mit direkten
+Unit-Tests, nicht in den `rsx!`-Rumpf. `page/person_detail.rs` führt drei
+davon (`visible_sections`, `is_last_facet`, `delete_confirmation_copy`); der
+SSR-Rendertest prüft danach ein *zweites* Mal, dass das Ergebnis auch im
+Markup ankommt.
+
+Der Grund ist die Umgebung, nicht der Geschmack: DOM-Rendering ist in diesem
+Frontend-Stack headless nur eingeschränkt prüfbar (ein Beispiel dafür steht
+unten beim Loader-Pattern). Eine reine Funktion ist vollständig prüfbar, ein
+`rsx!`-Zweig nicht. Alles, was die reinen Funktionen nicht belegen können,
+wird deshalb von vornherein als **manueller Durchgang** eingeplant statt am
+Ende als Lücke entdeckt.
+
+Ein reiner Helfer bleibt frei von Autorisierungs-Entscheidungen — er
+entscheidet über *Anzeige*, nie über *Berechtigung*. Das Gate liegt im
+Backend-Service; eine Frontend-Funktion, die auf Privilegien verzweigt, wäre
+eine zweite Wahrheit, und die schwächere davon wäre die Lücke.
+
 ## Fat Backend, Thin Client
 
 **Kernprinzip:** Sämtliche Business-Logik lebt im Backend. Das Frontend:
@@ -54,6 +112,45 @@ DTOs werden aus dem Crate `rest-types` konsumiert — dieselbe
 Definitions-Quelle wie das Backend. Feld-Umbenennungen im Backend
 zwingen den Frontend-Build zum Fehler (was gewollt ist).
 
+### Aufrufe der Personenverwaltung (v2.7, Phase 63)
+
+`api.rs` hat acht Aufrufe für die Personen-Detailansicht bekommen, jeder mit
+einem gleichnamigen Wrapper in `loader.rs`:
+
+| `api.rs` | Endpoint |
+| --- | --- |
+| `get_person_detail` | `GET /person/{id}` |
+| `get_person_by_sales_person` | `GET /person/by-sales-person/{id}` |
+| `post_person_entry` | `POST /person` |
+| `post_person_facet` | `POST /person/{id}/facet` |
+| `delete_person_facet` | `DELETE /person/{id}/facet/{facet}` |
+| `get_unlinked_sales_persons` | `GET /person/candidates/sales-persons` |
+| `get_unlinked_users` | `GET /person/candidates/users` |
+| `delete_sales_person` | `DELETE /sales-person/{id}` |
+
+Der letzte ist **kein** neuer Endpoint. `DELETE /sales-person/{id}` existiert
+im Backend seit Langem und ist HR-gegated; bis Phase 63 hatte das Frontend
+nur keinen Aufrufer dafür [D-63-06]. Das Löschen passiert jetzt dort, wo der
+Benutzer den Verkäufer sieht, statt als Nebenwirkung an anderer Stelle.
+
+**Drei unterscheidbare Antworten — weil die Seite drei verschiedene Dinge
+rendert.** Die Übersetzung liegt in `api.rs`, wo die Response noch offen und
+ein 422-Body lesbar ist:
+
+- **404 ist ein *Zustand*, kein Fehler.** `load_person_detail` bildet ihn auf
+  `Ok(None)` ab; die Seite zeigt ihren Nicht-gefunden-Zustand, statt das
+  zentrale Fehler-Overlay auszulösen. Der Store hält „nicht gefunden" und
+  „noch nicht geladen" deshalb in getrennten Feldern.
+- **409 ist das besetzte Ziel** eines Rennens — die Kandidatenliste hat es
+  ausgeblendet, der Server lehnt es trotzdem ab [D-61-04]. Die Seite bietet
+  ein Neuladen an statt eines Fehlers.
+- **422 ist ein Validierungsfehler**, dessen Body das Feld benennt.
+
+Eine Ausnahme aus Notwendigkeit: `save_user_for_sales_person` bekommt seine
+Übersetzung im `loader.rs` (`classify_link_error`), weil das darunterliegende
+`api::post_user_to_sales_person` ein unveränderter Phase-61-Pfad mit
+`reqwest::Error`-Signatur und mehreren Bestandsaufrufern ist.
+
 ## Dev-Proxy — `Dioxus.toml`
 
 Im Dev-Modus läuft `dx serve` auf Port 8080, während das Backend auf
@@ -71,7 +168,15 @@ anlegst, den das Frontend ansprechen soll, MUSST du auch einen
 einen 404 vom `dx serve`, obwohl das Backend läuft. Prod funktioniert
 trotzdem (statisches Bundle geht durch den Reverse-Proxy).
 
-Betroffene Phases: 28 und 49 haben's beide vergessen.
+Betroffene Phases: 28 und 49 haben's beide vergessen; bis v2.7 steht der
+Zähler der ausgelieferten Dev-Server-404s durch einen fehlenden Eintrag bei
+drei.
+
+**Die Reihenfolge zählt, wenn ein Präfix ein anderes enthält.** Der Proxy
+matcht präfix-literal. `/person` (Phase 63) ist ein Präfix von
+`/person-directory` (Phase 62), der generische Eintrag muss deshalb **nach**
+dem spezifischeren stehen; davor würde er die Verzeichnis-Anfragen mit
+abfangen.
 
 ## dx-CLI-Version-Pin
 

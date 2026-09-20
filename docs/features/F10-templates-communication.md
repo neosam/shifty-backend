@@ -19,7 +19,7 @@
   InvitationResponse, InvitationStatus}`
 - Frontend: `shifty-dioxus/src/page/text_template_management.rs`,
   `shifty-dioxus/src/service/text_template.rs`,
-  `shifty-dioxus/src/page/user_details.rs` (invitation panel)
+  `shifty-dioxus/src/page/person_detail.rs` (invitation panel)
 
 ---
 
@@ -372,12 +372,15 @@ serialized as `"sessionrevoked"`
 
 ### 6.2 User Invitation
 
-- **Pages:** `shifty-dioxus/src/page/user_details.rs` — panel with the
+- **Pages:** `shifty-dioxus/src/page/person_detail.rs` — panel with the
   list of invitations per user, "Copy link" button, revoke- and
-  revoke-Session buttons depending on status.
+  revoke-Session buttons depending on status. Until v2.7 Phase 63 this panel
+  lived in `page/user_details.rs`; that page was removed together with the
+  facet-specific detail routes [D-63-04] and the panel moved over unchanged.
 - **Services:** `UserManagementAction::RevokeInvitation`,
   `UserManagementAction::RevokeInvitationSession` (see
-  `page/user_details.rs:258-274`).
+  `page/person_detail.rs`, `DetailIntent::RevokeInvitation` /
+  `RevokeInvitationSession`).
 - **DTO reuse:** frontend uses `rest-types::InvitationResponse` and
   `InvitationStatus` directly (v1.2 Phase 6 migration in `rest-types`,
   `rest-types/src/lib.rs:2282-2334`).
@@ -416,7 +419,7 @@ For the central edge case reference see
   `EntityNotFoundGeneric("No session associated with this
   invitation")` (`service_impl/src/user_invitation.rs:275-279`) → REST
   404. The UI only shows the button on `Redeemed`
-  (`page/user_details.rs:267-274`).
+  (`page/person_detail.rs`, the `InvitationStatus::Redeemed` arm).
 - **Revoking a redeemed invitation via `DELETE
   /user-invitation/invitation/{id}`:** deletes the row **including**
   redeem history (`delete_by_id`); the resulting Session stays active,
