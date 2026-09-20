@@ -34,11 +34,22 @@ use crate::integration_test::TestSetup;
 
 /// Creates a user WITHOUT any role (non-admin).
 async fn create_plain_user(test_setup: &TestSetup, name: &str) {
+    use dao::TransactionDao as _;
     let permission_dao = PermissionDaoImpl::new(test_setup.pool.clone());
+    // Phase 63 Plan 01: `create_user` nimmt die Transaktion vom Aufrufer.
+    let transaction_dao = dao_impl_sqlite::TransactionDaoImpl::new(test_setup.pool.clone());
+    let tx = transaction_dao
+        .use_transaction(None)
+        .await
+        .expect("Expected a transaction");
     permission_dao
-        .create_user(&dao::UserEntity { name: name.into() }, "test")
+        .create_user(&dao::UserEntity { name: name.into() }, None, "test", tx.clone())
         .await
         .unwrap_or_else(|_| panic!("Expected to create user '{}'", name));
+    transaction_dao
+        .commit(tx)
+        .await
+        .expect("Expected to commit the user creation");
 }
 
 /// Sends a single request to the given router with a session cookie and

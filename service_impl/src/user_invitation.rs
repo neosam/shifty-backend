@@ -15,7 +15,7 @@ use uuid::Uuid;
 gen_service_impl! {
     struct UserInvitationServiceImpl: service::user_invitation::UserInvitationService = UserInvitationServiceDeps {
         UserInvitationDao: dao::user_invitation::UserInvitationDao = user_invitation_dao,
-        PermissionDao: dao::PermissionDao = permission_dao,
+        PermissionDao: dao::PermissionDao<Transaction = Self::Transaction> = permission_dao,
         PermissionService: service::PermissionService<Context = Self::Context> = permission_service,
         SessionService: service::session::SessionService<Context = Self::Context> = session_service,
         UuidService: service::uuid_service::UuidService = uuid_service,
@@ -127,8 +127,17 @@ impl<Deps: UserInvitationServiceDeps> UserInvitationService for UserInvitationSe
             let user_entity = UserEntity {
                 name: invitation.username.clone(),
             };
+            // Phase 63 Plan 01: Die Anlage laeuft auf der bereits offenen `tx`
+            // dieser Einloesung — sie wird weiter unten committet. Vorher
+            // committete `create_user` intern und die Einloesung war damit
+            // nicht mehr atomar.
             self.permission_dao
-                .create_user(&user_entity, USER_INVITATION_SERVICE_PROCESS)
+                .create_user(
+                    &user_entity,
+                    None,
+                    USER_INVITATION_SERVICE_PROCESS,
+                    tx.clone(),
+                )
                 .await?;
         }
 

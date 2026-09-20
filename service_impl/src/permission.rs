@@ -3,14 +3,22 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use dao::PermissionDao;
+use dao::TransactionDao;
 use service::permission::Authentication;
 use service::user_service::UserService;
 use service::{Privilege, ServiceError};
 
+// Phase 63 Plan 01: `PermissionDao` traegt seit diesem Plan einen
+// `Transaction`-Assoziationstyp fuer `create_user`/`delete_user`; der Service
+// braucht deshalb einen `TransactionDao`, um sich selbst eine Transaktion zu
+// holen. Nach aussen bleibt `service::PermissionService` unveraendert —
+// bewusst KEIN `type Transaction` und KEIN `tx`-Parameter auf dem
+// Service-Trait, das fuehren rund zwanzig Services als Dependency.
 gen_service_impl! {
     struct PermissionServiceImpl: service::PermissionService = PermissionServiceDeps {
-        PermissionDao: dao::PermissionDao = permission_dao,
-        UserService: service::user_service::UserService<Context = Self::Context> = user_service
+        PermissionDao: dao::PermissionDao<Transaction = Self::Transaction> = permission_dao,
+        UserService: service::user_service::UserService<Context = Self::Context> = user_service,
+        TransactionDao: dao::TransactionDao<Transaction = Self::Transaction> = transaction_dao
     }
 }
 
@@ -123,13 +131,21 @@ impl<Deps: PermissionServiceDeps> service::PermissionService for PermissionServi
         user: &str,
         context: Authentication<Self::Context>,
     ) -> Result<(), service::ServiceError> {
+        // T-63-01-B: Das Admin-Gate bleibt die ERSTE Anweisung — vor
+        // `use_transaction` und vor jedem Datenbankzugriff.
         self.check_permission("admin", context).await?;
+        let tx = self.transaction_dao.use_transaction(None).await?;
         self.permission_dao
             .create_user(
                 &dao::UserEntity { name: user.into() },
+                // Kein vorgegebener `person_id`: dieser Pfad legt weiterhin
+                // eine eigene Person-Identitaet an (D-61-01).
+                None,
                 PERMISSION_SERVICE_PROCESS,
+                tx.clone(),
             )
             .await?;
+        self.transaction_dao.commit(tx).await?;
         Ok(())
     }
     async fn delete_user(
@@ -137,8 +153,11 @@ impl<Deps: PermissionServiceDeps> service::PermissionService for PermissionServi
         user: &str,
         context: Authentication<Self::Context>,
     ) -> Result<(), service::ServiceError> {
+        // T-63-01-B: Gate zuerst, siehe `create_user`.
         self.check_permission("admin", context).await?;
-        self.permission_dao.delete_user(user).await?;
+        let tx = self.transaction_dao.use_transaction(None).await?;
+        self.permission_dao.delete_user(user, tx.clone()).await?;
+        self.transaction_dao.commit(tx).await?;
         Ok(())
     }
 

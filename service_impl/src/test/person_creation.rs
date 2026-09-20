@@ -275,9 +275,11 @@ async fn create_user_vergibt_person_id() {
     let pool = setup_pool().await;
     let dao = PermissionDaoImpl::new(pool.clone());
 
-    dao.create_user(&user_entity("alice"), "test-process")
+    let tx = tx_of(&pool).await;
+    dao.create_user(&user_entity("alice"), None, "test-process", tx.clone())
         .await
         .expect("create user");
+    commit(&pool, tx).await;
 
     let person_id = person_id_of_user(pool.as_ref(), "alice")
         .await
@@ -297,12 +299,14 @@ async fn create_user_vergibt_je_benutzer_eine_eigene_person() {
     let pool = setup_pool().await;
     let dao = PermissionDaoImpl::new(pool.clone());
 
-    dao.create_user(&user_entity("alice"), "test-process")
+    let tx = tx_of(&pool).await;
+    dao.create_user(&user_entity("alice"), None, "test-process", tx.clone())
         .await
         .expect("create alice");
-    dao.create_user(&user_entity("bob"), "test-process")
+    dao.create_user(&user_entity("bob"), None, "test-process", tx.clone())
         .await
         .expect("create bob — der UNIQUE-Index darf nicht greifen (T-61-06)");
+    commit(&pool, tx).await;
 
     let alice = person_id_of_user(pool.as_ref(), "alice")
         .await
@@ -330,9 +334,11 @@ async fn create_user_legt_keine_sales_person_an() {
     let dao = PermissionDaoImpl::new(pool.clone());
     let before = count(pool.as_ref(), "SELECT COUNT(*) FROM sales_person").await;
 
-    dao.create_user(&user_entity("alice"), "test-process")
+    let tx = tx_of(&pool).await;
+    dao.create_user(&user_entity("alice"), None, "test-process", tx.clone())
         .await
         .expect("create user");
+    commit(&pool, tx).await;
 
     assert_eq!(
         before,
@@ -348,18 +354,28 @@ async fn create_user_ist_atomar() {
     let pool = setup_pool().await;
     let dao = PermissionDaoImpl::new(pool.clone());
 
-    dao.create_user(&user_entity("alice"), "test-process")
+    let tx = tx_of(&pool).await;
+    dao.create_user(&user_entity("alice"), None, "test-process", tx.clone())
         .await
         .expect("create alice");
+    commit(&pool, tx).await;
 
     let persons_before = count(pool.as_ref(), "SELECT COUNT(*) FROM person").await;
     assert_eq!(1, persons_before);
 
-    let second = dao.create_user(&user_entity("alice"), "test-process").await;
+    // Phase 63 Plan 01: Die Atomaritaet liegt jetzt bei der **uebergebenen**
+    // Transaktion statt bei einer methodeninternen. Der Nachweis bleibt
+    // derselbe — er wird nur eine Ebene hoeher gefuehrt: der fehlgeschlagene
+    // Aufruf wird vom Aufrufer verworfen und darf nichts zuruecklassen.
+    let tx = tx_of(&pool).await;
+    let second = dao
+        .create_user(&user_entity("alice"), None, "test-process", tx.clone())
+        .await;
     assert!(
         second.is_err(),
         "ein zweiter Benutzer mit demselben Namen muss am Primaerschluessel scheitern"
     );
+    rollback(&pool, tx).await;
 
     assert_eq!(
         persons_before,
@@ -378,14 +394,13 @@ async fn create_user_ist_atomar() {
 #[tokio::test]
 async fn clear_all_laesst_keinen_benutzer_ohne_person_zurueck() {
     let pool = setup_pool().await;
-    PermissionDaoImpl::new(pool.clone())
-        .create_user(&user_entity("alice"), "test-process")
-        .await
-        .expect("create alice");
-
     // clear_all nimmt KEINE Transaktion und arbeitet direkt auf dem Pool — die
     // Fixture muss deshalb vorher committet sein, sonst sieht clear_all sie nicht.
     let tx = tx_of(&pool).await;
+    PermissionDaoImpl::new(pool.clone())
+        .create_user(&user_entity("alice"), None, "test-process", tx.clone())
+        .await
+        .expect("create alice");
     SalesPersonDaoImpl::new(pool.clone())
         .create(&sales_person_entity("S1"), "test-process", tx.clone())
         .await
@@ -422,14 +437,13 @@ async fn clear_all_laesst_keinen_benutzer_ohne_person_zurueck() {
 #[tokio::test]
 async fn clear_all_raeumt_traegerlose_personen_auf() {
     let pool = setup_pool().await;
-    PermissionDaoImpl::new(pool.clone())
-        .create_user(&user_entity("alice"), "test-process")
-        .await
-        .expect("create alice");
-
     // clear_all nimmt KEINE Transaktion und arbeitet direkt auf dem Pool — die
     // Fixture muss deshalb vorher committet sein, sonst sieht clear_all sie nicht.
     let tx = tx_of(&pool).await;
+    PermissionDaoImpl::new(pool.clone())
+        .create_user(&user_entity("alice"), None, "test-process", tx.clone())
+        .await
+        .expect("create alice");
     SalesPersonDaoImpl::new(pool.clone())
         .create(&sales_person_entity("S1"), "test-process", tx.clone())
         .await

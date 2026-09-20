@@ -137,16 +137,26 @@ async fn seed_directory_szenario(test_setup: &TestSetup) -> SeededPersons {
 /// Aufrufmuster wie `create_admin_user` in `shifty_bin/src/main.rs`, nur mit
 /// der anderen Rolle. Muss **nach** `TestSetup::new()` laufen.
 async fn seed_hr_only_user(test_setup: &TestSetup, username: &str) {
+    use dao::TransactionDao as _;
     let permission_dao = PermissionDaoImpl::new(test_setup.pool.clone());
+    // Phase 63 Plan 01: `create_user` nimmt die Transaktion vom Aufrufer.
+    let transaction_dao = dao_impl_sqlite::TransactionDaoImpl::new(test_setup.pool.clone());
+    let tx = transaction_dao
+        .use_transaction(None)
+        .await
+        .expect("transaction");
     permission_dao
         .create_user(
             &dao::UserEntity {
                 name: username.into(),
             },
+            None,
             "seed-62-05",
+            tx.clone(),
         )
         .await
         .expect("create hr user");
+    transaction_dao.commit(tx).await.expect("commit hr user");
     permission_dao.add_user_role(username, "hr", "seed-62-05").await.expect("bind hr role");
 }
 

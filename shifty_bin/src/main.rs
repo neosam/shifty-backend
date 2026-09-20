@@ -84,6 +84,9 @@ impl PermissionServiceDeps for PermissionServiceDependencies {
     type Transaction = Transaction;
     type PermissionDao = PermissionDao;
     type UserService = UserService;
+    // Phase 63 Plan 01: `create_user`/`delete_user` laufen jetzt auf einer
+    // geteilten Transaktion; der Service holt sie sich selbst.
+    type TransactionDao = TransactionDao;
 }
 type PermissionService = service_impl::PermissionServiceImpl<PermissionServiceDependencies>;
 
@@ -1095,6 +1098,7 @@ impl RestStateImpl {
         let permission_service = Arc::new(service_impl::PermissionServiceImpl {
             permission_dao: permission_dao.clone(),
             user_service: user_service.clone(),
+            transaction_dao: transaction_dao.clone(),
         });
         let clock_service = Arc::new(service_impl::clock::ClockServiceImpl);
         let uuid_service = Arc::new(service_impl::uuid_service::UuidServiceImpl);
@@ -1688,21 +1692,35 @@ impl RestStateImpl {
 
 async fn create_admin_user(pool: Arc<SqlitePool>, username: &str) {
     use dao::PermissionDao;
+    use dao::TransactionDao as _;
     // On development create the DEVUSER and give it admin permissions.
     let permission_dao = PermissionDaoImpl::new(pool.clone());
+    // Phase 63 Plan 01: `create_user` oeffnet keine eigene Transaktion mehr —
+    // der Bootstrap bringt seine eigene mit und committet sie selbst.
+    let transaction_dao = dao_impl_sqlite::TransactionDaoImpl::new(pool.clone());
 
     let users = permission_dao.all_users().await.expect("Expected users");
     let contains_admin_user = users.iter().any(|user| user.name.as_ref() == username);
     if !contains_admin_user {
+        let tx = transaction_dao
+            .use_transaction(None)
+            .await
+            .expect("Expected being able to open a transaction");
         permission_dao
             .create_user(
                 &dao::UserEntity {
                     name: username.into(),
                 },
+                None,
                 "dev-first-start",
+                tx.clone(),
             )
             .await
             .unwrap_or_else(|_| panic!("Expected being able to create the {}", username));
+        transaction_dao
+            .commit(tx)
+            .await
+            .unwrap_or_else(|_| panic!("Expected being able to commit the {}", username));
         permission_dao
             .add_user_role(username, "admin", "dev-first-start")
             .await

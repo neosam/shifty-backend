@@ -6,18 +6,21 @@ use service::PermissionService;
 pub struct PermissionServiceDependencies {
     pub permission_dao: dao::MockPermissionDao,
     pub user_service: service::user_service::MockUserService,
+    pub transaction_dao: dao::MockTransactionDao,
 }
 impl crate::permission::PermissionServiceDeps for PermissionServiceDependencies {
     type Context = ();
     type Transaction = dao::MockTransaction;
     type PermissionDao = dao::MockPermissionDao;
     type UserService = service::user_service::MockUserService;
+    type TransactionDao = dao::MockTransactionDao;
 }
 impl PermissionServiceDependencies {
     pub fn build_service(self) -> PermissionServiceImpl<PermissionServiceDependencies> {
         PermissionServiceImpl {
             permission_dao: self.permission_dao.into(),
             user_service: self.user_service.into(),
+            transaction_dao: self.transaction_dao.into(),
         }
     }
 }
@@ -36,9 +39,21 @@ fn generate_dependencies_mocks_permission(
     user_service
         .expect_current_user()
         .returning(|_| Ok("DEVUSER".into()));
+
+    // Phase 63 Plan 01: `create_user`/`delete_user` holen sich seit diesem Plan
+    // selbst eine Transaktion und committen sie. Der Mock erlaubt beides ohne
+    // Aufruf-Zwang — die uebrigen Permission-Methoden bleiben pool-basiert und
+    // fassen ihn nie an.
+    let mut transaction_dao = dao::MockTransactionDao::new();
+    transaction_dao
+        .expect_use_transaction()
+        .returning(|_| Ok(dao::MockTransaction));
+    transaction_dao.expect_commit().returning(|_| Ok(()));
+
     PermissionServiceDependencies {
         permission_dao,
         user_service,
+        transaction_dao,
     }
 }
 
@@ -97,10 +112,13 @@ async fn test_create_user() {
             eq(dao::UserEntity {
                 name: "testuser".into(),
             }),
+            // Dieser Pfad legt weiterhin eine eigene Person an (D-61-01).
+            eq(None),
             eq("permission-service"),
+            mockall::predicate::always(),
         )
         .times(1)
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _, _| Ok(()));
 
     let permission_service = dependencies.build_service();
     permission_service
@@ -121,9 +139,9 @@ async fn test_delete_user() {
     dependencies
         .permission_dao
         .expect_delete_user()
-        .with(eq("testuser"))
+        .with(eq("testuser"), mockall::predicate::always())
         .times(1)
-        .returning(|_| Ok(()));
+        .returning(|_, _| Ok(()));
 
     let permission_service = dependencies.build_service();
 
