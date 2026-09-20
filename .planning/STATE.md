@@ -5,13 +5,13 @@ milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 63
 current_phase_name: personen-detailansicht-auspr-gungs-aktionen
 status: executing
-stopped_at: Completed 63-07-PLAN.md
-last_updated: "2026-09-20T21:39:24.398Z"
+stopped_at: Completed 63-08-PLAN.md
+last_updated: "2026-09-20T22:07:57.975Z"
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 31
-  completed_plans: 28
+  completed_plans: 29
   percent: 60
 ---
 
@@ -32,7 +32,7 @@ progress:
 ## Current Position
 
 Phase: 63 (personen-detailansicht-auspr-gungs-aktionen) — EXECUTING
-Plan: 8 of 11 (63-01, 63-02, 63-03, 63-04, 63-05, 63-06, 63-07 abgeschlossen)
+Plan: 9 of 11 (63-01, 63-02, 63-03, 63-04, 63-05, 63-06, 63-07, 63-08 abgeschlossen)
 Status: Welle 1 und der erste Plan von Welle 2 abgeschlossen. 63-01 hat `PermissionDao::create_user`/`delete_user` auf die
 geteilte Transaktion gehoben — SC-2-Atomaritaet und der D-63-01-Orphan-Cleanup sind
 damit ueberhaupt erst konstruierbar. `service::PermissionService` bleibt eingefroren.
@@ -61,6 +61,21 @@ Verkaeufer, plus D-63-01-Orphan-Cleanup in derselben Transaktion) und
 `get_detail_by_sales_person` (SC-4). Alle drei Testsuiten sind per Mutation gegen
 Vakuitaet abgesichert. **Fuer 63-06 wichtig:** `PersonDetailServiceDeps` hat jetzt ACHT
 Dependencies — `SalesPersonDao` ist dazugekommen.
+63-06 hat die HTTP-Oberflaeche gebaut: sieben `/person`-Routen mit OpenAPI, DI-Verdrahtung
+und Dev-Proxy, Integrationstests fuer Gate, Roundtrip und 409.
+63-07 hat die Frontend-Datenschicht nachgezogen: acht HTTP-Funktionen, acht Loader,
+fuenf Store-Felder und neun Koroutinen-Aktionen — 404 als Zustand, 409 als Konflikt,
+422 als Validierung.
+63-08 hat die sichtbare Haelfte gebaut: `page/person_detail.rs` mit **einer** Seite fuer
+alle drei Auspraegungen, den drei reinen Helfern (`visible_sections`, `is_last_facet`,
+`delete_confirmation_copy`), Missing-Facet-Karte, fuenf Dialogen und SSR-Rendertests je
+`PersonKindTO` (Positiv- UND Negativ-Assertions, per Mutation gegen Vakuitaet belegt).
+Die Route `/person/:person_id/` ist bereits registriert — sonst haelt rustc die Seite fuer
+toten Code und das Gate `clippy -D warnings` ist unerreichbar. **Fuer 63-09 wichtig:**
+Anlegen der Route entfaellt damit; es bleiben das Entfernen der beiden alten Routen und
+Seiten, `component/top_bar.rs` und der Toolbar-Umbau, der
+`CreatePersonEntryDialog` oeffnet — dessen Aktion `UserManagementAction::CreatePersonEntry`
+traegt als einzige der neun Varianten noch `#[allow(dead_code)]`.
 
 Was Phase 62 geliefert hat:
 
@@ -338,8 +353,8 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-09-20T21:39:00.287Z
-**Stopped at:** Completed 63-07-PLAN.md
+**Last session:** 2026-09-20T22:07:57.967Z
+**Stopped at:** Completed 63-08-PLAN.md
 **Resume file:** None
 
 **To resume work in a new session:**
@@ -493,6 +508,9 @@ D-63-01/02, D-64-01/02/03).
 - [Phase 63]: 63-07: Die 409/422-Uebersetzung der neuen Personen-Schreibpfade liegt in api.rs (Response noch offen, 422-Body lesbar); der 409 des unveraenderten Phase-61-Verknuepfungspfades wird dagegen im Loader uebersetzt (classify_link_error).
 - [Phase 63]: 63-07: SalesPersonTO und UserTO tragen jetzt PartialEq (UserTO zusaetzlich Clone/Eq), damit der UserManagementStore die Kandidatenlisten als Rc<[TO]> halten kann.
 - [Phase 63]: 63-07: CreatePersonEntry signalisiert die Weiterleitung ueber den Uebergang None -> Some in person_detail statt ueber ein eigenes Store-Feld (D-63-07).
+- [Phase 63]: 63-08: Route /person/:person_id/ bereits hier registriert (nicht erst 63-09) — ohne Erreichbarkeit haelt rustc die Seite fuer toten Code und das Gate clippy -D warnings ist unerreichbar
+- [Phase 63]: 63-08: Die Missing-Facet-Karte traegt ein Namensfeld — add_facet verlangt serverseitig je Seite ein Pflichtfeld; ein Knopf ohne Eingabe waere ein garantierter 422
+- [Phase 63]: 63-08: Praesentations-Zwilling EntryDetailView neben der store-verbundenen Seite PersonDetail — dieselbe Teilung wie PersonDirectoryTable, und die Voraussetzung fuer SSR-Rendertests ohne Store und Koroutine
 
 ## Performance Metrics
 
@@ -565,3 +583,4 @@ D-63-01/02, D-64-01/02/03).
 | Phase 63 P05 | 21min | 3 tasks | 3 files |
 | Phase 63 P06 | 27min | 3 tasks | 6 files |
 | Phase 63 P07 | 34min | 3 tasks | 4 files |
+| Phase 63 P08 | 38min | 3 tasks | 4 files |

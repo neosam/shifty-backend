@@ -571,7 +571,7 @@ Plans:
 
 **Wave 6** *(blockiert durch Wave 5)*
 
-- [ ] 63-08-PLAN.md — `page/person_detail.rs`: drei reine Helfer (`visible_sections`, `is_last_facet`, `delete_confirmation_copy`), ausprägungs-abhängige Abschnitte, Missing-Facet-Karte, fünf Dialoge, SSR-Rendertests je `PersonKindTO`
+- [x] 63-08-PLAN.md — `page/person_detail.rs`: drei reine Helfer (`visible_sections`, `is_last_facet`, `delete_confirmation_copy`), ausprägungs-abhängige Abschnitte, Missing-Facet-Karte, fünf Dialoge, SSR-Rendertests je `PersonKindTO`
 
 **Wave 7** *(blockiert durch Wave 6)*
 
@@ -677,7 +677,7 @@ als unsicher).
 | 60. Person-Datenmodell + Backfill | 0/? | Not started | — |
 | 61. PersonService + Auflösung `sales_person_user` | 10/10 | Complete | 2026-09-17 |
 | 62. Personen-Verzeichnis — eine Liste statt Tabs | 7/7 | Complete | 2026-09-20 |
-| 63. Personen-Detailansicht + Ausprägungs-Aktionen | 7/11 | In Progress | — |
+| 63. Personen-Detailansicht + Ausprägungs-Aktionen | 8/11 | In Progress | — |
 | 64. Planungs-Soll für dynamische Verträge | 0/? | Not started | — |
 
 **Requirements-Coverage: 18/18 gemappt**, keine Waisen, keine Doppelung.
