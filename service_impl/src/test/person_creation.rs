@@ -38,10 +38,13 @@
 //!   Zeile an (`create_user_legt_keine_sales_person_an`).
 //! - **N-8** (Research Pitfall 4, der Atomaritaets-Nachweis): Ein zweiter
 //!   `create_user` mit demselben Namen scheitert am Primaerschluessel; die
-//!   `person`-Anzahl bleibt danach **unveraendert** — die interne Transaktion
-//!   hat die bereits geschriebene `person`-Zeile mitgenommen
-//!   (`create_user_ist_atomar`). Ohne interne Transaktion bliebe hier eine
+//!   `person`-Anzahl bleibt danach **unveraendert** — die verworfene
+//!   Transaktion hat die bereits geschriebene `person`-Zeile mitgenommen
+//!   (`create_user_ist_atomar`). Ohne diese Atomaritaet bliebe hier eine
 //!   traegerlose Person zurueck oder — schlimmer — ein `user` ohne Identitaet.
+//!   Seit Phase 63 Plan 01 traegt diese Atomaritaet die **uebergebene**
+//!   Transaktion statt einer methodeninternen; der Nachweis ist derselbe, er
+//!   wird nur eine Ebene hoeher gefuehrt.
 //!
 //! Ergaenzt in Plan 61-08 (Gap-Closure Review-Befund **CR-02**,
 //! `BasicDaoImpl::clear_all`):
@@ -56,6 +59,22 @@
 //!   mit. Der Test schuetzt davor, dass der Fix in die andere Richtung kippt
 //!   und das Loeschen ersatzlos entfaellt
 //!   (`clear_all_raeumt_traegerlose_personen_auf`).
+//!
+//! Ergaenzt in Phase 63 Plan 01 (SC-2 / D-63-01, Transaktions-Teilnahme von
+//! `PermissionDao::create_user` / `::delete_user`):
+//!
+//! - **N-11** (SC-2): Ein Rollback der aufrufenden Transaktion laesst weder
+//!   `user`- noch `person`-Zeile zurueck
+//!   (`create_user_rollback_leaves_no_row`).
+//! - **N-12** (SC-2 / D-63-01, Gegenprobe fuer den Loesch-Pfad): Ein Rollback
+//!   nimmt das `DELETE FROM user` zurueck — Voraussetzung dafuer, dass der
+//!   Orphan-Cleanup der `person`-Zeile in derselben Transaktion stehen kann
+//!   (`delete_user_rollback_leaves_row`).
+//! - **N-13**: Bei vorgegebenem `person_id` haengt sich der Benutzer an die
+//!   bestehende Identitaet und es entsteht KEINE zweite `person`-Zeile —
+//!   Voraussetzung dafuer, dass ein kombinierter Anlege-Pfad Benutzer und
+//!   Verkaeufer auf dieselbe Person setzen kann
+//!   (`create_user_with_given_person_id_reuses_it`).
 
 use std::sync::Arc;
 
@@ -472,5 +491,149 @@ async fn clear_all_raeumt_traegerlose_personen_auf() {
         count(pool.as_ref(), "SELECT COUNT(*) FROM person").await,
         "nach clear_all sind die Benutzer die einzigen verbliebenen Traeger: die Person der \
          Sales Person ist weg, die des Benutzers steht noch"
+    );
+}
+
+// ─── N-11 — create_user haengt an der uebergebenen Transaktion ──────────────
+
+/// Traegt **SC-2** („nach dem Speichern existieren **genau** die gewaehlten
+/// Objekte") fuer den Benutzer-Schreibpfad.
+///
+/// Phase 63 buendelt Benutzer- und Verkaeufer-Anlage in *einer* Transaktion.
+/// Das haelt nur, wenn `create_user` keine eigene Transaktion mehr oeffnet: eine
+/// methodeninterne Transaktion committete vor dem Aufrufer und liesse bei einem
+/// Teilfehler weiter hinten genau den halben Zustand zurueck, den SC-2
+/// ausschliesst. Der Test verwirft die Transaktion bewusst und prueft **beide**
+/// Tabellen — `user` und `person` —, weil `create_user` in zwei Statements
+/// schreibt und ein Rueckfall auf `pool.begin()` nur an der `person`-Seite
+/// sichtbar waere.
+#[tokio::test]
+async fn create_user_rollback_leaves_no_row() {
+    let pool = setup_pool().await;
+    let dao = PermissionDaoImpl::new(pool.clone());
+
+    let persons_before = count(pool.as_ref(), "SELECT COUNT(*) FROM person").await;
+
+    let tx = tx_of(&pool).await;
+    dao.create_user(&user_entity("rollback-probe"), None, "test", tx.clone())
+        .await
+        .expect("create_user muss innerhalb der Transaktion gelingen");
+    rollback(&pool, tx).await;
+
+    assert_eq!(
+        0,
+        count(
+            pool.as_ref(),
+            "SELECT COUNT(*) FROM user WHERE name = 'rollback-probe'"
+        )
+        .await,
+        "SC-2: ein Rollback der aufrufenden Transaktion muss die user-Zeile mitnehmen — \
+         eine methodeninterne Transaktion haette hier bereits committet"
+    );
+    assert_eq!(
+        persons_before,
+        count(pool.as_ref(), "SELECT COUNT(*) FROM person").await,
+        "SC-2: das Rollback muss auch die mitangelegte person-Zeile mitnehmen; bliebe sie \
+         stehen, waere es eine traegerlose Person (D-61-01 / Research Pitfall 4)"
+    );
+}
+
+// ─── N-12 — delete_user haengt an der uebergebenen Transaktion ──────────────
+
+/// Die Gegenprobe zu N-11 fuer den Loesch-Pfad, ebenfalls **SC-2**.
+///
+/// D-63-01 verlangt, dass der Service die verwaiste `person`-Zeile im selben Zug
+/// mitraeumt. Das ist nur moeglich, wenn das `DELETE FROM user` auf der
+/// Transaktion des Aufrufers laeuft — vorher schrieb `delete_user` direkt auf
+/// den Pool und war damit unwiderruflich, noch bevor der Orphan-Cleanup
+/// ueberhaupt lief.
+#[tokio::test]
+async fn delete_user_rollback_leaves_row() {
+    let pool = setup_pool().await;
+    let dao = PermissionDaoImpl::new(pool.clone());
+
+    let tx = tx_of(&pool).await;
+    dao.create_user(&user_entity("keep-me"), None, "test", tx.clone())
+        .await
+        .expect("create keep-me");
+    commit(&pool, tx).await;
+
+    let tx = tx_of(&pool).await;
+    dao.delete_user("keep-me", tx.clone())
+        .await
+        .expect("delete_user muss innerhalb der Transaktion gelingen");
+    rollback(&pool, tx).await;
+
+    assert_eq!(
+        1,
+        count(
+            pool.as_ref(),
+            "SELECT COUNT(*) FROM user WHERE name = 'keep-me'"
+        )
+        .await,
+        "D-63-01: ein Rollback muss das DELETE zuruecknehmen — schriebe delete_user weiter \
+         direkt auf den Pool, waere der Benutzer hier bereits unwiderruflich weg"
+    );
+}
+
+// ─── N-13 — vorgegebener person_id wird wiederverwendet ────────────────────
+
+/// Die Voraussetzung dafuer, dass ein kombinierter Anlege-Pfad Benutzer und
+/// Verkaeufer auf **dieselbe** Person setzen kann.
+///
+/// Ohne den optionalen `person_id`-Parameter legte `create_user` immer eine
+/// eigene Identitaet an; eine kombinierte Anlage erzeugte damit zwei Personen
+/// fuer einen Menschen und die beiden Auspraegungen waeren nie verknuepft. Der
+/// Test prueft deshalb nicht nur die gesetzte `person_id`, sondern auch die
+/// **Gesamtzahl** der `person`-Zeilen — nur die zweite Zusicherung schliesst
+/// eine still zusaetzlich angelegte Person aus.
+#[tokio::test]
+async fn create_user_with_given_person_id_reuses_it() {
+    use dao::person::{PersonDao, PersonEntity};
+    use dao_impl_sqlite::person::PersonDaoImpl;
+
+    let pool = setup_pool().await;
+    let person_id = Uuid::new_v4();
+
+    let tx = tx_of(&pool).await;
+    let now = time::OffsetDateTime::now_utc();
+    PersonDaoImpl::new(pool.clone())
+        .create(
+            &PersonEntity {
+                id: person_id,
+                created: time::PrimitiveDateTime::new(now.date(), now.time()),
+                version: Uuid::new_v4(),
+            },
+            "test",
+            tx.clone(),
+        )
+        .await
+        .expect("create person");
+    commit(&pool, tx).await;
+
+    let persons_before = count(pool.as_ref(), "SELECT COUNT(*) FROM person").await;
+
+    let tx = tx_of(&pool).await;
+    PermissionDaoImpl::new(pool.clone())
+        .create_user(
+            &user_entity("shared-identity"),
+            Some(person_id),
+            "test",
+            tx.clone(),
+        )
+        .await
+        .expect("create user on the existing person");
+    commit(&pool, tx).await;
+
+    assert_eq!(
+        Some(person_id.as_bytes().to_vec()),
+        person_id_of_user(pool.as_ref(), "shared-identity").await,
+        "der Benutzer muss genau die uebergebene Person tragen"
+    );
+    assert_eq!(
+        persons_before,
+        count(pool.as_ref(), "SELECT COUNT(*) FROM person").await,
+        "bei vorgegebenem person_id darf KEINE zweite person-Zeile entstehen — sonst haette \
+         ein kombinierter Anlege-Pfad zwei Identitaeten fuer einen Menschen"
     );
 }
