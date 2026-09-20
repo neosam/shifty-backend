@@ -36,6 +36,17 @@
 //!   `Forbidden` (`unlinked_sales_persons_gated`).
 //! - **K-10**: `unlinked_sales_persons` liefert HR-seitig dieselbe Menge wie der
 //!   DAO-Lesepfad (`unlinked_sales_persons_liefert_kandidaten`).
+//!
+//! Ergaenzt in Phase 62 Plan 01 Task 1 (D-62-05 / Review-Finding WR-02):
+//!
+//! - **K-11** (D-62-05 / WR-02): Ein Benutzer, dessen einzige Sales Person
+//!   soft-geloescht ist, ist wieder Kandidat fuer „Person hinzufuegen"
+//!   (`user_mit_nur_soft_geloeschter_sales_person_ist_kandidat`). Vor dem Fix
+//!   fiel er aus BEIDEN Kandidatenlisten: die Sales Person war wegen
+//!   `sp.deleted IS NULL` kein „Login hinzufuegen"-Kandidat, und der Benutzer
+//!   hatte formal einen Join-Partner. K-11 ist die Gegenprobe zu K-3 und haelt
+//!   fest, dass der Loesch-Filter in der `ON`- und nicht in der `WHERE`-Klausel
+//!   steht — in `WHERE` degeneriert der LEFT JOIN zum INNER JOIN und K-4 faellt.
 
 use std::sync::Arc;
 
@@ -141,10 +152,16 @@ struct Fixtures {
     linked_sales_person: Uuid,
     /// S3: soft-geloescht, Person P3 ohne Benutzer → trotzdem kein Kandidat.
     deleted_sales_person: Uuid,
+    /// S5: soft-geloescht, Person P5 traegt zusaetzlich Benutzer U5. Die Sales
+    /// Person ist kein Kandidat (K-3), U5 muss aber einer sein (K-11 / WR-02).
+    deleted_sales_person_with_user: Uuid,
 }
 
 const LINKED_USER: &str = "u2-verknuepft";
 const UNLINKED_USER: &str = "u4-ohne-sales-person";
+/// K-11 (D-62-05 / WR-02): Benutzer, dessen einzige Sales Person soft-geloescht
+/// ist. Er traegt formal einen Join-Partner, darf aber trotzdem Kandidat sein.
+const DELETED_SALES_PERSON_USER: &str = "u5-nur-geloeschte-sales-person";
 
 async fn seed_person(pool: &sqlx::SqlitePool, id: Uuid) {
     sqlx::query(
@@ -198,14 +215,16 @@ async fn seed_fixtures(pool: &sqlx::SqlitePool) -> Fixtures {
     let p2 = Uuid::new_v4();
     let p3 = Uuid::new_v4();
     let p4 = Uuid::new_v4();
+    let p5 = Uuid::new_v4();
 
-    for person in [p1, p2, p3, p4] {
+    for person in [p1, p2, p3, p4, p5] {
         seed_person(pool, person).await;
     }
 
     let unlinked_sales_person = Uuid::new_v4();
     let linked_sales_person = Uuid::new_v4();
     let deleted_sales_person = Uuid::new_v4();
+    let deleted_sales_person_with_user = Uuid::new_v4();
 
     seed_sales_person(pool, unlinked_sales_person, "S1 ohne Login", p1, None).await;
     seed_sales_person(pool, linked_sales_person, "S2 verknuepft", p2, None).await;
@@ -217,14 +236,24 @@ async fn seed_fixtures(pool: &sqlx::SqlitePool) -> Fixtures {
         Some("2026-02-01T00:00:00.000000000Z"),
     )
     .await;
+    seed_sales_person(
+        pool,
+        deleted_sales_person_with_user,
+        "S5 geloescht mit Login",
+        p5,
+        Some("2026-02-01T00:00:00.000000000Z"),
+    )
+    .await;
 
     seed_user(pool, LINKED_USER, p2).await;
     seed_user(pool, UNLINKED_USER, p4).await;
+    seed_user(pool, DELETED_SALES_PERSON_USER, p5).await;
 
     Fixtures {
         unlinked_sales_person,
         linked_sales_person,
         deleted_sales_person,
+        deleted_sales_person_with_user,
     }
 }
 
@@ -321,6 +350,28 @@ async fn verknuepfter_user_ist_kein_kandidat() {
     assert!(
         !candidates.iter().any(|name| name == LINKED_USER),
         "U2 teilt sich seine Person mit einer Sales Person und darf kein Kandidat sein"
+    );
+}
+
+/// K-11 (D-62-05 / Review-Finding WR-02): U5 teilt sich seine Person mit einer
+/// **soft-geloeschten** Sales Person. Die Sales Person ist wegen K-3 kein
+/// „Login hinzufuegen"-Kandidat; waere U5 auch kein „Person hinzufuegen"-
+/// Kandidat, liesse er sich ueber den Picker nie wieder verknuepfen. Der Fix
+/// zieht `sp.deleted IS NULL` in die `ON`-Klausel des LEFT JOIN.
+#[tokio::test]
+async fn user_mit_nur_soft_geloeschter_sales_person_ist_kandidat() {
+    let pool = setup_pool().await;
+    let fixtures = seed_fixtures(pool.as_ref()).await;
+
+    let candidates = candidate_user_names(&pool).await;
+
+    assert!(
+        candidates
+            .iter()
+            .any(|name| name == DELETED_SALES_PERSON_USER),
+        "U5 teilt sich seine Person nur mit der soft-geloeschten Sales Person \
+         {} und muss darum Kandidat sein, war aber nicht in {candidates:?}",
+        fixtures.deleted_sales_person_with_user
     );
 }
 
@@ -470,16 +521,22 @@ async fn unlinked_sales_persons_liefert_kandidaten() {
         "genau S1 ist Kandidat (S2 verknuepft, S3 soft-geloescht)"
     );
 
-    let user_names: Vec<String> = service
+    let mut user_names: Vec<String> = service
         .unlinked_users(Authentication::Full, None)
         .await
         .expect("unlinked_users should succeed for HR")
         .iter()
         .map(|name| name.to_string())
         .collect();
+    user_names.sort();
+    let mut expected_users = vec![
+        UNLINKED_USER.to_string(),
+        DELETED_SALES_PERSON_USER.to_string(),
+    ];
+    expected_users.sort();
     assert_eq!(
-        vec![UNLINKED_USER.to_string()],
-        user_names,
-        "genau U4 ist Benutzer-Kandidat"
+        expected_users, user_names,
+        "genau U4 (gar keine Sales Person) und U5 (nur eine soft-geloeschte, \
+         D-62-05 / WR-02) sind Benutzer-Kandidaten; U2 ist verknuepft"
     );
 }

@@ -259,7 +259,7 @@ bei genau vier Methoden — keine Vorratshaltung für spätere Phasen:
 | `find_by_id(id, tx)` | Einzelne Identität lesen, `Option<PersonEntity>`. |
 | `create(entity, process, tx)` | Insert. `id`, `created` und `version` erzeugt der Service, nicht das DAO; es wird keine SQLite-Rowid zurückgelesen — `person.id` ist ein `blob(16) PRIMARY KEY` und kein Rowid-Alias. |
 | `sales_persons_without_user(tx)` | Sales Persons, deren Person keinen Login-User trägt — Kandidaten für „Login hinzufügen". Filtert `sp.deleted IS NULL`. |
-| `users_without_sales_person(tx)` | Login-User, deren Person keine Sales Person trägt — Kandidaten für „Person hinzufügen". `user` hat keine Soft-Delete-Spalte. |
+| `users_without_sales_person(tx)` | Login-User, deren Person keine *lebende* Sales Person trägt — Kandidaten für „Person hinzufügen". Die Sales-Person-Seite wird **in der `ON`-Klausel** auf nicht-gelöscht eingeschränkt (`AND sp.deleted IS NULL`), damit ein User, dessen einzige Sales Person soft-gelöscht wurde, wieder Kandidat ist statt aus beiden Kandidatenlisten zu fallen [D-62-05 / WR-02]. Die Tabelle `user` selbst hat weiterhin keine Soft-Delete-Spalte. |
 
 `PersonEntity` trägt `id`, `created`, `version` und sonst nichts — derselbe
 reduzierte Zuschnitt wie die Tabelle selbst [D-60-04].

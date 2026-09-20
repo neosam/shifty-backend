@@ -62,8 +62,14 @@ pub trait PersonDao {
         tx: Self::Transaction,
     ) -> Result<Arc<[SalesPersonEntity]>, DaoError>;
 
-    /// Benutzernamen, deren Person keine Sales Person traegt — Kandidaten fuer
-    /// „Person hinzufuegen". `user` hat keine Soft-Delete-Spalte.
+    /// Benutzernamen, deren Person keine **lebende** Sales Person traegt —
+    /// Kandidaten fuer „Person hinzufuegen".
+    ///
+    /// D-62-05 / WR-02: Die Sales-Person-Seite wird in der Join-Bedingung auf
+    /// nicht-geloescht eingeschraenkt. Ein Benutzer, dessen einzige Sales
+    /// Person soft-geloescht ist, ist damit wieder Kandidat — vorher fiel er
+    /// aus beiden Kandidatenlisten und war nie wieder verknuepfbar. Die Tabelle
+    /// `user` selbst hat weiterhin keine Loesch-Spalte.
     async fn users_without_sales_person(
         &self,
         tx: Self::Transaction,

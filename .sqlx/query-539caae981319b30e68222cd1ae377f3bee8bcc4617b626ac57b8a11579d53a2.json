@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT u.name AS \"name!: String\"\n               FROM user u\n               LEFT JOIN sales_person sp ON sp.person_id = u.person_id AND sp.deleted IS NULL\n               WHERE sp.id IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "name": "name!: String",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "539caae981319b30e68222cd1ae377f3bee8bcc4617b626ac57b8a11579d53a2"
+}

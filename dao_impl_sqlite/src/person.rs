@@ -174,10 +174,18 @@ impl PersonDao for PersonDaoImpl {
         &self,
         tx: Self::Transaction,
     ) -> Result<Arc<[Arc<str>]>, DaoError> {
+        // D-62-05 / Review-Finding WR-02: Der Soft-Delete-Filter gehoert in die
+        // ON-Klausel, NICHT in WHERE. In WHERE wuerde der LEFT JOIN zum INNER
+        // JOIN degenerieren (`sp.deleted` ist fuer jede nicht gematchte Zeile
+        // NULL und faellt damit aus dem Ergebnis) — jeder Benutzer ganz ohne
+        // Sales Person waere dann kein Kandidat mehr. So gefiltert bindet eine
+        // soft-geloeschte Sales Person ihren Benutzer nicht mehr, und ein
+        // Benutzer, dessen einzige Sales Person geloescht wurde, ist wieder
+        // Kandidat statt aus beiden Kandidatenlisten zu fallen.
         Ok(query!(
             r#"SELECT u.name AS "name!: String"
                FROM user u
-               LEFT JOIN sales_person sp ON sp.person_id = u.person_id
+               LEFT JOIN sales_person sp ON sp.person_id = u.person_id AND sp.deleted IS NULL
                WHERE sp.id IS NULL"#,
         )
         .fetch_all(tx.tx.lock().await.as_mut())
