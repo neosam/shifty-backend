@@ -27,7 +27,10 @@ A **Basic Service** manages exactly one domain object:
   Deps: `PersonDao`, `PermissionService`, `ClockService`, `UuidService`,
   `TransactionDao` — deliberately no domain service, because one would close
   a DI cycle through `PermissionService`. Constructed in the basic block of
-  `shifty_bin/src/main.rs`, strictly before the business-logic layer. See
+  `shifty_bin/src/main.rs`, strictly before the business-logic layer. Since
+  v2.7 Phase 62 the first consumer context exists: `PersonDirectoryService`
+  sits one tier above and reads the same tables through its own DAO — the
+  basic service itself stays untouched and HR-gated. See
   feature [F01](../features/F01-employee-management.md) §4.5.
 - `SalesPersonService`
 - `SalesPersonUnavailableService`
@@ -90,6 +93,20 @@ cross-entity invariants:
   surface (the `/admin/rebooking/backfill` endpoint hangs on
   `RebookingReconciliationService`). See feature
   [F14 §9](../features/F14-rebooking.md).
+- `PersonDirectoryService` — read aggregate behind the single person list
+  that replaces the former tabs of the user administration (v2.7
+  Phase 62). Deps: `PersonDirectoryDao`, `PermissionService`,
+  `TransactionDao` — **no** domain service at all. It is Business-Logic
+  nonetheless, because it merges the two carrier aggregates of a person
+  (`sales_person` and `user`) into one view and owns the `PersonKind`
+  invariant across them; see the clarification under rule 3 below. `list`
+  is gated on the literal `"admin"` and **propagates** the error —
+  deliberately unlike `VoluntaryStatsService`, which redacts to `None`
+  fields: a redacted directory would be indistinguishable from an empty
+  one. DI-constructed in `shifty_bin/src/main.rs` **after** the basic
+  block, in particular strictly after `PersonService`, directly following
+  `voluntary_stats_service`. See feature
+  [F01](../features/F01-employee-management.md) §4.6.
 
 ## Rules
 
@@ -102,6 +119,14 @@ cross-entity invariants:
 3. **Rule of thumb for classification:** count dependencies.
    - Only DAOs + Permission + Transaction → Basic.
    - As soon as another domain service appears as a dep → Business-Logic.
+
+   **The rule of thumb is an indicator, not the decision.** The substantive
+   question decides: does the service manage exactly *one* aggregate? A read
+   aggregate that merges several domain objects into one view is
+   Business-Logic even when its dependency list looks like that of a Basic
+   service. `PersonDirectoryService` (v2.7 Phase 62) is exactly that case:
+   three dependencies, no domain service — and still Business-Logic, because
+   it joins `sales_person` and `user` into one person view.
 
 ## Why two tiers?
 

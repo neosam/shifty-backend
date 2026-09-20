@@ -29,7 +29,11 @@ Ein **Basic Service** verwaltet genau ein Fach-Objekt:
   `ClockService`, `UuidService`, `TransactionDao` — bewusst kein
   Domain-Service, weil ein solcher über `PermissionService` einen
   DI-Zyklus schließen würde. Konstruktion im Basic-Block von
-  `shifty_bin/src/main.rs`, strikt vor der Business-Logic-Schicht. Siehe
+  `shifty_bin/src/main.rs`, strikt vor der Business-Logic-Schicht. Seit
+  v2.7 Phase 62 existiert der erste Konsument-Kontext:
+  `PersonDirectoryService` liegt eine Schicht darüber und liest dieselben
+  Tabellen über einen eigenen DAO — der Basic-Service selbst bleibt
+  unverändert und HR-gegated. Siehe
   Feature [F01](../features/F01-employee-management_de.md) §4.5.
 - `SalesPersonService`
 - `SalesPersonUnavailableService`
@@ -78,6 +82,37 @@ Cross-Entity-Invarianten:
   `extra_hours` → `rebooking_batch` → `reporting` → `voluntary_stats`
   → `rebooking_reconciliation`, zuletzt). Siehe Feature
   [F14 §8](../features/F14-rebooking.md).
+- `VoluntaryRebookingScheduler` — F4-Auto-Cron-Scheduler (v2.6
+  Phase 56). Ein schlanker `tokio-cron-scheduler`-Job (Montag 03:15,
+  6-Feld-Cron `0 15 3 * * 1`), der die vorige ISO-Woche berechnet und
+  jede gedeckelte Person an
+  `RebookingReconciliationService::run_for_week` delegiert. Konsumiert
+  `RebookingReconciliationService` (die Engine) +
+  `EmployeeWorkDetailsService` (die Quelle der gedeckelten Personen) (+
+  `PermissionService`, `ClockService`, `TransactionDao`) — ein
+  Business-Logic-Service (zwei Domain-Service-Deps). Spiegelt den
+  `PdfExportScheduler` ohne `reload_from_db` (der Stichtag-Toggle wird
+  bei jedem Lauf frisch in `run_for_week` gelesen). Gestartet in
+  `shifty_bin/src/main.rs` **nach** `pdf_export_scheduler.start()` am
+  Ende von `main()` — der DI-Verdrahtungs-Trigger für dieses Dokument.
+  Keine REST-Oberfläche (der Endpoint `/admin/rebooking/backfill` hängt
+  am `RebookingReconciliationService`). Siehe Feature
+  [F14 §9](../features/F14-rebooking.md).
+- `PersonDirectoryService` — Lese-Aggregat hinter der einen
+  Personen-Liste, die die bisherigen Tabs der Benutzerverwaltung ablöst
+  (v2.7 Phase 62). Deps: `PersonDirectoryDao`, `PermissionService`,
+  `TransactionDao` — **kein** einziger Domain-Service. Er ist trotzdem
+  Business-Logic, weil er die beiden Träger-Aggregate einer Person
+  (`sales_person` und `user`) zu einer Sicht zusammenführt und über sie
+  hinweg die `PersonKind`-Invariante pflegt; siehe die Klarstellung
+  unter Regel 3 weiter unten. `list` ist auf das Literal `"admin"`
+  gegated und **propagiert** den Fehler — bewusst anders als
+  `VoluntaryStatsService`, der auf `None`-Felder redigiert: ein
+  redigiertes Verzeichnis wäre von einem leeren ununterscheidbar.
+  DI-konstruiert in `shifty_bin/src/main.rs` **nach** dem Basic-Block,
+  insbesondere strikt nach `PersonService`, direkt im Anschluss an
+  `voluntary_stats_service`. Siehe Feature
+  [F01](../features/F01-employee-management_de.md) §4.6.
 
 ## Regeln
 
@@ -90,6 +125,15 @@ Cross-Entity-Invarianten:
 3. **Faustregel zur Klassifizierung:** Dependencies zählen.
    - Nur DAOs + Permission + Transaction → Basic.
    - Sobald ein anderer Domain-Service als Dep auftaucht → Business-Logic.
+
+   **Die Faustregel ist ein Indikator, nicht die Entscheidung.** Es
+   entscheidet die inhaltliche Frage: verwaltet der Service genau *ein*
+   Aggregat? Ein Lese-Aggregat, das mehrere Fach-Objekte zu einer Sicht
+   zusammenführt, ist Business-Logic — auch wenn seine Dependency-Liste wie
+   die eines Basic-Service aussieht. `PersonDirectoryService` (v2.7
+   Phase 62) ist genau dieser Fall: drei Dependencies, kein Domain-Service
+   — und trotzdem Business-Logic, weil er `sales_person` und `user` zu
+   einer Personen-Sicht verbindet.
 
 ## Warum zwei Tiers?
 
