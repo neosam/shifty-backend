@@ -40,10 +40,14 @@ Aus User-Sicht (siehe `docs/employee-management_de.md` und
 `docs/employee-management.md` für die Endanwender-Anleitung mit Screenshots)
 ist der Onboarding-Ablauf:
 
-1. **Verkäufer anlegen** über *Benutzerverwaltung → Verkäufer → Neuen Verkäufer
-   erstellen* (`shifty-dioxus/src/page/sales_person_details.rs`). Der HR-User
-   trägt Name, Kennfarbe, `is_paid`/`inactive`, optional den verknüpften
-   Login-Benutzer und die Schichtplan-Zuweisungen ein.
+1. **Eintrag anlegen** über *Benutzerverwaltung → Eintrag anlegen*
+   (`shifty-dioxus/src/page/person_detail.rs`). Seit v2.7 Phase 63 legt ein
+   Dialog eine Sales Person, ein Benutzerkonto oder beides auf *derselben*
+   Person-Identität an; anschließend landet der Admin auf der
+   Personen-Detailseite und trägt dort Kennfarbe, `is_paid`/`inactive` und
+   die Schichtplan-Zuweisungen ein. Der Dialog selbst ist bewusst schlank
+   [D-63-07] — siehe §4.7. Die Seite ist auf `admin` gegated, nicht auf HR
+   (§4.6, D-62-08).
 2. **Arbeitsvertrag hinterlegen** über die Mitarbeiter-Detailseite
    (`shifty-dioxus/src/page/employee_details.rs`) im Bereich *Arbeitsverträge*
    → `ContractModal`. Ohne Vertrag hat der Mitarbeiter keine Soll-Stunden,
@@ -251,8 +255,9 @@ FK-Konsistenz mit Bookings/Extra Hours zu erhalten.
 ### `PersonDao` — Zugriff auf die Identitäts-Elterntabelle (v2.7, Phase 61)
 
 `dao::person::PersonDao` / `dao_impl_sqlite::person::PersonDaoImpl` ist der
-einzige Lese-/Schreibpfad auf die Tabelle `person`. Das Trait bleibt bewusst
-bei genau vier Methoden — keine Vorratshaltung für spätere Phasen:
+einzige Lese-/Schreibpfad auf die Tabelle `person`. Phase 61 hat es auf genau
+vier Methoden festgezurrt; Phase 63 hat die vier ergänzt, die der
+Ausprägungs-Lebenszyklus braucht, und keine darüber hinaus:
 
 | Methode | Zweck |
 | --- | --- |
@@ -260,6 +265,10 @@ bei genau vier Methoden — keine Vorratshaltung für spätere Phasen:
 | `create(entity, process, tx)` | Insert. `id`, `created` und `version` erzeugt der Service, nicht das DAO; es wird keine SQLite-Rowid zurückgelesen — `person.id` ist ein `blob(16) PRIMARY KEY` und kein Rowid-Alias. |
 | `sales_persons_without_user(tx)` | Sales Persons, deren Person keinen Login-User trägt — Kandidaten für „Login hinzufügen". Filtert `sp.deleted IS NULL`. |
 | `users_without_sales_person(tx)` | Login-User, deren Person keine *lebende* Sales Person trägt — Kandidaten für „Person hinzufügen". Die Sales-Person-Seite wird **in der `ON`-Klausel** auf nicht-gelöscht eingeschränkt (`AND sp.deleted IS NULL`), damit ein User, dessen einzige Sales Person soft-gelöscht wurde, wieder Kandidat ist statt aus beiden Kandidatenlisten zu fallen [D-62-05 / WR-02]. Die Tabelle `user` selbst hat weiterhin keine Soft-Delete-Spalte. |
+| `delete(id, tx)` | Entfernt die `person`-Zeile (v2.7, Phase 63). Hard Delete — `person` hat keine `deleted`-Spalte. Der DAO löscht die genannte id und bewertet nicht; ob die Zeile weg *darf*, entscheidet `PersonDetailService::remove_facet` (§4.7). |
+| `has_live_facets(person_id, tx)` | Trägt die Person noch mindestens einen **lebenden** Träger? (v2.7, Phase 63.) Die Auslösebedingung des Orphan-Cleanups — die Lesart von „lebend" steht unten. |
+| `find_by_sales_person(sales_person_id, tx)` | Löst eine Sales Person rückwärts auf ihre Person auf. **Löst auf, bewertet nicht:** auch eine soft-gelöschte Sales Person liefert ihre Person; ob dieser Träger noch zählt, ist Sache von `has_live_facets`. |
+| `find_by_user(username, tx)` | Das Gegenstück für einen Login-Namen — nach einem Merge der Weg, die *gewinnende* Identität zu erfahren [D-61-03]. |
 
 `PersonEntity` trägt `id`, `created`, `version` und sonst nichts — derselbe
 reduzierte Zuschnitt wie die Tabelle selbst [D-60-04].
@@ -302,6 +311,7 @@ Ausprägungen.
 | --- | --- |
 | `list_directory_entries(tx)` | Alle Verzeichniszeilen in genau einem Statement — ein Drei-Wege-Outer-Join `person` ↔ `sales_person` ↔ `user` [D-62-02]. Unsortiert; die Sortierung gehört in den Business-Logic-Service, damit sie testbar und locale-unabhängig bleibt. |
 | `all_user_roles(tx)` | Alle Rollen-Zuordnungen aller Benutzer als **eine** Bulk-Query. `PermissionDao::roles_for_user` bleibt unangetastet — es hat seinen Platz im Auth-Pfad, aber ein Aufruf pro Verzeichniszeile wäre genau das N+1-Muster, das diese Phase abbaut. |
+| `find_directory_entry(person_id, tx)` | Die eine Verzeichniszeile einer Person (v2.7, Phase 63) — derselbe Drei-Wege-Join wie `list_directory_entries`, mit denselben zwei Join-Regeln, eingeengt auf `person.id = ?`. `None` für eine unbekannte *und* für eine trägerlose Person: die Detailansicht folgt der Sichtbarkeitsregel des Verzeichnisses exakt und antwortet deshalb nie mit einer halbleeren Zeile. |
 
 `PersonDirectoryRow` ist flach. Die Verkäufer-Seite (`sales_person_id`,
 `sales_person_name`, `background_color`, `is_paid`, `inactive`) ist genau dann
@@ -323,6 +333,26 @@ Seiten ist immer gefüllt.
 
 Soft-gelöschte Sales Persons erscheinen nicht, inaktive schon [D-62-04]:
 „Inaktiv" ist ein Anzeige-Zustand mit eigenem Badge, „gelöscht" ist Abwesenheit.
+
+**Lebenszyklus der `person`-Zeile — was „trägerlos" heißt [D-63-01, Lesart
+(b), in Phase 63 festgeschrieben].** Eine Person *lebt*, solange sie
+mindestens einen lebenden Träger hat: eine `user`-Zeile mit diesem
+`person_id` (beliebig — `user` hat keine Lösch-Spalte) **oder** eine
+`sales_person`-Zeile mit diesem `person_id` und `deleted IS NULL`. **Eine
+soft-gelöschte Sales Person zählt als weg.** Sie ist durch den
+Verzeichnis-Join ohnehin unsichtbar (D-62-04), hält also keine Admin-Sicht
+mehr am Leben. Nimmt `remove_facet` den letzten lebenden Träger, wird die
+`person`-Zeile in *derselben* Transaktion mitgelöscht.
+
+**Der akzeptierte Preis, ausdrücklich benannt:** die soft-gelöschte
+`sales_person`-Zeile behält einen `person_id`, der auf nichts mehr auflöst.
+Das ist kein Defekt, sondern die dokumentierte Konsequenz dieser Lesart — es
+gibt bewusst keinen Foreign Key von `sales_person.person_id` auf `person(id)`
+(die Phase-60-Migration legt die Spalte plus Unique-Index an, keinen FK). Ein
+späterer Aufräum-Pass darf diesen hängenden Zeiger **nicht** als Bug
+„reparieren": `billing_period_sales_person` referenziert `sales_person.id`
+und nie `person.id`, write-once-Snapshots bleiben also unberührt.
+Regressionsschutz: `service_impl::test::person_detail_dao` (D-4).
 
 ### Migrations
 
@@ -714,14 +744,14 @@ Frontend-URL (`shifty-dioxus/src/api.rs`) und der `[[web.proxy]]`-Eintrag in
 in eine spätere Aufräumrunde — ein fehlender hat dieses Repo bereits dreimal
 einen ausgelieferten 404 im Dev-Server gekostet (T-62-14). Details in §5.4.
 
-**Abgrenzung.** Phase 62 liefert die Liste, sonst nichts. Eine gemeinsame
-Detailansicht der zusammengeführten Person und die Mutationen je Ausprägung
+**Abgrenzung.** Phase 62 hat die Liste geliefert, sonst nichts. Während
+Phase 62 verlinkte eine Zeile noch auf die beiden damaligen,
+ausprägungs-spezifischen Detailseiten [D-62-07]. Phase 63 hat beide durch die
+eine Personen-Detailseite und die Mutationen je Ausprägung ersetzt
 (Nachschalten einer fehlenden Ausprägung, Kandidaten-Picker,
-ausprägungs-spezifische Lösch-Bestätigung) sind Phase 63
-[PADM-02/03/04/05/07]. Eine Zeile in Phase 62 verlinkt deshalb weiterhin auf
-die bestehenden Detailseiten — `Route::SalesPersonDetails` für verknüpfte
-Einträge und reine Verkäufer, `Route::UserDetails` für reine Benutzerkonten
-[D-62-07].
+ausprägungs-spezifische Lösch-Bestätigung) — siehe §4.7
+[PADM-02/03/04/05/07]. Die beiden alten Routen und ihre Seiten sind ersatzlos
+entfallen; eine Weiterleitung gibt es bewusst nicht.
 
 **Randfälle.**
 
@@ -740,6 +770,167 @@ Einträge und reine Verkäufer, `Route::UserDetails` für reine Benutzerkonten
 `impl From<&PersonKind> for PersonKindTO` liegen in `rest-types/src/lib.rs`
 hinter `#[cfg(feature = "service-impl")]`. Das Mapping ist rein feldweise; es
 rechnet nichts nach, insbesondere nicht den Anzeigenamen.
+
+### 4.7 `PersonDetailService` (v2.7, Phase 63)
+
+Trait: `service/src/person_detail.rs`.
+Implementierung: `service_impl/src/person_detail.rs`.
+
+```rust
+async fn get_detail(&self, person_id, ctx, tx) -> Result<PersonEntry, ServiceError>;
+async fn get_detail_by_sales_person(&self, sales_person_id, ctx, tx) -> Result<PersonEntry, ServiceError>;
+async fn unlinked_sales_person_candidates(&self, ctx, tx) -> Result<Arc<[SalesPerson]>, ServiceError>;
+async fn unlinked_user_candidates(&self, ctx, tx) -> Result<Arc<[Arc<str>]>, ServiceError>;
+async fn create_combined(&self, request: &CreatePersonEntry, ctx, tx) -> Result<Uuid, ServiceError>;
+async fn add_facet(&self, person_id, facet: PersonFacet, display_name, username, ctx, tx) -> Result<Uuid, ServiceError>;
+async fn remove_facet(&self, person_id, facet: PersonFacet, ctx, tx) -> Result<(), ServiceError>;
+```
+
+`PersonFacet` (`User` / `SalesPerson`) beschreibt das *Ziel einer Aktion*,
+nicht den Zustand einer Zeile — das ist `PersonKind` aus §4.6.
+`CreatePersonEntry` trägt `display_name`, `wants_user`, `wants_sales_person`
+und ein optionales `username`.
+
+**Das Detail-Aggregat: Kern-Zeile plus gezielte Nachladepfade.**
+`get_detail` liefert genau die Verzeichniszeile aus §4.6 — `kind`,
+`display_name`, `username`, `sales_person_id` und die Sales-Person-Felder,
+alle im Backend abgeleitet. Die vier Abschnitte der Seite (Stammdaten,
+Schichtplan-Zuordnung, Rollen, Einladungen) laden über ihre je eigenen,
+bereits in Betrieb befindlichen Endpoints, statt in eine fette Antwort
+gefaltet zu werden. Damit ist die Auflage „kein N+1" gewahrt: ein begrenzter
+Aufruf *je Abschnitt für genau eine Person* ist kein N+1 — ein N+1 wäre ein
+Aufruf **je Listenzeile**. Die Alternative (ein Aggregat, das alle vier
+Abschnitte trägt) hätte vier Transportformen dupliziert, ohne einen einzigen
+Request zu sparen.
+
+Eine unbekannte `person_id` und eine trägerlose Person sind **beide**
+`EntityNotFound` → 404, nie eine halbleere Antwort: eine Person ohne
+Benutzerkonto und ohne lebende Sales Person ist im Verzeichnis unsichtbar
+[D-62-04], und die Detailansicht folgt dieser Sichtbarkeitsregel exakt.
+
+**Anlege-Pfad — ein Eintrag, zuschaltbare Ausprägungen [PADM-02, SC-2].**
+`create_combined` legt Benutzerkonto, Sales Person oder beides an, und beide
+hängen an **derselben** Person. Die zwei Schreibvorgänge laufen in **einer**
+Transaktion: scheitert einer, existiert danach keiner von beiden und auch
+keine verwaiste `person`-Zeile. Die Regel „mindestens eine Ausprägung" wird
+**serverseitig** durchgesetzt, bevor überhaupt eine Transaktion offen ist —
+der deaktivierte Absende-Knopf im Frontend ist UX, nicht die Grenze [D-63-07,
+ASVS V5]. Ein leerer Auswahl-Satz, ein fehlendes/leeres `username` bei
+`wants_user` und ein leeres `display_name` bei `wants_sales_person` sind alle
+`ValidationError` → **422**.
+
+**Ausprägung zuschalten — und warum die Antwort eine Kennung trägt [PADM-03,
+SC-3, D-61-03].** `add_facet` legt genau das fehlende Objekt an und lässt das
+vorhandene unberührt (gleiche `id`, gleiche `version`, gleicher Name). Die
+beiden Richtungen sind **nicht** symmetrisch, und genau diese Asymmetrie ist
+das Detail, das man beim nächsten Lesen sonst für einen Bug hält:
+
+- **Die Benutzer-Seite** wird direkt an die *bestehende* Person gehängt
+  (`PermissionDao::create_user(.., Some(person_id), ..)`). Die `person_id`
+  bleibt dieselbe.
+- **Die Verkäufer-Seite** kann das nicht. Eine frisch angelegte Sales Person
+  bringt ihre **eigene** Identität mit [D-61-01], und beim Zusammenführen
+  **gewinnt die Sales Person** [D-61-03]: der Benutzer wandert auf sie, die
+  absorbierte Person verschwindet. Der Eintrag **wechselt damit seine
+  `person_id`**.
+
+`add_facet` gibt die **resultierende** Kennung zurück, nicht die übergebene.
+Aufrufer müssen den Rückgabewert verwenden; wer die Eingabe weiterverwendet,
+zeigt ins Leere. Das Verknüpfen selbst läuft über den unveränderten
+Phase-61-Schreibpfad (`SalesPersonDao::assign_to_user`) — es wurde bewusst
+kein zweiter Verknüpfungs-Pfad gebaut, damit Merge-Richtung,
+Konflikt-Erkennung und Absorption an einer Stelle bleiben. Eine bereits
+besetzte Seite ist `EntityAlreadyExists` → **409**, derselbe Vertrag wie
+`POST /sales-person/{id}/user` [D-61-04]. Ein fehlendes Pflichtfeld ist
+**422**.
+
+**Lösch-Semantik je Ausprägung — bewusst asymmetrisch [PADM-07, SC-5,
+D-63-05].**
+
+| Ausprägung | Semantik | Was mitgeht |
+| --- | --- | --- |
+| `User` | **Hard Delete** der `user`-Zeile | Rollen und offene Einladungen über die Fremdschlüssel-Kaskade des Schemas — bewusst keine zusätzlichen Anwendungs-Deletes, die vom Schema abdriften könnten |
+| `SalesPerson` | **Soft Delete** über den `deleted`-Stempel | Nichts. Die Zeile bleibt, damit Schichtplan-Historie und die write-once-Snapshots von `billing_period_sales_person` unberührt bleiben |
+
+**Es gibt keinen Sammelknopf.** `remove_facet` nimmt immer genau einen
+`PersonFacet`-Wert; eine gemeinsame Aktion ist durch D-63-05 ausgeschlossen,
+weil kein einzelner Bestätigungstext zwei Lösch-Semantiken zugleich ehrlich
+beschreiben könnte. Eine fehlende Seite ist `EntityNotFound` → 404.
+
+Danach läuft die Träger-Prüfung (`PersonDao::has_live_facets`), und verlor die
+Person ihren letzten lebenden Träger, wird die `person`-Zeile **in derselben
+Transaktion** gelöscht [D-63-01]. Die Lesart von „trägerlos" und ihre
+akzeptierte Folge stehen in §3 unter `PersonDao`.
+
+**Kandidaten-Lesepfade [PADM-04, SC-4].** `unlinked_sales_person_candidates`
+und `unlinked_user_candidates` sind die beiden Listen hinter dem Picker
+(„Login hinzufügen" / „Person hinzufügen"). Bereits verknüpfte Ziele
+erscheinen dort **nicht**. Das ist Bequemlichkeit, **nicht** die
+Sicherheitsgrenze: `POST /sales-person/{id}/user` lehnt ein besetztes Ziel
+unabhängig davon mit 409 ab [D-61-04]. Wer die Liste umgeht oder zwischen
+Laden und Absenden verliert, läuft in die Ablehnung statt in eine stille
+Überschreibung. Die Ausblendung *ergänzt* die serverseitige Ablehnung, sie
+ersetzt sie nicht.
+
+**Auth-Gates** (`service_impl/src/person_detail.rs`):
+
+| Methode | Erlaubte Rollen |
+| --- | --- |
+| `get_detail` | admin |
+| `get_detail_by_sales_person` | admin |
+| `unlinked_sales_person_candidates` | admin |
+| `unlinked_user_candidates` | admin |
+| `create_combined` | admin |
+| `add_facet` | admin |
+| `remove_facet` | admin |
+
+`check_permission("admin", …)` ist die **erste Anweisung** jeder Methode — vor
+der Validierung und vor jedem Datenbankzugriff [D-62-08, PADM-08, Threats
+T-63-04-A/B, T-63-05-A].
+
+**Das ist strenger als die darunterliegenden Basic-Services, und zwar
+absichtlich.** `SalesPersonService` ist auf `HR_PRIVILEGE` gegated,
+`PersonService` ebenfalls auf HR; die zusammengeführte Personenverwaltung
+kann nicht zwei Gates tragen, also trägt sie das strengere — genau die
+Verschärfung, die der Modulkopf von §4.5 angekündigt hat. Eine
+`ADMIN_PRIVILEGE`-Konstante existiert im Repo bewusst nicht; das Gate ist das
+Stringliteral `"admin"`. Konsequenz: der Service ruft die HR-gegateten
+Basic-Services intern mit `Authentication::Full` auf — erreichbar erst *nach*
+dem eigenen, strengeren Gate und nie aus einem Request abgeleitet. Den
+Nutzerkontext durchzureichen würde einen Admin ohne HR-Rolle grundlos
+abweisen.
+
+**Tier.** Business-Logic. Der `gen_service_impl!`-Block bindet **acht**
+Dependencies: `PersonDirectoryDao`, `PersonDao`, `PermissionDao`,
+`SalesPersonDao`, `PersonService`, `SalesPersonService`, `PermissionService`,
+`TransactionDao`. Zwei davon sind Basic-Services — was die Tier-Konvention
+ausdrücklich erlaubt; verboten ist nur die Gegenrichtung. Weder
+`PersonService` noch `SalesPersonService` kennt dieses Aggregat, und kein
+anderer Service konsumiert es (es hängt ausschließlich an den REST-Handlern)
+— es gibt also keinen Zyklus. Die Konstruktion in `shifty_bin/src/main.rs`
+erfolgt strikt **nach** dem Basic-Block, im Business-Logic-Abschnitt direkt
+hinter `person_directory_service` — kein `OnceLock`, keine
+Forward-Declaration. Siehe
+[`../architecture/02-service-tiers_de.md`](../architecture/02-service-tiers_de.md).
+
+**Warum die Benutzer-Seite über `PermissionDao` läuft und nicht über
+`PermissionService`.** `service::PermissionService` führt bewusst **keinen**
+`Transaction`-Assoziationstyp — rund zwanzig Services führen ihn als
+Dependency, ein Assoziationstyp dort wäre ein workspace-weiter Ripple ohne
+Gegenwert. Die transaktionsfähigen Schreibpfade (`create_user` /
+`delete_user`) liegen deshalb eine Ebene tiefer, auf `dao::PermissionDao`.
+Details in
+[`../architecture/05-transactions_de.md`](../architecture/05-transactions_de.md)
+und [F12 §4.6](./F12-auth-session_de.md).
+
+**Bekannte Kante (vorbestehend, in Phase 63 bewusst nicht gefixt).**
+`session.user_id` ist die einzige auf `user(name)` zeigende
+Fremdschlüssel-Beziehung **ohne** Kaskade (Migration
+`20241116224840_add-session.sql`). Wird ein Benutzer gelöscht, der noch eine
+offene Sitzung hat, läuft das DELETE in einen Fremdschlüssel-Fehler und kommt
+am Endpoint als generischer **500** heraus statt als sprechende Ablehnung.
+Ein Fix wäre eine Schema-Änderung außerhalb der gelockten Entscheidungen
+dieser Phase und gehört in einen eigenen Vorgang.
 
 ## 5. REST-Endpoints
 
@@ -832,6 +1023,40 @@ Admin-Gate liegt im Service (§4.6), nicht im Handler.
   ist ein expliziter Enum-Wert und nichts, was der Client aus leeren
   `Option`s ableitet [D-62-01, PADM-06].
 
+### 5.5 Personen-Detailansicht (`/person`, v2.7, Phase 63)
+
+Handler in `rest/src/person_detail.rs`, gemountet in `rest/src/lib.rs` als
+`.nest("/person", person_detail::generate_route())`. Alle sieben tragen eine
+`#[utoipa::path]`-Annotation; `PersonDetailApiDoc` ist Teil des
+`ApiDoc`-Merges. Das Admin-Gate liegt im Service (§4.7), **nicht** im Handler
+— zwei Gate-Stellen wären zwei Wahrheiten, und die schwächere davon wäre die
+Lücke (T-63-06-A).
+
+| Methode | Pfad | Beschreibung | DTO In | DTO Out | Fehler |
+| --- | --- | --- | --- | --- | --- |
+| `GET` | `/person/candidates/sales-persons` | Sales Persons ohne verknüpften Login — der Picker hinter „Login hinzufügen" | — | `[SalesPersonTO]` | 403 / 500 |
+| `GET` | `/person/candidates/users` | Login-Benutzer ohne verknüpfte Sales Person — der Picker hinter „Person hinzufügen" | — | `[UserTO]` | 403 / 500 |
+| `GET` | `/person/by-sales-person/{sales_person_id}` | Die Verzeichniszeile der Person, die diese Sales Person trägt — der Rückweg nach dem Verknüpfen über den Phase-61-Pfad, der die `person_id` wechselt | — | `PersonEntryTO` | 403 / 404 / 500 |
+| `POST` | `/person` | Legt einen Eintrag mit genau den gewählten Ausprägungen an, beide auf derselben Person, in einer Transaktion | `CreatePersonEntryTO` | `CreatedPersonEntryTO` (**201**) | 403 / 422 / 500 |
+| `GET` | `/person/{person_id}` | Die Verzeichniszeile genau einer Person | — | `PersonEntryTO` | 403 / 404 / 500 |
+| `POST` | `/person/{person_id}/facet` | Schaltet die fehlende Ausprägung zu. **200** mit der *resultierenden* `person_id` — diese verwenden, nicht die aus dem Pfad (§4.7, D-61-03) | `AddPersonFacetTO` | `CreatedPersonEntryTO` | 403 / 404 / **409** / 422 / 500 |
+| `DELETE` | `/person/{person_id}/facet/{facet}` | Entfernt genau eine Ausprägung — hart für `user`, weich für `sales-person` | — | — (**204**) | 403 / 404 / 500 |
+
+Die drei unterscheidbaren Ablehnungen sind ein bewusster Vertrag, weil das
+Frontend drei verschiedene Dinge daraus rendert: **404** ist ein *Zustand*
+(der Eintrag ist weg — die Seite zeigt „nicht gefunden" statt eines
+Fehler-Overlays), **409** ist das besetzte Ziel eines Rennens [D-61-04],
+**422** ist ein Validierungsfehler, dessen Body das Feld benennt.
+
+- `CreatePersonEntryTO`, `CreatedPersonEntryTO`, `AddPersonFacetTO` und
+  `PersonFacetTO` liegen in `rest-types/src/lib.rs`, alle mit `ToSchema`. Das
+  Mapping auf die Domain-Typen ist rein feldweise; kein Handler leitet `kind`
+  oder `display_name` noch einmal ab [PADM-06].
+- **Kein neuer Verknüpfungs-Schreibpfad.** `POST` / `DELETE
+  /sales-person/{id}/user` aus Phase 61 bleiben die einzigen Endpoints, die
+  eine *bestehende* Sales Person mit einem *bestehenden* Login verbinden oder
+  trennen (§5.1).
+
 ## 6. Frontend-Integration
 
 ### Pages (`shifty-dioxus/src/page/`)
@@ -850,12 +1075,24 @@ Admin-Gate liegt im Service (§4.6), nicht im Handler.
 - **`my_employee_details.rs`** — Self-Service-Sicht für Sales-User auf
   die **eigenen** Daten. Nutzt `EmployeeAction::LoadCurrentEmployeeDataUntilNow`
   und rendert `ContractModal` in `ReadOnly`-Mode.
-- **`sales_person_details.rs`** — HR-Formular zum Anlegen/Bearbeiten der
-  Sales-Person-Stammdaten, inklusive User-Verknüpfung und Shiftplan-
-  Zuweisungen. Nutzt `UserManagementAction::{LoadSalesPerson,
-  LoadShiftplanAssignments, LoadShiftplanCatalog, UpdateSalesPerson,
-  UpdateSalesPersonUser, RemoveSalesPersonUser, UpdateShiftplanAssignments,
-  SaveSalesPersonAndNavigate}`.
+- **`person_detail.rs`** — die eine Personen-Detailseite hinter
+  `/person/:person_id/` (v2.7, Phase 63). Eine Seite für alle drei
+  Ausprägungen: Stammdaten, Schichtplan-Zuordnung, Rollen und Einladungen,
+  dazu die Missing-Facet-Karte, der Kandidaten-Picker und die zwei
+  Ausprägungs-Löschungen. Sie ersetzt die beiden entfernten Seiten
+  `sales_person_details.rs` und `user_details.rs` [D-63-04] — eine
+  Weiterleitung von deren alten Routen gibt es bewusst nicht. In derselben
+  Datei liegt `CreatePersonEntryDialog` (der schlanke Anlege-Dialog aus
+  §4.7). Nutzt `UserManagementAction::{LoadPersonDetail, CreatePersonEntry,
+  AddPersonFacet, RemovePersonFacet, LoadUnlinkedSalesPersons,
+  LoadUnlinkedUsers, LinkCandidate, UnlinkFacet, DeleteSalesPerson,
+  LoadSalesPerson, UpdateSalesPerson, LoadShiftplanAssignments,
+  LoadShiftplanCatalog, UpdateShiftplanAssignments, LoadUserRoleAssignments,
+  LoadUserInvitations}`. Ihre Anzeige-Entscheidungen (welche Abschnitte
+  erscheinen, welcher Bestätigungstext gilt) liegen in den reinen Helfern
+  `visible_sections`, `is_last_facet` und `delete_confirmation_copy` und sind
+  dadurch unit-testbar — siehe
+  [`../architecture/06-frontend_de.md`](../architecture/06-frontend_de.md).
 
 ### Services & State
 
@@ -886,17 +1123,31 @@ Vorhandene Einträge für dieses Cluster:
   Dev-Server den Verzeichnis-Aufruf mit 404, während die Produktion
   funktioniert; dieser Fehlermodus wurde in diesem Repo bereits dreimal
   ausgeliefert.
+- `http://localhost:3000/person` (Zeile 130, Phase 63) — **die Reihenfolge
+  zählt.** Der Dev-Proxy matcht präfix-literal, und `/person` ist ein Präfix
+  von `/person-directory`. Der generische Eintrag steht deshalb **nach** dem
+  Verzeichnis-Eintrag; davor würde er die Verzeichnis-Anfragen mit
+  abfangen.
 
 ### i18n
 
-Sales-Person-Formular-Keys u.a. `SalesPersonDetails`, `BasicInformation`,
-`ShiftplanColor`, `ColorPreview`, `Settings`, `ThisPersonReceivesPayment`,
-`ThisPersonIsInactive`, `UserAccount`, `ConnectUserAccount`,
-`ShiftplanAssignments`, `ShiftplanAssignmentsInfo`,
-`PermissionLevelAvailable`, `PermissionLevelPlannerOnly`,
-`SaveChanges`, `Cancel`, `LoadingSalesPersonDetails` — siehe
-`shifty-dioxus/src/page/sales_person_details.rs`. Alle Keys müssen in
-En/De/Cs vorhanden sein (siehe `docs/domain/edge-cases.md` §13).
+Die Sales-Person-Formular-Keys (`BasicInformation`, `ShiftplanColor`,
+`ColorPreview`, `Settings`, `ThisPersonReceivesPayment`,
+`ThisPersonIsInactive`, `ShiftplanAssignments`, `ShiftplanAssignmentsInfo`,
+`PermissionLevelAvailable`, `PermissionLevelPlannerOnly`, `SaveChanges`,
+`Cancel`, `LoadingSalesPersonDetails`) sind mit Phase 63 nach
+`shifty-dioxus/src/page/person_detail.rs` gewandert. Die Phase hat 32 weitere
+Keys für Seitenrahmen, Anlege-Dialog, Missing-Facet-Karte,
+Kandidaten-Picker und die drei Bestätigungen ergänzt und vierzehn Keys der
+entfernten Seiten (darunter `SalesPersonDetails`, `UserAccount`,
+`ConnectUserAccount`) **registriert, aber unbenutzt** stehen gelassen —
+bewusst nicht gelöscht, als Aufräum-Posten notiert, weil der Parity-Test sie
+ohnehin konsistent hält. Alle Keys müssen in En/De/Cs vorhanden sein; das
+Parity-Gate ist `i18n::tests::i18n_person_detail_keys_present_in_all_locales`,
+und `i18n_person_detail_templates_carry_name_placeholder` sichert zusätzlich
+den `{name}`-Platzhalter der zwei parametrischen Texte ab — eine Übersetzung,
+die ihn verschluckt, ergäbe einen namenlosen Bestätigungsdialog. Siehe
+`docs/domain/edge-cases.md` §13.
 
 ## 7. Randfälle
 
@@ -973,6 +1224,31 @@ Kanten dieses Clusters:
   ohne Sales Person (siehe [F12](./F12-auth-session_de.md)). `person_id` bleibt
   bewusst nullable, und es wird **nirgends** automatisch ein Benutzer zu einer
   Sales Person angelegt [D-60-03].
+- **Das Zuschalten einer Sales Person wechselt die `person_id` des
+  Eintrags** (v2.7, Phase 63 [D-61-03]). Die *Benutzer*-Seite behält die
+  Identität; die *Verkäufer*-Seite führt zusammen, und die Sales Person
+  gewinnt. `add_facet` und `POST /person/{id}/facet` antworten deshalb mit
+  der **resultierenden** Kennung, und jeder Aufrufer muss sie verwenden. Das
+  Frontend lädt über die zurückgegebene `person_id` nach, nie über die
+  gesendete. Nach dem Phase-61-Pfad `POST /sales-person/{id}/user` kennt es
+  die neue Kennung gar nicht — dafür gibt es
+  `GET /person/by-sales-person/{id}`. Wer die Eingabe-Kennung
+  weiterverwendet, zeigt auf eine Zeile, die es nicht mehr gibt.
+- **Eine Ausprägung zu entfernen ist auf der einen Seite hart und auf der
+  anderen weich** (v2.7, Phase 63 [D-63-05]). „Login löschen" entfernt die
+  `user`-Zeile endgültig und nimmt Rollen und offene Einladungen über die
+  FK-Kaskade mit; „Verkäufer löschen" setzt nur den `deleted`-Stempel, damit
+  Historie und Abrechnungs-Snapshots überleben. Die zwei
+  Bestätigungsdialoge sagen das bewusst mit verschiedenen Worten, und es
+  gibt keinen Knopf, der beides auf einmal tut.
+- **Die letzte Ausprägung nimmt die Person mit** (v2.7, Phase 63
+  [D-63-01]). Siehe §3 — eine soft-gelöschte Sales Person zählt als weg, ihr
+  `person_id` kann dadurch ins Leere zeigen. Akzeptiert, dokumentiert, und
+  von einem späteren Aufräum-Pass **nicht** zu „reparieren".
+- **Einen Benutzer mit offener Sitzung zu löschen kommt als 500 heraus**
+  (vorbestehend, in Phase 63 benannt, bewusst nicht gefixt).
+  `session.user_id` ist der einzige Fremdschlüssel auf `user(name)` ohne
+  Kaskade. Siehe §4.7.
 - **Die Vergabe bei Neuanlage** (v2.7, Phase 61 [D-61-01]):
   `SalesPersonDaoImpl::create` legt seitdem **zuerst** eine eigene
   `person`-Zeile an und schreibt deren ID in `sales_person.person_id`. Beide
@@ -1077,6 +1353,18 @@ teilen sich `service_impl/src/test/helpers` (Mock-Auth, Time-Fake).
   Personenverwaltung in Phase 62/63. Die Selbst-Zugriffs-Prüfung entscheidet
   seither im SQL-Join — siehe
   [`../architecture/04-auth_de.md`](../architecture/04-auth_de.md).
+  *Phase 62* lieferte das eine, admin-gegatete Personen-Verzeichnis (§4.6,
+  §5.4), das die früheren Tabs der Benutzerverwaltung ersetzt. *Phase 63*
+  setzte die Detailansicht darauf: den Business-Logic-Service
+  `PersonDetailService` (§4.7) mit den sieben `/person`-Operationen (§5.5),
+  den schlanken Anlege-Dialog, den Kandidaten-Picker und die zwei
+  Ausprägungs-Löschungen — und entfernte die beiden alten Detailseiten
+  ersatzlos (§6). Keine Migration; die einzige schema-nahe Änderung ist, dass
+  die `person`-Zeile jetzt ein definiertes Lebensende hat [D-63-01]. In
+  derselben Phase sind die beiden `PermissionDao`-Schreibpfade `create_user`
+  / `delete_user` auf die geteilte Transaktion gewandert, damit Anlegen und
+  Löschen über beide Aggregate hinweg atomar sein können — siehe
+  [`../architecture/05-transactions_de.md`](../architecture/05-transactions_de.md).
 
 Zusatz-Doku für Endanwender:
 
