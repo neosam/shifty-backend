@@ -458,7 +458,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 62-03-PLAN.md — Business-Logic-Service `PersonDirectoryService`: Admin-Gate (D-62-08), Ausprägungs-Klassifikation, `display_name`-Ableitung, Sortierung, TO-Mapping
+- [x] 62-03-PLAN.md — Business-Logic-Service `PersonDirectoryService`: Admin-Gate (D-62-08), Ausprägungs-Klassifikation, `display_name`-Ableitung, Sortierung, TO-Mapping
 - [ ] 62-04-PLAN.md — Frontend: Aggregat-Datenpfad statt N+1, `PersonKindBadge`, eine Liste statt Tabs, Component-Level-Admin-Guard, Tab-Leiste entfernt
 
 **Wave 3** *(blocked on Wave 2)*
@@ -627,7 +627,7 @@ als unsicher).
 |-------|----------------|--------|-----------|
 | 60. Person-Datenmodell + Backfill | 0/? | Not started | — |
 | 61. PersonService + Auflösung `sales_person_user` | 10/10 | Complete | 2026-09-17 |
-| 62. Personen-Verzeichnis — eine Liste statt Tabs | 2/7 | In Progress | — |
+| 62. Personen-Verzeichnis — eine Liste statt Tabs | 3/7 | In Progress | — |
 | 63. Personen-Detailansicht + Ausprägungs-Aktionen | 0/? | Not started | — |
 | 64. Planungs-Soll für dynamische Verträge | 0/? | Not started | — |
 
