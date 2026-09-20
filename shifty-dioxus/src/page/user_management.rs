@@ -54,6 +54,9 @@ pub fn UserManagementPage() -> Element {
     use_effect(move || {
         user_management_service.send(UserManagementAction::LoadAllUsers);
         user_management_service.send(UserManagementAction::LoadAllSalesPersons);
+        // Phase 62: der Aggregat-Ladepfad. Die beiden Sends darueber fallen im
+        // Seitenumbau weg; hier stehen sie noch, damit dieser Commit uebersetzt.
+        user_management_service.send(UserManagementAction::LoadPersonDirectory);
     });
 
     rsx! {

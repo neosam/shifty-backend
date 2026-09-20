@@ -1,6 +1,6 @@
 use rest_types::{
-    BlockTO, ExtraHoursTO, GenerateInvitationRequest, InvitationResponse, SalesPersonTO,
-    UserRole, UserTO, WeekMessageTO,
+    BlockTO, ExtraHoursTO, GenerateInvitationRequest, InvitationResponse, PersonEntryTO,
+    SalesPersonTO, UserRole, UserTO, WeekMessageTO,
 };
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -423,6 +423,16 @@ pub(crate) fn build_working_hours_mini(
             .unwrap_or(0.0),
         background_color: color,
     }
+}
+
+/// Phase 62 (PADM-06, Success Criterion 3): reicht das Aggregat unveraendert
+/// durch. Bewusst **keine** Sortierung und **keine** Umformung — Reihenfolge und
+/// Anzeigename kommen fertig aus dem Backend. Ein Nachsortieren oder ein
+/// Namens-Fallback hier waere genau die Logik-Dopplung, die das
+/// Fat-Backend-Prinzip dieses Projekts verbietet.
+pub async fn load_person_directory(config: Config) -> Result<Rc<[PersonEntryTO]>, ShiftyError> {
+    let entries = api::get_person_directory(config).await?;
+    Ok(entries)
 }
 
 pub async fn load_all_users(config: Config) -> Result<Rc<[User]>, ShiftyError> {

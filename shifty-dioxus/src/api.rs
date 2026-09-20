@@ -9,7 +9,7 @@ use rest_types::{
     EmployeeWorkDetailsTO,
     ExtraHoursCategoryTO,
     ExtraHoursTO, FeatureFlagTO, GenerateInvitationRequest, ImpersonateTO, InvitationResponse,
-    PdfExportConfigTO, RoleTO, SalesPersonTO, SalesPersonUnavailableTO, ShiftplanTO,
+    PdfExportConfigTO, PersonEntryTO, RoleTO, SalesPersonTO, SalesPersonUnavailableTO, ShiftplanTO,
     ShortEmployeeReportTO, SlotTO, SpecialDayTO, TextTemplateTO, UpdateTextTemplateRequestTO,
     UserRole, UserTO, VacationBalanceTO, VacationEntitlementOffsetTO, VacationPayloadTO,
     VoluntaryStatsTO, WeekMessageTO, WeekStatusTO, WeeklySummaryTO,
@@ -863,6 +863,22 @@ pub async fn get_balance_until_week(
         "{}/report?year={}&until_week={}",
         config.backend, year, week
     );
+    let response = reqwest::get(url).await?;
+    response.error_for_status_ref()?;
+    let res = response.json().await?;
+    info!("Fetched");
+    Ok(res)
+}
+
+/// Phase 62 (PADM-01): ein einziger Aggregat-GET fuer das Personen-Verzeichnis.
+/// Ersetzt das bisherige 2+N+2M-Request-Muster der User-Management-Seite
+/// (Success Criterion 5).
+pub async fn get_person_directory(config: Config) -> Result<Rc<[PersonEntryTO]>, reqwest::Error> {
+    info!("Fetching person directory");
+    // Der Praefix `/person-directory` ist zeichengleich mit dem `.nest(...)`-
+    // Praefix der REST-Route und dem `[[web.proxy]]`-Eintrag in `Dioxus.toml`
+    // zu halten — eine Abweichung faellt erst zur Laufzeit als 404 auf.
+    let url = format!("{}/person-directory", config.backend);
     let response = reqwest::get(url).await?;
     response.error_for_status_ref()?;
     let res = response.json().await?;

@@ -4,7 +4,7 @@ use std::rc::Rc;
 use dioxus::prelude::*;
 use futures::future::join_all;
 use futures_util::StreamExt;
-use rest_types::InvitationResponse;
+use rest_types::{InvitationResponse, PersonEntryTO};
 use uuid::Uuid;
 
 use rest_types::ShiftplanTO;
@@ -47,6 +47,12 @@ pub struct RoleAssignment {
 pub struct UserManagementStore {
     pub users: Rc<[User]>,
     pub sales_persons: Rc<[SalesPerson]>,
+
+    /// Phase 62 (PADM-01): das Personen-Verzeichnis als **ein** Aggregat.
+    /// Gefuellt von [`UserManagementAction::LoadPersonDirectory`]; loest die
+    /// drei Verknuepfungs-/Rollen-Maps und ihr N+1-Ladeverhalten ab.
+    pub directory: Rc<[PersonEntryTO]>,
+
     pub sales_person: Option<SelectedSalesPerson>,
     pub loaded_sales_person: Option<SelectedSalesPerson>,
     pub role_assignements: Rc<[RoleAssignment]>,
@@ -119,6 +125,24 @@ pub async fn load_all_users() {
     match users {
         Ok(users) => {
             USER_MANAGEMENT_STORE.write().users = users;
+        }
+        Err(err) => {
+            *ERROR_STORE.write() = ErrorStore {
+                error: Some(err),
+            };
+        }
+    }
+}
+
+/// Phase 62: laedt das Personen-Verzeichnis mit einem einzigen Request und
+/// meldet Fehler ueber den globalen `ERROR_STORE` — dieselbe `match Ok/Err`-Form
+/// wie jeder andere Loader dieser Datei; kein seitenlokales Banner
+/// (62-UI-SPEC, Error state).
+pub async fn load_person_directory() {
+    let directory = loader::load_person_directory(CONFIG.read().clone()).await;
+    match directory {
+        Ok(directory) => {
+            USER_MANAGEMENT_STORE.write().directory = directory;
         }
         Err(err) => {
             *ERROR_STORE.write() = ErrorStore {
@@ -424,6 +448,9 @@ pub async fn revoke_user_invitation_session(
 
 pub enum UserManagementAction {
     LoadAllUsers,
+    /// Phase 62 (PADM-01): fuellt das Personen-Verzeichnis mit genau einem
+    /// Aggregat-Request.
+    LoadPersonDirectory,
     LoadAllSalesPersons,
     LoadSalesPerson(Uuid),
     UpdateSalesPerson(SalesPerson),
@@ -458,6 +485,16 @@ pub async fn user_management_service(mut rx: UnboundedReceiver<UserManagementAct
             UserManagementAction::LoadAllSalesPersons => {
                 load_all_sales_persons().await;
                 load_all_sales_person_user_links().await;
+                Ok(())
+            }
+            UserManagementAction::LoadPersonDirectory => {
+                // Success Criterion 5: genau **ein** Netzwerk-Aufruf in diesem
+                // Arm — ein zweiter waere ein Rueckfall in das abgeloeste
+                // N+1-Ladeverhalten. Der Test
+                // `tests::load_directory_ist_ein_request` haelt das per
+                // Quell-Assertion fest (und zaehlt auch Kommentartext mit,
+                // darum steht das Suffix hier bewusst nicht ausgeschrieben).
+                load_person_directory().await;
                 Ok(())
             }
             UserManagementAction::LoadSalesPerson(sales_person_id) => {
