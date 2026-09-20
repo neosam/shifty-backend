@@ -4,15 +4,15 @@ milestone: v2.7
 milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 63
 current_phase_name: Personen-Detailansicht + Ausprägungs-Aktionen
-status: Phase 63 Context erfasst (8 Entscheidungen D-63-01..08). Bereit fuer /gsd-plan-phase 63.
-stopped_at: Phase 63 context gathered
-last_updated: "2026-09-20T14:45:00.000Z"
+status: Phase 63 geplant — 11 Plaene in 9 Wellen, Plan-Checker `VERIFICATION PASSED`. Bereit fuer /gsd-execute-phase 63.
+stopped_at: Phase 63 planned (11 plans, 9 waves)
+last_updated: "2026-09-20T17:43:02.647Z"
 last_activity: 2026-09-20
-last_activity_desc: Phase 63 discuss abgeschlossen — CONTEXT.md geschrieben
+last_activity_desc: Phase 63 geplant — RESEARCH, VALIDATION, UI-SPEC, PATTERNS, 11 PLAN.md
 progress:
   total_phases: 5
   completed_phases: 3
-  total_plans: 20
+  total_plans: 31
   completed_plans: 20
   percent: 60
 ---
@@ -34,8 +34,9 @@ progress:
 ## Current Position
 
 Phase: 63 — Personen-Detailansicht + Ausprägungs-Aktionen
-Plan: Not started
-Status: Phase 62 abgeschlossen — alle 7 Pläne, Verifikation `passed` (9/9).
+Plan: 0/11 (geplant, noch nicht ausgeführt)
+Status: Phase 63 geplant — 11 Pläne in 9 Wellen, Plan-Checker `VERIFICATION PASSED`,
+Requirements 5/5 und Entscheidungen 8/8 abgedeckt. Bereit für `/gsd-execute-phase 63`.
 
 Was Phase 62 geliefert hat:
 - 62-01 `PersonDirectoryDao` mit Drei-Wege-Outer-Join; WR-02 (Soft-Delete in der
@@ -309,9 +310,9 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-09-20T14:45:00.000Z
-**Stopped at:** Phase 63 context gathered
-**Resume file:** .planning/phases/63-personen-detailansicht-auspr-gungs-aktionen/63-CONTEXT.md
+**Last session:** 2026-09-20T17:43:02.639Z
+**Stopped at:** Phase 63 planned (11 plans, 9 waves)
+**Resume file:** .planning/phases/63-personen-detailansicht-auspr-gungs-aktionen/63-01-PLAN.md
 
 **To resume work in a new session:**
 
