@@ -31,8 +31,18 @@ use crate::service::i18n::I18N;
 
 /// Static Tailwind design-token class string for the badge, one per
 /// Auspraegung. Shared shape classes are identical to `WeekStatusBadge`'s.
-pub(crate) fn person_kind_badge_class(_kind: &PersonKindTO) -> &'static str {
-    ""
+pub(crate) fn person_kind_badge_class(kind: &PersonKindTO) -> &'static str {
+    match kind {
+        PersonKindTO::Linked => {
+            "inline-flex items-center px-2 py-0.5 rounded-sm text-small font-medium border bg-accent-soft border-accent text-accent"
+        }
+        PersonKindTO::SalesPersonOnly => {
+            "inline-flex items-center px-2 py-0.5 rounded-sm text-small font-medium border bg-warn-soft border-warn text-warn"
+        }
+        PersonKindTO::UserOnly => {
+            "inline-flex items-center px-2 py-0.5 rounded-sm text-small font-medium border border-dashed border-border-strong text-ink-soft bg-transparent"
+        }
+    }
 }
 
 /// i18n label key for an Auspraegung (the three keys added in Plan 62-02).

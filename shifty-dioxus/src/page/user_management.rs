@@ -1,17 +1,25 @@
-//! Redesigned `UserManagementPage` — two-tab layout (`SalesPersons` /
-//! `Benutzer`) on top of the existing `UserManagementAction` service.
+//! `UserManagementPage` — **eine** durchsuchbare Personenliste (Phase 62,
+//! PADM-01). Die frueheren zwei Tabs (`SalesPersons` / `Benutzer`) und ihre
+//! N+1-Ladepfade sind entfallen; alle Zeilen kommen aus einem einzigen
+//! Aggregat-Request (`LoadPersonDirectory`, Success Criterion 5).
 //!
-//! Tab state is page-local (no URL segment); each tab carries its own
-//! search input. Add-user and delete-user flows live in `Dialog`s so the
-//! page surface stays clean. Linked-user / linked-sales-person / role
-//! columns are populated by the preload actions chained inside
-//! `LoadAllUsers` and `LoadAllSalesPersons`.
+//! Jede Zeile traegt ein Auspraegungs-Badge (`PersonKindBadge`). Anzeigename
+//! und Benutzername werden stumpf interpoliert — im Frontend existiert keine
+//! Namens-Fallback-Regel (PADM-06, Success Criterion 3), und die Auspraegung
+//! kommt als Backend-Enum, wird also nie aus leeren Feldern abgeleitet
+//! (T-62-09).
+//!
+//! Die Seite traegt einen Component-Level-Admin-Guard (PADM-08, D-62-08):
+//! die Nav-Ausblendung faengt einen direkten URL-Aufruf nicht ab. Anlegen,
+//! Loeschen und Impersonation leben weiter in `Dialog`s bzw. in der
+//! Aktionsspalte und sind auf Zeilen mit Benutzer-Auspraegung beschraenkt
+//! (D-62-06).
 
 use crate::{
     base_types::ImStr,
     component::{
         atoms::btn::build_class as btn_build_class, Btn, BtnVariant, Dialog, DialogVariant, Field,
-        PersonChip, PersonKindBadge, TextInput, TopBar, UserManagementTabBar, UserMgmtTab,
+        PersonChip, PersonKindBadge, TextInput, TopBar,
     },
     i18n::Key,
     router::Route,
@@ -40,26 +48,55 @@ pub(crate) fn matches_search(name: &str, term: &str) -> bool {
     name.to_lowercase().contains(&term.to_lowercase())
 }
 
+/// PADM-08 / D-62-08 / T-62-02: Admin-Praedikat des Component-Level-Guards.
+/// Dieselbe Pruefung wie in `page/settings.rs`, nur als freie Funktion, damit
+/// sie ohne Dioxus-Laufzeit pruefbar ist. Fehlende Auth-Info gilt als *nicht*
+/// berechtigt.
+pub(crate) fn is_admin(auth_info: Option<&AuthInfo>) -> bool {
+    auth_info.map(|a| a.has_privilege("admin")).unwrap_or(false)
+}
+
+/// Ablehnungs-Ansicht des Guards. Rendert genau das, was `settings.rs` beim
+/// fruehen `return` rendert: die obere Leiste und einen gedaempften Hinweis.
+///
+/// Der Text bleibt bewusst hartkodiertes, unuebersetztes Englisch — eine
+/// vorbestehende Luecke des kopierten Guard-Musters, die diese Phase
+/// ausdruecklich nicht schliesst (62-UI-SPEC Open Question 4).
+#[component]
+pub fn NotAuthorizedView() -> Element {
+    rsx! {
+        TopBar {}
+        div { class: "p-md text-ink-muted", "Not authorized." }
+    }
+}
+
 #[component]
 pub fn UserManagementPage() -> Element {
     let user_management_service = use_coroutine_handle::<UserManagementAction>();
     // D-32-07 / IMP-01: impersonate service handle for "Act as this person".
     let impersonate_service = use_coroutine_handle::<ImpersonateAction>();
     let user_management = USER_MANAGEMENT_STORE.read().clone();
+    let auth = AUTH.read().clone();
     let i18n = I18N.read().clone();
 
-    let mut active_tab = use_signal(|| UserMgmtTab::SalesPersons);
-    let sales_persons_search = use_signal(String::new);
-    let users_search = use_signal(String::new);
+    // PADM-08 / D-62-08 / T-62-02: Component-Level-Admin-Guard. Die Nav-Leiste
+    // blendet diese Route fuer Nicht-Admins aus, ein direkter URL-Aufruf wuerde
+    // das aber umgehen. Defense-in-Depth — das autoritative Gate ist der
+    // Backend-Endpoint. Der fruehe `return` steht vor jedem Effekt-Hook und
+    // vor jedem Datenzugriff.
+    if !is_admin(auth.auth_info.as_ref()) {
+        return rsx! {
+            NotAuthorizedView {}
+        };
+    }
+
+    let search = use_signal(String::new);
     let mut show_add_user_dialog = use_signal(|| false);
     let mut delete_user_confirm: Signal<Option<ImStr>> = use_signal(|| None);
     let mut new_user_name: Signal<ImStr> = use_signal(|| "".into());
 
     use_effect(move || {
-        user_management_service.send(UserManagementAction::LoadAllUsers);
-        user_management_service.send(UserManagementAction::LoadAllSalesPersons);
-        // Phase 62: der Aggregat-Ladepfad. Die beiden Sends darueber fallen im
-        // Seitenumbau weg; hier stehen sie noch, damit dieser Commit uebersetzt.
+        // Success Criterion 5: ein einziger Aggregat-Aufruf fuellt die Liste.
         user_management_service.send(UserManagementAction::LoadPersonDirectory);
     });
 
@@ -71,27 +108,15 @@ pub fn UserManagementPage() -> Element {
                 "{i18n.t(Key::UserManagement)}"
             }
 
-            UserManagementTabBar {
-                active: *active_tab.read(),
-                on_select: move |t| active_tab.set(t),
-            }
-
-            if *active_tab.read() == UserMgmtTab::SalesPersons {
-                SalesPersonTabContent {
-                    user_management: user_management.clone(),
-                    search: sales_persons_search,
-                }
-            } else {
-                UsersTabContent {
-                    user_management: user_management.clone(),
-                    search: users_search,
-                    on_open_add_user: move |_| show_add_user_dialog.set(true),
-                    on_request_delete: move |username: ImStr| delete_user_confirm.set(Some(username)),
-                    // D-32-07 / IMP-01: start impersonation from the Users tab.
-                    on_impersonate: move |username: ImStr| {
-                        impersonate_service.send(ImpersonateAction::Start(username))
-                    },
-                }
+            PersonDirectoryTable {
+                entries: user_management.directory.clone(),
+                search,
+                on_open_add_user: move |_| show_add_user_dialog.set(true),
+                on_request_delete: move |username: ImStr| delete_user_confirm.set(Some(username)),
+                // D-32-07 / IMP-01: start impersonation from the directory row.
+                on_impersonate: move |username: ImStr| {
+                    impersonate_service.send(ImpersonateAction::Start(username))
+                },
             }
         }
 
@@ -218,26 +243,44 @@ fn DeleteUserConfirmDialog(props: DeleteUserConfirmDialogProps) -> Element {
 }
 
 #[derive(Props, Clone, PartialEq)]
-struct SalesPersonTabContentProps {
-    user_management: crate::service::user_management::UserManagementStore,
+struct PersonDirectoryTableProps {
+    entries: Rc<[PersonEntryTO]>,
     search: Signal<String>,
+    on_open_add_user: EventHandler<()>,
+    on_request_delete: EventHandler<ImStr>,
+    on_impersonate: EventHandler<ImStr>,
 }
 
+/// Die eine Liste des Personen-Verzeichnisses (PADM-01): Werkzeugleiste plus
+/// Tabelle. Die Eintraege kommen fertig sortiert aus dem Backend — hier wird
+/// nur gefiltert, nie umsortiert und nie umbenannt.
 #[component]
-fn SalesPersonTabContent(props: SalesPersonTabContentProps) -> Element {
+fn PersonDirectoryTable(props: PersonDirectoryTableProps) -> Element {
     let i18n = I18N.read().clone();
     let mut search = props.search;
-    let user_management = props.user_management;
-
     let placeholder = i18n.t(Key::SearchPlaceholder);
     let term = search.read().clone();
 
-    let filtered: Vec<_> = user_management
-        .sales_persons
+    let on_open_add_user = props.on_open_add_user;
+    let on_request_delete = props.on_request_delete;
+    let on_impersonate = props.on_impersonate;
+
+    // Success Criterion 2: ein einziger Suchbegriff, ODER-verknuepft ueber
+    // Anzeigename und Benutzername.
+    let filtered: Vec<PersonEntryTO> = props
+        .entries
         .iter()
-        .filter(|sp| matches_search(&sp.name, &term))
+        .filter(|entry| {
+            let hit_title = matches_search(&entry.display_name, &term);
+            let hit_login = entry
+                .username
+                .as_deref()
+                .is_some_and(|login| matches_search(login, &term));
+            hit_title || hit_login
+        })
         .cloned()
         .collect();
+    let no_matches = filtered.is_empty() && !term.is_empty();
 
     rsx! {
         div { class: "flex items-center gap-2 mb-4",
@@ -249,7 +292,9 @@ fn SalesPersonTabContent(props: SalesPersonTabContentProps) -> Element {
                 oninput: move |evt| search.set(evt.value()),
             }
             {
-                let primary_cls = btn_build_class(BtnVariant::Primary, false);
+                // 62-UI-SPEC Open Question 1: bewusst Sekundaer — auf der Seite
+                // steht genau ein Akzent-Button ("Neuen Benutzer anlegen").
+                let secondary_cls = btn_build_class(BtnVariant::Secondary, false);
                 let href = format!(
                     "{}",
                     Route::SalesPersonDetails { sales_person_id: String::new() }
@@ -257,144 +302,10 @@ fn SalesPersonTabContent(props: SalesPersonTabContentProps) -> Element {
                 rsx! {
                     a {
                         href: "{href}",
-                        class: "{primary_cls} inline-flex items-center",
+                        class: "{secondary_cls} inline-flex items-center whitespace-nowrap",
                         "{i18n.t(Key::CreateNewSalesPerson)}"
                     }
                 }
-            }
-        }
-
-        table { class: "w-full text-left",
-            thead { class: "border-b border-border text-micro font-bold uppercase text-ink-muted",
-                tr {
-                    th { class: "py-2 px-3 font-semibold", "{i18n.t(Key::SalesPersons)}" }
-                    th { class: "py-2 px-3 font-semibold", "{i18n.t(Key::ColumnType)}" }
-                    th { class: "py-2 px-3 font-semibold", "{i18n.t(Key::ColumnLinkedUser)}" }
-                    th { class: "py-2 px-3 font-semibold w-[1%]" }
-                }
-            }
-            tbody {
-                for sp in filtered.into_iter() {
-                    {
-                        let inactive = sp.inactive;
-                        let row_class = if inactive {
-                            "border-b border-border hover:bg-surface-alt opacity-60"
-                        } else {
-                            "border-b border-border hover:bg-surface-alt"
-                        };
-                        let is_paid = sp.is_paid;
-                        let pill_label = if is_paid {
-                            i18n.t(Key::Paid)
-                        } else {
-                            i18n.t(Key::Volunteer)
-                        };
-                        let pill_color = if is_paid {
-                            ImStr::from(ACCENT_SOFT_HEX)
-                        } else {
-                            ImStr::from(WARN_SOFT_HEX)
-                        };
-                        let linked_user = user_management
-                            .sales_person_user_links
-                            .get(&sp.id)
-                            .cloned()
-                            .flatten();
-                        let bg = sp.background_color.clone();
-                        let name = sp.name.clone();
-                        let id = sp.id;
-                        rsx! {
-                            tr { class: "{row_class}",
-                                td { class: "py-2 px-3",
-                                    div { class: "flex items-center gap-2",
-                                        span {
-                                            class: "w-2.5 h-2.5 rounded-full",
-                                            style: "background-color: {bg}",
-                                        }
-                                        span { class: "text-ink", "{name}" }
-                                    }
-                                }
-                                td { class: "py-2 px-3",
-                                    div { class: "flex items-center gap-2",
-                                        PersonChip {
-                                            name: ImStr::from(pill_label.as_ref()),
-                                            color: Some(pill_color),
-                                        }
-                                        if inactive {
-                                            span { class: "inline-flex px-2 py-0.5 rounded-sm text-micro font-medium bg-bad-soft text-bad",
-                                                "{i18n.t(Key::Inactive)}"
-                                            }
-                                        }
-                                    }
-                                }
-                                td { class: "py-2 px-3",
-                                    if let Some(login) = linked_user {
-                                        span { class: "font-mono text-ink", "{login}" }
-                                    } else {
-                                        span { class: "text-ink-muted", "{i18n.t(Key::Unlinked)}" }
-                                    }
-                                }
-                                td { class: "py-2 px-3 w-[1%]",
-                                    {
-                                        let secondary_cls = btn_build_class(BtnVariant::Secondary, false);
-                                        let href = format!(
-                                            "{}",
-                                            Route::SalesPersonDetails { sales_person_id: id.to_string() }
-                                        );
-                                        rsx! {
-                                            a {
-                                                href: "{href}",
-                                                class: "{secondary_cls} inline-flex items-center",
-                                                "{i18n.t(Key::Edit)}"
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-#[derive(Props, Clone, PartialEq)]
-struct UsersTabContentProps {
-    user_management: crate::service::user_management::UserManagementStore,
-    search: Signal<String>,
-    on_open_add_user: EventHandler<()>,
-    on_request_delete: EventHandler<ImStr>,
-    /// D-32-07 / IMP-01: callback to start impersonating the given username.
-    on_impersonate: EventHandler<ImStr>,
-}
-
-#[component]
-fn UsersTabContent(props: UsersTabContentProps) -> Element {
-    let i18n = I18N.read().clone();
-    let mut search = props.search;
-    let user_management = props.user_management;
-
-    let placeholder = i18n.t(Key::SearchPlaceholder);
-    let term = search.read().clone();
-
-    let filtered: Vec<_> = user_management
-        .users
-        .iter()
-        .filter(|u| matches_search(u.username.as_str(), &term))
-        .cloned()
-        .collect();
-
-    let on_open_add_user = props.on_open_add_user;
-    let on_request_delete = props.on_request_delete;
-    let on_impersonate = props.on_impersonate;
-
-    rsx! {
-        div { class: "flex items-center gap-2 mb-4",
-            input {
-                class: "{SEARCH_INPUT_CLASSES}",
-                r#type: "text",
-                placeholder: "{placeholder}",
-                value: "{search.read()}",
-                oninput: move |evt| search.set(evt.value()),
             }
             Btn {
                 variant: BtnVariant::Primary,
@@ -406,90 +317,130 @@ fn UsersTabContent(props: UsersTabContentProps) -> Element {
         table { class: "w-full text-left",
             thead { class: "border-b border-border text-micro font-bold uppercase text-ink-muted",
                 tr {
-                    th { class: "py-2 px-3 font-semibold", "{i18n.t(Key::Users)}" }
-                    th { class: "py-2 px-3 font-semibold", "{i18n.t(Key::ColumnLinkedSalesPerson)}" }
+                    th { class: "py-2 px-3 font-semibold", "{i18n.t(Key::SalesPersons)}" }
+                    th { class: "py-2 px-3 font-semibold", "{i18n.t(Key::ColumnType)}" }
+                    th { class: "py-2 px-3 font-semibold", "{i18n.t(Key::ColumnUsername)}" }
                     th { class: "py-2 px-3 font-semibold", "{i18n.t(Key::ColumnRoles)}" }
                     th { class: "py-2 px-3 font-semibold w-[1%]" }
                 }
             }
             tbody {
-                for user in filtered.into_iter() {
+                for entry in filtered.into_iter() {
                     {
-                        let username = user.username.clone();
-                        let username_for_link = username.clone();
-                        let username_for_delete = username.clone();
-                        let username_for_impersonate = username.clone();
-                        let linked_sp = user_management
-                            .user_sales_person_links
-                            .get(&username)
-                            .cloned()
-                            .flatten();
-                        let roles = user_management
-                            .user_role_assignments
-                            .get(&username)
-                            .cloned();
+                        let inactive = entry.inactive.unwrap_or(false);
+                        let row_class = if inactive {
+                            "border-b border-border hover:bg-surface-alt opacity-60"
+                        } else {
+                            "border-b border-border hover:bg-surface-alt"
+                        };
+                        let has_sales_person = entry.sales_person_id.is_some();
+                        let is_paid = entry.is_paid.unwrap_or(false);
+                        let pill_label = if is_paid {
+                            i18n.t(Key::Paid)
+                        } else {
+                            i18n.t(Key::Volunteer)
+                        };
+                        let pill_color = if is_paid {
+                            ImStr::from(ACCENT_SOFT_HEX)
+                        } else {
+                            ImStr::from(WARN_SOFT_HEX)
+                        };
+                        let bg = entry.background_color.clone();
+                        let title = entry.display_name.clone();
+                        let login: Option<ImStr> = entry.username.as_deref().map(ImStr::from);
+                        let login_for_impersonate = login.clone();
+                        let login_for_delete = login.clone();
+                        let kind = entry.kind;
+                        let roles = entry.roles.clone();
+                        // D-62-07: Verkaeufer-Seite vorhanden -> Verkaeufer-
+                        // Detailroute, sonst Benutzer-Detailroute. Diese Phase
+                        // legt keine neue Detail-Route an.
+                        let edit_href = if let Some(sales_person_id) = entry.sales_person_id {
+                            format!(
+                                "{}",
+                                Route::SalesPersonDetails {
+                                    sales_person_id: sales_person_id.to_string(),
+                                }
+                            )
+                        } else {
+                            let user_id = match &login {
+                                Some(value) => value.to_string(),
+                                None => String::new(),
+                            };
+                            format!("{}", Route::UserDetails { user_id })
+                        };
+                        let secondary_cls = btn_build_class(BtnVariant::Secondary, false);
                         rsx! {
-                            tr { class: "border-b border-border hover:bg-surface-alt",
-                                td { class: "py-2 px-3 font-mono text-ink", "{username}" }
+                            tr { class: "{row_class}",
                                 td { class: "py-2 px-3",
-                                    if let Some(sp) = linked_sp {
-                                        div { class: "flex items-center gap-2",
+                                    div { class: "flex items-center gap-2",
+                                        if let Some(color) = bg.clone() {
                                             span {
                                                 class: "w-2.5 h-2.5 rounded-full",
-                                                style: "background-color: {sp.background_color}",
+                                                style: "background-color: {color}",
                                             }
-                                            span { class: "text-ink", "{sp.name}" }
                                         }
+                                        span { class: "text-ink", "{title}" }
+                                    }
+                                }
+                                td { class: "py-2 px-3",
+                                    div { class: "flex items-center gap-2 flex-wrap",
+                                        PersonKindBadge { kind }
+                                        if has_sales_person {
+                                            PersonChip {
+                                                name: ImStr::from(pill_label.as_ref()),
+                                                color: Some(pill_color.clone()),
+                                            }
+                                        }
+                                        if inactive {
+                                            span { class: "inline-flex px-2 py-0.5 rounded-sm text-micro font-medium bg-bad-soft text-bad",
+                                                "{i18n.t(Key::Inactive)}"
+                                            }
+                                        }
+                                    }
+                                }
+                                td { class: "py-2 px-3",
+                                    if let Some(value) = login.clone() {
+                                        span { class: "font-mono text-ink", "{value}" }
                                     } else {
                                         span { class: "text-ink-muted", "{i18n.t(Key::Unlinked)}" }
                                     }
                                 }
                                 td { class: "py-2 px-3",
-                                    if let Some(role_list) = roles.as_ref() {
-                                        if role_list.is_empty() {
-                                            span { class: "text-ink-muted", "{i18n.t(Key::Unlinked)}" }
-                                        } else {
-                                            div { class: "flex flex-wrap gap-1",
-                                                for role in role_list.iter() {
-                                                    span { class: "inline-flex px-2 py-0.5 rounded-sm text-micro font-medium bg-accent-soft text-accent",
-                                                        "{role}"
-                                                    }
+                                    if roles.is_empty() {
+                                        span { class: "text-ink-muted", "{i18n.t(Key::Unlinked)}" }
+                                    } else {
+                                        div { class: "flex flex-wrap gap-1",
+                                            for role in roles.iter() {
+                                                span { class: "inline-flex px-2 py-0.5 rounded-sm text-micro font-medium bg-accent-soft text-accent",
+                                                    "{role}"
                                                 }
                                             }
                                         }
-                                    } else {
-                                        span { class: "text-ink-muted", "{i18n.t(Key::Unlinked)}" }
                                     }
                                 }
                                 td { class: "py-2 px-3 w-[1%]",
                                     div { class: "flex gap-2 whitespace-nowrap",
-                                        // D-32-07 / IMP-01: "Act as this person" — starts
-                                        // impersonation with the row's username (the auth
-                                        // identity the POST /admin/impersonate/{username}
-                                        // endpoint expects).
-                                        Btn {
-                                            variant: BtnVariant::Secondary,
-                                            on_click: move |_| on_impersonate.call(username_for_impersonate.clone()),
-                                            "{i18n.t(Key::ImpersonateActAs)}"
-                                        }
-                                        {
-                                            let secondary_cls = btn_build_class(BtnVariant::Secondary, false);
-                                            let href = format!(
-                                                "{}",
-                                                Route::UserDetails { user_id: username_for_link.to_string() }
-                                            );
-                                            rsx! {
-                                                a {
-                                                    href: "{href}",
-                                                    class: "{secondary_cls} inline-flex items-center",
-                                                    "{i18n.t(Key::Edit)}"
-                                                }
+                                        // D-62-06: Impersonation und Loeschen
+                                        // haengen an der Benutzer-Auspraegung.
+                                        if let Some(value) = login_for_impersonate.clone() {
+                                            Btn {
+                                                variant: BtnVariant::Secondary,
+                                                on_click: move |_| on_impersonate.call(value.clone()),
+                                                "{i18n.t(Key::ImpersonateActAs)}"
                                             }
                                         }
-                                        Btn {
-                                            variant: BtnVariant::Danger,
-                                            on_click: move |_| on_request_delete.call(username_for_delete.clone()),
-                                            "🗑"
+                                        a {
+                                            href: "{edit_href}",
+                                            class: "{secondary_cls} inline-flex items-center",
+                                            "{i18n.t(Key::Edit)}"
+                                        }
+                                        if let Some(value) = login_for_delete.clone() {
+                                            Btn {
+                                                variant: BtnVariant::Danger,
+                                                on_click: move |_| on_request_delete.call(value.clone()),
+                                                "🗑"
+                                            }
                                         }
                                     }
                                 }
@@ -499,103 +450,27 @@ fn UsersTabContent(props: UsersTabContentProps) -> Element {
                 }
             }
         }
+
+        if no_matches {
+            div { class: "py-6 text-center",
+                p { class: "text-body font-semibold text-ink",
+                    "{i18n.t(Key::PersonDirectorySearchEmptyHeading)}"
+                }
+                p { class: "text-body text-ink-muted",
+                    "{i18n.t(Key::PersonDirectorySearchEmptyBody)}"
+                }
+            }
+        }
     }
-}
-
-
-/// D-62-08 / T-62-02: Admin-Praedikat des Component-Level-Guards. Bewusst eine
-/// freie Funktion, damit es ohne Dioxus-Laufzeit pruefbar ist.
-pub(crate) fn is_admin(_auth_info: Option<&AuthInfo>) -> bool {
-    false
-}
-
-/// Ablehnungs-Ansicht des Guards.
-#[component]
-pub fn NotAuthorizedView() -> Element {
-    rsx! {}
-}
-
-#[derive(Props, Clone, PartialEq)]
-struct PersonDirectoryTableProps {
-    entries: Rc<[PersonEntryTO]>,
-    search: Signal<String>,
-    on_open_add_user: EventHandler<()>,
-    on_request_delete: EventHandler<ImStr>,
-    on_impersonate: EventHandler<ImStr>,
-}
-
-/// Die eine Liste des Personen-Verzeichnisses (PADM-01).
-#[component]
-fn PersonDirectoryTable(props: PersonDirectoryTableProps) -> Element {
-    let _ = &props;
-    rsx! {}
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::service::user_management::UserManagementStore;
-    use crate::state::shiftplan::SalesPerson;
-    use crate::state::user_management::User;
-    use std::collections::HashMap;
-    use std::rc::Rc;
+    use crate::component::atoms::person_kind_badge::person_kind_badge_class;
+    use rest_types::PersonKindTO;
+    use std::sync::Arc;
     use uuid::Uuid;
-
-    fn render_with(store: UserManagementStore, search_initial: &str) -> String {
-        #[derive(Props, Clone, PartialEq)]
-        struct WrapperProps {
-            store: UserManagementStore,
-            initial: String,
-        }
-        #[component]
-        fn SalesWrapper(props: WrapperProps) -> Element {
-            let search = use_signal(|| props.initial.clone());
-            let _ = search.read();
-            rsx! {
-                SalesPersonTabContent { user_management: props.store.clone(), search }
-            }
-        }
-        let mut vdom = VirtualDom::new_with_props(
-            SalesWrapper,
-            WrapperProps {
-                store,
-                initial: search_initial.to_string(),
-            },
-        );
-        vdom.rebuild_in_place();
-        dioxus_ssr::render(&vdom)
-    }
-
-    fn render_users_with(store: UserManagementStore, search_initial: &str) -> String {
-        #[derive(Props, Clone, PartialEq)]
-        struct WrapperProps {
-            store: UserManagementStore,
-            initial: String,
-        }
-        #[component]
-        fn UsersWrapper(props: WrapperProps) -> Element {
-            let search = use_signal(|| props.initial.clone());
-            let _ = search.read();
-            rsx! {
-                UsersTabContent {
-                    user_management: props.store.clone(),
-                    search,
-                    on_open_add_user: |_| {},
-                    on_request_delete: |_: ImStr| {},
-                    on_impersonate: |_: ImStr| {},
-                }
-            }
-        }
-        let mut vdom = VirtualDom::new_with_props(
-            UsersWrapper,
-            WrapperProps {
-                store,
-                initial: search_initial.to_string(),
-            },
-        );
-        vdom.rebuild_in_place();
-        dioxus_ssr::render(&vdom)
-    }
 
     #[test]
     fn matches_search_empty_term_matches_all() {
@@ -610,290 +485,10 @@ mod tests {
         assert!(!matches_search("Tom", "Lena"));
     }
 
-    fn sample_sp(name: &str, is_paid: bool, inactive: bool) -> SalesPerson {
-        SalesPerson {
-            id: Uuid::new_v4(),
-            name: Rc::from(name),
-            background_color: Rc::from("#dbe0ff"),
-            is_paid,
-            inactive,
-            version: Uuid::new_v4(),
-        }
-    }
-
-    fn store_with_sales_persons(spans: Vec<SalesPerson>) -> UserManagementStore {
-        UserManagementStore {
-            sales_persons: Rc::from(spans),
-            ..Default::default()
-        }
-    }
-
-    #[test]
-    fn sales_person_tab_renders_four_columns() {
-        let sp = sample_sp("Lena", true, false);
-        let id = sp.id;
-        let mut links: HashMap<Uuid, Option<ImStr>> = HashMap::new();
-        links.insert(id, Some(ImStr::from("alex")));
-        let store = UserManagementStore {
-            sales_persons: Rc::from(vec![sp]),
-            sales_person_user_links: Rc::new(links),
-            ..Default::default()
-        };
-        let html = render_with(store, "");
-        assert_eq!(html.matches("<th ").count(), 4);
-        assert!(html.contains("background-color: #dbe0ff"));
-        assert!(html.contains("Lena"));
-        assert!(html.contains("person-pill"));
-        assert!(html.contains("font-mono"));
-        assert!(html.contains("alex"));
-    }
-
-    #[test]
-    fn sales_person_tab_inactive_row_has_opacity_and_pill() {
-        let sp = sample_sp("Old", true, true);
-        let store = store_with_sales_persons(vec![sp]);
-        let html = render_with(store, "");
-        assert!(html.contains("opacity-60"));
-        assert!(html.contains("bg-bad-soft"));
-        assert!(html.contains("text-bad"));
-    }
-
-    #[test]
-    fn sales_person_tab_color_dot_has_no_inner_text() {
-        let sp = sample_sp("Lena", false, false);
-        let store = store_with_sales_persons(vec![sp]);
-        let html = render_with(store, "");
-        assert!(html.contains("rounded-full"));
-    }
-
-    #[test]
-    fn sales_person_tab_unlinked_renders_dash() {
-        let sp = sample_sp("Solo", false, false);
-        let store = store_with_sales_persons(vec![sp]);
-        let html = render_with(store, "");
-        assert!(html.contains("—"));
-    }
-
-    #[test]
-    fn sales_person_tab_search_filters_case_insensitive() {
-        let store = store_with_sales_persons(vec![
-            sample_sp("Lena", true, false),
-            sample_sp("Tom", true, false),
-        ]);
-        let html = render_with(store, "lena");
-        assert!(html.contains("Lena"));
-        assert!(!html.contains(">Tom<"));
-    }
-
-    fn store_with_users(users: Vec<User>) -> UserManagementStore {
-        UserManagementStore {
-            users: Rc::from(users),
-            ..Default::default()
-        }
-    }
-
-    #[test]
-    fn users_tab_renders_four_columns_no_status() {
-        let user = User {
-            username: ImStr::from("alex"),
-        };
-        let store = store_with_users(vec![user]);
-        let html = render_users_with(store, "");
-        assert_eq!(html.matches("<th ").count(), 4);
-        let lowered = html.to_lowercase();
-        assert!(
-            !lowered.contains(">status<"),
-            "found Status column header: {lowered}"
-        );
-        assert!(html.contains("font-mono"));
-        assert!(html.contains("alex"));
-    }
-
-    #[test]
-    fn users_tab_linked_sales_person_renders_dot_and_name() {
-        let user = User {
-            username: ImStr::from("alex"),
-        };
-        let sp = sample_sp("Lena", false, false);
-        let mut links: HashMap<ImStr, Option<SalesPerson>> = HashMap::new();
-        links.insert(ImStr::from("alex"), Some(sp));
-        let store = UserManagementStore {
-            users: Rc::from(vec![user]),
-            user_sales_person_links: Rc::new(links),
-            ..Default::default()
-        };
-        let html = render_users_with(store, "");
-        assert!(html.contains("background-color: #dbe0ff"));
-        assert!(html.contains("Lena"));
-    }
-
-    #[test]
-    fn users_tab_roles_render_as_chips() {
-        let user = User {
-            username: ImStr::from("alex"),
-        };
-        let mut roles: HashMap<ImStr, Rc<[ImStr]>> = HashMap::new();
-        roles.insert(
-            ImStr::from("alex"),
-            Rc::from(vec![ImStr::from("admin"), ImStr::from("hr")]),
-        );
-        let store = UserManagementStore {
-            users: Rc::from(vec![user]),
-            user_role_assignments: Rc::new(roles),
-            ..Default::default()
-        };
-        let html = render_users_with(store, "");
-        assert!(html.contains("bg-accent-soft"));
-        assert!(html.contains("text-accent"));
-        assert!(html.contains("admin"));
-        assert!(html.contains("hr"));
-    }
-
-    #[test]
-    fn users_tab_empty_roles_show_dash() {
-        let user = User {
-            username: ImStr::from("alex"),
-        };
-        let store = store_with_users(vec![user]);
-        let html = render_users_with(store, "");
-        assert!(html.contains("—"));
-    }
-
-    #[test]
-    fn users_tab_search_filters_case_insensitive() {
-        let store = store_with_users(vec![
-            User {
-                username: ImStr::from("alex"),
-            },
-            User {
-                username: ImStr::from("bob"),
-            },
-        ]);
-        let html = render_users_with(store, "ALE");
-        assert!(html.contains("alex"));
-        assert!(!html.contains(">bob<"));
-    }
-
-    /// D-32-07 / IMP-01: each Users-tab row must render the "Act as this person"
-    /// action label so admins can start impersonation from the person list.
-    #[test]
-    fn users_tab_act_as_renders_for_user_row() {
-        let store = store_with_users(vec![User {
-            username: ImStr::from("alice"),
-        }]);
-        let html = render_users_with(store, "");
-        // The English i18n text for Key::ImpersonateActAs (default locale) — compact
-        // emoji + short label ("🥸 Act as") so the action column stays narrow.
-        assert!(
-            html.contains("Act as"),
-            "users tab must render the 'Act as' impersonation action for the row, got: {html}"
-        );
-        // The username appears in the row (username column).
-        assert!(html.contains("alice"), "username must be present in row, got: {html}");
-    }
-
-    fn render_add_user_dialog(open: bool) -> String {
-        #[derive(Props, Clone, PartialEq)]
-        struct WrapperProps {
-            open: bool,
-        }
-        #[component]
-        fn AddWrapper(props: WrapperProps) -> Element {
-            rsx! {
-                AddUserDialog {
-                    open: props.open,
-                    value: ImStr::from(""),
-                    on_value_change: |_| {},
-                    on_cancel: |_| {},
-                    on_create: |_| {},
-                }
-            }
-        }
-        let mut vdom = VirtualDom::new_with_props(AddWrapper, WrapperProps { open });
-        vdom.rebuild_in_place();
-        dioxus_ssr::render(&vdom)
-    }
-
-    #[test]
-    fn add_user_dialog_closed_renders_nothing() {
-        let html = render_add_user_dialog(false);
-        // No Dialog content (no `role="dialog"`).
-        assert!(
-            !html.contains("role=\"dialog\""),
-            "expected closed dialog: {html}"
-        );
-    }
-
-    #[test]
-    fn add_user_dialog_open_renders_field_and_buttons() {
-        let html = render_add_user_dialog(true);
-        // Dialog renders.
-        assert!(
-            html.contains("role=\"dialog\""),
-            "missing dialog role: {html}"
-        );
-        // Field label: the i18n key "Add New User" is used both as title and label.
-        // TextInput class.
-        assert!(html.contains("form-input"), "missing form-input class");
-        // Two footer buttons (Cancel + Create).
-        // Cancel uses Secondary tokens; Create uses Primary.
-        assert!(html.contains("bg-accent"), "missing primary tokens: {html}");
-    }
-
-    fn render_delete_dialog(target: Option<&str>) -> String {
-        #[derive(Props, Clone, PartialEq)]
-        struct WrapperProps {
-            target: Option<ImStr>,
-        }
-        #[component]
-        fn DeleteWrapper(props: WrapperProps) -> Element {
-            rsx! {
-                DeleteUserConfirmDialog {
-                    target: props.target.clone(),
-                    on_cancel: |_| {},
-                    on_confirm: |_: ImStr| {},
-                }
-            }
-        }
-        let mut vdom = VirtualDom::new_with_props(
-            DeleteWrapper,
-            WrapperProps {
-                target: target.map(ImStr::from),
-            },
-        );
-        vdom.rebuild_in_place();
-        dioxus_ssr::render(&vdom)
-    }
-
-    #[test]
-    fn delete_user_confirm_dialog_closed_renders_nothing() {
-        let html = render_delete_dialog(None);
-        assert!(
-            !html.contains("role=\"dialog\""),
-            "expected closed dialog: {html}"
-        );
-    }
-
-    #[test]
-    fn delete_user_confirm_dialog_open_interpolates_username_and_has_danger_button() {
-        let html = render_delete_dialog(Some("alex"));
-        assert!(html.contains("role=\"dialog\""));
-        // Username appears in the body text via interpolation.
-        assert!(html.contains("alex"), "username not interpolated: {html}");
-        // Danger button uses bad tokens.
-        assert!(html.contains("text-bad"), "missing danger tokens: {html}");
-        assert!(html.contains("border-bad"), "missing danger border: {html}");
-    }
-
-
     // ── Personen-Verzeichnis (Phase 62) ──────────────────────────────────────
 
-    use crate::component::atoms::person_kind_badge::person_kind_badge_class;
-    use rest_types::PersonKindTO;
-    use std::sync::Arc;
-
     /// Rendert die eine Liste mit injizierten Eintraegen — ohne Store, ohne
-    /// Netzwerk. Ersetzt die beiden Tab-Harnesse.
+    /// Netzwerk. Ersetzt die beiden frueheren Tab-Harnesse.
     fn render_directory(entries: Vec<PersonEntryTO>, search_initial: &str) -> String {
         #[derive(Props, Clone, PartialEq)]
         struct WrapperProps {
@@ -1053,10 +648,7 @@ mod tests {
                 html.contains("Act as"),
                 "user-side row must offer impersonation: {html}"
             );
-            assert!(
-                html.contains("🗑"),
-                "user-side row must offer delete: {html}"
-            );
+            assert!(html.contains("🗑"), "user-side row must offer delete: {html}");
         }
     }
 
@@ -1070,6 +662,29 @@ mod tests {
         assert!(html.contains("opacity-60"), "row not dimmed: {html}");
         assert!(html.contains("bg-bad-soft"), "inactive badge missing: {html}");
         assert!(html.contains("text-bad"), "inactive badge missing: {html}");
+    }
+
+    /// Leer-Zustand greift nur bei nicht-leerem Suchbegriff (62-UI-SPEC).
+    #[test]
+    fn directory_empty_search_result_shows_empty_state() {
+        let entries = vec![sample_entry(
+            PersonKindTO::Linked,
+            "Lena",
+            Some("lena"),
+            true,
+        )];
+        let html = render_directory(entries.clone(), "zzz");
+        assert!(
+            html.contains("No matches"),
+            "empty-state heading missing: {html}"
+        );
+
+        // Leere Liste ohne Suchbegriff ist kein Such-Leerzustand.
+        let html = render_directory(entries, "");
+        assert!(
+            !html.contains("No matches"),
+            "empty state must not appear without a search term: {html}"
+        );
     }
 
     /// PADM-08 / D-62-08: der Component-Level-Guard faengt den direkten
@@ -1102,6 +717,99 @@ mod tests {
             html.contains("Not authorized."),
             "denial view must render the denial text: {html}"
         );
+    }
+
+    fn render_add_user_dialog(open: bool) -> String {
+        #[derive(Props, Clone, PartialEq)]
+        struct WrapperProps {
+            open: bool,
+        }
+        #[component]
+        fn AddWrapper(props: WrapperProps) -> Element {
+            rsx! {
+                AddUserDialog {
+                    open: props.open,
+                    value: ImStr::from(""),
+                    on_value_change: |_| {},
+                    on_cancel: |_| {},
+                    on_create: |_| {},
+                }
+            }
+        }
+        let mut vdom = VirtualDom::new_with_props(AddWrapper, WrapperProps { open });
+        vdom.rebuild_in_place();
+        dioxus_ssr::render(&vdom)
+    }
+
+    #[test]
+    fn add_user_dialog_closed_renders_nothing() {
+        let html = render_add_user_dialog(false);
+        // No Dialog content (no `role="dialog"`).
+        assert!(
+            !html.contains("role=\"dialog\""),
+            "expected closed dialog: {html}"
+        );
+    }
+
+    #[test]
+    fn add_user_dialog_open_renders_field_and_buttons() {
+        let html = render_add_user_dialog(true);
+        // Dialog renders.
+        assert!(
+            html.contains("role=\"dialog\""),
+            "missing dialog role: {html}"
+        );
+        // Field label: the i18n key "Add New User" is used both as title and label.
+        // TextInput class.
+        assert!(html.contains("form-input"), "missing form-input class");
+        // Two footer buttons (Cancel + Create).
+        // Cancel uses Secondary tokens; Create uses Primary.
+        assert!(html.contains("bg-accent"), "missing primary tokens: {html}");
+    }
+
+    fn render_delete_dialog(target: Option<&str>) -> String {
+        #[derive(Props, Clone, PartialEq)]
+        struct WrapperProps {
+            target: Option<ImStr>,
+        }
+        #[component]
+        fn DeleteWrapper(props: WrapperProps) -> Element {
+            rsx! {
+                DeleteUserConfirmDialog {
+                    target: props.target.clone(),
+                    on_cancel: |_| {},
+                    on_confirm: |_: ImStr| {},
+                }
+            }
+        }
+        let mut vdom = VirtualDom::new_with_props(
+            DeleteWrapper,
+            WrapperProps {
+                target: target.map(ImStr::from),
+            },
+        );
+        vdom.rebuild_in_place();
+        dioxus_ssr::render(&vdom)
+    }
+
+    #[test]
+    fn delete_user_confirm_dialog_closed_renders_nothing() {
+        let html = render_delete_dialog(None);
+        assert!(
+            !html.contains("role=\"dialog\""),
+            "expected closed dialog: {html}"
+        );
+    }
+
+    #[test]
+    fn delete_user_confirm_dialog_open_interpolates_username_and_has_danger_button() {
+        let html = render_delete_dialog(Some("alex"));
+        assert!(html.contains("role=\"dialog\""));
+        // Username appears in the body text via interpolation.
+        assert!(html.contains("alex"), "username not interpolated: {html}");
+        // Danger button uses bad tokens.
+        assert!(html.contains("text-bad"), "missing danger tokens: {html}");
+        assert!(html.contains("border-bad"), "missing danger border: {html}");
     }
 
     #[test]
