@@ -46,7 +46,7 @@ use std::sync::Arc;
 
 use dao::person::MockPersonDao;
 use dao::person_directory::{MockPersonDirectoryDao, PersonDirectoryRow, UserRoleRow};
-use dao::{MockPermissionDao, MockTransaction, MockTransactionDao};
+use dao::{MockPermissionDao, MockTransaction, MockTransactionDao, TransactionDao};
 use dao_impl_sqlite::person::PersonDaoImpl;
 use dao_impl_sqlite::person_directory::PersonDirectoryDaoImpl;
 use dao_impl_sqlite::{PermissionDaoImpl, TransactionDaoImpl, TransactionImpl};
@@ -1269,5 +1269,273 @@ async fn get_detail_by_sales_person_ohne_admin_privileg_ist_forbidden() {
     assert!(
         matches!(result, Err(ServiceError::Forbidden)),
         "ohne Admin-Privileg darf auch dieser Lesepfad nichts preisgeben: {result:?}",
+    );
+}
+
+// ─── R-1 … R-7: remove_facet (Plan 63-05 / PADM-07 / SC-5 / D-63-01) ────────
+
+async fn remove_facet(
+    pool: &Arc<sqlx::SqlitePool>,
+    admin: bool,
+    person_id: Uuid,
+    facet: PersonFacet,
+) -> Result<(), ServiceError> {
+    build_service(pool.clone(), admin)
+        .remove_facet(person_id, facet, Authentication::Context(()), None)
+        .await
+}
+
+async fn seed_user_invitation(pool: &sqlx::SqlitePool, username: &str) {
+    sqlx::query(
+        "INSERT INTO user_invitation (id, username, token, expiration_date, update_process) \
+         VALUES (?1, ?2, ?3, '2099-01-01T00:00:00Z', 'seed')",
+    )
+    .bind(Uuid::new_v4().to_string())
+    .bind(username)
+    .bind(Uuid::new_v4().to_string())
+    .execute(pool)
+    .await
+    .expect("seed user_invitation");
+}
+
+async fn sales_person_ist_soft_geloescht(pool: &sqlx::SqlitePool, id: Uuid) -> bool {
+    sqlx::query_scalar::<_, Option<String>>("SELECT deleted FROM sales_person WHERE id = ?")
+        .bind(id.as_bytes().to_vec())
+        .fetch_one(pool)
+        .await
+        .expect("sales person deleted flag")
+        .is_some()
+}
+
+/// R-1 (PADM-07, D-63-05): „Login loeschen" auf einem verknuepften Eintrag.
+/// Hard Delete inklusive Rollen und offener Einladungen — und zwar durch die
+/// Schema-Kaskade, nicht durch Anwendungs-Deletes. Die Sales Person lebt
+/// unveraendert weiter, die Person bleibt (sie hat noch einen Traeger).
+#[tokio::test]
+async fn remove_facet_benutzer_auf_verknuepftem_eintrag_kaskadiert() {
+    let pool = setup_pool().await;
+    let person_id = Uuid::new_v4();
+    let sales_person_id = Uuid::new_v4();
+    seed_person(pool.as_ref(), person_id).await;
+    seed_live_sales_person(pool.as_ref(), sales_person_id, "Bea Verknuepft", person_id).await;
+    seed_user(pool.as_ref(), "bea", person_id).await;
+    seed_user_role(pool.as_ref(), "bea", "hr").await;
+    seed_user_invitation(pool.as_ref(), "bea").await;
+    let vorher = sales_person_fingerprint(pool.as_ref(), sales_person_id).await;
+
+    remove_facet(&pool, true, person_id, PersonFacet::User)
+        .await
+        .expect("remove_facet should succeed for admin");
+
+    assert_eq!(
+        0,
+        count(pool.as_ref(), "SELECT COUNT(*) FROM user WHERE name = 'bea'").await,
+        "Hard Delete: die user-Zeile ist weg",
+    );
+    assert_eq!(
+        0,
+        count(
+            pool.as_ref(),
+            "SELECT COUNT(*) FROM user_role WHERE user_name = 'bea'"
+        )
+        .await,
+        "die Rollen gehen per Fremdschluessel-Kaskade mit",
+    );
+    assert_eq!(
+        0,
+        count(
+            pool.as_ref(),
+            "SELECT COUNT(*) FROM user_invitation WHERE username = 'bea'"
+        )
+        .await,
+        "offene Einladungen gehen per Fremdschluessel-Kaskade mit",
+    );
+    assert_eq!(
+        vorher,
+        sales_person_fingerprint(pool.as_ref(), sales_person_id).await,
+        "die Sales Person bleibt unangetastet — immer nur GENAU EINE Seite (D-63-05)",
+    );
+    assert!(
+        person_exists(pool.as_ref(), person_id).await,
+        "die Person hat noch einen lebenden Traeger und bleibt",
+    );
+}
+
+/// R-2 (D-63-01): „Login loeschen" auf einem reinen Benutzer-Eintrag nimmt die
+/// traegerlos gewordene `person`-Zeile in derselben Transaktion mit.
+#[tokio::test]
+async fn remove_facet_benutzer_ohne_verkaeufer_raeumt_person_auf() {
+    let pool = setup_pool().await;
+    let person_id = Uuid::new_v4();
+    seed_person(pool.as_ref(), person_id).await;
+    seed_user(pool.as_ref(), "carl", person_id).await;
+
+    remove_facet(&pool, true, person_id, PersonFacet::User)
+        .await
+        .expect("remove_facet should succeed for admin");
+
+    assert_eq!(0, count(pool.as_ref(), "SELECT COUNT(*) FROM user").await);
+    assert!(
+        !person_exists(pool.as_ref(), person_id).await,
+        "ohne lebenden Traeger verschwindet die Person mit (D-63-01)",
+    );
+}
+
+/// R-3 (PADM-07, D-63-05): „Verkaeufer loeschen" auf einem verknuepften
+/// Eintrag ist ein **Soft** Delete — die Zeile bleibt mit Stempel und neuer
+/// Version stehen, der Benutzer bleibt unangetastet, die Person bleibt.
+#[tokio::test]
+async fn remove_facet_verkaeufer_auf_verknuepftem_eintrag_ist_soft_delete() {
+    let pool = setup_pool().await;
+    let person_id = Uuid::new_v4();
+    let sales_person_id = Uuid::new_v4();
+    seed_person(pool.as_ref(), person_id).await;
+    seed_live_sales_person(pool.as_ref(), sales_person_id, "Bea Verknuepft", person_id).await;
+    seed_user(pool.as_ref(), "bea", person_id).await;
+    let (_, version_vorher) = sales_person_fingerprint(pool.as_ref(), sales_person_id).await;
+
+    remove_facet(&pool, true, person_id, PersonFacet::SalesPerson)
+        .await
+        .expect("remove_facet should succeed for admin");
+
+    assert_eq!(
+        1,
+        count(pool.as_ref(), "SELECT COUNT(*) FROM sales_person").await,
+        "Soft Delete: die Zeile bleibt in der Datenbank",
+    );
+    assert!(
+        sales_person_ist_soft_geloescht(pool.as_ref(), sales_person_id).await,
+        "die Zeile traegt einen deleted-Stempel",
+    );
+    let (_, version_nachher) = sales_person_fingerprint(pool.as_ref(), sales_person_id).await;
+    assert_ne!(
+        version_vorher, version_nachher,
+        "das Soft Delete zieht eine neue Version nach",
+    );
+    assert_eq!(
+        1,
+        count(pool.as_ref(), "SELECT COUNT(*) FROM user WHERE name = 'bea'").await,
+        "der Benutzer bleibt unangetastet — immer nur GENAU EINE Seite (D-63-05)",
+    );
+    assert!(person_exists(pool.as_ref(), person_id).await);
+}
+
+/// R-4 (D-63-01, Lesart (b)): „Verkaeufer loeschen" auf einem reinen
+/// Verkaeufer-Eintrag. Die soft-geloeschte Zeile zaehlt als weg — die Person
+/// verschwindet, und die Zeile behaelt ihren nun ins Leere zeigenden
+/// `person_id`. Das ist die ausdruecklich akzeptierte Folge, kein Defekt.
+#[tokio::test]
+async fn remove_facet_verkaeufer_ohne_benutzer_raeumt_person_auf() {
+    let pool = setup_pool().await;
+    let person_id = Uuid::new_v4();
+    let sales_person_id = Uuid::new_v4();
+    seed_person(pool.as_ref(), person_id).await;
+    seed_live_sales_person(pool.as_ref(), sales_person_id, "Dana Ohne Login", person_id).await;
+
+    remove_facet(&pool, true, person_id, PersonFacet::SalesPerson)
+        .await
+        .expect("remove_facet should succeed for admin");
+
+    assert!(
+        sales_person_ist_soft_geloescht(pool.as_ref(), sales_person_id).await,
+        "die Sales Person ist soft-geloescht",
+    );
+    assert!(
+        !person_exists(pool.as_ref(), person_id).await,
+        "ohne lebenden Traeger verschwindet die Person mit (D-63-01)",
+    );
+    assert_eq!(
+        Some(person_id),
+        person_of_sales_person(pool.as_ref(), "Dana Ohne Login").await,
+        "der haengende person_id bleibt stehen — akzeptierte Folge der Lesart (b)",
+    );
+}
+
+/// R-5: Eine Seite, die es nicht gibt, ist `EntityNotFound` — und das gilt
+/// fuer die unbekannte Person genauso wie fuer die fehlende Auspraegung.
+#[tokio::test]
+async fn remove_facet_auf_fehlende_seite_ist_entity_not_found() {
+    let pool = setup_pool().await;
+    let person_id = Uuid::new_v4();
+    seed_person(pool.as_ref(), person_id).await;
+    seed_live_sales_person(pool.as_ref(), Uuid::new_v4(), "Dana Ohne Login", person_id).await;
+
+    let ohne_benutzer = remove_facet(&pool, true, person_id, PersonFacet::User).await;
+    assert!(
+        matches!(ohne_benutzer, Err(ServiceError::EntityNotFound(id)) if id == person_id),
+        "ein Eintrag ohne Benutzerkonto hat keine Login-Seite zum Loeschen: {ohne_benutzer:?}",
+    );
+
+    let unbekannt = Uuid::new_v4();
+    let unbekannte_person = remove_facet(&pool, true, unbekannt, PersonFacet::SalesPerson).await;
+    assert!(
+        matches!(unbekannte_person, Err(ServiceError::EntityNotFound(id)) if id == unbekannt),
+        "unbekannte person_id muss EntityNotFound liefern: {unbekannte_person:?}",
+    );
+
+    assert_eq!(
+        1,
+        count(pool.as_ref(), "SELECT COUNT(*) FROM sales_person").await,
+        "keine der Ablehnungen darf etwas geloescht haben",
+    );
+    assert!(person_exists(pool.as_ref(), person_id).await);
+}
+
+/// R-6 (T-63-05-A, PADM-08): Ohne Admin-Privileg wird nichts geloescht.
+#[tokio::test]
+async fn remove_facet_ohne_admin_privileg_ist_forbidden() {
+    let pool = setup_pool().await;
+    let person_id = Uuid::new_v4();
+    seed_person(pool.as_ref(), person_id).await;
+    seed_user(pool.as_ref(), "carl", person_id).await;
+
+    let result = remove_facet(&pool, false, person_id, PersonFacet::User).await;
+
+    assert!(
+        matches!(result, Err(ServiceError::Forbidden)),
+        "ohne Admin-Privileg muss remove_facet Forbidden liefern: {result:?}",
+    );
+    assert_eq!(1, count(pool.as_ref(), "SELECT COUNT(*) FROM user").await);
+    assert!(person_exists(pool.as_ref(), person_id).await);
+}
+
+/// R-7 (D-63-01, der Ein-Transaktions-Nachweis): Loeschung der Auspraegung und
+/// Aufraeumen der Person haengen an **derselben** Transaktion. Der Test
+/// uebergibt eine eigene Transaktion und verwirft sie — danach ist weder das
+/// eine noch das andere wirksam. Liefe das Aufraeumen auf einer zweiten,
+/// eigenen Transaktion, bliebe hier eine Haelfte stehen.
+#[tokio::test]
+async fn remove_facet_nutzt_die_transaktion_des_aufrufers() {
+    let pool = setup_pool().await;
+    let person_id = Uuid::new_v4();
+    seed_person(pool.as_ref(), person_id).await;
+    seed_user(pool.as_ref(), "carl", person_id).await;
+
+    let transaction_dao = TransactionDaoImpl::new(pool.clone());
+    let tx = transaction_dao
+        .new_transaction()
+        .await
+        .expect("new transaction");
+
+    build_service(pool.clone(), true)
+        .remove_facet(
+            person_id,
+            PersonFacet::User,
+            Authentication::Context(()),
+            Some(tx.clone()),
+        )
+        .await
+        .expect("remove_facet should succeed for admin");
+
+    transaction_dao.rollback(tx).await.expect("rollback");
+
+    assert_eq!(
+        1,
+        count(pool.as_ref(), "SELECT COUNT(*) FROM user WHERE name = 'carl'").await,
+        "der Rollback nimmt das Loeschen des Benutzers zurueck",
+    );
+    assert!(
+        person_exists(pool.as_ref(), person_id).await,
+        "und in derselben Transaktion auch das Aufraeumen der Person",
     );
 }

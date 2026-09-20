@@ -41,6 +41,17 @@
 //! einmal, in `crate::person_directory::entry_from_row`. Dieses Modul leitet
 //! sie nicht noch einmal ab; es reicht die Rohzeile an dieselbe freie Funktion
 //! weiter, die die Liste benutzt.
+//!
+//! **Bekannte Kante fuer den UAT (Plan 63-11), vorbestehend und in dieser
+//! Phase bewusst NICHT gefixt:** `session.user_id` traegt als einzige der auf
+//! `user(name)` zeigenden Fremdschluessel-Beziehungen **keine** Kaskade
+//! (Migration `20241116224840_add-session.sql`). Wird ueber `remove_facet` ein
+//! Benutzer geloescht, der noch eine offene Sitzung hat, laeuft das DELETE in
+//! einen Fremdschluessel-Fehler und kommt am Endpoint als generischer 500
+//! heraus statt als sprechende Ablehnung. Ein Fix waere eine Schema-Aenderung
+//! ausserhalb der gelockten Entscheidungen dieser Phase und keiner Success
+//! Criterion zugeordnet; er gehoert damit in einen eigenen Vorgang. Die
+//! Verifikation von Plan 63-11 fuehrt diesen Fall als bekannte Kante.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -512,5 +523,74 @@ impl<Deps: PersonDetailServiceDeps> PersonDetailService for PersonDetailServiceI
         self.transaction_dao.commit(tx).await?;
 
         Ok(entry)
+    }
+
+    async fn remove_facet(
+        &self,
+        person_id: Uuid,
+        facet: PersonFacet,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<(), ServiceError> {
+        // T-63-05-A: Gate als ERSTE Anweisung.
+        self.permission_service
+            .check_permission("admin", context)
+            .await?;
+
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+
+        let Some(entry) = self
+            .person_directory_dao
+            .find_directory_entry(person_id, tx.clone())
+            .await?
+        else {
+            // Kein Commit: die Transaktion wird verworfen (P-61-B).
+            return Err(ServiceError::EntityNotFound(person_id));
+        };
+
+        match facet {
+            PersonFacet::User => {
+                let Some(username) = entry.username.clone() else {
+                    return Err(ServiceError::EntityNotFound(person_id));
+                };
+                // D-63-05: Hard Delete. Rollen und offene Einladungen nimmt die
+                // Fremdschluessel-Kaskade des Schemas mit — bewusst keine
+                // zusaetzlichen Anwendungs-Deletes, die vom Schema abdriften
+                // koennten, sobald dort eine Tabelle dazukommt oder wegfaellt.
+                self.permission_dao
+                    .delete_user(username.as_ref(), tx.clone())
+                    .await?;
+            }
+            PersonFacet::SalesPerson => {
+                let Some(sales_person_id) = entry.sales_person_id else {
+                    return Err(ServiceError::EntityNotFound(person_id));
+                };
+                // D-63-05: Soft Delete ueber den `deleted`-Stempel. Die Zeile
+                // bleibt in der Datenbank, damit Schichtplan-Historie und die
+                // write-once-Snapshots von `billing_period_sales_person`
+                // unberuehrt bleiben — genau das, was die Bestaetigung nach
+                // D-63-08 dem Admin zusagt. `Authentication::Full` erst nach
+                // dem eigenen, strengeren Admin-Gate.
+                self.sales_person_service
+                    .delete(sales_person_id, Authentication::Full, Some(tx.clone()))
+                    .await?;
+            }
+        }
+
+        // D-63-01, Lesart (b) aus Plan 63-02 — zwingend in DERSELBEN
+        // Transaktion: verliert die Person ihren letzten lebenden Traeger,
+        // verschwindet sie mit. Eine soft-geloeschte Sales Person zaehlt dabei
+        // als weg; der dann haengende `person_id` auf ihrer Zeile ist die
+        // ausdruecklich akzeptierte Folge dieser Lesart und kein Defekt.
+        if !self
+            .person_dao
+            .has_live_facets(person_id, tx.clone())
+            .await?
+        {
+            self.person_dao.delete(person_id, tx.clone()).await?;
+        }
+
+        self.transaction_dao.commit(tx).await?;
+        Ok(())
     }
 }

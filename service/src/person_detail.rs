@@ -229,4 +229,40 @@ pub trait PersonDetailService {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<PersonEntry, ServiceError>;
+
+    /// Entfernt **genau eine** Auspraegung eines Eintrags (PADM-07, Success
+    /// Criterion 5).
+    ///
+    /// **Die beiden Seiten sind bewusst asymmetrisch (D-63-05).**
+    /// „Login loeschen" ist ein **Hard Delete** — die `user`-Zeile
+    /// verschwindet, und mit ihr per Fremdschluessel-Kaskade ihre Rollen und
+    /// ihre offenen Einladungen. „Verkaeufer loeschen" ist ein **Soft Delete**
+    /// ueber den `deleted`-Stempel; die Zeile bleibt, damit Schichtplan-
+    /// Historie und die write-once-Snapshots von `billing_period_sales_person`
+    /// unberuehrt bleiben.
+    ///
+    /// **Es gibt keinen Sammelknopf.** Diese Methode nimmt immer genau einen
+    /// `PersonFacet`-Wert entgegen; eine Aktion, die beide Seiten auf einmal
+    /// entfernt, ist durch D-63-05 ausgeschlossen — die zwei Loeschsemantiken
+    /// sind zu verschieden, als dass eine gemeinsame Bestaetigung ehrlich
+    /// beschreiben koennte, was passiert.
+    ///
+    /// **Aufraeumen der Person (D-63-01).** Verliert die Person durch das
+    /// Entfernen ihren letzten **lebenden** Traeger, wird die `person`-Zeile in
+    /// **derselben** Transaktion mitgeloescht. Es gilt Lesart (b) aus Plan
+    /// 63-02: eine soft-geloeschte Sales Person zaehlt als weg, und der dann
+    /// haengende `person_id` auf ihrer Zeile ist die dokumentierte, akzeptierte
+    /// Folge — kein Defekt fuer einen spaeteren Aufraeum-Pass.
+    ///
+    /// Fehlt die angefragte Seite, ist das `ServiceError::EntityNotFound`.
+    ///
+    /// **Verlangt das Admin-Privileg** (D-62-08, PADM-08), als erste
+    /// Anweisung, vor jedem Datenbankzugriff.
+    async fn remove_facet(
+        &self,
+        person_id: Uuid,
+        facet: PersonFacet,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<(), ServiceError>;
 }
