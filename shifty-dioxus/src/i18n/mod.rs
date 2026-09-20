@@ -417,6 +417,24 @@ pub enum Key {
     DeleteUserConfirmTitle,
     DeleteUserConfirmBody,
 
+    // Personen-Verzeichnis (Phase 62 — PADM-01, PADM-06)
+    /// Spaltenkopf der Benutzernamen-Spalte in `page/user_management.rs`.
+    /// Bewusst ein neuer Key statt Wiederverwendung von `ColumnLinkedUser`:
+    /// seit D-62-03 zeigt jede Zeile einen Benutzernamen-Wert, „Verknuepfter
+    /// Benutzer" waere semantisch falsch.
+    ColumnUsername,
+    /// Auspraegungs-Badge einer verknuepften Zeile (Sales Person + Benutzer).
+    PersonKindLinked,
+    /// Auspraegungs-Badge einer Zeile, die nur eine Sales Person traegt.
+    PersonKindSalesPersonOnly,
+    /// Auspraegungs-Badge einer Zeile, die nur ein Benutzerkonto traegt.
+    PersonKindUserOnly,
+    /// Ueberschrift des Leer-Zustands, wenn die Suche im Personen-Verzeichnis
+    /// nichts findet.
+    PersonDirectorySearchEmptyHeading,
+    /// Fliesstext desselben Leer-Zustands.
+    PersonDirectorySearchEmptyBody,
+
     // Impersonation (Phase 32 — D-32-08)
     /// Person-list action label ("Act as this person" / "Als diese Person agieren").
     ImpersonateActAs,
@@ -1017,6 +1035,13 @@ mod tests {
                 Key::Unlinked,
                 Key::DeleteUserConfirmTitle,
                 Key::DeleteUserConfirmBody,
+                // Phase 62 — Personen-Verzeichnis
+                Key::ColumnUsername,
+                Key::PersonKindLinked,
+                Key::PersonKindSalesPersonOnly,
+                Key::PersonKindUserOnly,
+                Key::PersonDirectorySearchEmptyHeading,
+                Key::PersonDirectorySearchEmptyBody,
             ] {
                 let value = i18n.t(key);
                 assert!(

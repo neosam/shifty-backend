@@ -710,6 +710,18 @@ pub fn add_i18n_cs(i18n: &mut I18n<Key, Locale>) {
         "Opravdu chcete smazat uživatele {username}? Tuto akci nelze vrátit zpět.",
     );
 
+    // Personen-Verzeichnis (Phase 62)
+    i18n.add_text(Locale::Cs, Key::ColumnUsername, "Uživatelské jméno");
+    i18n.add_text(Locale::Cs, Key::PersonKindLinked, "Propojeno");
+    i18n.add_text(Locale::Cs, Key::PersonKindSalesPersonOnly, "Pouze prodejce");
+    i18n.add_text(Locale::Cs, Key::PersonKindUserOnly, "Pouze uživatel");
+    i18n.add_text(Locale::Cs, Key::PersonDirectorySearchEmptyHeading, "Žádné shody");
+    i18n.add_text(
+        Locale::Cs,
+        Key::PersonDirectorySearchEmptyBody,
+        "Zkuste jiné jméno nebo uživatelské jméno.",
+    );
+
     // Working-hours mini overview (cards / table layout toggle)
     i18n.add_text(Locale::Cs, Key::WorkingHoursLayoutCards, "Karty");
     i18n.add_text(Locale::Cs, Key::WorkingHoursLayoutTable, "Tabulka");

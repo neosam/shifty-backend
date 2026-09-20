@@ -728,6 +728,18 @@ pub fn add_i18n_de(i18n: &mut I18n<Key, Locale>) {
         "Soll Benutzer {username} wirklich gelöscht werden? Dieser Vorgang kann nicht rückgängig gemacht werden.",
     );
 
+    // Personen-Verzeichnis (Phase 62)
+    i18n.add_text(Locale::De, Key::ColumnUsername, "Benutzername");
+    i18n.add_text(Locale::De, Key::PersonKindLinked, "Verknüpft");
+    i18n.add_text(Locale::De, Key::PersonKindSalesPersonOnly, "Nur Verkäufer");
+    i18n.add_text(Locale::De, Key::PersonKindUserOnly, "Nur Benutzer");
+    i18n.add_text(Locale::De, Key::PersonDirectorySearchEmptyHeading, "Keine Treffer");
+    i18n.add_text(
+        Locale::De,
+        Key::PersonDirectorySearchEmptyBody,
+        "Anderen Namen oder Benutzernamen versuchen.",
+    );
+
     // Working-hours mini overview (cards / table layout toggle)
     i18n.add_text(Locale::De, Key::WorkingHoursLayoutCards, "Karten");
     i18n.add_text(Locale::De, Key::WorkingHoursLayoutTable, "Tabelle");

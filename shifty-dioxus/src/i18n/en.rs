@@ -665,6 +665,18 @@ pub fn add_i18n_en(i18n: &mut I18n<Key, Locale>) {
         "Are you sure you want to delete user {username}? This cannot be undone.",
     );
 
+    // Personen-Verzeichnis (Phase 62)
+    i18n.add_text(Locale::En, Key::ColumnUsername, "Username");
+    i18n.add_text(Locale::En, Key::PersonKindLinked, "Linked");
+    i18n.add_text(Locale::En, Key::PersonKindSalesPersonOnly, "Sales person only");
+    i18n.add_text(Locale::En, Key::PersonKindUserOnly, "User only");
+    i18n.add_text(Locale::En, Key::PersonDirectorySearchEmptyHeading, "No matches");
+    i18n.add_text(
+        Locale::En,
+        Key::PersonDirectorySearchEmptyBody,
+        "Try a different name or username.",
+    );
+
     // Working-hours mini overview (cards / table layout toggle)
     i18n.add_text(Locale::En, Key::WorkingHoursLayoutCards, "Cards");
     i18n.add_text(Locale::En, Key::WorkingHoursLayoutTable, "Table");
