@@ -53,7 +53,7 @@ use dao_impl_sqlite::{PermissionDaoImpl, TransactionDaoImpl, TransactionImpl};
 use service::clock::MockClockService;
 use service::permission::Authentication;
 use service::person::MockPersonService;
-use service::person_detail::PersonDetailService;
+use service::person_detail::{CreatePersonEntry, PersonDetailService};
 use service::person_directory::{PersonEntry, PersonKind};
 use service::sales_person::{MockSalesPersonService, SalesPersonService};
 use service::uuid_service::MockUuidService;
@@ -668,4 +668,267 @@ async fn sales_person_service_dependency_ist_verdrahtet() {
         .expect("der verdrahtete SalesPersonService ist benutzbar");
 
     assert!(all.is_empty(), "frische Datenbank hat keine Sales Persons");
+}
+
+// ─── C-1 … C-8: create_combined (Plan 63-05 / PADM-02 / SC-2) ───────────────
+
+fn create_request(
+    display_name: &str,
+    wants_user: bool,
+    wants_sales_person: bool,
+    username: Option<&str>,
+) -> CreatePersonEntry {
+    CreatePersonEntry {
+        display_name: display_name.into(),
+        wants_user,
+        wants_sales_person,
+        username: username.map(Arc::<str>::from),
+    }
+}
+
+async fn count(pool: &sqlx::SqlitePool, sql: &str) -> i64 {
+    sqlx::query_scalar::<_, i64>(sql)
+        .fetch_one(pool)
+        .await
+        .unwrap_or_else(|err| panic!("count query failed ({sql}): {err}"))
+}
+
+fn uuid_from_blob(bytes: Vec<u8>) -> Uuid {
+    Uuid::from_slice(&bytes).expect("person_id ist ein 16-Byte-Blob")
+}
+
+async fn person_of_user(pool: &sqlx::SqlitePool, name: &str) -> Option<Uuid> {
+    sqlx::query_scalar::<_, Option<Vec<u8>>>("SELECT person_id FROM user WHERE name = ?")
+        .bind(name)
+        .fetch_optional(pool)
+        .await
+        .expect("person_id of user")
+        .flatten()
+        .map(uuid_from_blob)
+}
+
+async fn person_of_sales_person(pool: &sqlx::SqlitePool, name: &str) -> Option<Uuid> {
+    sqlx::query_scalar::<_, Option<Vec<u8>>>("SELECT person_id FROM sales_person WHERE name = ?")
+        .bind(name)
+        .fetch_optional(pool)
+        .await
+        .expect("person_id of sales_person")
+        .flatten()
+        .map(uuid_from_blob)
+}
+
+async fn create_combined(
+    pool: &Arc<sqlx::SqlitePool>,
+    admin: bool,
+    request: &CreatePersonEntry,
+) -> Result<Uuid, ServiceError> {
+    build_service(pool.clone(), admin)
+        .create_combined(request, Authentication::Context(()), None)
+        .await
+}
+
+/// C-1 (SC-2, PADM-02): Beide Umschalter an → genau ein Benutzer, genau eine
+/// Sales Person, **eine** gemeinsame Person. Die Rueckgabe ist genau diese
+/// `person_id` — das Ziel der Weiterleitung in die Detailansicht.
+#[tokio::test]
+async fn create_combined_beide_auspraegungen_teilen_eine_person() {
+    let pool = setup_pool().await;
+
+    let person_id = create_combined(&pool, true, &create_request("Bea Neu", true, true, Some("bea")))
+        .await
+        .expect("create_combined should succeed for admin");
+
+    assert_eq!(
+        Some(person_id),
+        person_of_user(pool.as_ref(), "bea").await,
+        "der Benutzer haengt an der zurueckgegebenen Person",
+    );
+    assert_eq!(
+        Some(person_id),
+        person_of_sales_person(pool.as_ref(), "Bea Neu").await,
+        "die Sales Person haengt an derselben Person (SC-2)",
+    );
+    assert_eq!(
+        1,
+        count(pool.as_ref(), "SELECT COUNT(*) FROM person").await,
+        "genau EINE person-Zeile — kein zweites Anlegen mit anschliessendem Zusammenfuehren",
+    );
+    assert_eq!(1, count(pool.as_ref(), "SELECT COUNT(*) FROM user").await);
+    assert_eq!(
+        1,
+        count(pool.as_ref(), "SELECT COUNT(*) FROM sales_person").await
+    );
+
+    let entry = detail(&pool, person_id).await;
+    assert_eq!(PersonKind::Linked, entry.kind);
+    assert_eq!(Arc::<str>::from("Bea Neu"), entry.display_name);
+}
+
+/// C-2 (SC-2): Nur der Verkaeufer-Umschalter → keine `user`-Zeile.
+#[tokio::test]
+async fn create_combined_nur_verkaeufer_legt_keinen_benutzer_an() {
+    let pool = setup_pool().await;
+
+    let person_id = create_combined(
+        &pool,
+        true,
+        &create_request("Dana Ohne Login", false, true, None),
+    )
+    .await
+    .expect("create_combined should succeed for admin");
+
+    assert_eq!(
+        Some(person_id),
+        person_of_sales_person(pool.as_ref(), "Dana Ohne Login").await,
+    );
+    assert_eq!(
+        0,
+        count(pool.as_ref(), "SELECT COUNT(*) FROM user").await,
+        "ohne gesetzten Umschalter entsteht KEIN Benutzerkonto",
+    );
+
+    let entry = detail(&pool, person_id).await;
+    assert_eq!(PersonKind::SalesPersonOnly, entry.kind);
+}
+
+/// C-3 (SC-2): Nur der Benutzer-Umschalter → keine `sales_person`-Zeile. Die
+/// Identitaet vergibt das DAO (D-61-01) und wird rueckwaerts aufgeloest.
+#[tokio::test]
+async fn create_combined_nur_benutzer_legt_keine_sales_person_an() {
+    let pool = setup_pool().await;
+
+    let person_id = create_combined(&pool, true, &create_request("egal", true, false, Some("carl")))
+        .await
+        .expect("create_combined should succeed for admin");
+
+    assert_eq!(Some(person_id), person_of_user(pool.as_ref(), "carl").await);
+    assert_eq!(
+        0,
+        count(pool.as_ref(), "SELECT COUNT(*) FROM sales_person").await,
+        "ohne gesetzten Umschalter entsteht KEINE Sales Person",
+    );
+
+    let entry = detail(&pool, person_id).await;
+    assert_eq!(PersonKind::UserOnly, entry.kind);
+    assert_eq!(Arc::<str>::from("carl"), entry.display_name);
+}
+
+/// C-4 (D-63-07, T-63-05-B, ASVS V5): Ein leerer Auswahl-Satz wird
+/// **serverseitig** abgewiesen — die Regel ist keine reine Client-Absicherung.
+/// Und sie faellt vor jedem Schreibzugriff.
+#[tokio::test]
+async fn create_combined_ohne_auswahl_ist_validation_error() {
+    let pool = setup_pool().await;
+
+    let result = create_combined(&pool, true, &create_request("Niemand", false, false, None)).await;
+
+    assert!(
+        matches!(result, Err(ServiceError::ValidationError(_))),
+        "ohne einen einzigen Umschalter muss der Server ablehnen: {result:?}",
+    );
+    assert_eq!(
+        0,
+        count(pool.as_ref(), "SELECT COUNT(*) FROM person").await,
+        "die Ablehnung darf nichts geschrieben haben",
+    );
+}
+
+/// C-5 (D-63-07): `wants_user` ohne brauchbaren Benutzernamen ist ungueltig —
+/// fehlend wie auch nur aus Leerzeichen bestehend.
+#[tokio::test]
+async fn create_combined_ohne_benutzernamen_ist_validation_error() {
+    let pool = setup_pool().await;
+
+    let fehlend = create_combined(&pool, true, &create_request("Bea", true, true, None)).await;
+    assert!(
+        matches!(fehlend, Err(ServiceError::ValidationError(_))),
+        "fehlender Benutzername muss abgelehnt werden: {fehlend:?}",
+    );
+
+    let leer = create_combined(&pool, true, &create_request("Bea", true, true, Some("   "))).await;
+    assert!(
+        matches!(leer, Err(ServiceError::ValidationError(_))),
+        "ein Benutzername aus Leerzeichen muss abgelehnt werden: {leer:?}",
+    );
+
+    assert_eq!(
+        0,
+        count(pool.as_ref(), "SELECT COUNT(*) FROM person").await,
+        "keine der beiden Ablehnungen darf eine halbe Anlage hinterlassen",
+    );
+}
+
+/// C-6 (Gegenstueck zu C-5): `wants_sales_person` ohne Anzeigenamen ist
+/// ungueltig — ein namenloser Verkaeufer waere im Verzeichnis unauffindbar.
+#[tokio::test]
+async fn create_combined_ohne_anzeigenamen_ist_validation_error() {
+    let pool = setup_pool().await;
+
+    let result = create_combined(&pool, true, &create_request("  ", false, true, None)).await;
+
+    assert!(
+        matches!(result, Err(ServiceError::ValidationError(_))),
+        "ein leerer Anzeigename muss abgelehnt werden: {result:?}",
+    );
+    assert_eq!(
+        0,
+        count(pool.as_ref(), "SELECT COUNT(*) FROM sales_person").await
+    );
+}
+
+/// C-7 (T-63-05-A, PADM-08): Ohne Admin-Privileg wird nichts geschrieben.
+#[tokio::test]
+async fn create_combined_ohne_admin_privileg_ist_forbidden() {
+    let pool = setup_pool().await;
+
+    let result = create_combined(&pool, false, &create_request("Bea Neu", true, true, Some("bea"))).await;
+
+    assert!(
+        matches!(result, Err(ServiceError::Forbidden)),
+        "ohne Admin-Privileg muss create_combined Forbidden liefern: {result:?}",
+    );
+    assert_eq!(
+        0,
+        count(pool.as_ref(), "SELECT COUNT(*) FROM person").await,
+        "das Gate liegt vor jedem Schreibzugriff",
+    );
+}
+
+/// C-8 (SC-2, T-63-05-C — der Atomaritaets-Nachweis): Schlaegt die
+/// Benutzer-Anlage fehl, weil der Name schon vergeben ist, bleibt **keine**
+/// Sales Person und **keine** neue Person zurueck. Ohne die geteilte
+/// Transaktion aus Plan 63-01 waere die Sales Person hier bereits geschrieben
+/// und nicht mehr rueckrollbar.
+#[tokio::test]
+async fn create_combined_teilfehler_laesst_keine_haelfte_zurueck() {
+    let pool = setup_pool().await;
+    let bestehend = Uuid::new_v4();
+    seed_person(pool.as_ref(), bestehend).await;
+    seed_user(pool.as_ref(), "bea", bestehend).await;
+
+    let result = create_combined(&pool, true, &create_request("Bea Neu", true, true, Some("bea"))).await;
+
+    assert!(
+        result.is_err(),
+        "ein bereits vergebener Benutzername muss scheitern: {result:?}",
+    );
+    assert_eq!(
+        0,
+        count(
+            pool.as_ref(),
+            "SELECT COUNT(*) FROM sales_person WHERE name = 'Bea Neu'"
+        )
+        .await,
+        "die bereits geschriebene Sales Person muss mit zurueckgerollt sein (SC-2)",
+    );
+    assert_eq!(
+        1,
+        count(pool.as_ref(), "SELECT COUNT(*) FROM person").await,
+        "es darf keine neue person-Zeile uebrig bleiben",
+    );
+    assert_eq!(
+        1,
+        count(pool.as_ref(), "SELECT COUNT(*) FROM user").await,
+        "der bestehende Benutzer bleibt unveraendert",
+    );
 }

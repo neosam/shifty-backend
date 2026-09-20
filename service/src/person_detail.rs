@@ -144,4 +144,34 @@ pub trait PersonDetailService {
         context: Authentication<Self::Context>,
         tx: Option<Self::Transaction>,
     ) -> Result<Arc<[Arc<str>]>, ServiceError>;
+
+    /// Legt einen Verzeichnis-Eintrag mit genau den gewaehlten Auspraegungen
+    /// an (PADM-02, Success Criterion 2).
+    ///
+    /// SC-2 woertlich: „Nach dem Speichern existieren **genau** die gewaehlten
+    /// Objekte, und beide haengen an derselben Person." Benutzerkonto und
+    /// Sales Person entstehen deshalb in **einer** Transaktion — scheitert eine
+    /// der beiden Anlagen, existiert danach keine von beiden und auch keine
+    /// neue `person`-Zeile.
+    ///
+    /// Der Dialog dahinter ist bewusst schlank (D-63-07): Farbe,
+    /// Bezahlt-Kennzeichen, Inaktiv-Kennzeichen und die Schichtplan-Zuordnung
+    /// werden hier **nicht** abgefragt. Sie gehoeren in die Detailansicht, in
+    /// die der Aufrufer nach dem Speichern weiterleitet — und genau deren
+    /// `person_id` ist die Rueckgabe dieser Methode.
+    ///
+    /// Die Regel „mindestens ein Umschalter muss an sein" setzt **diese**
+    /// Methode durch, nicht der Dialog: ein leerer Auswahl-Satz ist
+    /// `ServiceError::ValidationError`, und zwar bevor irgendetwas geschrieben
+    /// wird. Der deaktivierte Absende-Knopf im Frontend ist Bequemlichkeit,
+    /// nicht die Grenze (D-63-07, ASVS V5).
+    ///
+    /// **Verlangt das Admin-Privileg** (D-62-08, PADM-08), als erste
+    /// Anweisung — vor der Validierung und vor dem Oeffnen der Transaktion.
+    async fn create_combined(
+        &self,
+        request: &CreatePersonEntry,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Uuid, ServiceError>;
 }

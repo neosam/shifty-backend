@@ -51,14 +51,27 @@ use dao::person_directory::PersonDirectoryDao;
 use dao::{PermissionDao, TransactionDao};
 use service::permission::Authentication;
 use service::person::PersonService;
-use service::person_detail::PersonDetailService;
+use service::person_detail::{CreatePersonEntry, PersonDetailService};
 use service::person_directory::PersonEntry;
 use service::sales_person::{SalesPerson, SalesPersonService};
-use service::{PermissionService, ServiceError};
+use service::{PermissionService, ServiceError, ValidationFailureItem};
 use uuid::Uuid;
 
 use crate::gen_service_impl;
 use crate::person_directory::entry_from_row;
+
+/// Audit-Stempel fuer alle Schreibvorgaenge dieses Services, nach dem Muster
+/// von `SALES_PERSON_SERVICE_PROCESS`. Wer in `user.update_process` oder
+/// `person.update_process` diesen Wert findet, weiss: die Zeile stammt aus
+/// einer Auspraegungs-Aktion der Personen-Detailansicht.
+const PERSON_DETAIL_SERVICE_PROCESS: &str = "person-detail-service";
+
+/// Vorgabefarbe einer im Anlege-Dialog entstandenen Sales Person.
+///
+/// D-63-07: Der Dialog fragt keine Farbe ab. Neutrales Weiss ist derselbe
+/// Startwert, den der heutige Knopf „Neuen Verkaeufer erstellen" setzt; die
+/// eigentliche Farbwahl passiert danach in der Detailansicht.
+const DEFAULT_BACKGROUND_COLOR: &str = "#ffffff";
 
 gen_service_impl! {
     struct PersonDetailServiceImpl: PersonDetailService = PersonDetailServiceDeps {
@@ -175,5 +188,146 @@ impl<Deps: PersonDetailServiceDeps> PersonDetailService for PersonDetailServiceI
         self.transaction_dao.commit(tx).await?;
 
         Ok(candidates)
+    }
+
+    async fn create_combined(
+        &self,
+        request: &CreatePersonEntry,
+        context: Authentication<Self::Context>,
+        tx: Option<Self::Transaction>,
+    ) -> Result<Uuid, ServiceError> {
+        // T-63-05-A: Gate als ERSTE Anweisung — vor der Validierung und vor dem
+        // Oeffnen der Transaktion. Das `Authentication::Full` weiter unten ist
+        // erst nach dieser Zeile erreichbar und wird nie aus einem Request
+        // abgeleitet.
+        self.permission_service
+            .check_permission("admin", context)
+            .await?;
+
+        // D-63-07 / T-63-05-B / ASVS V5: Die Auswahl-Regel steht bewusst HIER
+        // und nicht nur im Dialog. Ein Client, der den deaktivierten
+        // Absende-Knopf umgeht, laeuft in diese Pruefung — und sie faellt, bevor
+        // auch nur eine Transaktion geoeffnet ist.
+        if !request.wants_user && !request.wants_sales_person {
+            return Err(ServiceError::ValidationError(
+                [ValidationFailureItem::InvalidValue(
+                    "wants_user|wants_sales_person".into(),
+                )]
+                .into(),
+            ));
+        }
+
+        let username = match (request.wants_user, request.username.as_ref()) {
+            (true, Some(username)) if !username.trim().is_empty() => Some(username.clone()),
+            // `wants_user` ohne brauchbaren Benutzernamen ist kein halber
+            // Erfolg, sondern eine ungueltige Eingabe.
+            (true, _) => {
+                return Err(ServiceError::ValidationError(
+                    [ValidationFailureItem::InvalidValue("username".into())].into(),
+                ))
+            }
+            (false, _) => None,
+        };
+
+        // Gegenstueck zur Benutzernamen-Pruefung: ein namenloser Verkaeufer
+        // haette im Verzeichnis einen leeren Anzeigenamen und waere dort nicht
+        // mehr auffindbar.
+        if request.wants_sales_person && request.display_name.trim().is_empty() {
+            return Err(ServiceError::ValidationError(
+                [ValidationFailureItem::InvalidValue("display_name".into())].into(),
+            ));
+        }
+
+        // Ab hier genau EINE Transaktion ueber beide Aggregate (SC-2,
+        // T-63-05-C). Der innere Commit von `SalesPersonService` ist ein No-Op,
+        // solange dieser Service seinen eigenen Arc noch haelt
+        // (`TransactionDaoImpl::commit` per `Arc::into_inner`).
+        let tx = self.transaction_dao.use_transaction(tx).await?;
+
+        let sales_person_person_id = if request.wants_sales_person {
+            let sales_person = SalesPerson {
+                id: Uuid::nil(),
+                version: Uuid::nil(),
+                name: request.display_name.clone(),
+                background_color: DEFAULT_BACKGROUND_COLOR.into(),
+                is_paid: Some(false),
+                inactive: false,
+                deleted: None,
+            };
+            // `Authentication::Full`: das strengere Admin-Gate ist oben bereits
+            // passiert, und `SalesPersonService` ist HR-gegated. Den
+            // Nutzerkontext durchzureichen wuerde einen Admin ohne HR-Rolle
+            // grundlos abweisen.
+            let created = self
+                .sales_person_service
+                .create(&sales_person, Authentication::Full, Some(tx.clone()))
+                .await?;
+
+            // Die Identitaet vergibt das DAO beim Anlegen mit (D-61-01); sie
+            // steht nur auf der Traeger-Seite und wird von dort zurueckgelesen.
+            let person = self
+                .person_dao
+                .find_by_sales_person(created.id, tx.clone())
+                .await?
+                .ok_or_else(|| {
+                    ServiceError::EntityNotFoundGeneric(
+                        format!("person of sales person {}", created.id).into(),
+                    )
+                })?;
+            Some(person.id)
+        } else {
+            None
+        };
+
+        let person_id = match (sales_person_person_id, username) {
+            // Beide Seiten gewaehlt: der Benutzer wird direkt an die Person der
+            // eben angelegten Sales Person gehaengt. Deshalb braucht dieser
+            // Pfad KEIN nachtraegliches Zusammenfuehren zweier Identitaeten —
+            // es entsteht nie eine zweite Person, die anschliessend absorbiert
+            // werden muesste.
+            (Some(person_id), Some(username)) => {
+                self.permission_dao
+                    .create_user(
+                        &dao::UserEntity { name: username },
+                        Some(person_id),
+                        PERSON_DETAIL_SERVICE_PROCESS,
+                        tx.clone(),
+                    )
+                    .await?;
+                person_id
+            }
+            (Some(person_id), None) => person_id,
+            // Nur ein Benutzerkonto: das DAO vergibt die Identitaet selbst
+            // (D-61-01), und sie wird rueckwaerts aufgeloest.
+            (None, Some(username)) => {
+                self.permission_dao
+                    .create_user(
+                        &dao::UserEntity {
+                            name: username.clone(),
+                        },
+                        None,
+                        PERSON_DETAIL_SERVICE_PROCESS,
+                        tx.clone(),
+                    )
+                    .await?;
+                self.person_dao
+                    .find_by_user(username.as_ref(), tx.clone())
+                    .await?
+                    .ok_or_else(|| {
+                        ServiceError::EntityNotFoundGeneric(
+                            format!("person of user {username}").into(),
+                        )
+                    })?
+                    .id
+            }
+            // Die Validierung oben schliesst den leeren Auswahl-Satz aus; ein
+            // Treffer hier waere ein Integritaets-Alarm, kein Live-Pfad.
+            (None, None) => unreachable!(
+                "der leere Auswahl-Satz ist vor dem Oeffnen der Transaktion abgewiesen worden"
+            ),
+        };
+
+        self.transaction_dao.commit(tx).await?;
+        Ok(person_id)
     }
 }
