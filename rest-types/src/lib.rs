@@ -2801,3 +2801,133 @@ mod test_shiftplan_slot_to_effective_to {
         let _ = clipped;
     }
 }
+
+// ---------------------------------------------------------------------------
+// Phase 62 — Personen-Verzeichnis (PADM-01, PADM-06)
+//
+// Zweckgebautes Listen-DTO fuer das zusammengelegte Personen-Verzeichnis.
+// Weder `UserTO` noch `SalesPersonTO` werden wiederverwendet: beide tragen
+// Felder, die diese Liste nicht braucht (und im Fall der Sales Person auch
+// interne Audit-/Versionsfelder), und keiner der beiden kann eine Zeile
+// beschreiben, die *beide* Auspraegungen vereint. Praezedenz fuer ein kleines,
+// zweckgebautes DTO in dieser Datei: `SalesPersonAbsenceTO`.
+//
+// Getragene Entscheidungen:
+// - D-62-01: die Auspraegung ist ein explizites Enum-Feld (`kind`), keine vom
+//   Frontend abgeleitete Heuristik ueber leere `Option`-Felder.
+// - D-62-03: Anzeigename und Benutzername sind zwei getrennte Felder; die
+//   Ableitung des Anzeigenamens passiert im Backend (Fat Backend, PADM-06).
+// ---------------------------------------------------------------------------
+
+/// Auspraegung einer Zeile im Personen-Verzeichnis (D-62-01).
+///
+/// Dieses Enum ist die **einzige** Quelle der Auspraegung. Das Frontend darf
+/// sie niemals aus der Leerheit anderer Felder (`username`, `sales_person_id`)
+/// ableiten — eine solche clientseitige Heuristik waere genau die
+/// Fallback-Regel, die das Fat-Backend-Prinzip dieser Phase verbietet.
+///
+/// Drahtform ist `snake_case`: `"linked"`, `"sales_person_only"`,
+/// `"user_only"`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum PersonKindTO {
+    /// Die Person traegt sowohl eine lebende Sales Person als auch ein
+    /// Benutzerkonto.
+    Linked,
+    /// Die Person traegt nur eine Sales Person, noch kein Benutzerkonto.
+    SalesPersonOnly,
+    /// Die Person traegt nur ein Benutzerkonto, keine Sales Person.
+    UserOnly,
+}
+
+/// Eine Zeile des Personen-Verzeichnisses (PADM-01, PADM-06).
+///
+/// Flaches Listen-DTO mit genau den neun Feldern, die die Liste rendert — kein
+/// `update_version`, kein `update_process`, kein `created`, keine
+/// Loesch-Zeitstempel (T-62-03: minimale Preisgabe an der
+/// Backend→Browser-Grenze).
+///
+/// In diesem Plan bewusst **ohne** `From`-Impl: der Domain-Typ
+/// `service::person_directory::PersonEntry` entsteht erst in Plan 62-03, der
+/// `#[cfg(feature = "service-impl")] impl From<&PersonEntry> for PersonEntryTO`
+/// in derselben Datei nachtraegt. So kann der Frontend-Plan parallel zum
+/// Business-Logic-Plan starten.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct PersonEntryTO {
+    /// Identitaet der Person (Phase 61: jede Sales Person und jeder Benutzer
+    /// traegt genau eine `person`).
+    pub person_id: Uuid,
+    /// Auspraegung der Zeile — explizit, nie abgeleitet (D-62-01).
+    pub kind: PersonKindTO,
+    /// Anzeigename der Zeile. **Nie** `Option` und nie leer: das Backend leitet
+    /// ihn ab (Verkaeufername, sonst Benutzername), das Frontend rendert ihn
+    /// stumpf (PADM-06, Success Criterion 3).
+    pub display_name: Arc<str>,
+    /// Benutzername. Genau dann leer, wenn die Person kein Benutzerkonto
+    /// traegt. Bei einem reinen Benutzerkonto ist er identisch mit
+    /// `display_name` — das Frontend unterdrueckt die Dopplung nicht (D-62-03).
+    pub username: Option<Arc<str>>,
+    /// Genau dann gefuellt, wenn die Person eine lebende Sales Person traegt.
+    pub sales_person_id: Option<Uuid>,
+    /// Farbe der Sales Person. Genau dann gefuellt, wenn die Person eine
+    /// lebende Sales Person traegt.
+    pub background_color: Option<Arc<str>>,
+    /// Bezahlt-Flag der Sales Person. Genau dann gefuellt, wenn die Person eine
+    /// lebende Sales Person traegt.
+    pub is_paid: Option<bool>,
+    /// Inaktiv-Flag der Sales Person. Genau dann gefuellt, wenn die Person eine
+    /// lebende Sales Person traegt.
+    pub inactive: Option<bool>,
+    /// Rollen des Benutzerkontos. Bei fehlendem Benutzerkonto leer.
+    pub roles: Vec<Arc<str>>,
+}
+
+/// Phase 62 (62-02): Wire-Form des Personen-Verzeichnis-DTOs.
+///
+/// Fixiert die `snake_case`-Drahtform des Auspraegungs-Enums (D-62-01) und den
+/// verlustfreien Serde-Roundtrip von `PersonEntryTO`. Reiner Wire-Test, kein
+/// `service-impl` noetig.
+#[cfg(test)]
+mod test_person_directory_to_wire {
+    use super::*;
+
+    #[test]
+    fn person_kind_to_serialisiert_snake_case() {
+        assert_eq!(
+            serde_json::to_string(&PersonKindTO::SalesPersonOnly).unwrap(),
+            "\"sales_person_only\"",
+        );
+        assert_eq!(
+            serde_json::to_string(&PersonKindTO::Linked).unwrap(),
+            "\"linked\"",
+        );
+        assert_eq!(
+            serde_json::to_string(&PersonKindTO::UserOnly).unwrap(),
+            "\"user_only\"",
+        );
+    }
+
+    #[test]
+    fn person_entry_to_roundtrip() {
+        let entry = PersonEntryTO {
+            person_id: Uuid::from_u128(0x6201),
+            kind: PersonKindTO::Linked,
+            display_name: "Alice Example".into(),
+            username: Some("alice".into()),
+            sales_person_id: Some(Uuid::from_u128(0x6202)),
+            background_color: Some("#ff8800".into()),
+            is_paid: Some(true),
+            inactive: Some(false),
+            roles: vec!["hr".into(), "shiftplanner".into()],
+        };
+
+        let json = serde_json::to_string(&entry).unwrap();
+        let back: PersonEntryTO = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(back, entry, "PersonEntryTO roundtrip must be lossless");
+        assert!(
+            json.contains("\"kind\":\"linked\""),
+            "kind must ride the wire as snake_case: {json}",
+        );
+    }
+}
