@@ -76,6 +76,8 @@ impl PermissionDaoImpl {
 }
 #[async_trait]
 impl dao::PermissionDao for PermissionDaoImpl {
+    type Transaction = TransactionImpl;
+
     async fn has_privilege(&self, user: &str, privilege: &str) -> Result<bool, dao::DaoError> {
         let result = query!(
             r"SELECT count(*) as results FROM user 
@@ -92,7 +94,13 @@ impl dao::PermissionDao for PermissionDaoImpl {
         Ok(result[0].results > 0)
     }
 
-    async fn create_user(&self, user: &dao::UserEntity, process: &str) -> Result<(), DaoError> {
+    async fn create_user(
+        &self,
+        user: &dao::UserEntity,
+        person_id: Option<uuid::Uuid>,
+        process: &str,
+        tx: Self::Transaction,
+    ) -> Result<(), DaoError> {
         let name = user.name.as_ref();
 
         // D-61-01: Die Login-Auto-Anlage vergibt sofort eine eigene
@@ -101,29 +109,42 @@ impl dao::PermissionDao for PermissionDaoImpl {
         // Pruefung heraus — der Phase-60-Backfill lief einmalig ueber den
         // Bestand und greift hier nicht mehr.
         //
-        // Die lokale Transaktion ist zwingend (Research Pitfall 4): zwei
+        // Atomaritaet ist weiterhin zwingend (Research Pitfall 4): zwei
         // unabhaengige Statements auf dem Pool waeren nicht atomar. Ein Abbruch
         // dazwischen liesse entweder eine traegerlose `person`-Zeile oder —
         // deutlich schlimmer — einen `user` ohne Identitaet zurueck, also genau
-        // den Zustand, den D-61-01 ausschliesst. Die Trait-Signatur bleibt
-        // dabei unveraendert; die Transaktion ist eine reine Interna dieser
-        // Methode, kein neuer Parameter.
+        // den Zustand, den D-61-01 ausschliesst.
+        //
+        // Phase 63 Plan 01: Diese Atomaritaet traegt jetzt die **uebergebene**
+        // Transaktion statt einer lokalen `pool.begin()`. Eine methodeninterne
+        // Transaktion waere fuer den Aufrufer unsichtbar und wuerde vor dessen
+        // eigenem Commit schreiben — genau das verhindert SC-2 („nach dem
+        // Speichern existieren genau die gewaehlten Objekte") bei einem
+        // kombinierten Anlege-Pfad, der Benutzer und Verkaeufer zusammen
+        // schreibt.
         //
         // Der 16-Byte-Wert entsteht in Rust und geht in beide Statements. Ein
         // Readback der von SQLite vergebenen Zeilennummer waere falsch:
         // `person.id` ist ein `blob(16) PRIMARY KEY` und kein Alias auf die
         // interne Zeilennummer (Research Pitfall 3).
-        let mut tx = self.pool.begin().await.map_db_error()?;
-
-        let person_id = uuid::Uuid::new_v4().as_bytes().to_vec();
-        query!(
-            "INSERT INTO person (id, created, update_process, update_version) VALUES (?, strftime('%Y-%m-%dT%H:%M:%S.000000000Z','now'), ?, randomblob(16))",
-            person_id,
-            process
-        )
-        .execute(tx.as_mut())
-        .await
-        .map_db_error()?;
+        let person_id = match person_id {
+            // Vorgegebene Person: der Benutzer haengt sich an eine bereits
+            // bestehende Identitaet. KEIN zweites `INSERT INTO person` — sonst
+            // entstuenden zwei Personen fuer eine Anlage.
+            Some(id) => id.as_bytes().to_vec(),
+            None => {
+                let person_id = uuid::Uuid::new_v4().as_bytes().to_vec();
+                query!(
+                    "INSERT INTO person (id, created, update_process, update_version) VALUES (?, strftime('%Y-%m-%dT%H:%M:%S.000000000Z','now'), ?, randomblob(16))",
+                    person_id,
+                    process
+                )
+                .execute(tx.tx.lock().await.as_mut())
+                .await
+                .map_db_error()?;
+                person_id
+            }
+        };
 
         query!(
             r"INSERT INTO user (name, person_id, update_process) VALUES (?, ?, ?)",
@@ -131,11 +152,10 @@ impl dao::PermissionDao for PermissionDaoImpl {
             person_id,
             process
         )
-        .execute(tx.as_mut())
+        .execute(tx.tx.lock().await.as_mut())
         .await
         .map_db_error()?;
 
-        tx.commit().await.map_db_error()?;
         Ok(())
     }
     async fn all_users(&self) -> Result<Arc<[dao::UserEntity]>, DaoError> {
@@ -145,9 +165,12 @@ impl dao::PermissionDao for PermissionDaoImpl {
             .map(Arc::<[dao::UserEntity]>::from)
             .map_err(|err| DaoError::DatabaseQueryError(Box::new(err)))?)
     }
-    async fn delete_user(&self, username: &str) -> Result<(), DaoError> {
+    async fn delete_user(&self, username: &str, tx: Self::Transaction) -> Result<(), DaoError> {
+        // Phase 63 Plan 01 / D-63-01: Das DELETE laeuft auf der uebergebenen
+        // Transaktion, damit der Aufrufer die verwaiste `person`-Zeile im
+        // selben Zug mitraeumen kann.
         query!(r"DELETE FROM user WHERE name = ?", username)
-            .execute(self.pool.as_ref())
+            .execute(tx.tx.lock().await.as_mut())
             .await
             .map_db_error()?;
         Ok(())
