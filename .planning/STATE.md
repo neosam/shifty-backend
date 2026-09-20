@@ -5,15 +5,15 @@ milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 62
 current_phase_name: personen-verzeichnis-eine-liste-statt-tabs
 status: executing
-stopped_at: 62-05 (REST-Endpoint + DI + Dev-Proxy) abgeschlossen — 2/2 Tasks
-last_updated: "2026-09-20T08:28:29.258Z"
+stopped_at: 62-06 (Docs-Freshness-Gate-Nachzug) abgeschlossen — 2/2 Tasks
+last_updated: "2026-09-20T08:39:04.648Z"
 last_activity: 2026-09-20
-last_activity_desc: 62-05 (REST-Endpoint + DI + Dev-Proxy) abgeschlossen, 2/2 Tasks
+last_activity_desc: 62-04 (Frontend-Umbau) abgeschlossen, 3/3 Tasks
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 20
-  completed_plans: 19
+  completed_plans: 20
   percent: 40
 ---
 
@@ -34,7 +34,7 @@ progress:
 ## Current Position
 
 Phase: 62 (personen-verzeichnis-eine-liste-statt-tabs) — EXECUTING
-Plan: 6 of 7
+Plan: 7 of 7
 Status: Wellen 1-3 abgeschlossen. 62-01 (DAO-Schicht) —
 WR-02 geschlossen, `PersonDirectoryDao` liefert den Drei-Wege-Outer-Join.
 62-02 (DTO + i18n) — `PersonEntryTO`/`PersonKindTO` in `rest-types` und sechs
@@ -49,8 +49,14 @@ geloescht; 835 Frontend-Tests gruen, beide Clippy-Gates sauber.
 62-05 (REST + DI + Dev-Proxy) — `GET /person-directory` admin-gegatet, in der
 OpenAPI-Doku registriert, Business-Logic-Service nach dem Basic-Block
 verdrahtet, `[[web.proxy]]`-Eintrag im selben Commit; zwei HTTP-Tests fuer
-beide Gate-Seiten gruen, Workspace + Clippy + OIDC-Build sauber. Welle 3 ist
-damit abgeschlossen; als naechstes 62-06 (Doku + Laufzeit-Nachweis).
+beide Gate-Seiten gruen, Workspace + Clippy + OIDC-Build sauber.
+62-06 (Doku) — F01 beschreibt das Verzeichnis bis zum Endpoint und ersetzt die
+WR-02-Fehlinformation durch die verallgemeinerte ON-vs-WHERE-Regel mit
+namentlichem Regressionstest; die Tier-Doku fuehrt `PersonDirectoryService`
+samt Klarstellung der Faustregel, der Laufzeit-Graph zeigt den Knoten im
+Business-Teilgraph. EN/DE strukturgleich (33/33 bzw. 7/7 Ueberschriften), eine
+Phase-56-Drift in der deutschen Tier-Doku nebenbei geschlossen. Welle 4 laeuft;
+als naechstes 62-07 (UAT + Laufzeit-Nachweis).
 Planungs-Artefakte
 vollständig: CONTEXT, RESEARCH, PATTERNS,
 UI-SPEC (6/6 Dimensionen approved), VALIDATION, 7 PLAN.md in 4 Wellen.
@@ -322,9 +328,9 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-09-20T08:28:01.354Z
-**Stopped at:** 62-05 (REST-Endpoint + DI + Dev-Proxy) abgeschlossen — 2/2 Tasks
-**Resume file:** .planning/phases/62-personen-verzeichnis-eine-liste-statt-tabs/62-06-PLAN.md
+**Last session:** 2026-09-20T08:38:19.086Z
+**Stopped at:** 62-06 (Docs-Freshness-Gate-Nachzug) abgeschlossen — 2/2 Tasks
+**Resume file:** .planning/phases/62-personen-verzeichnis-eine-liste-statt-tabs/62-07-PLAN.md
 
 **To resume work in a new session:**
 
@@ -455,6 +461,10 @@ D-63-01/02, D-64-01/02/03).
 - [Phase 62]: load_all_users/get_all_users/state::User als begruendetes dead_code fuer Phase 63 konserviert statt geloescht
 - [Phase 62]: Das Admin-Gate des Personen-Verzeichnisses bleibt allein im Service; der REST-Handler prueft bewusst nicht doppelt (T-62-13).
 - [Phase 62]: Routen-Praefix /person-directory als Vier-Stellen-Vertrag (Router-Nest, OpenAPI-Nest, Frontend-URL, Dev-Proxy); der Proxy-Eintrag ist Pflichtinhalt desselben Commits.
+- [Phase 62]: 62-06: F01 §5.4 als eigener REST-Abschnitt statt nur eines Absatzes in §4.6 — §5 ist die kanonische Endpoint-Sektion; EN/DE-Ueberschriftenparitaet bleibt 33/33
+- [Phase 62]: 62-06: Tier-Faustregel in 02-service-tiers §Rules Nr. 3 praezisiert — Dependency-Zaehlung ist Indikator, die Aggregat-Frage entscheidet; PersonDirectoryService ist Business-Logic trotz Basic-aussehender Dep-Liste
+- [Phase 62]: 62-06: PersonDirectory-Knoten im Runtime-Graph bewusst ohne Kante — Deps sind per Kopf-Konvention ausgeblendet; Tier folgt der Aggregat-Eigenschaft, nicht der Kantenzahl
+- [Phase 62]: 62-06: vorgefundene Phase-56-Drift geschlossen (VoluntaryRebookingScheduler fehlte in 02-service-tiers_de.md) statt das Paritaets-Kriterium durch Weglassen in der EN-Fassung zu erfuellen
 
 ## Performance Metrics
 
@@ -519,3 +529,4 @@ D-63-01/02, D-64-01/02/03).
 | Phase 62 P03 | 10min | 2 tasks | 9 files |
 | Phase 62 P04 | 22min | 3 tasks | 9 files |
 | Phase 62 P05 | 7min | 2 tasks | 6 files |
+| Phase 62 P06 | 18min | 2 tasks | 5 files |
