@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT (\n                   EXISTS(SELECT 1 FROM user WHERE person_id = ?)\n                   OR EXISTS(SELECT 1 FROM sales_person WHERE person_id = ? AND deleted IS NULL)\n               ) AS \"has_live_facets!: bool\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "has_live_facets!: bool",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "9ac3622cf0220242a33cda705e76855e801c00c76301218b5f9c49e383b55f04"
+}

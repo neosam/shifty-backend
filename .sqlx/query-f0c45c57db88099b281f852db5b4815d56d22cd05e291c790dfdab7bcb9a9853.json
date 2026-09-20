@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT p.id AS \"id!: Vec<u8>\", p.created AS \"created!: String\",\n                      p.update_version AS \"update_version!: Vec<u8>\"\n               FROM person p\n               INNER JOIN sales_person sp ON sp.person_id = p.id\n               WHERE sp.id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: Vec<u8>",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "created!: String",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_version!: Vec<u8>",
+        "ordinal": 2,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "f0c45c57db88099b281f852db5b4815d56d22cd05e291c790dfdab7bcb9a9853"
+}

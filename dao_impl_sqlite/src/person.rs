@@ -195,4 +195,91 @@ impl PersonDao for PersonDaoImpl {
         .map(|row| Arc::<str>::from(row.name.as_str()))
         .collect::<Arc<[Arc<str>]>>())
     }
+
+    async fn delete(&self, id: Uuid, tx: Self::Transaction) -> Result<(), DaoError> {
+        // Harter DELETE, kein Soft-Delete-Stempel: die Tabelle hat keine
+        // `deleted`-Spalte (D-60-04, gesperrt — keine Migration in Phase 63).
+        // Ein zweiter Aufruf trifft null Zeilen und ist damit ein No-Op ohne
+        // Fehler; die Zeilenzahl wird bewusst nicht geprueft.
+        let id_vec = id.as_bytes().to_vec();
+        query!(r#"DELETE FROM person WHERE id = ?"#, id_vec)
+            .execute(tx.tx.lock().await.as_mut())
+            .await
+            .map_db_error()?;
+        Ok(())
+    }
+
+    async fn has_live_facets(
+        &self,
+        person_id: Uuid,
+        tx: Self::Transaction,
+    ) -> Result<bool, DaoError> {
+        // D-63-01-Lesart (b): EIN Statement mit zwei EXISTS-Teilausdruecken,
+        // nicht zwei Roundtrips — so hat „lebend" genau eine Definition an
+        // genau einer Stelle. Die Benutzer-Seite kennt keinen Loesch-Zustand
+        // (`user` hat keine Loesch-Spalte), die Verkaeufer-Seite schon:
+        // `deleted IS NULL` macht eine soft-geloeschte Sales Person zu einem
+        // toten Traeger. Siehe den Doc-Kommentar am Trait fuer den bewusst in
+        // Kauf genommenen haengenden `person_id`.
+        let person_id_vec = person_id.as_bytes().to_vec();
+        let row = query!(
+            r#"SELECT (
+                   EXISTS(SELECT 1 FROM user WHERE person_id = ?)
+                   OR EXISTS(SELECT 1 FROM sales_person WHERE person_id = ? AND deleted IS NULL)
+               ) AS "has_live_facets!: bool""#,
+            person_id_vec,
+            person_id_vec,
+        )
+        .fetch_one(tx.tx.lock().await.as_mut())
+        .await
+        .map_db_error()?;
+        Ok(row.has_live_facets)
+    }
+
+    async fn find_by_sales_person(
+        &self,
+        sales_person_id: Uuid,
+        tx: Self::Transaction,
+    ) -> Result<Option<PersonEntity>, DaoError> {
+        // Bewusst OHNE `sp.deleted IS NULL`: der Lookup loest auf, er bewertet
+        // nicht (Trait-Doc). Die Bewertung macht `has_live_facets`.
+        let sales_person_id_vec = sales_person_id.as_bytes().to_vec();
+        Ok(query_as!(
+            PersonDb,
+            r#"SELECT p.id AS "id!: Vec<u8>", p.created AS "created!: String",
+                      p.update_version AS "update_version!: Vec<u8>"
+               FROM person p
+               INNER JOIN sales_person sp ON sp.person_id = p.id
+               WHERE sp.id = ?"#,
+            sales_person_id_vec,
+        )
+        .fetch_optional(tx.tx.lock().await.as_mut())
+        .await
+        .map_db_error()?
+        .as_ref()
+        .map(PersonEntity::try_from)
+        .transpose()?)
+    }
+
+    async fn find_by_user(
+        &self,
+        username: &str,
+        tx: Self::Transaction,
+    ) -> Result<Option<PersonEntity>, DaoError> {
+        Ok(query_as!(
+            PersonDb,
+            r#"SELECT p.id AS "id!: Vec<u8>", p.created AS "created!: String",
+                      p.update_version AS "update_version!: Vec<u8>"
+               FROM person p
+               INNER JOIN user u ON u.person_id = p.id
+               WHERE u.name = ?"#,
+            username,
+        )
+        .fetch_optional(tx.tx.lock().await.as_mut())
+        .await
+        .map_db_error()?
+        .as_ref()
+        .map(PersonEntity::try_from)
+        .transpose()?)
+    }
 }
