@@ -2918,6 +2918,99 @@ impl From<&PersonEntry> for PersonEntryTO {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Phase 63 (63-04, PADM-03 / PADM-04 / PADM-05): Die Schreib-Transportformen
+// der Personen-Detailansicht. Sie ergaenzen das Lese-DTO `PersonEntryTO` oben
+// um die drei Eingaben, die die Detailansicht und ihr Anlege-Dialog schicken.
+//
+// Getragene Entscheidungen:
+// - D-63-07: der Anlege-Dialog ist schlank — Anzeigename, zwei Umschalter,
+//   Benutzername nur wenn der Login-Umschalter an ist.
+// - PADM-06 / T-63-04-D: die Eingabe-DTOs tragen ausschliesslich Rohwerte.
+//   `kind` und `display_name` einer Verzeichniszeile werden NIE vom Client
+//   entgegengenommen — sie entstehen genau einmal, im Service.
+// ---------------------------------------------------------------------------
+
+/// Eingabe des Anlege-Dialogs „Eintrag anlegen" (PADM-02, D-63-07).
+///
+/// Der Dialog ist bewusst schlank: Farbe, Bezahlt-Kennzeichen,
+/// Inaktiv-Kennzeichen und die Schichtplan-Zuordnung werden hier **nicht**
+/// erfasst, sondern danach in der Detailansicht, in die der Dialog nach dem
+/// Speichern weiterleitet (D-63-07).
+///
+/// **Die Regel „mindestens ein Umschalter muss an sein" ist eine
+/// Server-Pruefung**, nicht nur eine Client-Sperre. Das Frontend deaktiviert
+/// den Absende-Knopf zusaetzlich, aber der Endpoint lehnt eine Anfrage mit
+/// `wants_user == false && wants_sales_person == false` unabhaengig vom
+/// Client-Zustand ab (ASVS V5: die Umschalter-Sperre ist UX, nicht die
+/// Sicherheitsgrenze).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct CreatePersonEntryTO {
+    /// Anzeigename des neuen Eintrags. Wird bei `wants_sales_person` zum Namen
+    /// der Sales Person; bei einem reinen Benutzerkonto traegt der
+    /// Benutzername den Anzeigenamen (D-62-03).
+    pub display_name: Arc<str>,
+    /// Umschalter „Bekommt ein Login": es soll ein Benutzerkonto entstehen.
+    pub wants_user: bool,
+    /// Umschalter „Bekommt einen Verkaeufer-Datensatz": es soll eine Sales
+    /// Person entstehen.
+    pub wants_sales_person: bool,
+    /// Benutzername. Genau dann gefuellt, wenn `wants_user` an ist — das Feld
+    /// ist im Dialog nur sichtbar, solange der Login-Umschalter an ist.
+    pub username: Option<Arc<str>>,
+}
+
+/// Antwort des Anlege-Endpoints (D-63-07).
+///
+/// Traegt genau ein Feld: die Identitaet des neuen Eintrags. Der Dialog
+/// schliesst sich und navigiert direkt nach `/person/{person_id}/`, damit die
+/// im Dialog ausgelassenen Felder dort gepflegt werden koennen.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct CreatedPersonEntryTO {
+    /// Identitaet der soeben angelegten Person.
+    pub person_id: Uuid,
+}
+
+/// Welche Auspraegung eine Aktion betrifft (PADM-03, PADM-07).
+///
+/// Anders als `PersonKindTO` beschreibt dieses Enum nicht den Zustand einer
+/// Zeile, sondern das **Ziel einer Aktion** — welche der beiden Seiten
+/// hinzugefuegt oder entfernt werden soll.
+///
+/// Drahtform ist `snake_case`: `"user"`, `"sales_person"` — dieselbe
+/// Konvention wie bei `PersonKindTO`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum PersonFacetTO {
+    /// Die Benutzerkonto-Seite der Person.
+    User,
+    /// Die Sales-Person-Seite der Person.
+    SalesPerson,
+}
+
+/// Eingabe der beiden Auspraegungs-Aktionen „Login hinzufuegen" und
+/// „Person hinzufuegen" (PADM-03).
+///
+/// Eine Transportform fuer beide Richtungen; welche Nutzlast gebraucht wird,
+/// entscheidet `facet`:
+///
+/// - `facet = sales_person` → `display_name` wird gebraucht (der Name der neu
+///   entstehenden Sales Person), `username` bleibt leer.
+/// - `facet = user` → `username` wird gebraucht (der Name des neu entstehenden
+///   Benutzerkontos), `display_name` bleibt leer.
+///
+/// Die jeweils unbenutzte Seite wird serverseitig ignoriert; die benoetigte
+/// Seite wird serverseitig verlangt.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct AddPersonFacetTO {
+    /// Welche Auspraegung hinzugefuegt werden soll.
+    pub facet: PersonFacetTO,
+    /// Name der neuen Sales Person. Nur bei `facet = sales_person` gefuellt.
+    pub display_name: Option<Arc<str>>,
+    /// Name des neuen Benutzerkontos. Nur bei `facet = user` gefuellt.
+    pub username: Option<Arc<str>>,
+}
+
 /// Phase 62 (62-02): Wire-Form des Personen-Verzeichnis-DTOs.
 ///
 /// Fixiert die `snake_case`-Drahtform des Auspraegungs-Enums (D-62-01) und den
@@ -2964,6 +3057,97 @@ mod test_person_directory_to_wire {
         assert!(
             json.contains("\"kind\":\"linked\""),
             "kind must ride the wire as snake_case: {json}",
+        );
+    }
+
+    /// Phase 63 (63-04): die Drahtform der Auspraegungs-Kennung ist `snake_case`
+    /// — dasselbe Format wie bei `PersonKindTO`, damit das Frontend nur eine
+    /// Konvention kennen muss.
+    #[test]
+    fn person_facet_to_serialisiert_snake_case() {
+        assert_eq!(
+            serde_json::to_string(&PersonFacetTO::User).unwrap(),
+            "\"user\"",
+        );
+        assert_eq!(
+            serde_json::to_string(&PersonFacetTO::SalesPerson).unwrap(),
+            "\"sales_person\"",
+        );
+    }
+
+    /// Phase 63 (63-04): der Anlege-Dialog schickt genau vier Felder — mit und
+    /// ohne Benutzername, je nach Stellung des Login-Umschalters (D-63-07).
+    #[test]
+    fn create_person_entry_to_roundtrip() {
+        let mit_login = CreatePersonEntryTO {
+            display_name: "Bea Beispiel".into(),
+            wants_user: true,
+            wants_sales_person: true,
+            username: Some("bea".into()),
+        };
+        let json = serde_json::to_string(&mit_login).unwrap();
+        let back: CreatePersonEntryTO = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, mit_login, "CreatePersonEntryTO roundtrip is lossless");
+
+        let ohne_login = CreatePersonEntryTO {
+            display_name: "Dana Ohne Login".into(),
+            wants_user: false,
+            wants_sales_person: true,
+            username: None,
+        };
+        let json = serde_json::to_string(&ohne_login).unwrap();
+        let back: CreatePersonEntryTO = serde_json::from_str(&json).unwrap();
+        assert_eq!(
+            back, ohne_login,
+            "auch ohne Benutzername muss der Roundtrip verlustfrei sein",
+        );
+    }
+
+    /// Phase 63 (63-04): die Antwort des Anlege-Endpoints traegt genau die
+    /// Identitaet, in deren Detailansicht der Dialog weiterleitet (D-63-07).
+    #[test]
+    fn created_person_entry_to_roundtrip() {
+        let created = CreatedPersonEntryTO {
+            person_id: Uuid::from_u128(0x6304),
+        };
+        let json = serde_json::to_string(&created).unwrap();
+        let back: CreatedPersonEntryTO = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, created, "CreatedPersonEntryTO roundtrip is lossless");
+        assert!(
+            json.contains("\"person_id\""),
+            "das einzige Feld heisst person_id: {json}",
+        );
+    }
+
+    /// Phase 63 (63-04): „Login hinzufuegen" und „Person hinzufuegen" teilen
+    /// sich eine Transportform; jeweils genau eine der beiden Nutzlast-Seiten
+    /// ist gefuellt (PADM-03).
+    #[test]
+    fn add_person_facet_to_roundtrip() {
+        let login = AddPersonFacetTO {
+            facet: PersonFacetTO::User,
+            display_name: None,
+            username: Some("bea".into()),
+        };
+        let json = serde_json::to_string(&login).unwrap();
+        let back: AddPersonFacetTO = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, login, "AddPersonFacetTO roundtrip is lossless");
+        assert!(
+            json.contains("\"facet\":\"user\""),
+            "facet muss als snake_case ueber die Leitung gehen: {json}",
+        );
+
+        let sales_person = AddPersonFacetTO {
+            facet: PersonFacetTO::SalesPerson,
+            display_name: Some("Bea Beispiel".into()),
+            username: None,
+        };
+        let json = serde_json::to_string(&sales_person).unwrap();
+        let back: AddPersonFacetTO = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, sales_person, "AddPersonFacetTO roundtrip is lossless");
+        assert!(
+            json.contains("\"facet\":\"sales_person\""),
+            "facet muss als snake_case ueber die Leitung gehen: {json}",
         );
     }
 }
