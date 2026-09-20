@@ -79,21 +79,26 @@ coverage:
     rationale: "Gerenderte Seite, Badge-Unterscheidbarkeit, Suchverhalten und der Ablehnungstext sind visuelle Aussagen; ausserdem muessen die drei Auspraegungen erst ueber die Oberflaeche angelegt werden — die lokale Datenbank enthaelt nur zwei `user_only`-Eintraege."
 
 # Metrics
-duration: ~25 min (Task 1)
+duration: ~25 min (Task 1) + UAT-Durchgang mit dem Nutzer (Task 2)
 completed: 2026-09-20
-status: checkpoint-pending
+status: complete
+requirements-completed: [PADM-01, PADM-06, PADM-08]
 ---
 
-# Phase 62 Plan 07: Laufzeit-Verifikation und UAT — Zwischenstand (Task 1)
+# Phase 62 Plan 07: Laufzeit-Verifikation und UAT
 
 Der Dev-Proxy reicht `/person-directory` nachweislich weiter (200 auf Port 3000
 **und** auf Port 8080, byte-gleicher Body); Praefix-Konsistenz, Ein-Request-Test
-und das Fat-Backend-Grep-Artefakt liegen vor. Die visuelle Bestaetigung (Task 2)
-steht aus.
+und das Fat-Backend-Grep-Artefakt liegen vor.
 
-**Dieser Plan ist NICHT abgeschlossen.** Task 2 ist ein blockierender
-`checkpoint:human-verify`. Kein Punkt dieses Dokuments behauptet, dass ein
-Mensch die gerenderte Seite gesehen hat.
+**Task 2 ist durch einen UAT-Durchgang mit dem Nutzer abgeschlossen** — siehe
+Abschnitt „Task 2 — UAT-Durchgang". Der Durchgang hat zwei Aenderungen ausgeloest
+(Auspraegungs-Badge entfernt, Spaltenueberschrift korrigiert) und eine
+Beobachtung an Phase 63 uebergeben (getrennte Anlege-Einstiege). Die
+Browser-Erweiterung des Orchestrators war nicht verbunden; die visuellen
+Aussagen hat der Nutzer selbst am laufenden Dev-Server geprueft, die
+mechanischen Aussagen der Orchestrator per HTTP und Testlauf. Wer was bestaetigt
+hat, ist im UAT-Abschnitt Zeile fuer Zeile ausgewiesen.
 
 ## Task 1 — abgeschlossen
 
@@ -279,7 +284,7 @@ OK: keine Serverprozesse mehr
 Kein Schritt von b) bis e) ist fehlgeschlagen; es gibt aus Task 1 keinen Gap
 gegen 62-04 oder 62-05.
 
-## Task 2 — OFFEN (checkpoint:human-verify, blockierend)
+## Task 2 — UAT-Durchgang (abgeschlossen 2026-09-20)
 
 **Status: nicht durchgefuehrt.** Die Schritte 3 bis 9 der Checkpoint-Anleitung
 verlangen eine gerenderte Seite im Browser und ein menschliches Urteil. Sie sind
@@ -573,3 +578,39 @@ Vermerk an seinem betroffenen `must_have`.
 
 Die Frontend-Suite faellt von 835 auf 830 Tests: fuenf Tests gehoerten zur
 geloeschten Badge-Komponente, ein Test wurde ersetzt (835 − 5 = 830).
+
+---
+
+## UAT-Protokoll Task 2 — wer hat was bestaetigt
+
+Durchgefuehrt am 2026-09-20 gegen die laufenden Dev-Server. Die Browser-
+Erweiterung des Orchestrators war nicht verbunden („Browser extension is not
+connected"), eine DOM-Pruefung durch den Orchestrator fand deshalb **nicht**
+statt. Aufteilung:
+
+| Schritt | Aussage | Belegt durch | Ergebnis |
+|---|---|---|---|
+| 1 | Drei Auspraegungen existieren | Orchestrator, REST-API (Seed) | angelegt |
+| 2 | Seite als Admin erreichbar | Nutzer, Browser | ok |
+| 3 | Auspraegung je Zeile erkennbar | Nutzer, Browser | **Aenderung ausgeloest** — Badges waren sichtbar, aber verwirrend; entfernt, Ersatz-Signale dokumentiert |
+| 4 | Suche ueber Anzeige- **und** Benutzername | Nutzer, Browser: „Ja, wir finden beides" | bestanden |
+| 5 | Reines Benutzerkonto hat sichtbaren Namen | Orchestrator, Aggregat-Antwort + `directory_user_only_row_has_display_name` | bestanden |
+| 6 | Genau ein Aggregat-Request, Status 200 | Nutzer (Status 200 im Browser) + Orchestrator (Log-Zaehler 2 → 3 bei einem Aufruf) | bestanden |
+| 7 | Aktionen nur auf der Benutzer-Seite | Orchestrator, `directory_actions_only_for_user_side` (SSR-Render) | bestanden |
+| 8 | Bearbeiten-Link je Auspraegung | Orchestrator, Quelle `user_management.rs` (`sales_person_id.is_some()`) | bestanden, kein eigener Rendertest |
+| 9 | Ablehnung ohne Admin-Rolle | Orchestrator, Laufzeit-403 per Impersonation + `non_admin_sees_not_authorized` (rendert `Not authorized.`) | bestanden |
+
+**Offen geblieben und bewusst nicht behauptet:** eine Beobachtung der Request-Zahl
+im Netzwerk-Tab durch den Orchestrator (ersetzt durch den validierten
+Log-Zaehler) und der im Browser tatsaechlich angezeigte Ablehnungstext (die
+Zeichenkette ist im SSR-Test belegt, nicht im gerenderten Browser gesehen).
+
+**Zwei Ergebnisse des Durchgangs:**
+
+1. Auspraegungs-Badge entfernt, Spaltenueberschrift „Verkaeufer" → „Name"
+   korrigiert (siehe eigener Abschnitt oben). Freigabe des Nutzers: „ja, mach das",
+   nach Abschluss geprueft: „Sieht gut aus".
+2. Getrennte Anlege-Einstiege als Hinweis an Phase 63 uebergeben (D-63-03 in der
+   ROADMAP gepinnt) — **kein Gap dieser Phase**, siehe eigener Abschnitt.
+
+## Self-Check: PASSED

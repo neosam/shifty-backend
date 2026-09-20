@@ -468,7 +468,7 @@ Plans:
 **Wave 4** *(blocked on Wave 3)*
 
 - [x] 62-06-PLAN.md — Docs-Freshness-Gate: `F01-employee-management` und `02-service-tiers` je EN + DE, `diagrams/service-graph-runtime.mmd`
-- [ ] 62-07-PLAN.md — Phasen-Verifikation: `dx serve`-Proxy-Smoke, Ein-Request-Nachweis, Fat-Backend-Grep-Artefakt, visueller Checkpoint
+- [x] 62-07-PLAN.md — Phasen-Verifikation: `dx serve`-Proxy-Smoke, Ein-Request-Nachweis, Fat-Backend-Grep-Artefakt, visueller Checkpoint
 
 ---
 
@@ -636,7 +636,7 @@ als unsicher).
 |-------|----------------|--------|-----------|
 | 60. Person-Datenmodell + Backfill | 0/? | Not started | — |
 | 61. PersonService + Auflösung `sales_person_user` | 10/10 | Complete | 2026-09-17 |
-| 62. Personen-Verzeichnis — eine Liste statt Tabs | 6/7 | In Progress | — |
+| 62. Personen-Verzeichnis — eine Liste statt Tabs | 7/7 | Complete | 2026-09-20 |
 | 63. Personen-Detailansicht + Ausprägungs-Aktionen | 0/? | Not started | — |
 | 64. Planungs-Soll für dynamische Verträge | 0/? | Not started | — |
 
