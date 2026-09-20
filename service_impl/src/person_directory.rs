@@ -50,7 +50,13 @@ gen_service_impl! {
 ///
 /// Bewusst eine **freie** Funktion und keine Methode: so bleiben Klassifikation
 /// und Anzeigenamen-Ableitung ohne Datenbank und ohne DI-Gerüst testbar.
-fn entry_from_row(
+///
+/// Ab Phase 63 benutzt auch der Detail-Lesepfad
+/// (`crate::person_detail::PersonDetailServiceImpl::get_detail`) diese
+/// Funktion — darum `pub(crate)`. Anzeigename und Auspraegung behalten damit
+/// genau eine Definition; eine zweite Ableitung fuer die Detailansicht waere
+/// exakt die Doppelwahrheit, die PADM-06 verbietet.
+pub(crate) fn entry_from_row(
     row: &PersonDirectoryRow,
     roles_by_user: &HashMap<Arc<str>, Vec<Arc<str>>>,
 ) -> PersonEntry {
