@@ -107,12 +107,24 @@ mod tests {
             .collect()
     }
 
-    /// Vorbestehend und bewusst geduldet: `/shiftplan/` (SPA) und
+    /// Vorbestehende Altlast, NICHT harmlos: `/shiftplan/` (SPA) und
     /// `.nest("/shiftplan", ...)` (Backend) teilen sich das Segment schon
-    /// seit vor Phase 63. Heute kollidiert keine konkrete Route, weil die
-    /// Backend-Pfade vier Segmente tragen und die SPA-Pfade zwei bis drei.
-    /// Das ist Zufall, keine Konstruktion — dokumentiert als Altlast, damit
-    /// dieser Test nicht an ihr scheitert und sie trotzdem sichtbar bleibt.
+    /// seit vor Phase 63 — und die Seite bricht daran. Gemessen durch den
+    /// Dev-Proxy mit frischem Server-Paar:
+    ///
+    ///     GET /shiftplan/        -> 404
+    ///     GET /shiftplan/2026/38 -> 404
+    ///     GET /absences/         -> 200, SPA
+    ///
+    /// Direkte URL-Eingabe, Neuladen und Lesezeichen auf den Schichtplan
+    /// laufen ins Leere; nur die Navigation aus der laufenden Anwendung
+    /// heraus funktioniert, weil der Router sie clientseitig aufloest. Das
+    /// ist der Grund, warum es nie aufgefallen ist.
+    ///
+    /// Hier als Ausnahme gefuehrt, damit dieser Test die Altlast nicht als
+    /// Neuzugang meldet — nicht, weil sie in Ordnung waere. Behebung gehoert
+    /// in eine eigene Phase (Umbenennen der SPA-Route oder des Backend-
+    /// Praefix), nicht in einen Randgang von Phase 63.
     const KNOWN_PREEXISTING: &[&str] = &["shiftplan"];
 
     /// Der Dev-Proxy leitet ein Pfad-Segment vollstaendig ans Backend weiter.
