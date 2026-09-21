@@ -49,7 +49,7 @@ Route gehört genau eine Datei unter `page/`.
 | `/absences/`, `/absences/:employee_id/` | `absences.rs` | |
 | `/billing-periods/`, `/billing_period/:billing_period_id/` | `billing_periods.rs`, `billing_period_details.rs` | |
 | `/user_management/` | `user_management.rs` | seit v2.7 Phase 62 das eine Personen-Verzeichnis |
-| `/person/:person_id/` | `person_detail.rs` | **die** Personen-Detailroute seit v2.7 Phase 63 |
+| `/person-detail/:person_id/` | `person_detail.rs` | **die** Personen-Detailroute seit v2.7 Phase 63 |
 | `/custom_extra_hours/` | `custom_extra_hours_management.rs` | |
 | `/text_templates/` | `text_template_management.rs` | |
 | `/settings/` | `settings.rs` | |
@@ -58,10 +58,20 @@ Route gehört genau eine Datei unter `page/`.
 beiden früheren, ausprägungs-spezifischen Detailrouten und ihre Seiten sind in
 derselben Phase **ersatzlos** entfallen — eine verknüpfte Person, ein reines
 Benutzerkonto und ein reiner Verkäufer landen alle auf
-`/person/:person_id/`, das die jeweils zutreffenden Abschnitte rendert. Eine
+`/person-detail/:person_id/`, das die jeweils zutreffenden Abschnitte rendert. Eine
 Weiterleitung von den alten Routen gibt es bewusst **nicht**: sie würde zwei
 URL-Formen am Leben halten, die keine Bedeutung mehr tragen, und die einzigen
 Verweise darauf lagen in diesem Frontend.
+
+**Warum `/person-detail/` und nicht `/person/`.** Das Backend belegt das ganze
+Pfad-Segment `/person` mit den sieben REST-Routen aus Phase 63
+(`.nest("/person", ...)`), und der Dev-Proxy in `Dioxus.toml` leitet dieses
+Segment unverändert weiter. Eine Frontend-Route unter `/person/:person_id/`
+erreichte die SPA deshalb nie — der Browser bekam einen 404 vom Backend. Das
+Matching des Proxys läuft segmentweise, nicht als String-Präfix; `/person-detail`
+liegt damit sicher daneben. Diese Route bitte nicht zurück unter `/person/`
+verschieben: der API-Präfix steht in F01 §5.5 und ist durch die
+Integrationstests belegt, beide können sich kein Segment teilen.
 
 **Die `person_id` in der URL kann wechseln**, wenn einem reinen
 Benutzer-Eintrag eine Sales Person zugeschaltet wird [D-61-03]. Die Seite

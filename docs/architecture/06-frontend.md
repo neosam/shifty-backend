@@ -49,7 +49,7 @@ exactly one file under `page/`.
 | `/absences/`, `/absences/:employee_id/` | `absences.rs` | |
 | `/billing-periods/`, `/billing_period/:billing_period_id/` | `billing_periods.rs`, `billing_period_details.rs` | |
 | `/user_management/` | `user_management.rs` | the single person directory since v2.7 Phase 62 |
-| `/person/:person_id/` | `person_detail.rs` | **the** person detail route since v2.7 Phase 63 |
+| `/person-detail/:person_id/` | `person_detail.rs` | **the** person detail route since v2.7 Phase 63 |
 | `/custom_extra_hours/` | `custom_extra_hours_management.rs` | |
 | `/text_templates/` | `text_template_management.rs` | |
 | `/settings/` | `settings.rs` | |
@@ -57,10 +57,20 @@ exactly one file under `page/`.
 **One detail route for all three shapes (v2.7 Phase 63, D-63-04).** The two
 former facet-specific detail routes and their pages were removed **without
 replacement** in the same phase — a linked person, a user-only account and a
-sales-person-only row all land on `/person/:person_id/`, which renders the
+sales-person-only row all land on `/person-detail/:person_id/`, which renders the
 sections that actually apply. There is deliberately **no** redirect from the
 old routes: a redirect would keep two URL shapes alive that carry no meaning
 any more, and the only links into them lived in this frontend.
+
+**Why `/person-detail/` and not `/person/`.** The backend claims the whole
+`/person` path segment for the seven REST routes added in Phase 63
+(`.nest("/person", ...)`), and the dev proxy in `Dioxus.toml` forwards that
+segment verbatim. A frontend route under `/person/:person_id/` therefore never
+reached the SPA — the browser got a 404 from the backend instead. The proxy
+matches per path segment, not by string prefix, so `/person-detail` sits safely
+outside it. Do not move this route back under `/person/`: the API prefix is
+documented in F01 §5.5 and covered by the integration tests, and the two cannot
+share a segment.
 
 **The `person_id` in the URL can change** when a sales person is added to a
 user-only entry [D-61-03]. The page therefore navigates to the `person_id`
