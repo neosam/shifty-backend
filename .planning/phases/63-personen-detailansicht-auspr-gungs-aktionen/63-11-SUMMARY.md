@@ -150,6 +150,12 @@ Die beiden Routen-Bezeichner sind weg, die beiden Seitendateien existieren nicht
 mehr, die Werkzeugleiste der Listenseite nennt keine der beiden alten
 Anlege-Beschriftungen mehr, und die neue Route ist registriert.
 
+> **Stand dieses Protokolls: vor dem UAT.** Die letzte Zeile zeigt die Route
+> noch als `/person/:person_id/`. Genau dieser Pfad war der Defekt, den der
+> UAT-Durchgang 1 aufgedeckt hat — sie liegt seit `69737ac6` auf
+> `/person-detail/:person_id/`. Die Ausgabe bleibt hier unveraendert stehen,
+> weil sie festhaelt, was zu diesem Zeitpunkt gemessen wurde.
+
 Es verbleiben 13 Treffer auf die reinen **i18n-Schluessel** `Key::UserDetails`,
 `Key::SalesPersonDetails` und `Key::LoadingSalesPersonDetails` in
 `i18n/{de,en,cs}.rs` + `i18n/mod.rs`. Das sind Teil der bereits protokollierten
