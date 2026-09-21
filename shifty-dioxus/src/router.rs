@@ -49,7 +49,13 @@ pub enum Route {
     /// je Sache genau einen Pfad gibt. Ein gespeichertes Lesezeichen auf
     /// einen der alten Pfade laeuft ins Leere; das Nachruesten einer
     /// Weiterleitung bleibt moeglich, ist aber keine stille Schuld.
-    #[route("/person/:person_id/")]
+    /// Der Pfad heisst `/person-detail/`, nicht `/person/`: der Dev-Proxy in
+    /// `Dioxus.toml` leitet das Segment `/person` vollstaendig ans Backend
+    /// weiter (die sieben REST-Routen aus 63-06). Unter `/person/:person_id/`
+    /// hat der Browser deshalb 404 vom Backend bekommen statt der SPA — die
+    /// Seite war ueber ihre eigene URL nicht erreichbar. Das Matching des
+    /// Proxys ist segmentweise, `/person-detail` ist damit kollisionsfrei.
+    #[route("/person-detail/:person_id/")]
     PersonDetail { person_id: String },
     #[route("/custom_extra_hours/")]
     CustomExtraHoursManagement {},
