@@ -346,10 +346,75 @@ Aus frueheren Plaenen uebernommen, hier gebuendelt (nicht neu aufgerollt):
 | DEF-3 | Doppelte Registrierung von `Key::CopyToClipboard` in `i18n/de.rs` und `i18n/en.rs` | 63-09 |
 | DEF-4 | Vorbestehendes `needless_lifetimes` in `service_impl/src/test/person_directory_dao.rs:149` | frueher |
 | DEF-5 | `session.user_id` traegt kein `ON DELETE CASCADE` — das Loeschen eines Benutzers mit offener Sitzung laeuft in einen Fremdschluessel-Fehler und erscheint als generischer 500 (T-63-05-E, RESEARCH Pitfall 3, Threat T-63-11-D „accept") | Phase 63, vorbestehend |
+| DEF-6 | `/shiftplan/` (SPA) und `.nest("/shiftplan", ...)` (Backend) teilen sich ein Pfad-Segment — die Schichtplan-Seite ist ueber ihre eigene URL nicht erreichbar. Gemessen: `GET /shiftplan/` -> 404, `GET /shiftplan/2026/38` -> 404, waehrend `/absences/` und `/settings/` sauber die SPA liefern. Nur Navigation aus der laufenden Anwendung heraus funktioniert, weil der Router sie clientseitig aufloest — daher nie aufgefallen. Vorbestehend, nicht aus Phase 63; Behebung gehoert in eine eigene Phase. | Phase 63 gefunden, vorbestehend |
 
 **DEF-5 ist noch nicht beobachtet.** Punkt H des UAT verlangt, dass es einmal
 bewusst ausgeloest wird. Bis das geschehen ist, steht es hier als bekannte,
 aber unbestaetigte Kante.
+
+---
+
+## UAT-Durchgang 1 — abgebrochen, ein echter Defekt gefunden und behoben
+
+Der Nutzer hat den UAT begonnen und zwei Beobachtungen gemeldet: **405 beim
+Anlegen** und **beim Bearbeiten erscheint gar nichts**. Die Untersuchung hat
+zwei verschiedene Ursachen ergeben.
+
+### Befund 1 — der 405 kam von den veralteten Dev-Servern
+
+Mit frischem Server-Paar laeuft `POST /person` durch den Proxy sauber ans
+Backend (422 auf eine absichtlich unvollstaendige Payload, also Validierung
+statt Routing). Der `dx serve` des Nutzers startete vor Commit `b527aaa9`,
+der den `/person`-Proxy-Eintrag eingefuehrt hat. Ohne Proxy-Eintrag landet
+ein POST beim statischen Dateiserver von `dx` — und der antwortet 405.
+Kein Code-Defekt.
+
+### Befund 2 — Namensraum-Kollision zwischen SPA-Route und API-Praefix
+
+Die Frontend-Route lag auf `/person/:person_id/` und damit im selben
+Pfad-Segment wie `.nest("/person", ...)` aus 63-06. Der Dev-Proxy gibt das
+Segment vollstaendig ans Backend ab. Gemessen mit frischem Server-Paar:
+
+    GET /person/<uuid>     -> 200 (209 B JSON)   API-Pfad, korrekt
+    GET /person/<uuid>/    -> 404                die SPA-Route, kaputt
+    GET /user_management/  -> 200 (8298 B SPA)   Kontrolle
+
+Die Detailseite war ueber ihre eigene URL nicht erreichbar: direkte Eingabe,
+Neuladen und Lesezeichen liefen in einen 404 vom Backend.
+
+**Warum der Nachweis aus Task 2 das nicht gesehen hat.** Er prueft
+`/person/<uuid>` **ohne** abschliessenden Schraegstrich — das ist der
+API-Pfad, und der funktioniert. Die SPA-Route traegt einen Schraegstrich am
+Ende und wurde nie angefasst. Der 200er wurde als Erfolg protokolliert,
+obwohl er den Defekt belegt. Die 26 SSR-Rendertests aus 63-08 rendern die
+Komponente direkt und fassen das Routing nie an.
+
+### Behebung
+
+| Commit | Inhalt |
+|--------|--------|
+| `69737ac6` | Route auf `/person-detail/:person_id/`. Alle fuenf Aufrufstellen nutzen den typisierten Konstruktor `Route::PersonDetail`, darum genuegt das Attribut. Der API-Praefix bleibt unangetastet — er steht in F01 §5.5, in sieben OpenAPI-Pfaden und in den Integrationstests. |
+| `94c13c5d` | `docs/architecture/06-frontend.md` + `_de.md`: Routen-Inventar und Fliesstext auf den neuen Pfad, plus ein Absatz, warum die Route nicht unter `/person/` liegen darf. |
+| `f289cb0b` | Zwei Waechter-Tests in `router.rs`. Der erste liest die `[[web.proxy]]`-Eintraege aus `Dioxus.toml` und `Route::SITE_MAP` und vergleicht die Erstsegmente — er schliesst die Luecke fuer jede kuenftige Route. Beide per Mutation belegt (Route zurueckgesetzt -> beide FAILED mit dem Segment `person` in der Meldung), Mutation zurueckgenommen. |
+| `a7767219` | Korrektur einer falschen Behauptung im Kommentar zu DEF-6 (siehe unten). |
+
+### Nachweis nach dem Fix
+
+Frisches Backend + frischer `dx serve` im Netzwerk-Namespace, SPA-Signatur
+8298 B als Referenz aus `/user_management/`:
+
+    /person-detail/<uuid>/   -> 200   8298 B  [SPA]
+    /person/<uuid>           -> 200    209 B  [JSON, unveraendert]
+    POST /person             -> 422           [erreicht das Backend]
+
+Gates nach dem Fix: `cargo test` shifty-dioxus **858 passed** (856 + 2 neue),
+`cargo clippy --all-targets -- -D warnings` Exit 0, wasm32-Build Exit 0.
+
+### Neuer Deferred Item aus der Untersuchung
+
+Die Suche nach weiteren Kollisionen hat eine **vorbestehende** gefunden, die
+nicht aus dieser Phase stammt und hier bewusst nicht behoben wird — siehe
+DEF-6.
 
 ---
 
