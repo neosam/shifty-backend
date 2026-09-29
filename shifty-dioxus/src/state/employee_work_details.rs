@@ -9,6 +9,12 @@ pub struct WorkingHoursMini {
     pub sales_person_id: Uuid,
     pub sales_person_name: ImStr,
     pub expected_hours: f32,
+    /// Phase 64 (PSOLL-01/PSOLL-02): das Planungs-Soll — feiertags- und
+    /// abwesenheitsreduziert, aber auch fuer dynamische Vertraege groesser 0.
+    /// Kommt fertig berechnet aus dem Backend (`ShortEmployeeReportTO`) und wird
+    /// hier ausschliesslich gelesen: keine Ableitung, kein Fallback, keine
+    /// Rechnung im Frontend.
+    pub planning_target_hours: f32,
     pub dynamic_hours: f32,
     pub actual_hours: f32,
     pub balance_hours: f32,
@@ -21,6 +27,7 @@ impl Default for WorkingHoursMini {
             sales_person_id: Uuid::nil(),
             sales_person_name: "".into(),
             expected_hours: 0.0,
+            planning_target_hours: 0.0,
             dynamic_hours: 0.0,
             actual_hours: 0.0,
             balance_hours: 0.0,

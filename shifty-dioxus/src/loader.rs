@@ -449,6 +449,11 @@ pub(crate) fn build_working_hours_mini(
         sales_person_id: report.sales_person.id,
         sales_person_name: report.sales_person.name.to_owned().as_ref().into(),
         expected_hours: report.expected_hours,
+        // Phase 64 (PSOLL-02): 1:1 durchgereicht. Bewusst **keine** Ableitung und
+        // **kein** Fallback auf ein anderes Soll-Feld — der Wert kommt fertig
+        // berechnet aus dem Backend (Fat-Backend-Prinzip, vgl. den Doc-Kommentar
+        // an `load_person_directory` weiter unten).
+        planning_target_hours: report.planning_target_hours,
         dynamic_hours: report.dynamic_hours,
         actual_hours: report.overall_hours,
         balance_hours: balance_map
