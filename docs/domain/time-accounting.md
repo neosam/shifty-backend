@@ -145,26 +145,33 @@ expected(from..to) = Σ expected(day) for day in from..to
 ### Two kinds of "Soll": balance-relevant expected vs planning target
 
 Since Phase 64 the weekly short report carries **two** target figures.
-They are computed from the same three sources (contract, absences,
-public holidays) but answer different questions, and they behave
-differently on exactly one kind of contract — the dynamic one.
+The balance-relevant expected is a **contract** figure; the planning
+target is a **commitment** figure [D-64-05]. They answer different
+questions, and they are not fed from the same set of sources.
 
 | | `expected_hours` — *balance-relevant expected* | `planning_target_hours` — *planning target* |
 | --- | --- | --- |
 | What it is for | the `expected` leg of the base formula above | the figure a planner compares the assigned shifts against |
+| Sources | contract, absences, public holidays | the same three **plus** the committed volunteer hours (`committed_voluntary`) |
 | Dynamic contract | deliberately **`0`** | deliberately **not `0`** |
+| Contract with 0 hours and commitment > 0 | `0` | **not `0`** — the commitment alone carries the figure |
+| Includes the committed volunteer hours? | **no**, never | **yes** — reduced by absences and public holidays |
 | Enters the balance? | **yes** — it *is* the balance's expectation | **no**, never; also not Carryover, Billing snapshot, or availability |
 | Where it becomes visible | the hour-account surfaces (Employee Details, weekly histogram, employee list) | the overview below the shiftplan only |
 
 **The one sentence to remember:** on a dynamic contract the
 balance-relevant expected is deliberately zero, because *expected equals
 actual*; and the planning target is deliberately non-zero, because you
-cannot plan against a target of zero.
+cannot plan against a target of zero — and it includes the committed
+volunteer hours, because the planner needs to see what the person commits
+to, not which part of it is paid.
 
-Non-dynamic contracts are unaffected: there both figures carry the same
-number, by construction and not by coincidence. The reasoning — why the
-planning target needs its own reduction gate, and why it must not be
-"unified" back into the balance gate — is in
+At commitment 0 non-dynamic contracts are unaffected: there both figures
+carry the same number, by construction and not by coincidence. With a
+commitment they differ by exactly the absence- and holiday-reduced
+commitment. The reasoning — why the planning target needs its own base,
+its own reduction gate and its own reduction scaling, and why none of them
+must be "unified" back into the balance path — is in
 [F07 §2.7](../features/F07-reporting-balance.md). Do not re-derive it
 here; there is exactly one place where it belongs.
 
@@ -232,8 +239,9 @@ The per-week short-report figures are not assembled in one place but in
 **two** — `assemble_weeks` (shared by the single-week and the whole-year
 read) and `get_reports_for_all_employees`. The **planning target** is
 produced at both of them, exactly like every other short-report figure;
-only its reduction condition deliberately differs from the one the
-balance formula uses. Reason and consequences:
+its **base**, its **reduction gate** and the **scaling of the reduction**
+deliberately differ from the ones the balance formula uses. Reason and
+consequences:
 [F07 §2.7 and §3](../features/F07-reporting-balance.md).
 
 ## Where the calculation becomes visible
@@ -245,9 +253,12 @@ balance formula uses. Reason and consequences:
 - **Overview below the shiftplan** — the only surface that shows the
   **planning target** rather than the balance-relevant expected: the
   `actual / target` figure, the utilisation bars and the target sum of
-  the footer row. Everything the hour account shows — Employee Details,
-  weekly histogram, employee list, every balance figure — keeps showing
-  the balance-relevant expected.
+  the footer row. Because the planning target includes the committed
+  volunteer hours, that figure can be larger for the same person than any
+  number on the hour-account surfaces — and that is intended. Everything
+  the hour account shows — Employee Details, weekly histogram, employee
+  list, every balance figure — keeps showing the balance-relevant
+  expected.
 
 ## Why this is complicated
 

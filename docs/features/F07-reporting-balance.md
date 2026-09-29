@@ -335,17 +335,34 @@ availability computation.
 | | `expected_hours` — *balance-relevant Soll* | `planning_target_hours` — *planning target* |
 | --- | --- | --- |
 | What it is for | the expected leg of `balance = worked − expected + carryover` | the figure a planner compares the assigned shifts against |
-| Dynamic contract (`is_dynamic == true`) | deliberately **`0.0`** — *expected = actual*, the balance must stay `0` | deliberately **`> 0`** — the reduced contract size |
-| Non-dynamic contract | contract hours minus absence and holiday reductions | **the same number**, structurally (see below) |
+| Dynamic contract (`is_dynamic == true`) | deliberately **`0.0`** — *expected = actual*, the balance must stay `0` | deliberately **`> 0`** — the reduced commitment (contract hours **plus** committed volunteer hours) |
+| Contract with `expected_hours == 0` and commitment > 0 | `0.0` | **`> 0`** — since plan 64-05; the original gate returned `0.0` here |
+| Non-dynamic contract, **commitment 0** | contract hours minus absence and holiday reductions | **the same number**, structurally (see below) |
+| Non-dynamic contract, **commitment > 0** | as above, without volunteer hours | **larger** — by exactly the absence- and holiday-reduced commitment |
+| Includes the committed volunteer hours (`committed_voluntary`) | **no — never** | **yes** [D-64-05] |
 | Enters balance / Carryover / Billing snapshot / `available_hours` | **yes** | **no — never** |
 | Where it is visible | the hour-account surfaces (employee detail, weekly histogram, employee list) | the overview below the shiftplan only (§6.1) |
 
 **What the field is.** `planning_target_hours` is the holiday- and
-absence-reduced **contract** target of the week
+absence-reduced **commitment** of the week
 (`service/src/reporting.rs:164`, mirrored on `ShortEmployeeReportTO`,
 `rest-types/src/lib.rs:392`, `#[serde(default)]`). It answers *"how many
 hours should this person be scheduled for"* — not *"how many hours does
 the balance expect"*.
+
+**It is explicitly NOT a contract figure** [D-64-05, plan 64-05]. The
+purpose of the field is shift planning: the planner needs to see *what
+the person commits to for the week*. Whether those hours are paid is
+irrelevant for that — which is why the committed volunteer hours
+(`employee_work_details.committed_voluntary`) flow in. The strict
+separation of `expected_hours` and `committed_voluntary` holds for the
+**balance** and stays untouched there; it does not hold for **planning**.
+Anyone who pulls the commitment back out here "because the balance does it
+that way too" breaks the purpose of the field.
+
+Absences and holidays reduce the volunteer portion **as well** — someone
+who is around less during that time also commits less voluntarily. The
+reduction is *proportional*, not all-or-nothing (§ D-64-07 below).
 
 **What it is explicitly NOT used for.** Balance, Carryover, the Billing
 Period snapshot, and the availability computation all keep reading
@@ -356,45 +373,131 @@ Period snapshot, and the availability computation all keep reading
 still evaluates to `0.0` for a dynamic contract — that is intended and
 is pinned by `test_available_hours_unchanged_dynamic`.
 
-**Why the field has its own gate.** The reduction gate for the planning
-target is
+**The formula (worded identically at both construction sites).**
 
 ```rust
-// service_impl/src/reporting.rs:1121 (assemble_weeks), mirrored at :1476
-let reduce_target = has_contract_row && dynamic_hours > 0.0;
+// service_impl/src/reporting.rs:1162-1186 (assemble_weeks),
+// mirrored verbatim at :1562-1577 (get_reports_for_all_employees)
+let planning_base_for_target = dynamic_hours + committed_voluntary_for_target;
+let target_reduction_scale = if dynamic_hours > 0.0 {
+    planning_base_for_target / dynamic_hours
+} else {
+    1.0f32
+};
+let reduce_target = has_contract_row && planning_base_for_target > 0.0;
+let planning_target_hours = if reduce_target {
+    planning_base_for_target
+        - (absence_manual_for_target
+            + absence_derived_for_target
+            + holiday_derived_for_target)
+            * target_reduction_scale
+} else {
+    0.0f32
+};
 ```
 
-and **both** halves are load-bearing:
+`committed_voluntary_for_target` is the sum of
+`committed_voluntary_weight_for_week(year, week, wh)` over the contract
+rows active in the week (`reporting.rs:2451`, SUM aggregation following
+the D-OVERLAP-AGG precedent).
+
+**Why the field has its own gate, and why plan 64-05 changed it.**
+Originally (64-01) it read `has_contract_row && dynamic_hours > 0.0`. That
+was correct as long as the base was `dynamic_hours` — with the commitment
+in the base it *is* the defect. The three properties the current gate
+carries:
 
 - *It must not borrow the balance gate.* The balance branch keys off
-  `planned_hours`, element 0 of the `weight_for_week` return tuple
-  (`reporting.rs:2305-2307`), which is **forced to `0.0`** whenever
-  `is_dynamic` is true. Its condition
+  `planned_hours`, element 0 of the `weight_for_week` return tuple, which
+  is **forced to `0.0`** whenever `is_dynamic` is true. Its condition
   `!has_contract_row || planned_hours <= 0.0` (`reporting.rs:1045`) is
-  consequently true for *every* week of a dynamic contract and would
-  skip the reduction exactly where it is newly needed. Element 1 of the
-  same tuple (`dynamic_hours`) is the only value in the chain that stays
-  unforced — which is why the gate is measured against it. **Do not
-  "unify" the two conditions back into one.**
-- *The second half must not be dropped either.* Without
-  `dynamic_hours > 0.0`, a contract row with 0 contract hours, or an
-  edge week with `relation == 0.0`, would subtract from a zero base and
-  produce a **negative** planning target while `expected_hours` stays
-  at `0`.
+  consequently true for *every* week of a dynamic contract and would skip
+  the reduction exactly where it is needed. The paid portion of the
+  planning base is therefore measured against element 1 of the same tuple
+  (`dynamic_hours`) — the only value in the chain that stays unforced.
+  **Do not "unify" the two conditions back into one.**
+- *It fires for the `expected_hours == 0` with commitment > 0 class.*
+  This is exactly where the old second half measured the **wrong value**:
+  a person with 0 contract hours and a real commitment has
+  `dynamic_hours == 0`, so the old gate returned `0.0` for them. Since
+  plan 64-05 the measurement is against `planning_base_for_target`, and
+  the commitment is part of it. Pinned by
+  `planning_target_zero_expected_hours_with_commitment`.
+- *It never subtracts from a zero base.* When contract hours AND
+  commitment are 0 — or the week lies outside the contract boundaries
+  (`relation == 0.0`) — `planning_base_for_target` is exactly `0`, the
+  gate does not fire, and the planning target is byte-identical `0.0`
+  just like `expected_hours`. Same guarantee as before, now measured
+  against the right base. A contract row without a single weekday set
+  yields `relation = 0/0 = NaN` (pre-existing in `weight_for_week` since
+  v1); `NaN > 0.0` is `false`, so the gate does not fire there either and
+  the planning target is `0.0` rather than `NaN`.
 
-**Why sign-equality for non-dynamic contracts follows structurally.**
-For a non-dynamic contract, element 0 and element 1 of the
-`weight_for_week` tuple carry the same value. Old gate and new gate
-therefore switch under exactly the same condition, and both formulas
-subtract the same terms — so `planning_target_hours == expected_hours`
-by construction, not by coincidence. Pinned by
-`test_planning_target_matches_expected_for_fixed_contract`; its second
-assertion block is the 0-hour-contract regression described above.
+**Why byte-identity for non-dynamic contracts follows structurally — but
+only at commitment 0.** With `committed_voluntary == 0`,
+`committed_voluntary_for_target == 0`, hence
+`planning_base_for_target == dynamic_hours`, hence
+`target_reduction_scale == 1.0` — which leaves line for line the same
+computation 64-01 wrote, and for a non-dynamic contract element 0 and
+element 1 of the `weight_for_week` tuple carry the same value. So
+`planning_target_hours == expected_hours` by construction, not by
+coincidence. Pinned by
+`test_planning_target_matches_expected_for_fixed_contract` and by block 3
+of `planning_target_fixed_contract_differs_by_commitment`.
+
+**With a commitment the difference is exactly the reduced commitment.**
+Measured in `planning_target_fixed_contract_differs_by_commitment` (40 h
+contract, commitment 10.0): in an undisturbed week `50.0` against `40.0`,
+difference exactly **10.0**; in a week with three absent workdays (24 h)
+`20.0` against `16.0`, difference exactly **4.0** (= `10 × (1 − 24/40)`).
 
 **Deliberately no `.max(0.0)`.** The balance path does not clamp either.
-A clamp on the planning target alone would break the sign-equality above
-in heavy-absence weeks, where both values legitimately go negative under
-the same input. Whoever adds a clamp later must clamp both or neither.
+The gate prevents the *structural* zero-base case; it does not prevent
+reductions from exceeding the base. Since plan 64-05 that is **asserted**
+behaviour: `planning_target_not_clamped_when_reductions_exceed_base`
+measures a planning target of **−10.0** for a 0-hour contract with
+commitment 10.0 and a manual `Vacation` row of 20.0 h. A `.max(0.0)`
+returns `0.0` there and breaks that test. Whoever adds a clamp later must
+clamp both figures or neither — and must first ask the product question
+whether a negative planning target is readable for the planner.
+
+**D-64-06 — the commitment scales with `relation`, not day-based
+pro-rata.** Three candidates exist in the code for the weekly amount of
+the commitment. At an edge week (contract Mon–Fri, ends Wednesday,
+commitment 7.0) they yield three different numbers:
+
+| Candidate | Weekly amount | Verdict |
+| --- | --- | --- |
+| `committed_voluntary_for_calendar_week` (`reporting.rs:130`) — SUM without scaling | **7.0** | rejected: reports the full weekly commitment for a week the contract only covers three fifths of |
+| `committed_voluntary_prorata_for_week` (`reporting.rs:163`) — `committed_voluntary / 7.0` per day (D-F2-01) | **3.0** (3/7) | rejected: mixes calendar-day and workday scaling in one displayed number; the subtracted reduction terms are workday-based |
+| **`committed_voluntary_weight_for_week` (`reporting.rs:2451`) — `committed_voluntary * relation`** | **4.2** (3/5) | **chosen**: one scaling for the whole number, same source of `relation` as the paid portion (`potential_workdays_for_week`) |
+
+Pinned by `committed_voluntary_weight_pins_relation_scaling_d_64_06`,
+which carries both rejected numbers as explicit counter-assertions.
+
+**Why `committed_voluntary_target_in_range` is NOT reused.** Its absence
+semantics are **whole-week-out** (D-54.5-01): an ISO week with *one*
+absence day contributes **0** to the target. For the F2 target (volunteer
+account) that is right — it is a **balance** figure and establishes
+actual/target symmetry. For the planning target it would be wrong: one
+vacation day would erase the *entire* weekly commitment while the paid
+portion only loses one day. D-64-05 explicitly demands *proportional*,
+not all-or-nothing. **Consequence: planning target and F2 target may
+differ at edge weeks. That is intended and not drift for someone to "clean
+up".**
+
+**D-64-07 — the reduction applies proportionally, via
+`target_reduction_scale`.** Plainly subtracting the reduction terms from
+the enlarged base would shorten **only the paid portion**: the absence
+hours are derived from `expected_hours` (hours per workday), not from
+`expected_hours + committed_voluntary`. Example: 40 h contract + 10 h
+commitment, one absence day out of five → reduction 8 h → `50 − 8 = 42`,
+although the person is only around 4/5 of the week and commits 4/5 of 50 =
+**40**. The reduction is therefore scaled up by exactly the factor the
+base grew by. Pinned by
+`planning_target_commitment_reduced_by_absence_parity` (measured: 50.0 in
+the undisturbed week, 20.0 in the absence week; the plain subtraction
+would yield 26.0).
 
 **Pre-existing asymmetry, deliberately not touched by Phase 64.** The two
 construction sites (§3) derive their *manual* absence raw value through
@@ -431,8 +534,16 @@ over other aggregates.
 | Public-holiday reduction (manual) | via `extra_hours` with category `Holiday` | see above |
 | Public-holiday reduction (derived) | `special_day_service.get_by_week` (table `special_day`) → `build_derived_holiday_map` with cutover date from `toggle_service.get_toggle_value("holiday_auto_credit")` | per week, filtered by contract weekday |
 
-The same three sources feed the **planning target**
-(`planning_target_hours`, §2.7) — only the gate differs.
+| Committed volunteer hours (planning target only) | `employee_work_details.committed_voluntary`, scaled via `committed_voluntary_weight_for_week` (`reporting.rs:2451`) | `committed_voluntary` |
+
+The **planning target** (`planning_target_hours`, §2.7) is fed by **four**
+sources: contract, absences, holidays **and** the committed volunteer
+hours from `employee_work_details.committed_voluntary`. Compared to the
+balance-relevant target, the **base** (contract + commitment instead of
+contract only), the **gate** (`planning_base_for_target > 0.0` instead of
+`planned_hours > 0.0`) **and** the **scaling of the reduction**
+(`target_reduction_scale`, D-64-07) all differ. It is not "the same
+computation with a different gate".
 
 #### The two `ShortEmployeeReport` construction sites
 
@@ -606,8 +717,11 @@ pub struct ShortEmployeeReport {
     pub dynamic_hours: f32,
     pub expected_hours: f32,          // balance-relevant Soll — 0.0 on a dynamic contract
     pub overall_hours: f32,
-    pub planning_target_hours: f32,   // Phase 64 (PSOLL-01…04) — planning target, > 0 on a
-                                      // dynamic contract, never enters any balance (§2.7)
+    pub planning_target_hours: f32,   // Phase 64 (PSOLL-01…04) — planning target: the
+                                      // reduced COMMITMENT of the week incl. volunteer
+                                      // hours [D-64-05]; > 0 on a dynamic contract and on
+                                      // a 0-hour contract with a commitment; never enters
+                                      // any balance (§2.7)
     …
 }
 ```
@@ -751,12 +865,17 @@ DTOs (wire format):
 
 - `ShortEmployeeReportTO` (`rest-types/src/lib.rs:380-402`): compact
   row for the HR overview. **Since Phase 64** it carries the additional
-  response field `planning_target_hours: f32` (§2.7), delivered by both
+  response field `planning_target_hours: f32` (§2.7) — the reduced
+  **commitment** of the week including volunteer hours [D-64-05] —
+  delivered by both
   short-report endpoints — `GET /report/?year=…&until_week=…` and
   `GET /report/week/{year}/{calendar_week}`. The addition is purely
   additive: **no new route, no new handler, and no new `Dioxus.toml`
   proxy entry** was created, and `#[serde(default)]` keeps an old
-  payload without the field deserialisable (to `0.0`).
+  payload without the field deserialisable (to `0.0`). **Plan 64-05 did
+  NOT touch the wire form:** same field, same type, same endpoints — only
+  the semantics of the value is now a commitment rather than a contract
+  figure.
 - `EmployeeReportTO` (`rest-types/src/lib.rs:523-596`): full report;
   contains `by_week: Arc<[WorkingHoursReportTO]>` and
   `by_month: Arc<[…]>` (currently always empty, `reporting.rs:877` writes
@@ -821,7 +940,8 @@ and the memory note "Dioxus.toml proxy for new backend endpoints".
 
 ### 6.5 Which surface shows which "Soll" (Phase 64)
 
-`ShortEmployeeReportTO` now carries two target figures (§2.7). The split
+`ShortEmployeeReportTO` now carries two target figures (§2.7) — a balance
+figure and a commitment figure. The split
 across the frontend is deliberate and follows the transport object each
 surface reads — most hour-account surfaces *cannot* show the planning
 target, because their DTO does not have it.
@@ -855,7 +975,10 @@ not touch:
 
 **Rule of thumb:** the planning target appears **only** in the weekly
 overview below the shiftplan; every hour-account surface shows the
-balance-relevant Soll, unchanged.
+balance-relevant Soll, unchanged. The three display sites therefore show
+a **commitment** figure including volunteer hours [D-64-05] — for the same
+person it can be larger than any number on the hour-account surfaces, and
+that is intended.
 
 The second consumer of `ShortEmployeeReportTO` in the frontend,
 `impl From<&ShortEmployeeReportTO> for Employee`
@@ -1005,21 +1128,41 @@ Most extensive test area in the codebase.
 - `service_impl/src/test/reporting_attendance_gate.rs` (318 lines) —
   HR gate + is_dynamic filter (in v2.2 post-ship switched to "for all",
   see `reporting.rs:1207-1210`).
-- `service_impl/src/test/reporting_phase2_fixtures.rs` (148 lines) —
+- `service_impl/src/test/reporting_phase2_fixtures.rs` (199 lines) —
   fixtures for the early phase-2 regression; also the mirror pair
   (dynamic vs fixed 40 h contract + vacation/sick periods) that the
   Phase-64 planning-target suite builds on.
-- `service_impl/src/test/reporting_planning_target.rs` (671 lines) —
-  Phase 64 (PSOLL-01/03/04), five tests covering the planning target
-  (§2.7):
+- `service_impl/src/test/reporting_planning_target.rs` (1087 lines) —
+  Phase 64 (PSOLL-01/03/04), ten tests covering the planning target
+  (§2.7). The first five come from 64-01 (contract semantics, all
+  fixtures at commitment 0), the last five from plan 64-05 (commitment
+  semantics):
 
-  | Test | Purpose |
-  | --- | --- |
-  | `test_planning_target_dynamic_get_week` | a dynamic contract reports `planning_target_hours = 40.0` in `get_week` while `expected_hours` stays `0.0` — construction site A |
-  | `test_planning_target_dynamic_all_employees` | the same contract reports `80.0` over two contract weeks in `get_reports_for_all_employees` — construction site B |
-  | `test_planning_target_parity_both_sites` | **the cross-site parity test**: both sites yield the same value (`56.0`) for the same input, and absences demonstrably reduce it (`0 < 56 < 80`). The third assertion (`> 0.0`) is what makes it a driver instead of a `0.0 == 0.0` pass |
-  | `test_planning_target_matches_expected_for_fixed_contract` | sign-equality with `expected_hours` for non-dynamic contracts, incl. the 0-hour-contract regression block (no negative value) |
-  | `test_available_hours_unchanged_dynamic` | regression lock: `available_hours` stays `0.0` on a dynamic contract even though the report now carries a planning target of `40.0` |
+  | Test | Purpose | mis-implementation it catches |
+  | --- | --- | --- |
+  | `test_planning_target_dynamic_get_week` | a dynamic contract reports `planning_target_hours = 40.0` in `get_week` while `expected_hours` stays `0.0` — construction site A | field left neutral (`0.0`) |
+  | `test_planning_target_dynamic_all_employees` | the same contract reports `80.0` over two contract weeks in `get_reports_for_all_employees` — construction site B | site B not filled |
+  | `test_planning_target_parity_both_sites` | **the cross-site parity test**: both sites yield the same value (`56.0`) for the same input, and absences demonstrably reduce it (`0 < 56 < 80`). The third assertion (`> 0.0`) is what makes it a driver instead of a `0.0 == 0.0` pass | reuse of the balance reduction terms forced to `0` (`80.0`) |
+  | `test_planning_target_matches_expected_for_fixed_contract` | byte-identity with `expected_hours` for non-dynamic contracts **at commitment 0**, incl. the 0-hour-contract regression block | loss of the zero-base guarantee (negative value) |
+  | `test_available_hours_unchanged_dynamic` | regression lock: `available_hours` stays `0.0` on a dynamic contract even though the report now carries a planning target of `40.0` | switching the `available_hours` assignments to the new field (T-64-02) |
+  | `planning_target_includes_commitment_dynamic_both_sites` | commitment 10.0 ⇒ `50.0` (A) and `100.0` (B), `expected_hours` stays `0.0` | commitment ignored (`40.0` / `80.0` — the state before plan 64-05) |
+  | `planning_target_commitment_reduced_by_absence_parity` | week 22 `50.0`, week 23 `20.0` (asserted individually), sum `70.0` at both sites | commitment ignored (`56.0`); plain subtraction without `target_reduction_scale` (`76.0`); field neutral (`0.0`) |
+  | `planning_target_fixed_contract_differs_by_commitment` | PSOLL-04 in its new form: difference exactly `10.0` (undisturbed) resp. `4.0` (three absence days), and byte-identity at commitment 0 | commitment leaking into `expected_hours`; byte-identity at commitment 0 lost |
+  | `planning_target_zero_expected_hours_with_commitment` | `expected_hours == 0` with commitment 10.0 ⇒ `10.0` (A) and `20.0` (B) | the 64-01 gate left in place (`0.0`) |
+  | `planning_target_not_clamped_when_reductions_exceed_base` | reductions > base ⇒ **`−10.0`**; at site B decomposed over two windows (until week 22 `10.0`, until week 23 `0.0`, weekly contribution `−10.0`) | a `.max(0.0)` clamp (`0.0`) |
+
+  Plus four pure-fn tests in `reporting.rs` (module
+  `test_committed_voluntary_weight_for_week`, from `:3439`) — the only
+  place where the distribution decision D-64-06 is directly measurable
+  (the integration tests only measure it over the full week, where all
+  three candidates yield the same number):
+
+  | Test | measured | mis-implementation it catches |
+  | --- | --- | --- |
+  | `committed_voluntary_weight_full_week_is_unscaled` | `10.0` | an unconditional division (by 7 or by `workdays_per_week`) |
+  | `committed_voluntary_weight_pins_relation_scaling_d_64_06` | `4.2` | `3.0` = day-based 7-day distribution; `7.0` = unscaled SUM (both as explicit counter-assertions) |
+  | `committed_voluntary_weight_outside_contract_is_zero` | `0.0` | passing `committed_voluntary` through unchecked |
+  | `committed_voluntary_weight_zero_commitment_is_zero` | `0.0` | scaling `expected_hours` instead of `committed_voluntary` |
 
   A source-side companion lives in the frontend:
   `working_hours_mini_overview_reads_planning_target_only` (§6.5) pins
@@ -1116,9 +1259,10 @@ milestones:
      implementation reuses the balance branch's condition, which keys
      off `planned_hours` — a value that `weight_for_week` *forces* to
      `0.0` for a dynamic contract. The reduction would then have been
-     skipped for exactly the contracts the feature is for. The gate
-     therefore keys off `dynamic_hours`, the unforced element of the
-     same tuple, and keeps `has_contract_row` as its second half.
+     skipped for exactly the contracts the feature is for. The paid
+     portion of the base is therefore measured against `dynamic_hours`,
+     the unforced element of the same tuple, and `has_contract_row`
+     remains the second gate half.
   2. **The second construction site had no holiday term at all.** In the
      dynamic branch of `get_reports_for_all_employees` the holiday and
      absence building blocks did not exist before this phase; they had
@@ -1126,8 +1270,21 @@ milestones:
      would have gone green on either site alone — only the cross-site
      parity test (§8.1) holds the two against each other.
 
+  3. **The reduction gate was mechanically right and factually wrong.**
+     It was correct for a *contract* figure and wrong for a *commitment*
+     figure: the committed volunteer hours (`committed_voluntary`)
+     appeared in neither formula, and a person with `expected_hours == 0`
+     and a real commitment was shown `0.0`. The error was not in the
+     mechanics but in the **domain definition** — and it was found in the
+     UAT, not by nine green tests. Nine tests can pin a wrong definition
+     arbitrarily precisely. Closed by **plan 64-05** (gap closure,
+     D-64-05/06/07): the planning target is a commitment figure, the
+     commitment flows in, and absences reduce it proportionally.
+
   `CURRENT_SNAPSHOT_SCHEMA_VERSION` **stays at 13** — see below for why
-  that holds structurally.
+  that holds structurally. Plan 64-05 changed the computation on
+  `ShortEmployeeReport` and still did **not** bump; that proof is below as
+  well.
 
 ### Fat-backend principle
 
@@ -1165,6 +1322,20 @@ this field at all. The new value therefore cannot reach a persisted
 computation or input set was touched. This is a *structural* argument,
 not an assurance: grep for `planning_target_hours` in
 `billing_period_report.rs` returns nothing. The version stays at **13**.
+
+**Why plan 64-05 did not bump either, although it changed a
+computation.** What changed are the two `ShortEmployeeReport` construction
+sites (`assemble_weeks` and `get_reports_for_all_employees`) — and there
+exclusively the planning-target block, which enters no balance figure. The
+third `weight_for_week` caller, `hours_per_week`, feeds `EmployeeReport`
+and thereby the snapshot; it is untouched by 64-05, as are
+`booking_information.rs` and `billing_period_report.rs`. Evidenced by
+counter gates rather than assurance: `available_hours: report.expected_hours`
+still occurs exactly **twice**, `CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 13`
+exactly **once**, and none of those four files appears in any diff of the
+plan. The full test suite (1182 tests, 9 of them new) is green without a
+single adjusted expectation — the billing and carryover sections in
+particular.
 
 ---
 

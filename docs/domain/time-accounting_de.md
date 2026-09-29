@@ -146,29 +146,36 @@ expected(from..to) = Σ expected(day) für day in from..to
 
 ### Zweierlei „Soll": bilanzrelevantes Soll vs. Planungs-Soll
 
-Seit Phase 64 trägt der Wochen-Kurzreport **zwei** Soll-Größen. Sie
-entstehen aus denselben drei Quellen (Vertrag, Abwesenheiten,
-Feiertage), beantworten aber verschiedene Fragen — und sie verhalten
-sich bei genau einer Vertragsart unterschiedlich: beim dynamischen.
+Seit Phase 64 trägt der Wochen-Kurzreport **zwei** Soll-Größen. Das
+bilanzrelevante Soll ist eine **Vertrags**größe; das Planungs-Soll ist
+eine **Zusage**größe [D-64-05]. Sie beantworten verschiedene Fragen, und
+sie speisen sich nicht aus derselben Quellenmenge.
 
 | | `expected_hours` — *bilanzrelevantes Soll* | `planning_target_hours` — *Planungs-Soll* |
 | --- | --- | --- |
 | Wofür der Wert da ist | das `expected`-Bein der Grundformel oben | die Zahl, gegen die ein Planer die verteilten Schichten hält |
+| Quellen | Vertrag, Abwesenheiten, Feiertage | dieselben drei **plus** die ehrenamtliche Zusage (`committed_voluntary`) |
 | Dynamischer Vertrag | absichtlich **`0`** | absichtlich **nicht `0`** |
+| Vertrag mit 0 Stunden und Zusage > 0 | `0` | **nicht `0`** — die Zusage allein trägt die Zahl |
+| Enthält die ehrenamtliche Zusage? | **nein**, nie | **ja** — reduziert um Abwesenheiten und Feiertage |
 | Geht in die Balance ein? | **ja** — es *ist* die Erwartung der Bilanz | **nein**, nie; auch nicht in Carryover, Billing-Snapshot oder Verfügbarkeit |
 | Wo der Wert sichtbar wird | die Stundenkonto-Flächen (Employee Details, Wochen-Histogramm, Mitarbeiterliste) | ausschließlich die Übersicht unterhalb des Schichtplans |
 
 **Der eine Satz zum Merken:** Bei dynamischen Verträgen ist das
 bilanzrelevante Soll absichtlich Null, weil *Soll = Ist* gilt; und das
 Planungs-Soll ist absichtlich nicht Null, weil man ohne Zielwert nicht
-planen kann.
+planen kann — und es enthält die ehrenamtliche Zusage, weil die planende
+Person sehen muss, was die Person zusagt, nicht was davon bezahlt wird.
 
-Nicht-dynamische Verträge sind unberührt: dort tragen beide Größen
-dieselbe Zahl, konstruktionsbedingt und nicht zufällig. Die Begründung —
-warum das Planungs-Soll ein eigenes Reduktions-Gate braucht und warum
-dieses nicht wieder mit dem Bilanz-Gate „vereinheitlicht" werden darf —
-steht in [F07 §2.7](../features/F07-reporting-balance.md). Hier nicht
-nachbauen; sie gehört an genau eine Stelle.
+Bei Zusage 0 sind nicht-dynamische Verträge unberührt: dort tragen beide
+Größen dieselbe Zahl, konstruktionsbedingt und nicht zufällig. Mit einer
+Zusage unterscheiden sie sich um genau die um Abwesenheiten und Feiertage
+reduzierte Zusage. Die Begründung — warum das Planungs-Soll eine eigene
+Basis, ein eigenes Reduktions-Gate und eine eigene Reduktions-Skalierung
+braucht, und warum keines davon wieder mit dem Bilanz-Pfad
+„vereinheitlicht" werden darf — steht in
+[F07 §2.7](../features/F07-reporting-balance.md). Hier nicht nachbauen;
+sie gehört an genau eine Stelle.
 
 ## Was ist `carryover`?
 
@@ -233,9 +240,10 @@ ohne pro-Read-Permission-Guard.
 Die Pro-Woche-Größen des Kurzreports entstehen nicht an einer Stelle,
 sondern an **zwei** — `assemble_weeks` (geteilt von Einzelwochen- und
 Jahres-Read) und `get_reports_for_all_employees`. Das **Planungs-Soll**
-entsteht an beiden, genau wie jede andere Kurzreport-Größe; nur seine
-Reduktions-Bedingung unterscheidet sich bewusst von der der
-Bilanz-Formel. Begründung und Konsequenzen:
+entsteht an beiden, genau wie jede andere Kurzreport-Größe; seine
+**Basis**, sein **Reduktions-Gate** und die **Skalierung der Reduktion**
+unterscheiden sich bewusst von denen der Bilanz-Formel. Begründung und
+Konsequenzen:
 [F07 §2.7 und §3](../features/F07-reporting-balance.md).
 
 ## Wo die Rechnung sichtbar wird
@@ -247,9 +255,11 @@ Bilanz-Formel. Begründung und Konsequenzen:
 - **Übersicht unterhalb des Schichtplans** — die einzige Fläche, die das
   **Planungs-Soll** statt des bilanzrelevanten Solls zeigt: die
   `Ist / Soll`-Zahl, die Auslastungsbalken und die Soll-Summe der
-  Fußzeile. Alles, was das Stundenkonto zeigt — Employee Details,
-  Wochen-Histogramm, Mitarbeiterliste, jede Balance-Zahl — zeigt
-  weiterhin das bilanzrelevante Soll.
+  Fußzeile. Weil das Planungs-Soll die ehrenamtliche Zusage enthält, kann
+  diese Zahl für dieselbe Person größer sein als jede Zahl auf den
+  Stundenkonto-Flächen — das ist gewollt. Alles, was das Stundenkonto
+  zeigt — Employee Details, Wochen-Histogramm, Mitarbeiterliste, jede
+  Balance-Zahl — zeigt weiterhin das bilanzrelevante Soll.
 
 ## Warum das kompliziert ist
 

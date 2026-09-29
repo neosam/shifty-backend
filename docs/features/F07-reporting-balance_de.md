@@ -338,17 +338,35 @@ die Verfügbarkeitsrechnung.
 | | `expected_hours` — *bilanzrelevantes Soll* | `planning_target_hours` — *Planungs-Soll* |
 | --- | --- | --- |
 | Wofür der Wert da ist | das Soll-Bein von `balance = worked − expected + carryover` | die Zahl, gegen die ein Planer die verteilten Schichten hält |
-| Dynamischer Vertrag (`is_dynamic == true`) | absichtlich **`0.0`** — *Soll = Ist*, die Balance muss `0` bleiben | absichtlich **`> 0`** — die reduzierte Vertragsgröße |
-| Nicht-dynamischer Vertrag | Vertragsstunden minus Abwesenheits- und Feiertagsreduktion | **dieselbe Zahl**, strukturell (siehe unten) |
+| Dynamischer Vertrag (`is_dynamic == true`) | absichtlich **`0.0`** — *Soll = Ist*, die Balance muss `0` bleiben | absichtlich **`> 0`** — die reduzierte Zusage (Vertragsstunden **plus** ehrenamtliche Zusage) |
+| Vertrag mit `expected_hours == 0` und Zusage > 0 | `0.0` | **`> 0`** — seit Plan 64-05; das ursprüngliche Gate lieferte hier `0.0` |
+| Nicht-dynamischer Vertrag, **Zusage 0** | Vertragsstunden minus Abwesenheits- und Feiertagsreduktion | **dieselbe Zahl**, strukturell (siehe unten) |
+| Nicht-dynamischer Vertrag, **Zusage > 0** | wie oben, ohne Ehrenamt | **größer** — um genau die um Abwesenheiten und Feiertage reduzierte Zusage |
+| Enthält die ehrenamtliche Zusage (`committed_voluntary`) | **nein — nie** | **ja** [D-64-05] |
 | Geht in Balance / Carryover / Billing-Snapshot / `available_hours` ein | **ja** | **nein — nie** |
 | Wo der Wert sichtbar wird | die Stundenkonto-Flächen (Mitarbeiter-Detail, Wochen-Histogramm, Mitarbeiterliste) | ausschließlich die Übersicht unterhalb des Schichtplans (§6.1) |
 
-**Was das Feld ist.** `planning_target_hours` ist das feiertags- und
-abwesenheitsreduzierte **Vertrags**-Soll der Woche
+**Was das Feld ist.** `planning_target_hours` ist die feiertags- und
+abwesenheitsreduzierte **Zusage** der Woche
 (`service/src/reporting.rs:164`, gespiegelt auf `ShortEmployeeReportTO`,
 `rest-types/src/lib.rs:392`, `#[serde(default)]`). Es beantwortet
 *„für wie viele Stunden soll diese Person eingeplant werden"* — nicht
 *„wie viele Stunden erwartet die Bilanz"*.
+
+**Es ist ausdrücklich KEINE Vertragsgröße** [D-64-05, Plan 64-05]. Der
+Zweck des Feldes ist die Schichtplanung: die planende Person muss sehen,
+*was die jeweilige Person für die Woche zusagt*. Ob diese Stunden bezahlt
+sind, ist dafür unerheblich — deshalb fließt die ehrenamtliche Zusage
+(`employee_work_details.committed_voluntary`) ein. Die durchgehende
+Trennung von `expected_hours` und `committed_voluntary` gilt für die
+**Bilanz** und bleibt dort unberührt; für die **Planung** gilt sie nicht.
+Wer die Zusage hier wieder heraustrennt, „weil die Bilanz das auch so
+macht", bricht den Zweck des Feldes.
+
+Abwesenheiten und Feiertage reduzieren den Ehrenamts-Anteil **mit** — wer
+in der Zeit weniger da ist, sagt auch ehrenamtlich weniger zu. Die
+Reduktion greift *proportional*, nicht alles-oder-nichts (§ D-64-07
+unten).
 
 **Wofür es ausdrücklich NICHT benutzt wird.** Balance, Carryover, der
 Billing-Period-Snapshot und die Verfügbarkeitsrechnung lesen weiterhin
@@ -359,48 +377,134 @@ Stellen unverändert `report.expected_hours`
 für einen dynamischen Vertrag weiterhin `0.0` — das ist gewollt und
 durch `test_available_hours_unchanged_dynamic` festgenagelt.
 
-**Warum das Feld ein eigenes Gate hat.** Das Reduktions-Gate des
-Planungs-Solls lautet
+**Die Formel (an beiden Konstruktionsstellen wortgleich).**
 
 ```rust
-// service_impl/src/reporting.rs:1121 (assemble_weeks), gespiegelt bei :1476
-let reduce_target = has_contract_row && dynamic_hours > 0.0;
+// service_impl/src/reporting.rs:1162-1186 (assemble_weeks),
+// wortgleich gespiegelt bei :1562-1577 (get_reports_for_all_employees)
+let planning_base_for_target = dynamic_hours + committed_voluntary_for_target;
+let target_reduction_scale = if dynamic_hours > 0.0 {
+    planning_base_for_target / dynamic_hours
+} else {
+    1.0f32
+};
+let reduce_target = has_contract_row && planning_base_for_target > 0.0;
+let planning_target_hours = if reduce_target {
+    planning_base_for_target
+        - (absence_manual_for_target
+            + absence_derived_for_target
+            + holiday_derived_for_target)
+            * target_reduction_scale
+} else {
+    0.0f32
+};
 ```
 
-und **beide** Hälften sind tragend:
+`committed_voluntary_for_target` ist die Summe von
+`committed_voluntary_weight_for_week(year, week, wh)` über die in der
+Woche aktiven Vertragszeilen (`reporting.rs:2451`, Aggregation per SUM
+nach dem Präzedenzfall D-OVERLAP-AGG).
+
+**Warum das Feld ein eigenes Gate hat, und warum es sich mit Plan 64-05
+geändert hat.** Ursprünglich (64-01) lautete es
+`has_contract_row && dynamic_hours > 0.0`. Das war korrekt, solange die
+Basis `dynamic_hours` war — mit der Zusage in der Basis ist es der Defekt
+selbst. Die drei Eigenschaften, die das heutige Gate trägt:
 
 - *Es darf das Bilanz-Gate nicht mitbenutzen.* Der Bilanz-Zweig hängt an
-  `planned_hours`, Element 0 des `weight_for_week`-Rückgabetupels
-  (`reporting.rs:2305-2307`), und dieser Wert wird bei `is_dynamic`
-  **hart auf `0.0` gezwungen**. Seine Bedingung
-  `!has_contract_row || planned_hours <= 0.0` (`reporting.rs:1045`) ist
-  deshalb für *jede* Woche eines dynamischen Vertrags wahr und würde die
-  Reduktion genau dort überspringen, wo sie neu gebraucht wird. Element 1
-  desselben Tupels (`dynamic_hours`) ist der einzige Wert der Kette, der
-  ungezwungen bleibt — daran wird das Gate gemessen. **Die beiden
-  Bedingungen beim nächsten Refactoring NICHT wieder „vereinheitlichen".**
-- *Die zweite Hälfte darf ebenfalls nicht entfallen.* Ohne
-  `dynamic_hours > 0.0` würde bei einer Vertragszeile mit 0
-  Vertragsstunden oder in einer Randwoche mit `relation == 0.0` von einer
-  0-Basis abgezogen und ein **negatives** Planungs-Soll entstehen,
-  während `expected_hours` bei `0` bleibt.
+  `planned_hours`, Element 0 des `weight_for_week`-Rückgabetupels, und
+  dieser Wert wird bei `is_dynamic` **hart auf `0.0` gezwungen**. Seine
+  Bedingung `!has_contract_row || planned_hours <= 0.0`
+  (`reporting.rs:1045`) ist deshalb für *jede* Woche eines dynamischen
+  Vertrags wahr und würde die Reduktion genau dort überspringen, wo sie
+  gebraucht wird. Der bezahlte Anteil der Planungs-Basis wird deshalb an
+  Element 1 desselben Tupels (`dynamic_hours`) gemessen — dem einzigen
+  ungezwungenen Wert der Kette. **Die beiden Bedingungen beim nächsten
+  Refactoring NICHT wieder „vereinheitlichen".**
+- *Es feuert für die Klasse `expected_hours == 0` mit Zusage > 0.* Genau
+  hier hat die alte zweite Hälfte am **falschen Wert** gemessen: eine
+  Person mit 0 Vertragsstunden und echter Zusage hat `dynamic_hours == 0`,
+  das alte Gate lieferte für sie `0.0`. Seit Plan 64-05 wird an
+  `planning_base_for_target` gemessen, und die Zusage ist Teil davon.
+  Festgenagelt durch
+  `planning_target_zero_expected_hours_with_commitment`.
+- *Es zieht nie von einer Null-Basis ab.* Sind Vertragsstunden UND Zusage
+  0 — oder liegt die Woche außerhalb der Vertragsgrenzen
+  (`relation == 0.0`) — ist `planning_base_for_target` exakt `0`, das Gate
+  schaltet nicht, und das Planungs-Soll ist byte-identisch `0.0` wie
+  `expected_hours`. Das ist dieselbe Garantie wie vorher, nur an der
+  richtigen Basis gemessen. Eine Vertragszeile ohne einen einzigen
+  gesetzten Wochentag ergibt `relation = 0/0 = NaN` (vorbestehend in
+  `weight_for_week` seit v1); `NaN > 0.0` ist `false`, das Gate schaltet
+  also auch dort nicht und das Planungs-Soll ist `0.0` statt `NaN`.
 
-**Warum die Zeichengleichheit für nicht-dynamische Verträge strukturell
-folgt.** Bei einem nicht-dynamischen Vertrag tragen Element 0 und
-Element 1 des `weight_for_week`-Tupels denselben Wert. Altes und neues
-Gate schalten damit unter exakt derselben Bedingung, und beide Formeln
-subtrahieren dieselben Terme — also gilt
-`planning_target_hours == expected_hours` konstruktionsbedingt und nicht
-zufällig. Festgenagelt durch
-`test_planning_target_matches_expected_for_fixed_contract`; dessen
-zweiter Assertion-Block ist die oben beschriebene
-0-Stunden-Vertrags-Regression.
+**Warum die Byte-Identität für nicht-dynamische Verträge strukturell
+folgt — aber nur bei Zusage 0.** Bei `committed_voluntary == 0` ist
+`committed_voluntary_for_target == 0`, also
+`planning_base_for_target == dynamic_hours`, also
+`target_reduction_scale == 1.0` — damit steht Zeile für Zeile dieselbe
+Rechnung da, die 64-01 geschrieben hat, und bei nicht-dynamischem Vertrag
+tragen Element 0 und Element 1 des `weight_for_week`-Tupels denselben
+Wert. Also gilt `planning_target_hours == expected_hours`
+konstruktionsbedingt und nicht zufällig. Festgenagelt durch
+`test_planning_target_matches_expected_for_fixed_contract` und durch
+Block 3 von `planning_target_fixed_contract_differs_by_commitment`.
 
-**Bewusst kein `.max(0.0)`.** Der Bilanzpfad klemmt ebenfalls nicht. Ein
-Klemmen allein am Planungs-Soll würde die obige Zeichengleichheit in
-Wochen mit schwerer Abwesenheit brechen, in denen beide Werte unter
-derselben Eingabe legitim negativ werden. Wer später ein Klemmen
-nachrüstet, muss beide klemmen oder keines.
+**Mit Zusage ist die Differenz genau die reduzierte Zusage.** Gemessen an
+`planning_target_fixed_contract_differs_by_commitment` (40-h-Vertrag,
+Zusage 10.0): in einer ungestörten Woche `50.0` gegen `40.0`, Differenz
+exakt **10.0**; in einer Woche mit drei abwesenden Werktagen (24 h)
+`20.0` gegen `16.0`, Differenz exakt **4.0** (= `10 × (1 − 24/40)`).
+
+**Bewusst kein `.max(0.0)`.** Der Bilanzpfad klemmt ebenfalls nicht. Das
+Gate verhindert den *strukturellen* Nullbasis-Fall; es verhindert nicht,
+dass Reduktionen größer als die Basis werden. Seit Plan 64-05 ist das
+**assertiertes** Verhalten: `planning_target_not_clamped_when_reductions_exceed_base`
+misst für einen 0-h-Vertrag mit Zusage 10.0 und einer manuellen
+`Vacation`-Zeile von 20.0 h ein Planungs-Soll von **−10.0**. Ein
+`.max(0.0)` liefert dort `0.0` und bricht diesen Test. Wer später ein
+Klemmen nachrüstet, muss beide Größen klemmen oder keine — und zuerst die
+Produktfrage stellen, ob ein negatives Planungs-Soll für die planende
+Person lesbar ist.
+
+**D-64-06 — die Zusage wird mit `relation` skaliert, nicht tages-basiert
+pro-rata.** Für den Wochen-Betrag der Zusage existieren im Code drei
+Kandidaten. An einer Randwoche (Vertrag Mo–Fr, endet Mittwoch, Zusage
+7.0) liefern sie drei verschiedene Zahlen:
+
+| Kandidat | Wochen-Betrag | Bewertung |
+| --- | --- | --- |
+| `committed_voluntary_for_calendar_week` (`reporting.rs:130`) — SUM ohne Skalierung | **7.0** | verworfen: meldet die ganze Wochenzusage für eine Woche, die der Vertrag nur zu drei Fünfteln abdeckt |
+| `committed_voluntary_prorata_for_week` (`reporting.rs:163`) — `committed_voluntary / 7.0` je Tag (D-F2-01) | **3.0** (3/7) | verworfen: mischt Kalendertags- und Werktags-Skalierung in einer angezeigten Zahl; die abgezogenen Reduktionsterme sind werktags-basiert |
+| **`committed_voluntary_weight_for_week` (`reporting.rs:2451`) — `committed_voluntary * relation`** | **4.2** (3/5) | **gewählt**: eine Skalierung für die ganze Zahl, dieselbe Quelle für `relation` wie der bezahlte Anteil (`potential_workdays_for_week`) |
+
+Festgenagelt durch
+`committed_voluntary_weight_pins_relation_scaling_d_64_06`, das die
+beiden verworfenen Zahlen als explizite Gegen-Assertions führt.
+
+**Warum `committed_voluntary_target_in_range` NICHT wiederverwendet
+wird.** Seine Abwesenheits-Semantik ist **whole-week-out** (D-54.5-01):
+eine ISO-Woche mit *einem* Abwesenheitstag trägt **0** zum Soll bei. Für
+das F2-Soll (Ehrenamtskonto) ist das richtig — es ist eine
+**Bilanz**größe und stellt Ist/Soll-Symmetrie her. Für das Planungs-Soll
+wäre es falsch: ein Urlaubstag würde die *ganze* Wochenzusage löschen,
+während der bezahlte Anteil nur einen Tag verliert. D-64-05 verlangt
+ausdrücklich *proportional*, nicht alles-oder-nichts. **Folge:
+Planungs-Soll und F2-Soll dürfen sich an Randwochen unterscheiden. Das
+ist gewollt und keine Drift, die jemand „aufräumen" soll.**
+
+**D-64-07 — die Reduktion greift proportional, über
+`target_reduction_scale`.** Eine reine Subtraktion der Reduktionsterme
+von der vergrößerten Basis würde **nur den bezahlten Anteil** kürzen: die
+Abwesenheitsstunden sind aus `expected_hours` abgeleitet (Stunden je
+Werktag), nicht aus `expected_hours + committed_voluntary`. Beispiel: 40 h
+Vertrag + 10 h Zusage, ein Abwesenheitstag von fünf → Reduktion 8 h →
+`50 − 8 = 42`, obwohl die Person nur 4/5 der Woche da ist und 4/5 von 50
+= **40** zusagt. Deshalb wird die Reduktion um genau den Faktor
+hochskaliert, um den die Basis gewachsen ist. Festgenagelt durch
+`planning_target_commitment_reduced_by_absence_parity` (gemessen: 50.0 in
+der ungestörten Woche, 20.0 in der Abwesenheitswoche; die reine
+Subtraktion ergäbe 26.0).
 
 **Vorbestehende Asymmetrie, von Phase 64 bewusst nicht angefasst.** Die
 beiden Konstruktionsstellen (§3) bilden ihren *manuellen*
@@ -438,8 +542,16 @@ Aggregat über andere Aggregate.
 | Feiertag-Reduktion (manuell) | via `extra_hours` mit Kategorie `Holiday` | s.o. |
 | Feiertag-Reduktion (derived) | `special_day_service.get_by_week` (Tabelle `special_day`) → `build_derived_holiday_map` mit Cutoff aus `toggle_service.get_toggle_value("holiday_auto_credit")` | pro Woche, gefiltert nach Vertragswochentag |
 
-Dieselben drei Quellen speisen auch das **Planungs-Soll**
-(`planning_target_hours`, §2.7) — nur das Gate ist ein anderes.
+| Ehrenamtliche Zusage (nur Planungs-Soll) | `employee_work_details.committed_voluntary`, skaliert über `committed_voluntary_weight_for_week` (`reporting.rs:2451`) | `committed_voluntary` |
+
+Das **Planungs-Soll** (`planning_target_hours`, §2.7) speist sich aus
+**vier** Quellen: Vertrag, Abwesenheiten, Feiertage **und** der
+ehrenamtlichen Zusage aus `employee_work_details.committed_voluntary`.
+Gegenüber dem bilanzrelevanten Soll unterscheiden sich **Basis**
+(Vertrag + Zusage statt nur Vertrag), **Gate**
+(`planning_base_for_target > 0.0` statt `planned_hours > 0.0`) **und** die
+**Skalierung der Reduktion** (`target_reduction_scale`, D-64-07). Es ist
+also nicht „dieselbe Rechnung mit einem anderen Gate".
 
 #### Die zwei `ShortEmployeeReport`-Konstruktionsstellen
 
@@ -615,8 +727,11 @@ pub struct ShortEmployeeReport {
     pub dynamic_hours: f32,
     pub expected_hours: f32,          // bilanzrelevantes Soll — 0.0 bei dynamischem Vertrag
     pub overall_hours: f32,
-    pub planning_target_hours: f32,   // Phase 64 (PSOLL-01…04) — Planungs-Soll, bei
-                                      // dynamischem Vertrag > 0, geht in KEINE Bilanz ein (§2.7)
+    pub planning_target_hours: f32,   // Phase 64 (PSOLL-01…04) — Planungs-Soll: die
+                                      // reduzierte ZUSAGE der Woche inkl. Ehrenamt
+                                      // [D-64-05]; > 0 auch bei dynamischem und bei
+                                      // 0-Stunden-Vertrag mit Zusage; geht in KEINE
+                                      // Bilanz ein (§2.7)
     …
 }
 ```
@@ -758,12 +873,16 @@ DTOs (Wire-Format):
 
 - `ShortEmployeeReportTO` (`rest-types/src/lib.rs:380-402`): kompakte
   Zeile für die HR-Übersicht. **Seit Phase 64** trägt sie das zusätzliche
-  Antwortfeld `planning_target_hours: f32` (§2.7), ausgeliefert von
+  Antwortfeld `planning_target_hours: f32` (§2.7) — die reduzierte
+  **Zusage** der Woche inklusive Ehrenamt [D-64-05] —, ausgeliefert von
   beiden Kurz-Report-Endpoints — `GET /report/?year=…&until_week=…` und
   `GET /report/week/{year}/{calendar_week}`. Die Ergänzung ist rein
   additiv: **keine neue Route, kein neuer Handler und kein neuer
   `Dioxus.toml`-Proxy-Eintrag** ist entstanden, und `#[serde(default)]`
   hält ein altes Payload ohne das Feld deserialisierbar (zu `0.0`).
+  **Plan 64-05 hat die Wire-Form NICHT angefasst:** dasselbe Feld,
+  derselbe Typ, dieselben Endpoints — nur die Semantik des Werts ist jetzt
+  eine Zusage- statt einer Vertragsgröße.
 - `EmployeeReportTO` (`rest-types/src/lib.rs:523-596`): voller
   Report; enthält `by_week: Arc<[WorkingHoursReportTO]>` und
   `by_month: Arc<[…]>` (aktuell immer leer, `reporting.rs:877` schreibt
@@ -828,7 +947,8 @@ und den Memory-Hinweis „Dioxus.toml Proxy für neue Backend-Endpoints".
 
 ### 6.5 Welche Fläche zeigt welches „Soll" (Phase 64)
 
-`ShortEmployeeReportTO` trägt jetzt zwei Soll-Größen (§2.7). Die
+`ShortEmployeeReportTO` trägt jetzt zwei Soll-Größen (§2.7) — eine
+Bilanz-Größe und eine Zusage-Größe. Die
 Aufteilung im Frontend ist gewollt und folgt dem Transport-Objekt, das
 die jeweilige Fläche liest — die meisten Stundenkonto-Flächen *können*
 das Planungs-Soll gar nicht zeigen, weil ihr DTO es nicht hat.
@@ -863,7 +983,10 @@ Flächen lesen `WorkingHoursReportTO` bzw. `EmployeeReportTO`, die Phase
 
 **Merksatz:** Das Planungs-Soll erscheint **ausschließlich** in der
 Wochen-Übersicht unter dem Schichtplan; jede Stundenkonto-Fläche zeigt
-unverändert das bilanzrelevante Soll.
+unverändert das bilanzrelevante Soll. Die drei Anzeigestellen zeigen
+damit eine **Zusage**-Größe inklusive Ehrenamt [D-64-05] — sie kann für
+dieselbe Person größer sein als jede Zahl auf den Stundenkonto-Flächen,
+und das ist gewollt.
 
 Der zweite Konsument von `ShortEmployeeReportTO` im Frontend,
 `impl From<&ShortEmployeeReportTO> for Employee`
@@ -1010,21 +1133,41 @@ Umfangreichster Test-Bereich der Codebase.
 - `service_impl/src/test/reporting_attendance_gate.rs` (318 Zeilen) —
   HR-Gate + is_dynamic-Filter (in v2.2 post-ship auf „für alle" umgestellt,
   siehe `reporting.rs:1207-1210`).
-- `service_impl/src/test/reporting_phase2_fixtures.rs` (148 Zeilen) —
+- `service_impl/src/test/reporting_phase2_fixtures.rs` (199 Zeilen) —
   Fixtures für die frühe Phase-2-Regression; zugleich das Spiegel-Paar
   (dynamischer vs. fester 40-h-Vertrag plus Urlaubs-/Krankheits-Perioden),
   auf dem die Phase-64-Planungs-Soll-Suite aufsetzt.
-- `service_impl/src/test/reporting_planning_target.rs` (671 Zeilen) —
-  Phase 64 (PSOLL-01/03/04), fünf Tests rund um das Planungs-Soll
-  (§2.7):
+- `service_impl/src/test/reporting_planning_target.rs` (1087 Zeilen) —
+  Phase 64 (PSOLL-01/03/04), zehn Tests rund um das Planungs-Soll
+  (§2.7). Die ersten fünf stammen aus 64-01 (Vertrags-Semantik, alle
+  Fixtures mit Zusage 0), die letzten fünf aus Plan 64-05
+  (Zusage-Semantik):
 
-  | Test | Zweck |
-  | --- | --- |
-  | `test_planning_target_dynamic_get_week` | ein dynamischer Vertrag meldet in `get_week` `planning_target_hours = 40.0`, während `expected_hours` bei `0.0` bleibt — Konstruktionsstelle A |
-  | `test_planning_target_dynamic_all_employees` | derselbe Vertrag meldet in `get_reports_for_all_employees` über zwei Vertragswochen `80.0` — Konstruktionsstelle B |
-  | `test_planning_target_parity_both_sites` | **der Cross-Site-Paritätstest**: beide Stellen liefern für dieselbe Eingabe denselben Wert (`56.0`), und Abwesenheiten reduzieren ihn nachweislich (`0 < 56 < 80`). Erst die dritte Assertion (`> 0.0`) macht ihn zum Treiber statt zu einem `0.0 == 0.0`-Durchläufer |
-  | `test_planning_target_matches_expected_for_fixed_contract` | Zeichengleichheit mit `expected_hours` für nicht-dynamische Verträge, inkl. des 0-Stunden-Vertrags-Regressionsblocks (kein negativer Wert) |
-  | `test_available_hours_unchanged_dynamic` | Regressionsschloss: `available_hours` bleibt bei dynamischem Vertrag `0.0`, obwohl der Report jetzt ein Planungs-Soll von `40.0` trägt |
+  | Test | Zweck | gefangene Fehlimplementierung |
+  | --- | --- | --- |
+  | `test_planning_target_dynamic_get_week` | ein dynamischer Vertrag meldet in `get_week` `planning_target_hours = 40.0`, während `expected_hours` bei `0.0` bleibt — Konstruktionsstelle A | Feld neutral (`0.0`) |
+  | `test_planning_target_dynamic_all_employees` | derselbe Vertrag meldet in `get_reports_for_all_employees` über zwei Vertragswochen `80.0` — Konstruktionsstelle B | Stelle B nicht gefüllt |
+  | `test_planning_target_parity_both_sites` | **der Cross-Site-Paritätstest**: beide Stellen liefern für dieselbe Eingabe denselben Wert (`56.0`), und Abwesenheiten reduzieren ihn nachweislich (`0 < 56 < 80`). Erst die dritte Assertion (`> 0.0`) macht ihn zum Treiber statt zu einem `0.0 == 0.0`-Durchläufer | Wiederverwendung der auf `0` gezwungenen Bilanz-Reduktionsterme (`80.0`) |
+  | `test_planning_target_matches_expected_for_fixed_contract` | Byte-Identität mit `expected_hours` für nicht-dynamische Verträge **bei Zusage 0**, inkl. des 0-Stunden-Vertrags-Regressionsblocks | Wegfall der Null-Basis-Garantie (negativer Wert) |
+  | `test_available_hours_unchanged_dynamic` | Regressionsschloss: `available_hours` bleibt bei dynamischem Vertrag `0.0`, obwohl der Report jetzt ein Planungs-Soll von `40.0` trägt | Umstellung der `available_hours`-Zuweisungen auf das neue Feld (T-64-02) |
+  | `planning_target_includes_commitment_dynamic_both_sites` | Zusage 10.0 ⇒ `50.0` (A) und `100.0` (B), `expected_hours` bleibt `0.0` | Zusage ignoriert (`40.0` / `80.0` — der Zustand vor Plan 64-05) |
+  | `planning_target_commitment_reduced_by_absence_parity` | KW 22 `50.0`, KW 23 `20.0` (einzeln assertiert), Summe `70.0` an beiden Stellen | Zusage ignoriert (`56.0`); reine Subtraktion ohne `target_reduction_scale` (`76.0`); Feld neutral (`0.0`) |
+  | `planning_target_fixed_contract_differs_by_commitment` | PSOLL-04 in seiner neuen Fassung: Differenz exakt `10.0` (ungestört) bzw. `4.0` (drei Abwesenheitstage), und Byte-Identität bei Zusage 0 | Zusage schlägt in `expected_hours` durch; Byte-Identität bei Zusage 0 verloren |
+  | `planning_target_zero_expected_hours_with_commitment` | `expected_hours == 0` mit Zusage 10.0 ⇒ `10.0` (A) und `20.0` (B) | das 64-01-Gate bleibt stehen (`0.0`) |
+  | `planning_target_not_clamped_when_reductions_exceed_base` | Reduktionen > Basis ⇒ **`−10.0`**; an Stelle B über zwei Fenster zerlegt (bis KW 22 `10.0`, bis KW 23 `0.0`, Wochenbeitrag `−10.0`) | ein `.max(0.0)`-Clamp (`0.0`) |
+
+  Dazu vier Pure-fn-Tests in `reporting.rs` (Modul
+  `test_committed_voluntary_weight_for_week`, ab `:3439`) — die einzige
+  Stelle, an der die Verteilungsentscheidung D-64-06 direkt messbar ist
+  (die Integrationstests messen sie nur über die Vollwoche, wo alle drei
+  Kandidaten dieselbe Zahl liefern):
+
+  | Test | gemessen | gefangene Fehlimplementierung |
+  | --- | --- | --- |
+  | `committed_voluntary_weight_full_week_is_unscaled` | `10.0` | eine grundsätzliche Division (durch 7 bzw. `workdays_per_week`) |
+  | `committed_voluntary_weight_pins_relation_scaling_d_64_06` | `4.2` | `3.0` = tages-basierte 7-Tage-Verteilung; `7.0` = unskalierte SUM (beide als explizite Gegen-Assertions) |
+  | `committed_voluntary_weight_outside_contract_is_zero` | `0.0` | ungeprüftes Durchreichen von `committed_voluntary` |
+  | `committed_voluntary_weight_zero_commitment_is_zero` | `0.0` | Skalierung von `expected_hours` statt `committed_voluntary` |
 
   Das quellseitige Gegenstück liegt im Frontend:
   `working_hours_mini_overview_reads_planning_target_only` (§6.5) nagelt
@@ -1122,9 +1265,9 @@ und hat entsprechend viele Rewrites hinter sich. Die wichtigsten Meilensteine:
      und die hängt an `planned_hours` — einem Wert, den
      `weight_for_week` bei dynamischen Verträgen auf `0.0` *zwingt*. Die
      Reduktion wäre damit genau für die Verträge ausgefallen, für die
-     das Feature gebaut wurde. Das Gate hängt deshalb an
-     `dynamic_hours`, dem ungezwungenen Element desselben Tupels, und
-     behält `has_contract_row` als zweite Hälfte.
+     das Feature gebaut wurde. Der bezahlte Anteil der Basis wird deshalb
+     an `dynamic_hours` gemessen, dem ungezwungenen Element desselben
+     Tupels, und `has_contract_row` bleibt die zweite Gate-Hälfte.
   2. **Der zweiten Konstruktionsstelle fehlte die Feiertags-Rechnung
      komplett.** Im dynamischen Zweig von
      `get_reports_for_all_employees` gab es die Feiertags- und
@@ -1133,8 +1276,22 @@ und hat entsprechend viele Rewrites hinter sich. Die wichtigsten Meilensteine:
      auf jeder Stelle für sich grün geworden — nur der
      Cross-Site-Paritätstest (§8.1) hält die beiden gegeneinander.
 
+  3. **Das Reduktions-Gate war mechanisch richtig und fachlich falsch.**
+     Es war korrekt für eine *Vertrags*größe und falsch für eine
+     *Zusage*größe: die ehrenamtliche Zusage (`committed_voluntary`) kam
+     in keiner der beiden Formeln vor, und eine Person mit
+     `expected_hours == 0` und echter Zusage bekam `0.0` angezeigt. Der
+     Fehler lag nicht in der Mechanik, sondern in der **Fachdefinition** —
+     und er wurde erst im UAT gefunden, nicht von neun grünen Tests. Neun
+     Tests können eine falsche Definition beliebig genau absichern.
+     Geschlossen durch **Plan 64-05** (Gap-Closure, D-64-05/06/07): das
+     Planungs-Soll ist eine Zusage-Größe, die Zusage fließt ein, und
+     Abwesenheiten reduzieren sie proportional mit.
+
   `CURRENT_SNAPSHOT_SCHEMA_VERSION` **bleibt bei 13** — warum das
-  strukturell gilt, steht unten.
+  strukturell gilt, steht unten. Plan 64-05 hat die Computation an
+  `ShortEmployeeReport` geändert und trotzdem **nicht** gebumpt; der
+  Beweis dafür steht ebenfalls unten.
 
 ### Fat-Backend-Prinzip
 
@@ -1173,6 +1330,21 @@ Berechnung bzw. die Input-Menge keines bestehenden `value_type` wurde
 angefasst. Das ist ein *struktureller* Grund, keine Zusicherung: ein Grep
 nach `planning_target_hours` in `billing_period_report.rs` liefert nichts.
 Die Version bleibt bei **13**.
+
+**Warum Plan 64-05 ebenfalls nicht gebumpt hat, obwohl es eine
+Computation geändert hat.** Geändert wurden die beiden
+`ShortEmployeeReport`-Konstruktionsstellen (`assemble_weeks` und
+`get_reports_for_all_employees`) — und dort ausschließlich der
+Planungs-Soll-Block, der in keine Bilanzgröße eingeht. Der dritte
+`weight_for_week`-Aufrufer, `hours_per_week`, speist `EmployeeReport` und
+damit den Snapshot; er ist von 64-05 nicht angefasst, ebenso wenig
+`booking_information.rs` oder `billing_period_report.rs`. Belegt durch
+Zählergates statt durch Zusicherung: `available_hours: report.expected_hours`
+kommt weiterhin genau **zweimal** vor, `CURRENT_SNAPSHOT_SCHEMA_VERSION: u32 = 13`
+genau **einmal**, und die vier Dateien stehen in keinem Diff des Plans.
+Die volle Test-Suite (1182 Tests, davon 9 neue) ist ohne eine einzige
+angepasste Erwartung grün — insbesondere die Billing- und
+Carryover-Abschnitte.
 
 ---
 
