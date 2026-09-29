@@ -12,7 +12,7 @@ tiefgreifend überarbeitet (Phasen 8, 15, 17, 25, 34, 47, 51 sowie v2.2 RPT-01)
 **Zuständige Crates:**
 - `service::reporting`, `service::block`, `service::block_report`,
   `service::my_block`
-- `service_impl::reporting` (2205 Zeilen, Business-Logic-Tier),
+- `service_impl::reporting` (3261 Zeilen, Business-Logic-Tier),
   `service_impl::block`, `service_impl::block_report`
 - `rest::report`, `rest::block_report`, `rest::my_block`
 - `rest-types` (`ShortEmployeeReportTO`, `EmployeeReportTO`,
@@ -328,6 +328,92 @@ aufblasen (`reporting.rs:1097-1098, 1406-1414`, „Dynamic-week guard").
   (VOL-ACCT-04). Siehe Feature
   [F14 §3 / §8 / §9](./F14-rebooking.md).
 
+### 2.7 Planungs-Soll vs. bilanzrelevantes Soll (Phase 64, PSOLL-01…04)
+
+Seit Phase 64 trägt `ShortEmployeeReport` **zwei** Soll-Größen. Sie sehen
+sich ähnlich, sind aber nicht austauschbar: wer sie verwechselt, baut
+entweder den Fehler wieder ein, den diese Phase behoben hat, oder bricht
+die Verfügbarkeitsrechnung.
+
+| | `expected_hours` — *bilanzrelevantes Soll* | `planning_target_hours` — *Planungs-Soll* |
+| --- | --- | --- |
+| Wofür der Wert da ist | das Soll-Bein von `balance = worked − expected + carryover` | die Zahl, gegen die ein Planer die verteilten Schichten hält |
+| Dynamischer Vertrag (`is_dynamic == true`) | absichtlich **`0.0`** — *Soll = Ist*, die Balance muss `0` bleiben | absichtlich **`> 0`** — die reduzierte Vertragsgröße |
+| Nicht-dynamischer Vertrag | Vertragsstunden minus Abwesenheits- und Feiertagsreduktion | **dieselbe Zahl**, strukturell (siehe unten) |
+| Geht in Balance / Carryover / Billing-Snapshot / `available_hours` ein | **ja** | **nein — nie** |
+| Wo der Wert sichtbar wird | die Stundenkonto-Flächen (Mitarbeiter-Detail, Wochen-Histogramm, Mitarbeiterliste) | ausschließlich die Übersicht unterhalb des Schichtplans (§6.1) |
+
+**Was das Feld ist.** `planning_target_hours` ist das feiertags- und
+abwesenheitsreduzierte **Vertrags**-Soll der Woche
+(`service/src/reporting.rs:164`, gespiegelt auf `ShortEmployeeReportTO`,
+`rest-types/src/lib.rs:392`, `#[serde(default)]`). Es beantwortet
+*„für wie viele Stunden soll diese Person eingeplant werden"* — nicht
+*„wie viele Stunden erwartet die Bilanz"*.
+
+**Wofür es ausdrücklich NICHT benutzt wird.** Balance, Carryover, der
+Billing-Period-Snapshot und die Verfügbarkeitsrechnung lesen weiterhin
+ausschließlich `expected_hours` / `dynamic_hours`.
+`WorkingHoursPerSalesPerson.available_hours` liest an beiden seiner
+Stellen unverändert `report.expected_hours`
+(`service_impl/src/booking_information.rs:644` und `:818`) und ist damit
+für einen dynamischen Vertrag weiterhin `0.0` — das ist gewollt und
+durch `test_available_hours_unchanged_dynamic` festgenagelt.
+
+**Warum das Feld ein eigenes Gate hat.** Das Reduktions-Gate des
+Planungs-Solls lautet
+
+```rust
+// service_impl/src/reporting.rs:1121 (assemble_weeks), gespiegelt bei :1476
+let reduce_target = has_contract_row && dynamic_hours > 0.0;
+```
+
+und **beide** Hälften sind tragend:
+
+- *Es darf das Bilanz-Gate nicht mitbenutzen.* Der Bilanz-Zweig hängt an
+  `planned_hours`, Element 0 des `weight_for_week`-Rückgabetupels
+  (`reporting.rs:2305-2307`), und dieser Wert wird bei `is_dynamic`
+  **hart auf `0.0` gezwungen**. Seine Bedingung
+  `!has_contract_row || planned_hours <= 0.0` (`reporting.rs:1045`) ist
+  deshalb für *jede* Woche eines dynamischen Vertrags wahr und würde die
+  Reduktion genau dort überspringen, wo sie neu gebraucht wird. Element 1
+  desselben Tupels (`dynamic_hours`) ist der einzige Wert der Kette, der
+  ungezwungen bleibt — daran wird das Gate gemessen. **Die beiden
+  Bedingungen beim nächsten Refactoring NICHT wieder „vereinheitlichen".**
+- *Die zweite Hälfte darf ebenfalls nicht entfallen.* Ohne
+  `dynamic_hours > 0.0` würde bei einer Vertragszeile mit 0
+  Vertragsstunden oder in einer Randwoche mit `relation == 0.0` von einer
+  0-Basis abgezogen und ein **negatives** Planungs-Soll entstehen,
+  während `expected_hours` bei `0` bleibt.
+
+**Warum die Zeichengleichheit für nicht-dynamische Verträge strukturell
+folgt.** Bei einem nicht-dynamischen Vertrag tragen Element 0 und
+Element 1 des `weight_for_week`-Tupels denselben Wert. Altes und neues
+Gate schalten damit unter exakt derselben Bedingung, und beide Formeln
+subtrahieren dieselben Terme — also gilt
+`planning_target_hours == expected_hours` konstruktionsbedingt und nicht
+zufällig. Festgenagelt durch
+`test_planning_target_matches_expected_for_fixed_contract`; dessen
+zweiter Assertion-Block ist die oben beschriebene
+0-Stunden-Vertrags-Regression.
+
+**Bewusst kein `.max(0.0)`.** Der Bilanzpfad klemmt ebenfalls nicht. Ein
+Klemmen allein am Planungs-Soll würde die obige Zeichengleichheit in
+Wochen mit schwerer Abwesenheit brechen, in denen beide Werte unter
+derselben Eingabe legitim negativ werden. Wer später ein Klemmen
+nachrüstet, muss beide klemmen oder keines.
+
+**Vorbestehende Asymmetrie, von Phase 64 bewusst nicht angefasst.** Die
+beiden Konstruktionsstellen (§3) bilden ihren *manuellen*
+Abwesenheits-Rohwert über **verschiedene** Filter: `assemble_weeks`
+summiert über `category.availability() == Availability::Unavailable`
+(`reporting.rs:917`), `get_reports_for_all_employees` dagegen über
+`category.as_report_type() == ReportType::AbsenceHours`
+(`reporting.rs:1450`). Die Asymmetrie ist älter als Phase 64 und betrifft
+heute schon die **Bilanz**pfade; sie zu vereinheitlichen wäre eine
+Änderung an der Bilanz gewesen und lag damit außerhalb des Scopes. Hier
+festgehalten, damit die nächste Leserin sie nicht für etwas hält, das
+Phase 64 eingeführt hat.
+
 ---
 
 ## 3. Datenmodell
@@ -351,6 +437,39 @@ Aggregat über andere Aggregate.
 | Absence-Reduktion (Legacy, single-day) | via `extra_hours` (Kategorien mit `ReportType::AbsenceHours`) | `amount`, `category`, `date_time` |
 | Feiertag-Reduktion (manuell) | via `extra_hours` mit Kategorie `Holiday` | s.o. |
 | Feiertag-Reduktion (derived) | `special_day_service.get_by_week` (Tabelle `special_day`) → `build_derived_holiday_map` mit Cutoff aus `toggle_service.get_toggle_value("holiday_auto_credit")` | pro Woche, gefiltert nach Vertragswochentag |
+
+Dieselben drei Quellen speisen auch das **Planungs-Soll**
+(`planning_target_hours`, §2.7) — nur das Gate ist ein anderes.
+
+#### Die zwei `ShortEmployeeReport`-Konstruktionsstellen
+
+`ShortEmployeeReport` wird an **zwei unabhängigen Stellen** in
+`service_impl/src/reporting.rs` zusammengebaut, und keine delegiert an
+die andere:
+
+| Stelle | Funktion | Konsumiert von |
+| --- | --- | --- |
+| **A** | `assemble_weeks` (`reporting.rs:769`, Pro-Wochen-Körper um `:1121`) | `get_week` (`:2020`) **und** `get_year` (`:2101`) — sie teilen sich diesen Helfer, und genau das hält sie byte-identisch (Phase 52, D-52-06) |
+| **B** | `get_reports_for_all_employees` (`reporting.rs:1212`, Pro-Wochen-Körper um `:1476`) | `GET /report/?year=…&until_week=…` |
+
+**Die Regel, die Phase 64 auf die harte Tour gelernt hat:** Ein neues
+Feld an diesem Struct muss an **beiden** Stellen gefüllt werden, und es
+braucht einen Test, der die beiden *gegeneinander* hält — nicht zwei
+Tests, die je für sich grün werden können. Phase 64s
+`test_planning_target_parity_both_sites` ist genau dieser
+Cross-Site-Paritätstest; im RED-Lauf wäre er ohne seine dritte Assertion
+(`> 0.0`) auf `0.0 == 0.0` grün geworden. Zwei isolierte Einzeltests
+hätten nicht gefunden, dass der dynamische Zweig von Stelle B die
+Feiertags-Terme vor dieser Phase gar nicht kannte.
+
+**`has_pending_rebooking` / `pending_rebooking_id` sind die dokumentierte
+Ausnahme, nicht die Vorlage.** Beide werden ausschließlich an Stelle B
+berechnet (`reporting.rs:1712`) und an Stelle A hart auf `false`/`None`
+gesetzt (`reporting.rs:1193`). Der Grund steht im Code: der
+HR-Alert-Banner (Phase 55, D-55-B) wird ausschließlich über den
+`/report`-Listenpfad getrieben und hat im Pro-Woche-Pfad
+`get_week`/`assemble_weeks` keine Bedeutung. Jedes weitere Ein-Stellen-Feld
+braucht dieselbe ausdrückliche Begründung — der Default ist Parität.
 
 ### Wo kommt „Carryover" her?
 
@@ -484,6 +603,28 @@ pub trait ReportingService {
 }
 ```
 
+#### `ShortEmployeeReport` — die zwei Soll-Felder
+
+Auszug aus `service/src/reporting.rs:148-…` (Phase 64 hat die letzte der
+vier Stunden-Größen ergänzt):
+
+```rust
+pub struct ShortEmployeeReport {
+    pub sales_person: Arc<SalesPerson>,
+    pub balance_hours: f32,
+    pub dynamic_hours: f32,
+    pub expected_hours: f32,          // bilanzrelevantes Soll — 0.0 bei dynamischem Vertrag
+    pub overall_hours: f32,
+    pub planning_target_hours: f32,   // Phase 64 (PSOLL-01…04) — Planungs-Soll, bei
+                                      // dynamischem Vertrag > 0, geht in KEINE Bilanz ein (§2.7)
+    …
+}
+```
+
+1:1 gespiegelt auf `ShortEmployeeReportTO`
+(`rest-types/src/lib.rs:392`, `#[serde(default)]`, damit die Ergänzung
+Wire-additiv bleibt) plus das Feld-Mapping im `From`-Impl (`:414`).
+
 ### 4.2 Auth-Gates
 
 Verbindliche Regeln (`Authentication::Full` ist der Bypass, den nur
@@ -615,8 +756,14 @@ Alle Reporting-Endpoints sind unter `/report/` gemountet
 
 DTOs (Wire-Format):
 
-- `ShortEmployeeReportTO` (`rest-types/src/lib.rs:371-393`): kompakte
-  Zeile für die HR-Übersicht.
+- `ShortEmployeeReportTO` (`rest-types/src/lib.rs:380-402`): kompakte
+  Zeile für die HR-Übersicht. **Seit Phase 64** trägt sie das zusätzliche
+  Antwortfeld `planning_target_hours: f32` (§2.7), ausgeliefert von
+  beiden Kurz-Report-Endpoints — `GET /report/?year=…&until_week=…` und
+  `GET /report/week/{year}/{calendar_week}`. Die Ergänzung ist rein
+  additiv: **keine neue Route, kein neuer Handler und kein neuer
+  `Dioxus.toml`-Proxy-Eintrag** ist entstanden, und `#[serde(default)]`
+  hält ein altes Payload ohne das Feld deserialisierbar (zu `0.0`).
 - `EmployeeReportTO` (`rest-types/src/lib.rs:523-596`): voller
   Report; enthält `by_week: Arc<[WorkingHoursReportTO]>` und
   `by_month: Arc<[…]>` (aktuell immer leer, `reporting.rs:877` schreibt
@@ -647,6 +794,13 @@ ist reiner View-Layer — es liest die DTOs und rendert.
   Wochen: `GET /blocks/{from_year}/{from_week}/{until_year}/{until_week}`.
   Formatiert Stunden mit `format_hours_norm(hours, 1)`, um `-0.0`-Anzeige
   zu vermeiden.
+- **`page/shiftplan.rs`** — der Schichtplan selbst; unterhalb des Plans
+  rendert er `component/working_hours_mini_overview.rs`
+  (`WorkingHoursMiniOverview`, `shiftplan.rs:1724`), gespeist aus
+  `GET /report/week/{year}/{calendar_week}` über
+  `loader::load_working_hours_minified_for_week` →
+  `build_working_hours_mini` → `WorkingHoursMini`. **Das ist die einzige
+  Fläche, die das Planungs-Soll zeigt** (§6.5).
 
 ### 6.2 Services / Loader
 
@@ -671,6 +825,51 @@ in v2.2) sind über die generische `/report/{**}`-Weiterleitung erreichbar
 Sub-Segmente wirklich mitnimmt. Siehe
 [edge-cases §11 Frontend-Backend-Kopplung](../domain/edge-cases.md#11-frontend-backend-kopplung)
 und den Memory-Hinweis „Dioxus.toml Proxy für neue Backend-Endpoints".
+
+### 6.5 Welche Fläche zeigt welches „Soll" (Phase 64)
+
+`ShortEmployeeReportTO` trägt jetzt zwei Soll-Größen (§2.7). Die
+Aufteilung im Frontend ist gewollt und folgt dem Transport-Objekt, das
+die jeweilige Fläche liest — die meisten Stundenkonto-Flächen *können*
+das Planungs-Soll gar nicht zeigen, weil ihr DTO es nicht hat.
+
+**Zeigt das Planungs-Soll (`planning_target_hours`)** — genau drei
+Anzeigestellen, alle in `component/working_hours_mini_overview.rs`, alle
+gespeist aus `ShortEmployeeReportTO`:
+
+| Stelle | Dateiposition | Was daran hängt |
+| --- | --- | --- |
+| Karten-Layout, `target` | `working_hours_mini_overview.rs:123` | die Soll-Zahl der `Ist / Soll`-Zeile, dazu Fortschrittsbalken-Füllung und Farbschwelle (`progress_bar_class`, `hours_text_class`, `progress_bar_percent` lesen dieselbe Bindung) |
+| Tabellen-Layout, `target` pro Zeile | `:238` | die Soll-Spalte einer Zeile, ihr Auslastungsbalken und der Prozentwert |
+| Tabellen-Layout, `total_target` in der Fußzeile | `:186` | die Soll-Summe der Spalte darüber |
+
+Ein Quellcode-Invariantentest
+(`working_hours_mini_overview_reads_planning_target_only`) hält das bei
+exakt drei Lesezugriffen, verbietet jeden Rückfall auf
+`.expected_hours` / `.dynamic_hours` und verbietet Arithmetik unmittelbar
+am Feld (PSOLL-02: das Frontend *liest* den Wert, es leitet ihn nicht
+ab).
+
+**Zeigt weiterhin das bilanzrelevante Soll (`expected_hours`)** — diese
+Flächen lesen `WorkingHoursReportTO` bzw. `EmployeeReportTO`, die Phase
+64 nicht angefasst hat:
+
+| Fläche | Quelle |
+| --- | --- |
+| Mitarbeiter-Detail: Jahres-/Wochenliste, Wochen-Detailkarte, Differenzspalte (`component/employee_view.rs:805,867,869`) | `WorkingHoursReportTO.expected_hours` |
+| Wochen-Histogramm: Referenzlinie und Balkenfarbe (`component/employee_weekly_histogram.rs:119,126,167`) | `WorkingHoursReportTO.expected_hours` |
+| Mitarbeiterliste: `target_hours_for` (letzte Woche) (`component/employees_list.rs:51`) | `WorkingHoursReportTO.expected_hours` |
+| `state/employee.rs:368` — `expected_working_hours` | `EmployeeReportTO.expected_hours` |
+
+**Merksatz:** Das Planungs-Soll erscheint **ausschließlich** in der
+Wochen-Übersicht unter dem Schichtplan; jede Stundenkonto-Fläche zeigt
+unverändert das bilanzrelevante Soll.
+
+Der zweite Konsument von `ShortEmployeeReportTO` im Frontend,
+`impl From<&ShortEmployeeReportTO> for Employee`
+(`state/employee.rs:297`), setzt `expected_working_hours: 0.0`
+unbedingt und liest überhaupt kein Soll-Feld des Reports — er kann
+folglich nicht stillschweigend von der Mini-Übersicht auseinanderlaufen.
 
 ---
 
@@ -791,7 +990,7 @@ Umfangreichster Test-Bereich der Codebase.
 
 ### 8.1 Reporting
 
-- `service_impl/src/test/reporting_additive_merge.rs` (1456 Zeilen) —
+- `service_impl/src/test/reporting_additive_merge.rs` (1575 Zeilen) —
   Kern-Regressionssuite für den Absence-derived + Extra-Hours-Merge.
   Deckt no-contract, dynamic, cap, Custom-Kategorien, cross-week Absence
   und die Gap-Fixes aus Phase 8.4 (M-02/CR-01/WR-01) ab.
@@ -811,8 +1010,27 @@ Umfangreichster Test-Bereich der Codebase.
 - `service_impl/src/test/reporting_attendance_gate.rs` (318 Zeilen) —
   HR-Gate + is_dynamic-Filter (in v2.2 post-ship auf „für alle" umgestellt,
   siehe `reporting.rs:1207-1210`).
-- `service_impl/src/test/reporting_phase2_fixtures.rs` (141 Zeilen) —
-  Fixtures für die frühe Phase-2-Regression.
+- `service_impl/src/test/reporting_phase2_fixtures.rs` (148 Zeilen) —
+  Fixtures für die frühe Phase-2-Regression; zugleich das Spiegel-Paar
+  (dynamischer vs. fester 40-h-Vertrag plus Urlaubs-/Krankheits-Perioden),
+  auf dem die Phase-64-Planungs-Soll-Suite aufsetzt.
+- `service_impl/src/test/reporting_planning_target.rs` (671 Zeilen) —
+  Phase 64 (PSOLL-01/03/04), fünf Tests rund um das Planungs-Soll
+  (§2.7):
+
+  | Test | Zweck |
+  | --- | --- |
+  | `test_planning_target_dynamic_get_week` | ein dynamischer Vertrag meldet in `get_week` `planning_target_hours = 40.0`, während `expected_hours` bei `0.0` bleibt — Konstruktionsstelle A |
+  | `test_planning_target_dynamic_all_employees` | derselbe Vertrag meldet in `get_reports_for_all_employees` über zwei Vertragswochen `80.0` — Konstruktionsstelle B |
+  | `test_planning_target_parity_both_sites` | **der Cross-Site-Paritätstest**: beide Stellen liefern für dieselbe Eingabe denselben Wert (`56.0`), und Abwesenheiten reduzieren ihn nachweislich (`0 < 56 < 80`). Erst die dritte Assertion (`> 0.0`) macht ihn zum Treiber statt zu einem `0.0 == 0.0`-Durchläufer |
+  | `test_planning_target_matches_expected_for_fixed_contract` | Zeichengleichheit mit `expected_hours` für nicht-dynamische Verträge, inkl. des 0-Stunden-Vertrags-Regressionsblocks (kein negativer Wert) |
+  | `test_available_hours_unchanged_dynamic` | Regressionsschloss: `available_hours` bleibt bei dynamischem Vertrag `0.0`, obwohl der Report jetzt ein Planungs-Soll von `40.0` trägt |
+
+  Das quellseitige Gegenstück liegt im Frontend:
+  `working_hours_mini_overview_reads_planning_target_only` (§6.5) nagelt
+  PSOLL-02 fest und wurde gegen zwei absichtlich wiedereingeführte
+  Verletzungen geprüft (Rückfall auf ein Altfeld, Arithmetik am Feld) —
+  beide ließen ihn fallen.
 - Inline-Tests im Impl selbst: `test_dynamic_vacation_days`,
   `test_unpaid_leave_*` (`reporting.rs:1553-1849`),
   `test_weekly_planned_hours_cap` (ab `reporting.rs:1852`).
@@ -892,6 +1110,31 @@ und hat entsprechend viele Rewrites hinter sich. Die wichtigsten Meilensteine:
   Bulk-Loads jetzt, um ~55 sequenzielle Service-Calls durch 7
   konstante Bulk-Loads zu ersetzen (byte-identisch, ~2× Latenz-
   Reduktion auf Dev-DB).
+- **Phase 64 (PSOLL-01…04, v2.7):** `planning_target_hours` — eine
+  zweite, *nicht* bilanzrelevante Soll-Größe an `ShortEmployeeReport` /
+  `ShortEmployeeReportTO`, damit ein dynamischer Vertrag endlich ein
+  planbares Ziel hat statt der `0`, die er aus der Bilanz-Semantik geerbt
+  hat (§2.7, §6.5). Jede Bilanzgröße bleibt unverändert. Die Phase hat
+  zwei konservierenswerte Fallen gefunden:
+
+  1. **Das Reduktions-Gate hing am gezwungenen Nullwert.** Die
+     naheliegende Umsetzung übernimmt die Bedingung des Bilanz-Zweigs,
+     und die hängt an `planned_hours` — einem Wert, den
+     `weight_for_week` bei dynamischen Verträgen auf `0.0` *zwingt*. Die
+     Reduktion wäre damit genau für die Verträge ausgefallen, für die
+     das Feature gebaut wurde. Das Gate hängt deshalb an
+     `dynamic_hours`, dem ungezwungenen Element desselben Tupels, und
+     behält `has_contract_row` als zweite Hälfte.
+  2. **Der zweiten Konstruktionsstelle fehlte die Feiertags-Rechnung
+     komplett.** Im dynamischen Zweig von
+     `get_reports_for_all_employees` gab es die Feiertags- und
+     Abwesenheits-Bausteine vor dieser Phase gar nicht; sie mussten vor
+     die Dreiwege-Verzweigung gehoben werden. Ein Test pro Stelle wäre
+     auf jeder Stelle für sich grün geworden — nur der
+     Cross-Site-Paritätstest (§8.1) hält die beiden gegeneinander.
+
+  `CURRENT_SNAPSHOT_SCHEMA_VERSION` **bleibt bei 13** — warum das
+  strukturell gilt, steht unten.
 
 ### Fat-Backend-Prinzip
 
@@ -907,16 +1150,29 @@ Prinzip in jeder discuss-phase als Default zu verankern.
 
 `EmployeeReport` ist die **Live-Rechnung**. `billing_period_sales_person`
 persistiert dieselben Kategorien als Snapshot mit einer
-`snapshot_schema_version` (aktuell **12**, siehe
-`billing_period_report.rs:117`). Der Snapshot-Writer konsumiert
-`EmployeeReport` und schreibt eine Reihe von `value_type`-Zeilen. Details
-siehe [F08 Billing Period](./F08-billing-period.md).
+`snapshot_schema_version` (aktuell **13** seit Phase 57 / D-57-10, siehe
+`service_impl/src/billing_period_report.rs:140`). Der Snapshot-Writer
+konsumiert `EmployeeReport` und schreibt eine Reihe von
+`value_type`-Zeilen. Details siehe
+[F08 Billing Period](./F08-billing-period.md).
 
 **Regel für Reporting-Änderungen:** Jede Änderung an der Berechnung
 eines im Snapshot-persistierten `value_type` (Formel, Inputs, Filter)
 MUSS die `CURRENT_SNAPSHOT_SCHEMA_VERSION` bumpen — sonst driftet der
 Validator (siehe CLAUDE.md-Absatz „Billing Period Snapshot Schema
 Versioning").
+
+**Warum Phase 64 nicht gebumpt hat.** `planning_target_hours` (§2.7)
+sitzt an `ShortEmployeeReport`. Der Snapshot-Writer
+(`build_and_persist_billing_period_report`) konsumiert aber
+**`EmployeeReport`** — einen anderen Typ, erzeugt von einem dritten
+Codepfad (`get_report_for_employee_range` → `hours_per_week`), der dieses
+Feld überhaupt nicht hat. Der neue Wert kann einen persistierten
+`value_type` also nicht einmal versehentlich erreichen, und die
+Berechnung bzw. die Input-Menge keines bestehenden `value_type` wurde
+angefasst. Das ist ein *struktureller* Grund, keine Zusicherung: ein Grep
+nach `planning_target_hours` in `billing_period_report.rs` liefert nichts.
+Die Version bleibt bei **13**.
 
 ---
 
