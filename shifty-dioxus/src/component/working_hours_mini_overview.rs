@@ -106,9 +106,13 @@ fn CardsLayout(props: LayoutInnerProps) -> Element {
                     let sales_person_id = working_hour.sales_person_id;
                     let actual = working_hour.actual_hours;
                     // ANZEIGESTELLE 1 von 3 (Phase 64, PSOLL-01). TARGET ist das
-                    // Planungs-Soll: feiertags- und abwesenheitsreduziert wie das
-                    // bilanzrelevante Soll, aber auch fuer dynamische Vertraege groesser 0 —
-                    // genau die Zahl, die ein Planer beim Verteilen von Schichten ansieht.
+                    // Planungs-Soll: die feiertags- und abwesenheitsreduzierte ZUSAGE der
+                    // Person [D-64-05] — genau die Zahl, die ein Planer beim Verteilen von
+                    // Schichten ansieht, naemlich was die Person fuer die Woche zusagt.
+                    // Die ehrenamtliche Zusage ist deshalb enthalten; ob die Stunden bezahlt
+                    // sind, ist fuer die Planung unerheblich. Die Zahl ist auch fuer
+                    // dynamische Vertraege und fuer 0-Stunden-Vertraege mit Zusage groesser 0
+                    // und unterscheidet sich damit vom bilanzrelevanten Soll.
                     // Das Planungs-Soll bewegt die Bilanz NICHT; das Stundenkonto bleibt die
                     // maßgebliche Bilanzflaeche. Der Wert kommt fertig aus dem Backend, hier
                     // wird er nur gelesen (PSOLL-02).
@@ -180,7 +184,8 @@ fn TableLayout(props: LayoutInnerProps) -> Element {
     // ANZEIGESTELLE 3 von 3 (Phase 64, PSOLL-01): die Fusszeile summiert die Spalte
     // darueber. Sie wechselt, weil die Zeilen-Stelle wechselt — bliebe sie stehen,
     // widerspraeche die Fusszeile ihrer eigenen Spalte. Zur Bedeutung des Werts siehe
-    // den Kommentar an der Zeilen-Stelle in `TableLayout` weiter unten.
+    // den Kommentar an der Zeilen-Stelle in `TableLayout` weiter unten — es ist eine
+    // Zusage-Groesse inklusive Ehrenamt [D-64-05], nicht das bilanzrelevante Soll.
     // Die Spaltensumme ueber Personen ist Darstellung, keine Ableitungsregel fuer den
     // Wert einer einzelnen Person — PSOLL-02 bleibt unberuehrt.
     let total_target: f32 = props.rows.iter().map(|r| r.planning_target_hours).sum();
@@ -224,10 +229,12 @@ fn TableLayout(props: LayoutInnerProps) -> Element {
                             let sales_person_id = working_hour.sales_person_id;
                             let actual = working_hour.actual_hours;
                             // ANZEIGESTELLE 2 von 3 (Phase 64, PSOLL-01). Dieselbe Information
-                            // wie im Karten-Layout, nur dichter dargestellt: das Planungs-Soll,
-                            // feiertags- und abwesenheitsreduziert, auch fuer dynamische
-                            // Vertraege groesser 0, ohne Wirkung auf die Bilanz, fertig
-                            // berechnet aus dem Backend (PSOLL-02, nur gelesen).
+                            // wie im Karten-Layout, nur dichter dargestellt: das Planungs-Soll
+                            // als feiertags- und abwesenheitsreduzierte ZUSAGE der Person
+                            // [D-64-05] — inklusive der ehrenamtlichen Zusage, auch fuer
+                            // dynamische und fuer 0-Stunden-Vertraege groesser 0, ohne Wirkung
+                            // auf die Bilanz, fertig berechnet aus dem Backend (PSOLL-02, nur
+                            // gelesen).
                             // Diese Stelle wechselt gemeinsam mit dem Karten-Layout: wuerde nur
                             // dort gewechselt, zeigte dieselbe Person in der Tabelle 0 und in
                             // den Karten das Planungs-Soll — ein gemischter Zustand waere

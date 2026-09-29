@@ -9,8 +9,13 @@ pub struct WorkingHoursMini {
     pub sales_person_id: Uuid,
     pub sales_person_name: ImStr,
     pub expected_hours: f32,
-    /// Phase 64 (PSOLL-01/PSOLL-02): das Planungs-Soll — feiertags- und
-    /// abwesenheitsreduziert, aber auch fuer dynamische Vertraege groesser 0.
+    /// Phase 64 (PSOLL-01/PSOLL-02): das Planungs-Soll — die feiertags- und
+    /// abwesenheitsreduzierte **Zusage** der Person [D-64-05]. Es ist keine
+    /// Vertragsgroesse: die ehrenamtliche Zusage (`committed_voluntary`) ist
+    /// enthalten, denn der Zweck des Feldes ist die Schichtplanung, und dafuer ist
+    /// unerheblich, ob die Stunden bezahlt sind. Deshalb ist die Zahl auch fuer
+    /// dynamische Vertraege und fuer 0-Stunden-Vertraege mit Zusage groesser 0 und
+    /// unterscheidet sich vom bilanzrelevanten Soll.
     /// Kommt fertig berechnet aus dem Backend (`ShortEmployeeReportTO`) und wird
     /// hier ausschliesslich gelesen: keine Ableitung, kein Fallback, keine
     /// Rechnung im Frontend.
