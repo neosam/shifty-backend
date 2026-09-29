@@ -146,10 +146,7 @@ async fn seed_user_role(pool: &sqlx::SqlitePool, user_name: &str, role_name: &st
     .expect("seed user_role");
 }
 
-fn row_of<'rows>(
-    rows: &'rows [PersonDirectoryRow],
-    person_id: Uuid,
-) -> &'rows PersonDirectoryRow {
+fn row_of(rows: &[PersonDirectoryRow], person_id: Uuid) -> &PersonDirectoryRow {
     rows.iter()
         .find(|row| row.person_id == person_id)
         .unwrap_or_else(|| panic!("Person {person_id} fehlt im Verzeichnis: {rows:?}"))

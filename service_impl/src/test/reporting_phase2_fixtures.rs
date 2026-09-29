@@ -75,6 +75,12 @@ pub fn fixture_work_details_8h_mon_fri() -> EmployeeWorkDetails {
 /// 8h/Tag Mo-Fr, gueltig KW22-25/2024, aber DYNAMISCHER Vertrag (is_dynamic=true).
 /// weight_for_week liefert dann planned_hours = 0.0 fuer alle Wochen -> Balance soll quellen-
 /// unabhaengig neutral bleiben (M-02/M-03 dynamic). Spiegel von fixture_work_details_8h_mon_fri.
+///
+/// Phase 64 (PSOLL-01): zusaetzlich wird fuer diese Fixture ein PLANUNGS-Soll
+/// (`ShortEmployeeReport::planning_target_hours`) groesser 0 erwartet — 40.0 je
+/// volle Vertragswoche, reduziert um Feiertage und Abwesenheiten. Die
+/// Bilanzfelder (`expected_hours`, `dynamic_hours`, `balance_hours`) bleiben
+/// davon unberuehrt und weiterhin neutral.
 #[allow(dead_code)]
 pub fn fixture_work_details_dynamic_mon_fri() -> EmployeeWorkDetails {
     EmployeeWorkDetails {

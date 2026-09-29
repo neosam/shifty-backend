@@ -73,6 +73,8 @@ pub mod reporting_get_year;
 #[cfg(test)]
 pub mod reporting_year_boundary;
 #[cfg(test)]
+pub mod reporting_planning_target;
+#[cfg(test)]
 pub mod sales_person;
 #[cfg(test)]
 pub mod sales_person_shiftplan;
