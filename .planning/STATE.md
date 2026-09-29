@@ -5,13 +5,13 @@ milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 64
 current_phase_name: Planungs-Soll für dynamische Verträge
 status: executing
-stopped_at: Completed 64-02-PLAN.md
-last_updated: "2026-09-29T18:32:02.091Z"
+stopped_at: Completed 64-03-PLAN.md
+last_updated: "2026-09-29T19:20:00.000Z"
 progress:
   total_phases: 5
   completed_phases: 4
-  total_plans: 35
-  completed_plans: 34
+  total_plans: 36
+  completed_plans: 35
   percent: 97
 ---
 
@@ -32,8 +32,19 @@ progress:
 ## Current Position
 
 Phase: 64 (Planungs-Soll für dynamische Verträge) — EXECUTING
-Plan: 3 von 4 (64-01 und 64-02 abgeschlossen)
-Status: 64-02 ist ausgefuehrt und gruen — das Planungs-Soll steht jetzt bis in die Anzeige.
+Plan: 4 von 4 (64-01, 64-02 und 64-03 abgeschlossen)
+Status: 64-03 ist ausgefuehrt und gruen — das Docs-Freshness-Gate der Phase ist zentral
+geschlossen. Die vier von der CLAUDE.md-Trigger-Tabelle geforderten Dateien (F07 und
+time-accounting, je EN und DE) trennen jetzt bilanzrelevantes Soll und Planungs-Soll,
+benennen die zwei `ShortEmployeeReport`-Konstruktionsstellen samt Paritaets-Pflicht und
+konservieren die Begruendung des abweichenden Reduktions-Gates. Drei vorbestehend FALSCHE
+Doku-Aussagen sind dabei aufgefallen und korrigiert: F07 behauptete Snapshot-Schema-Version
+**12** (ist 13 seit Phase 57, und die Zeilennummer war ebenfalls falsch) und drei
+Zeilenzahl-Angaben waren veraltet. Die F01-Aussage „is_dynamic => Soll = Ist" wurde geprueft
+und bewusst NICHT angefasst — sie beschreibt die Bilanz-Semantik und bleibt korrekt.
+Nur noch 64-04 (blockierender UAT-Checkpoint) ist offen.
+
+Status 64-02: 64-02 ist ausgefuehrt und gruen — das Planungs-Soll steht jetzt bis in die Anzeige.
 Alle drei Anzeigestellen der Uebersicht unterhalb des Schichtplans (Karten-`target`,
 Tabellen-`target` pro Zeile, Tabellen-`total_target`) lesen `planning_target_hours`;
 Fortschrittsbalken und Farbschwellen messen damit gegen das Planungs-Soll. Frontend-Suite
@@ -62,8 +73,10 @@ abgesichert, der gegen zwei künstlich wiedereingeführte Rückfälle (Fallback 
 Mitarbeiter-Ansichten lesen `WorkingHoursReportTO`/`EmployeeReportTO` und zeigen
 weiterhin das bilanzrelevante Soll (Flächen-Zuordnung steht im 64-02-SUMMARY,
 Vorlage für die F07-Frontend-Sektion).
-64-03 führt die Doku zentral (F07 + time-accounting, je EN und DE).
+64-03 hat die Doku zentral geführt (F07 + time-accounting, je EN und DE) — erledigt.
 64-04 ist der blockierende UAT-Checkpoint und braucht den Nutzer am laufenden Dev-Server.
+**Vor dem UAT:** die Dev-Server auf :3000 und :8080 tragen einen Build von vor 64-01 und
+müssen neu gestartet werden.
 
 Gepinnt und nicht neu aufzumachen: `weight_for_week` behält seine Signatur; kein
 Snapshot-Schema-Bump (der Snapshot-Writer liest `EmployeeReport`, nie
@@ -332,8 +345,8 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-09-29T18:32:02.091Z
-**Stopped at:** Completed 64-02-PLAN.md
+**Last session:** 2026-09-29T19:20:00.000Z
+**Stopped at:** Completed 64-03-PLAN.md
 **Resume file:** None
 
 **To resume work in a new session:**
@@ -363,6 +376,10 @@ D-63-01/02, D-64-01/02/03).
 
 ## Decisions
 
+- [Phase 64]: 64-03 — Doku-Sektion 6.5 hinter 6.4 eingeordnet statt vorne, damit die bestehende Nummerierung 6.2/6.3/6.4 in beiden Sprachfassungen unangetastet bleibt
+- [Phase 64]: 64-03 — die Gate-Begruendung steht ausgeschrieben NUR in F07 2.7; time-accounting verweist darauf, statt sie zu paraphrasieren (eine Quelle, kein Drift-Kandidat)
+- [Phase 64]: 64-03 — F07 behauptete Snapshot-Schema-Version 12 bei falscher Zeilennummer; korrigiert auf 13 / billing_period_report.rs:140 in beiden Sprachfassungen
+- [Phase 64]: 64-03 — F01-Aussage 'is_dynamic => Soll = Ist' bewusst NICHT angefasst: sie beschreibt die Bilanz-Semantik und ist weiterhin korrekt; das Planungs-Soll gehoert in F07
 - [Phase ?]: D-33-02 enforced: Card-3 shiftplanner-gated with inner has_privilege guard, page admin gate unchanged
 - [Phase ?]: Rule 3 deviation: reqwest switched from native-tls to rustls-tls for host test compilation without openssl
 - [Phase ?]: weekday_sub_headers Vec on WeekView; spawn wrapper for Signal::set in DropdownEntry Fn closures
@@ -576,3 +593,4 @@ D-63-01/02, D-64-01/02/03).
 | Phase 63 P10 | 58min | 3 tasks | 17 files |
 | Phase 64 P01 | 45min | 3 tasks | 10 files |
 | Phase 64 P02 | ~35min | 2 tasks | 3 files |
+| Phase 64 P03 | ~40min | 2 tasks | 4 files |
