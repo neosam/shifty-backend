@@ -115,6 +115,26 @@ Permission-Beobachtungen, 62–64 gegen sichtbares Verhalten im Browser.
 
 ### Gesperrte Entscheidungen (in keiner Phase neu aufmachen)
 
+- **D-64-05: Das Planungs-Soll ist eine ZUSAGE-Größe, keine Bilanz-Größe — die
+  ehrenamtliche Zusage (`committed_voluntary`) fließt ein.** Zweck des Planungs-Solls
+  ist die Schichtplanung: die planende Person muss sehen, **was die jeweilige Person
+  für diese Woche zusagt**. Ob diese Stunden bezahlt sind, ist dafür unerheblich.
+  Zugesagtes Ehrenamt ist eine Zusage und gehört deshalb in die Zahl.
+
+  Abwesenheiten und Feiertage reduzieren auch den Ehrenamts-Anteil — wer in der Zeit
+  weniger da ist, sagt auch ehrenamtlich weniger zu. Das ist konsistent mit dem
+  F2-Soll (`committed_voluntary_target_in_range` berücksichtigt Abwesenheiten bereits).
+
+  **Nicht neu aufmachen:** Die durchgehende Trennung von `expected_hours` und
+  `committed_voluntary` in der Architektur (eigener Soll, eigener Endpunkt
+  `/report/{id}/voluntary-stats`, eigene UI-Zeile, `is_paid`-Gating) gilt für die
+  **Bilanz**. Sie ist dort richtig und bleibt unberührt. Für die **Planung** gilt sie
+  nicht. Wer die Zusage wieder heraustrennt, „weil die Bilanz das auch so macht",
+  bricht den Zweck des Feldes.
+
+  Folge für PSOLL-04: Zeichengleichheit mit `expected_hours` gilt nur noch bei
+  Zusage 0; mit Zusage muss sich das Planungs-Soll um genau diese unterscheiden.
+
 - **Kein Snapshot-Schema-Version-Bump — für beide Features.**
   `CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt **13**. `person` ist rein administrativ
   (kein neuer persistierter `value_type`, keine geänderte Computation, kein

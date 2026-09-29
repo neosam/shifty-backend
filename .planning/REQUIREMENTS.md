@@ -41,10 +41,10 @@ defined: 2026-09-16
 
 ### Planungs-Soll (PSOLL)
 
-- [ ] **PSOLL-01**: In der Übersicht unterhalb des Schichtplans steht auch bei dynamischen Verträgen ein Sollstunden-Ziel, statt 0.
+- [ ] **PSOLL-01**: In der Übersicht unterhalb des Schichtplans steht auch bei dynamischen Verträgen ein Sollstunden-Ziel, statt 0. **Zweck:** die planende Person muss sehen, was die jeweilige Person für diese Woche **zusagt** — deshalb ist das Planungs-Soll eine Zusage-Größe und umfasst auch die ehrenamtliche Zusage (`committed_voluntary`), unabhängig von der Bezahlung [D-64-05].
 - [ ] **PSOLL-02**: Das Planungs-Soll kommt fertig berechnet aus dem Backend — das Frontend rechnet keine Fallback-Regel.
 - [ ] **PSOLL-03**: Das Planungs-Soll ist in **beiden** Report-Pfaden gefüllt (Wochen-Übersicht und Gesamt-Report), sodass dieselbe Person überall dieselbe Zahl zeigt.
-- [ ] **PSOLL-04**: Für dieselben Ausgangsdaten liefert der Stundenkonto-Report nach Einführung des Planungs-Solls unveränderte Balance-Werte — insbesondere bleibt die Jahres-Verfügbarkeitsrechnung (`available_hours`) auf dem bisherigen, bei dynamischen Verträgen genullten Wert.
+- [ ] **PSOLL-04**: Für dieselben Ausgangsdaten liefert der Stundenkonto-Report nach Einführung des Planungs-Solls unveränderte Balance-Werte — insbesondere bleibt die Jahres-Verfügbarkeitsrechnung (`available_hours`) auf dem bisherigen, bei dynamischen Verträgen genullten Wert. Abgrenzung zum Planungs-Soll: bei **ehrenamtlicher Zusage 0** ist das Planungs-Soll eines nicht-dynamischen Vertrags zeichengleich mit `expected_hours`; **mit** Zusage unterscheidet es sich um genau diese (reduziert um Abwesenheiten und Feiertage) — die Balance bleibt davon in beiden Fällen unberührt [D-64-05].
 
 ## Future Requirements
 
