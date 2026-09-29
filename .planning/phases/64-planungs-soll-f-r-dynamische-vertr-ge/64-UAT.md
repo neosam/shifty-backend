@@ -9,14 +9,43 @@ requirements: [PSOLL-01, PSOLL-02]
 
 # Phase 64 — UAT-Protokoll
 
+> ## ⚠ Nachtrag 64-05 — die zu pruefende Zahl hat sich geaendert
+>
+> Das UAT von 64-04 hat ein **semantisches Loch** gefunden: 64-01 hat das
+> Planungs-Soll als *Vertrags*-Groesse gebaut, es ist aber eine **Zusage**-Groesse
+> [D-64-05, ROADMAP „Gesperrte Entscheidungen"]. Die ehrenamtliche Zusage
+> (`employee_work_details.committed_voluntary`) fliesst seit **Plan 64-05** ein,
+> reduziert um Abwesenheiten und Feiertage — proportional, nicht
+> alles-oder-nichts [D-64-07].
+>
+> **Folge fuer dieses Protokoll:**
+> - Alle in **Teil 3** protokollierten Messungen sind unter der **alten**
+>   Semantik entstanden. Sie bleiben als Reihe „vor 64-05" stehen — der
+>   Vergleich ist der eigentliche Beleg und darf nicht geloescht werden.
+> - Die Erwartungszahlen von Szenario 1, 2 und 4 sind **nachgefuehrt** (Teil 5).
+> - Es gibt ein **fuenftes Szenario** fuer die neue Klasse
+>   (`expected_hours == 0` mit Zusage > 0) — der Kern des gefundenen Gaps.
+> - Es gibt eine **zweite Zusatzfrage** (negatives Planungs-Soll).
+> - Die beiden UAT-Vertraege wurden mit `committed_voluntary = 0` angelegt.
+>   **Gegen diesen Bestand ist die neue Semantik nicht beobachtbar** — genau wie
+>   B-64-04-1 fuer die alte. Teil 2 traegt dafuer einen neuen Eingriffs-Schritt.
+>
+> **Offener Blocker B-64-05-1:** Die Dev-Server waren beim Nachfuehren dieses
+> Protokolls **gestoppt** (vom Nutzer beendet). Die neuen Zahlen in Teil 3 und
+> Teil 5 sind deshalb **hergeleitet, nicht gemessen** — jede ist mit ihrer
+> Arithmetik ausgeschrieben. Der Agent hat sie ausdruecklich **nicht** als
+> Messung ausgegeben. Vor dem Augenpaar-Durchgang muss Schritt 2b gefahren und
+> die Messreihe „nach 64-05" mit echten Ausgaben gefuellt werden.
+
 > Einloesung der zwei Nachweise, die `64-VALIDATION.md` § Manual-Only als
 > nicht-automatisierbar fuehrt (PSOLL-01 Sichtpruefung, PSOLL-02 Review pro
 > Trefferstelle), plus die Augenprobe am Stundenkonto (PSOLL-04).
 
 **Wichtig:** Kein Szenario in diesem Protokoll darf vom ausfuehrenden Agenten
-selbst auf `passed` gesetzt werden. Szenario 1, 2 und 4 verlangen ein Augenpaar
-am laufenden Browser, Szenario 3 eine menschliche Bestaetigung der Trefferliste.
-Der Agent liefert die Vorarbeit und die auf der Leitung gemessenen Zahlen.
+selbst auf `passed` gesetzt werden. Szenario 1, 2, 4 und 5 verlangen ein
+Augenpaar am laufenden Browser, Szenario 3 eine menschliche Bestaetigung der
+Trefferliste. Der Agent liefert die Vorarbeit und die auf der Leitung gemessenen
+Zahlen.
 
 ---
 
@@ -154,9 +183,56 @@ vollstaendiges Zuruecksetzen auf den Zustand von vorher (harte Loeschung) ist
 ueber die API nicht moeglich und war auch vorher nicht der Fall — der Bestand
 enthielt bereits soft-geloeschte Artefakte aus dem Phase-63-UAT.
 
+### Schritt 2b (NEU, Plan 64-05) — ehrenamtliche Zusage setzen
+
+**Befund B-64-05-2: Beide UAT-Vertraege wurden mit `committed_voluntary = 0`
+angelegt.** Gegen diesen Bestand ist die neue Semantik **nicht beobachtbar** —
+die Zahl wuerde sich gegenueber Teil 3 nicht bewegen, auch bei fehlerfreier
+Implementierung nicht. Das ist dieselbe Falle wie B-64-04-1, eine Ebene weiter.
+
+**Erst messen, dann setzen** (nicht annehmen — der Ist-Wert ist zu protokollieren):
+
+```bash
+# Ist-Wert von committed_voluntary VOR dem Eingriff protokollieren
+curl -s http://localhost:3000/working-hours/for-sales-person/d907198e-9620-4840-abd7-b0dea0cf5e57 | jq '.[] | {id, expected_hours, is_dynamic, committed_voluntary}'
+curl -s http://localhost:3000/working-hours/for-sales-person/100e013e-2ed4-4da3-8c70-a37110d1da2e | jq '.[] | {id, expected_hours, is_dynamic, committed_voluntary}'
+```
+
+| Vertrag | Person | `committed_voluntary` vor dem Eingriff | Ziel |
+|---|---|---|---|
+| `fd311b06-dec4-43bb-959d-1e5b8a615f0c` | Rosa Verkauf (dynamisch) | _(zu messen — erwartet `0.0`)_ | **5.0** |
+| `da1528e7-1aa2-4da0-b7cb-4df0fa99f708` | Béla Verknüpft (fest) | _(zu messen — erwartet `0.0`)_ | **5.0** |
+
+Béla bekommt die Zusage ebenfalls, damit der **feste** Fall die Differenz zum
+bilanzrelevanten Soll zeigt — bei Zusage 0 waren die beiden Zahlen identisch,
+und genau diese Identitaet gilt jetzt nur noch bei Zusage 0.
+
+Setzen per `PUT /working-hours/{id}`. **Den vollstaendigen Body aus dem GET
+uebernehmen und nur `committed_voluntary` aendern** — ein Teil-Body wuerde die
+uebrigen Felder auf ihre Defaults ziehen:
+
+```bash
+# Muster; ID, Datumsgrenzen und Wochentage aus dem GET uebernehmen
+curl -s http://localhost:3000/working-hours/for-sales-person/d907198e-9620-4840-abd7-b0dea0cf5e57 \
+  | jq '.[0] | .committed_voluntary = 5.0' \
+  | curl -X PUT -H 'Content-Type: application/json' --data-binary @- \
+      http://localhost:3000/working-hours/fd311b06-dec4-43bb-959d-1e5b8a615f0c
+# analog fuer da1528e7-1aa2-4da0-b7cb-4df0fa99f708
+```
+
+**Ruecknahme von Schritt 2b** (zusaetzlich zu den drei Loeschungen oben, NACH
+dem UAT): dieselben beiden `PUT`s mit `.committed_voluntary = 0.0`. Falls
+Szenario 5 gefahren wurde, gehoert dessen Ruecknahme
+(`.expected_hours = 20.0` an `fd311b06-…`) ebenfalls dazu.
+
 ---
 
 ## Teil 3 — Auf der Leitung gemessene Laufzeit-Belege (Vorarbeit, ersetzt kein Augenpaar)
+
+> **Die folgenden drei Tabellen sind die Messreihe „vor 64-05"** — entstanden
+> unter der Vertrags-Semantik, mit `committed_voluntary = 0` an beiden
+> Vertraegen. Sie bleiben unveraendert stehen. Die Reihe „nach 64-05" steht
+> darunter.
 
 Beide `ShortEmployeeReport`-Konstruktionsstellen sind ueber je einen Endpunkt
 direkt messbar. Die Uebersicht unter dem Schichtplan liest **Stelle A**
@@ -184,6 +260,58 @@ die dort angezeigte Balance-Spalte kommt aus **Stelle B**
 |---|---|---|---|---|---|
 | Rosa Verkauf | **dynamisch** | 0.0 | 768.0 | **764.0** | 0.0 |
 | Béla Verknüpft | fest | 768.0 | 768.0 | **768.0** | −780.0 |
+
+### Messreihe „nach 64-05" (Zusage 5.0h/Woche an beiden Vertraegen)
+
+> **Status: HERGELEITET, NOCH NICHT GEMESSEN** (Blocker B-64-05-1 — die
+> Dev-Server waren gestoppt). Jede Zahl ist mit ihrer Arithmetik ausgeschrieben,
+> damit die Messung sie **bestaetigen oder widerlegen** kann. Weicht eine
+> Messung ab, wird die Differenz offengelegt, bevor irgendeine Erwartung
+> angepasst wird.
+
+Rechenweg, einmal fuer alle Zeilen (Vertrag 20h/Woche, Mo–Fr, 4h/Tag, volle
+Vertragswochen ⇒ `relation = 1.0`):
+
+```
+committed_voluntary_for_target =  5.0
+dynamic_hours                  = 20.0
+planning_base_for_target       = 20.0 + 5.0 = 25.0
+target_reduction_scale         = 25.0 / 20.0 = 1.25          [D-64-07]
+planning_target_hours          = 25.0 - Reduktion * 1.25
+```
+
+#### Stelle A — `GET /report/week/2026/39` (Woche mit dem 4h-Urlaub bei Rosa)
+
+| Person | Vertrag | `expected_hours` | `dynamic_hours` | `planning_target_hours` | Rechenweg | vor 64-05 |
+|---|---|---|---|---|---|---|
+| Rosa Verkauf | **dynamisch** | 0.0 | 20.0 | **20.0** | `25 − 4 × 1.25 = 25 − 5` | 16.0 |
+| Béla Verknüpft | fest | 20.0 | 20.0 | **25.0** | `25 − 0` | 20.0 |
+
+Béla ist hier der interessante Fall: `planning_target_hours` (25.0) ist jetzt
+**nicht mehr** gleich `expected_hours` (20.0) — die Differenz ist genau die
+unreduzierte Zusage von 5.0. Das ist PSOLL-04 in seiner neuen Fassung.
+
+#### Stelle A — `GET /report/week/2026/38` (Kontrollwoche ohne Urlaub)
+
+| Person | Vertrag | `expected_hours` | `dynamic_hours` | `planning_target_hours` | Rechenweg | vor 64-05 |
+|---|---|---|---|---|---|---|
+| Rosa Verkauf | **dynamisch** | 0.0 | 20.0 | **25.0** | `25 − 0` | 20.0 |
+| Béla Verknüpft | fest | 20.0 | 20.0 | **25.0** | `25 − 0` | 20.0 |
+
+#### Stelle B — `GET /report?year=2026&until_week=39`
+
+39 Vertragswochen (KW 1–39), Feiertags-Reduktion insgesamt 12.0h (aus der
+Vor-Reihe: `768 = 780 − 12`), bei Rosa zusaetzlich 4.0h manueller Urlaub:
+
+| Person | `expected_hours` | `planning_target_hours` | Rechenweg | vor 64-05 |
+|---|---|---|---|---|
+| Rosa Verkauf (dynamisch) | 0.0 | **955.0** | `39 × 25 − (12 + 4) × 1.25 = 975 − 20` | 764.0 |
+| Béla Verknüpft (fest) | 768.0 | **960.0** | `39 × 25 − 12 × 1.25 = 975 − 15` | 768.0 |
+
+**Was die Messung ausserdem bestaetigen muss:** `expected_hours`,
+`dynamic_hours`, `balance_hours` und `overall_hours` sind in **allen** Zeilen
+unveraendert gegenueber der Vor-Reihe. Bewegt sich eine dieser Zahlen, ist das
+ein Befund — Plan 64-05 darf keine Bilanzgroesse angefasst haben.
 
 ### Was diese Zahlen belegen — und was nicht
 
@@ -267,7 +395,7 @@ Buchung auf und ist gegen gewachsenen Bestand nicht reproduziert.
 
 ---
 
-## Teil 5 — Die vier Szenarien
+## Teil 5 — Die fuenf Szenarien
 
 **Einstieg:** `http://localhost:8080/` im Browser oeffnen und von dort in den
 Schichtplan navigieren, dann auf **Jahr 2026, KW 39** stellen.
@@ -285,13 +413,24 @@ zwischen Karten- und Tabellen-Layout steht rechtsbuendig direkt darueber.
 
 **Person:** Rosa Verkauf · **Jahr/KW:** 2026 / 39
 
-**Erwartet** (gemessener API-Wert: `planning_target_hours = 16.0`):
+**Erwartet nach 64-05** (hergeleitet, Messung steht aus — Blocker B-64-05-1;
+`planning_target_hours = 20.0`, Rechenweg `25 − 4 × 1.25`):
 
-- Karten-Layout: Soll **16.0h** (nicht 0.0h). Ist-Wert 0.0h.
-- Tabellen-Layout, Zeile Rosa: dieselbe **16.0h**.
-- Summenzeile der Tabelle: **36.0h** (16.0 Rosa + 20.0 Béla).
-- Optionale Gegenprobe KW 38: dort **20.0h** statt 16.0 — die 4h Urlaub vom
-  Mo 2026-09-21 fehlen in KW 39 genau.
+- Karten-Layout: Soll **20.0h** (nicht 0.0h). Ist-Wert 0.0h.
+- Tabellen-Layout, Zeile Rosa: dieselbe **20.0h**.
+- Summenzeile der Tabelle: **45.0h** (20.0 Rosa + 25.0 Béla).
+- Optionale Gegenprobe KW 38: dort **25.0h** statt 20.0 — die 4h Urlaub vom
+  Mo 2026-09-21 fehlen in KW 39, hochskaliert mit 1.25 also 5.0h.
+
+**Zusaetzlich zu bestaetigen (der eigentliche Punkt von 64-05):** Die
+ehrenamtliche Zusage muss in der Zahl **sichtbar** sein. Ohne Zusage zeigte die
+KW 38 fuer Rosa 20.0h; mit 5.0h Zusage sind es 25.0h. Steht dort weiterhin
+20.0h, ist die Zusage nicht eingeflossen und D-64-05 nicht eingeloest.
+
+**Vorher zu erledigen:** Schritt 2b aus Teil 2 (Zusage setzen), sonst ist die
+neue Semantik nicht beobachtbar.
+
+**Erwartet vor 64-05** (historisch, gemessen): 16.0h / 16.0h / 36.0h / KW38 20.0h.
 
 **Status:** `pending`
 **Beobachtung:** _(vom Nutzer einzutragen)_
@@ -302,16 +441,23 @@ zwischen Karten- und Tabellen-Layout steht rechtsbuendig direkt darueber.
 
 **Person:** Béla Verknüpft · **Jahr/KW:** 2026 / 39
 
-**Erwartet** (gemessener API-Wert: `expected_hours = planning_target_hours = 20.0`):
+**Erwartet nach 64-05** (hergeleitet, Messung steht aus — Blocker B-64-05-1;
+`expected_hours = 20.0`, `planning_target_hours = 25.0`):
 
-- Soll **20.0h**, in beiden Layouts identisch.
-- Keine Verschiebung gegenueber dem, was man bei einem 20h-Vertrag erwartet.
+- Soll **25.0h**, in beiden Layouts identisch.
+- Die Zahl ist jetzt bewusst **groesser** als das bilanzrelevante Soll (20.0h) —
+  um genau die unreduzierte Zusage von 5.0h. Das ist **keine** Auffaelligkeit,
+  sondern PSOLL-04 in seiner neuen Fassung: Byte-Identitaet gilt nur noch bei
+  Zusage 0.
+- Gegenprobe im Stundenkonto: dort steht weiterhin **20.0h** — die Zusage
+  erscheint ausschliesslich auf der Planungsflaeche.
 
 **Einschraenkung, die der Nutzer kennen muss:** Béla hatte vor diesem Plan
 keinen Vertrag; ein echter Vorher/Nachher-Vergleich am gewachsenen Bestand ist
-damit nicht moeglich (siehe Teil 2, B-64-04-1). Die staerkere Aussage
-(`planning_target_hours` byte-identisch mit `expected_hours`) ist auf der
-Leitung gemessen und in 64-01/64-02 automatisiert abgesichert.
+damit nicht moeglich (siehe Teil 2, B-64-04-1). Die Byte-Identitaet bei
+Zusage 0 ist auf der Leitung gemessen (Reihe „vor 64-05") und in 64-01 sowie in
+Block 3 von `planning_target_fixed_contract_differs_by_commitment` automatisiert
+abgesichert.
 
 **Status:** `pending`
 **Beobachtung:** _(vom Nutzer einzutragen)_
@@ -327,6 +473,22 @@ sind reine Feldzugriffe — kein Rechenausdruck, keine Fallback-Bedingung, kein
 `unwrap_or`. Kein Treffer auf `.expected_hours` oder `.dynamic_hours` in der
 Produktionsregion. Alle uebrigen Treffer liegen im Testmodul ab Zeile 333.
 
+**Nacherhebung nach 64-05** (gemessen, nicht angenommen — Plan 64-05 hat die
+Anker-Kommentare an allen drei Stellen und das Feld-Doc-Comment in
+`state/employee_work_details.rs` auf die Zusage-Semantik nachgezogen):
+
+| Gate | Erwartung | Gemessen nach 64-05 |
+|---|---|---|
+| Testmodul-Grenze `#[cfg(test)]` | — | **Zeile 333** (unveraendert) |
+| `planning_target_hours`-Zugriffe in der Produktionsregion | 3 | **3** (Zeilen 123, 186, 238 — unveraendert) |
+| `.expected_hours` / `.dynamic_hours` in der Produktionsregion | 0 | **0** |
+| `planning_target_hours` im Ladepfad (`loader.rs:456`) | 1:1-Durchreichung | **`planning_target_hours: report.planning_target_hours`** — keine Rechnung |
+| Frontend-Tests | 860 | **860 passed / 0 failed** (Baseline unveraendert) |
+
+Die Kommentare nennen die Altfelder bewusst **ausgeschrieben** („das
+bilanzrelevante Soll") statt als Feldpfad — der Invariantentest grept die
+Produktionsregion und zaehlt Kommentare mit.
+
 **Status:** `pending`
 **Beobachtung:** _(vom Nutzer einzutragen)_
 
@@ -336,10 +498,69 @@ Produktionsregion. Alle uebrigen Treffer liegen im Testmodul ab Zeile 333.
 
 **Person:** Rosa Verkauf · **Ansicht:** Stundenkonto / Mitarbeiter-Report
 
-**Erwartet** (gemessene API-Werte): Balance **0.0h**, Soll dort weiterhin **0.0h**,
-Ist 0.0h. Die 16.0h aus Szenario 1 tauchen hier ausdruecklich **nicht** auf — das
-ist der Entwurf der Phase: Planungs-Soll auf der Planungsflaeche, bilanzrelevantes
-Soll auf der Bilanzflaeche.
+**Erwartet nach 64-05** (hergeleitet, Messung steht aus — Blocker B-64-05-1):
+Balance **0.0h**, Soll dort weiterhin **0.0h**, Ist 0.0h. Die 20.0h aus
+Szenario 1 tauchen hier ausdruecklich **nicht** auf — das ist der Entwurf der
+Phase: Planungs-Soll auf der Planungsflaeche, bilanzrelevantes Soll auf der
+Bilanzflaeche.
+
+**Der 64-05-Zusatz:** Die ehrenamtliche Zusage von 5.0h/Woche darf **nirgends**
+im Stundenkonto erscheinen — weder im Soll, noch in der Balance, noch im Ist.
+Die Trennung von bezahltem Soll und Ehrenamt gilt fuer die Bilanz unveraendert;
+nur die Planungsflaeche fuehrt beide zusammen [D-64-05]. Eine Bewegung hier
+waere ein Befund.
+
+**Erwartet vor 64-05** (historisch, gemessen): identisch 0.0 / 0.0 / 0.0.
+
+**Status:** `pending`
+**Beobachtung:** _(vom Nutzer einzutragen)_
+
+---
+
+### Szenario 5 (NEU, Plan 64-05) — 0-Stunden-Vertrag mit Zusage zeigt eine Zahl > 0
+
+**Der Kern des in 64-04 gefundenen Gaps.** Das 64-01-Gate
+(`has_contract_row && dynamic_hours > 0.0`) lieferte fuer eine Person mit
+`expected_hours == 0` und echter Zusage **0.0** — obwohl sie zugesagt hat. Diese
+Klasse ist in keinem der vier bisherigen Szenarien abgedeckt.
+
+**Person:** Rosa Verkauf · **Jahr/KW:** 2026 / **38** (Kontrollwoche ohne Urlaub)
+
+**Vorbereitung — nach Szenario 1, 2 und 4, nicht davor** (dieser Schritt
+zerstoert die Datenlage der vorigen Szenarien):
+
+```bash
+# Rosas Vertrag temporaer auf 0 Vertragsstunden setzen, Zusage bleibt 5.0
+curl -s http://localhost:3000/working-hours/for-sales-person/d907198e-9620-4840-abd7-b0dea0cf5e57 \
+  | jq '.[0] | .expected_hours = 0.0 | .committed_voluntary = 5.0' \
+  | curl -X PUT -H 'Content-Type: application/json' --data-binary @- \
+      http://localhost:3000/working-hours/fd311b06-dec4-43bb-959d-1e5b8a615f0c
+```
+
+**Erwartet** (hergeleitet, Messung steht aus — Blocker B-64-05-1):
+
+```
+dynamic_hours            = 0.0 * 1.0 = 0.0
+committed_voluntary      = 5.0
+planning_base_for_target = 0.0 + 5.0 = 5.0
+target_reduction_scale   = 1.0   (weil dynamic_hours == 0)
+Reduktion in KW 38       = 0.0
+planning_target_hours    = 5.0
+```
+
+- Karten- und Tabellen-Layout, Zeile Rosa: Soll **5.0h** — **nicht 0.0h**.
+- `expected_hours` bleibt **0.0h**; das Stundenkonto bewegt sich nicht.
+- **Das 64-01-Gate lieferte hier 0.0h.** Steht dort 0.0h, ist der Gap nicht
+  geschlossen.
+
+**Ruecknahme** (`.expected_hours` zurueck auf 20.0):
+
+```bash
+curl -s http://localhost:3000/working-hours/for-sales-person/d907198e-9620-4840-abd7-b0dea0cf5e57 \
+  | jq '.[0] | .expected_hours = 20.0' \
+  | curl -X PUT -H 'Content-Type: application/json' --data-binary @- \
+      http://localhost:3000/working-hours/fd311b06-dec4-43bb-959d-1e5b8a615f0c
+```
 
 **Status:** `pending`
 **Beobachtung:** _(vom Nutzer einzutragen)_
@@ -359,8 +580,42 @@ fuer feste Vertraege schon immer an dieser Stelle stand.
 
 ---
 
+## Zusatzfrage D-64-05-Q1 (NEU, Plan 64-05) — negatives Planungs-Soll
+
+Seit Plan 64-05 ist ein **negatives** Planungs-Soll ausdruecklich *assertiertes*
+Verhalten, kein Unfall. Es entsteht, wenn die Reduktionen (manuelle
+Abwesenheits-Stunden, abgeleitete Abwesenheiten, Feiertage) groesser sind als die
+Planungs-Basis. Konkret gemessen im Test
+`planning_target_not_clamped_when_reductions_exceed_base`: ein 0-Stunden-Vertrag
+mit 5.0h Zusage und einer manuellen Urlaubs-Zeile von 20.0h ergibt ein
+Planungs-Soll von **−10.0h** (im Test mit Zusage 10.0).
+
+**Warum nicht geklemmt wird:** Der Bilanzpfad klemmt ebenfalls nicht. Ein
+`.max(0.0)` nur am Planungs-Soll wuerde die Konsistenz zwischen den beiden
+Groessen brechen — wer klemmt, muss beide klemmen oder keine.
+
+**Frage:** Ist ein negatives Planungs-Soll fuer die planende Person lesbar, oder
+soll die Anzeige es abfangen (z. B. bei 0 anzeigen und den Ueberhang separat
+kennzeichnen)? Das ist eine **Produktfrage**, keine technische — die Zahl ist
+fachlich korrekt, aber „−10.0h einplanen" ist als Anweisung sinnlos.
+
+**Antwort:** `pending`
+
+---
+
 ## Ergebnis
 
 **Status:** `awaiting_human` — kein Szenario abgeschlossen. Die Vorarbeit
-(Gates, Trefferliste, Testdaten, Laufzeit-Messungen) ist vollstaendig; die vier
-Sichtpruefungen und die D-64-03-Antwort stehen aus.
+(Gates, Trefferliste, Testdaten, Laufzeit-Messungen) ist vollstaendig; die
+**fuenf** Sichtpruefungen und die Antworten auf D-64-03 und D-64-05-Q1 stehen
+aus.
+
+**Zusaetzlich offen nach Plan 64-05:**
+
+- **B-64-05-1** — die Messreihe „nach 64-05" in Teil 3 ist hergeleitet, nicht
+  gemessen (Dev-Server gestoppt). Vor dem Augenpaar-Durchgang: Server starten,
+  Schritt 2b fahren, Zahlen mit echten Ausgaben ersetzen.
+- **B-64-05-2** — Schritt 2b (Zusage 5.0h an beiden Vertraegen) ist noch nicht
+  ausgefuehrt. Ohne ihn ist die neue Semantik nicht beobachtbar.
+- Die Ruecknahme umfasst jetzt zusaetzlich die beiden `PUT`s aus Schritt 2b und,
+  falls Szenario 5 gefahren wurde, dessen `expected_hours`-Ruecksetzung.
