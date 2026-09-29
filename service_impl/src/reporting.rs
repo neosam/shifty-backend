@@ -116,9 +116,17 @@ pub fn find_working_hours_for_calendar_week(
 /// Pfad, gleiche Selektion). Das Boolean-`.any()`-Pattern des Cap-Flags
 /// generalisiert nicht auf einen numerischen Wert und wird hier nicht kopiert.
 ///
-/// **In Phase 14 existiert kein Produktions-Read-Site für diesen Helper** —
-/// das Feld ist inert. Phase 15 (Reporting-Integration) konsumiert diesen
-/// Helper direkt.
+/// **Ist-Zustand (gemessen in Phase 64, Plan 64-05).** Der in der frueheren
+/// Fassung dieses Doc-Comments angekuendigte Read-Site („Phase 15
+/// (Reporting-Integration) konsumiert diesen Helper direkt") ist **nie
+/// entstanden**. Ein Grep ueber alle `*.rs` liefert ausschliesslich die Definition
+/// hier und die vier Tests im Modul `test_committed_voluntary_for_calendar_week`
+/// derselben Datei — kein Produktions-Aufrufer. Der Helper ist weiterhin inert.
+///
+/// Das Planungs-Soll (Phase 64, PSOLL-01) benutzt diesen Helper **nicht**, sondern
+/// [`committed_voluntary_weight_for_week`]: dieser Helper summiert ohne
+/// `relation`-Skalierung und wuerde in einer Randwoche die ganze Wochenzusage
+/// melden, obwohl der Vertrag die Woche nur teilweise abdeckt [D-64-06].
 pub fn committed_voluntary_for_calendar_week(
     working_hours: &[EmployeeWorkDetails],
     year: u32,
@@ -145,6 +153,12 @@ pub fn committed_voluntary_for_calendar_week(
 /// (weiterhin von Debug-Tests konsumiert; die Range-fn
 /// `committed_voluntary_target_in_range` implementiert die tages-basierte
 /// D-F2-01-Semantik direkt und nutzt diesen Helper nicht mehr).
+///
+/// Phase 64 (D-64-06): Das Planungs-Soll konsumiert diesen Helper **bewusst
+/// nicht**. Seine 7-Tage-Basis ist eine Kalendertags-Skalierung, waehrend der
+/// bezahlte Anteil des Planungs-Solls und die von ihm abgezogenen
+/// Reduktionsterme werktags-basiert sind. Das Planungs-Soll benutzt
+/// [`committed_voluntary_weight_for_week`].
 pub fn committed_voluntary_prorata_for_week(
     working_hours: &[EmployeeWorkDetails],
     year: u32,
@@ -2254,11 +2268,27 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
     }
 }
 
-fn weight_for_week(
+/// Phase 64 (PSOLL-01, D-64-06) — verbatim aus `weight_for_week` extrahiert.
+///
+/// Liefert `(num_potential_workdays_in_week, all_potential_workdays)` fuer eine
+/// ISO-Woche und eine Vertragszeile. Der Koerper ist wortwoertlich der Block, der
+/// bis Phase 64 inline in `weight_for_week` stand — inklusive aller fuenf
+/// Randwochen-Zweige (ausserhalb des Vertrags, Ein-Wochen-Vertrag, From-Woche,
+/// To-Woche, Vollwoche).
+///
+/// **Bewusst KEIN Guard fuer `all_potential_workdays == 0`.** Eine Vertragszeile
+/// ohne einen einzigen gesetzten Wochentag ergibt `relation = 0/0 = NaN`. Das ist
+/// vorbestehendes Verhalten aus `weight_for_week` v1 und bleibt unangetastet; die
+/// Gates der beiden Planungs-Soll-Stellen fangen es, weil `NaN > 0.0` `false` ist.
+///
+/// Der Zweck der Extraktion: `weight_for_week` (bezahlter Anteil) und
+/// `committed_voluntary_weight_for_week` (ehrenamtliche Zusage) lesen `relation`
+/// aus EINER Quelle und koennen deshalb nicht auseinanderdriften.
+fn potential_workdays_for_week(
     year: u32,
     week: u8,
     employee_work_details: &EmployeeWorkDetails,
-) -> (f32, f32, u8, f32) {
+) -> (usize, u8) {
     let workdays: Arc<[time::Weekday]> = employee_work_details.potential_weekday_list();
     let all_potential_workdays = workdays.len() as u8;
 
@@ -2270,7 +2300,7 @@ fn weight_for_week(
     {
         Arc::new([])
     } else if employee_work_details.from_year == employee_work_details.to_year
-        && employee_work_details.from_calendar_week == employee_work_details.to_calendar_week 
+        && employee_work_details.from_calendar_week == employee_work_details.to_calendar_week
     {
         workdays
             .iter()
@@ -2301,6 +2331,60 @@ fn weight_for_week(
     };
 
     let num_potential_workdays_in_week = workdays.iter().count();
+    (num_potential_workdays_in_week, all_potential_workdays)
+}
+
+/// Phase 64 (PSOLL-01, D-64-05 / D-64-06) — der Wochen-Betrag der ehrenamtlichen
+/// **Zusage** fuer das Planungs-Soll.
+///
+/// `committed_voluntary * relation`, mit **demselben** `relation`, mit dem der
+/// bezahlte Anteil in `weight_for_week` skaliert wird (gemeinsame Quelle:
+/// [`potential_workdays_for_week`]).
+///
+/// **Warum diese Skalierung [D-64-06].** Fuer eine Randwoche (Vertrag Mo–Fr, endet
+/// Mittwoch, Zusage 7.0) liefern die drei Kandidaten drei verschiedene Zahlen:
+/// - `committed_voluntary_for_calendar_week` (SUM ohne Skalierung): **7.0** —
+///   meldet die ganze Wochenzusage fuer eine Woche, die der Vertrag nur zu drei
+///   Fuenfteln abdeckt. Verworfen.
+/// - `committed_voluntary_prorata_for_week` (`committed_voluntary / 7.0` je Tag,
+///   D-F2-01): **3.0** (3/7) — mischt zwei Skalierungen in EINER angezeigten Zahl
+///   (Kalendertage gegen Werktage) und unterstellt, dass eine Mo–Fr-Kraft ihr
+///   Ehrenamt auch am Wochenende leistet. Verworfen.
+/// - diese fn: **4.2** (3/5) — eine Skalierung fuer die ganze Zahl, und die
+///   werktags-basierten Reduktionsterme (Abwesenheitsstunden je Werktag) passen
+///   in der Einheit dazu. **Gewaehlt.**
+///
+/// **Warum die F2-Soll-Semantik hier NICHT gilt.**
+/// `committed_voluntary_target_in_range` ist **whole-week-out** (D-54.5-01): eine
+/// ISO-Woche mit *einem* Abwesenheitstag traegt **0** bei. Fuer das F2-Soll ist das
+/// richtig — es ist eine **Bilanz**groesse und stellt Ist/Soll-Symmetrie her. Fuer
+/// das Planungs-Soll waere es falsch: ein Urlaubstag wuerde die ganze Wochenzusage
+/// loeschen, waehrend der bezahlte Anteil nur einen Tag verliert. D-64-05 verlangt
+/// *proportional*, nicht alles-oder-nichts. Planungs-Soll und F2-Soll **duerfen**
+/// sich an Randwochen unterscheiden — das ist gewollt und mit
+/// `committed_voluntary_weight_pins_relation_scaling_d_64_06` festgenagelt, keine
+/// Drift zum Aufraeumen.
+pub fn committed_voluntary_weight_for_week(
+    year: u32,
+    week: u8,
+    employee_work_details: &EmployeeWorkDetails,
+) -> f32 {
+    let (num_potential_workdays_in_week, all_potential_workdays) =
+        potential_workdays_for_week(year, week, employee_work_details);
+    let relation = num_potential_workdays_in_week as f32 / all_potential_workdays as f32;
+    employee_work_details.committed_voluntary * relation
+}
+
+fn weight_for_week(
+    year: u32,
+    week: u8,
+    employee_work_details: &EmployeeWorkDetails,
+) -> (f32, f32, u8, f32) {
+    // Phase 64: die Ermittlung der in der Woche liegenden Vertrags-Werktage steht
+    // jetzt in `potential_workdays_for_week` — wortwoertlich derselbe Block, damit
+    // `committed_voluntary_weight_for_week` dasselbe `relation` liest.
+    let (num_potential_workdays_in_week, all_potential_workdays) =
+        potential_workdays_for_week(year, week, employee_work_details);
     let relation = num_potential_workdays_in_week as f32 / all_potential_workdays as f32;
     (
         if employee_work_details.is_dynamic { 0.0 } else {
@@ -3256,6 +3340,140 @@ mod test_committed_voluntary_for_calendar_week {
             result.abs() < f32::EPSILON,
             "empty slice must yield 0.0 (got {})",
             result
+        );
+    }
+}
+
+/// Phase 64 (PSOLL-01 / D-64-06): Tests fuer
+/// [`committed_voluntary_weight_for_week`].
+///
+/// Dies ist die EINZIGE Stelle, an der die Verteilungsentscheidung D-64-06 direkt
+/// messbar ist — die Integrationstests in
+/// `service_impl/src/test/reporting_planning_target.rs` messen sie nur ueber die
+/// Vollwoche (`relation == 1.0`), wo alle drei Kandidaten dieselbe Zahl liefern.
+#[cfg(test)]
+mod test_committed_voluntary_weight_for_week {
+    use super::*;
+    use shifty_utils::DayOfWeek;
+    use time::macros::datetime;
+    use uuid::Uuid;
+
+    /// Vorlage: `make_work_details_with_committed` des Nachbarmoduls, erweitert um
+    /// `to_day_of_week` — die Randwoche ist ohne diesen Parameter nicht baubar.
+    fn make_work_details(
+        committed_voluntary: f32,
+        from_year: u32,
+        from_week: u8,
+        to_year: u32,
+        to_week: u8,
+        to_day_of_week: DayOfWeek,
+    ) -> EmployeeWorkDetails {
+        EmployeeWorkDetails {
+            id: Uuid::new_v4(),
+            sales_person_id: Uuid::new_v4(),
+            expected_hours: 40.0,
+            from_day_of_week: DayOfWeek::Monday,
+            from_calendar_week: from_week,
+            from_year,
+            to_day_of_week,
+            to_calendar_week: to_week,
+            to_year,
+            workdays_per_week: 5,
+            is_dynamic: false,
+            cap_planned_hours_to_expected: false,
+            committed_voluntary,
+            monday: true,
+            tuesday: true,
+            wednesday: true,
+            thursday: true,
+            friday: true,
+            saturday: false,
+            sunday: false,
+            vacation_days: 0,
+            created: Some(datetime!(2026-01-01 10:00:00)),
+            deleted: None,
+            version: Uuid::new_v4(),
+        }
+    }
+
+    /// Vollwoche innerhalb der Vertragsgrenzen: `relation == 1.0`, die Zusage geht
+    /// unskaliert durch.
+    ///
+    /// Faengt: eine Implementierung, die die Zusage grundsaetzlich durch 7 (oder
+    /// durch `workdays_per_week`) teilt — sie liefert hier 1.43 bzw. 2.0.
+    #[test]
+    fn committed_voluntary_weight_full_week_is_unscaled() {
+        let wh = make_work_details(10.0, 2026, 1, 2026, 52, DayOfWeek::Sunday);
+        let result = committed_voluntary_weight_for_week(2026, 10, &wh);
+        assert!(
+            (result - 10.0).abs() < 0.001,
+            "D-64-06: Vollwoche => relation 1.0 => 10.0 erwartet, got {result}"
+        );
+    }
+
+    /// **Der Drei-Wege-Test.** Vertrag Mo–Fr, endet Mittwoch der gemessenen Woche,
+    /// Zusage 7.0 => 7.0 x 3/5 = 4.2.
+    ///
+    /// Die beiden Gegen-Assertions sind die Bremse gegen eine spaetere
+    /// „Vereinheitlichung" mit einem der verworfenen Kandidaten.
+    #[test]
+    fn committed_voluntary_weight_pins_relation_scaling_d_64_06() {
+        let wh = make_work_details(7.0, 2026, 1, 2026, 10, DayOfWeek::Wednesday);
+        let result = committed_voluntary_weight_for_week(2026, 10, &wh);
+
+        assert!(
+            (result - 4.2).abs() < 0.001,
+            "D-64-06: Randwoche (Vertrag Mo–Fr, endet Mittwoch) => 7.0 x 3/5 = 4.2 \
+             erwartet, got {result}"
+        );
+        assert!(
+            (result - 3.0).abs() > 0.001,
+            "D-64-06 VERWORFEN: {result} entspricht der tages-basierten 7-Tage-\
+             Verteilung (7.0 x 3/7 = 3.0) aus `committed_voluntary_prorata_for_week`. \
+             Das Planungs-Soll skaliert werktags-basiert mit demselben `relation` wie \
+             der bezahlte Anteil — nicht ueber Kalendertage."
+        );
+        assert!(
+            (result - 7.0).abs() > 0.001,
+            "D-64-06 VERWORFEN: {result} entspricht der unskalierten SUM aus \
+             `committed_voluntary_for_calendar_week` (7.0). Das wuerde die ganze \
+             Wochenzusage fuer eine Woche melden, die der Vertrag nur zu drei \
+             Fuenfteln abdeckt."
+        );
+    }
+
+    /// Woche vollstaendig ausserhalb der Vertragsgrenzen: `relation == 0.0`.
+    /// Das ist die Null-Basis-Garantie des neuen Planungs-Soll-Gates auf
+    /// Pure-fn-Ebene.
+    ///
+    /// Faengt: eine Implementierung, die `committed_voluntary` ungeprueft
+    /// durchreicht — sie liefert hier 10.0 und wuerde fuer Wochen ausserhalb des
+    /// Vertrags ein Planungs-Soll erzeugen.
+    #[test]
+    fn committed_voluntary_weight_outside_contract_is_zero() {
+        let wh = make_work_details(10.0, 2026, 1, 2026, 9, DayOfWeek::Sunday);
+        let result = committed_voluntary_weight_for_week(2026, 10, &wh);
+        assert!(
+            result.abs() < 0.001,
+            "D-64-06: Woche ausserhalb der Vertragsgrenzen => 0.0 erwartet, got {result}"
+        );
+    }
+
+    /// Zusage 0, Vollwoche => 0.0. Das ist der Grund, warum
+    /// `target_reduction_scale` an beiden Konstruktionsstellen strukturell auf
+    /// `1.0` faellt und die PSOLL-04-Byte-Identitaet beweisbar bleibt statt
+    /// zufaellig zu sein.
+    ///
+    /// Faengt: eine Implementierung, die statt `committed_voluntary` versehentlich
+    /// `expected_hours` skaliert — sie liefert hier 40.0.
+    #[test]
+    fn committed_voluntary_weight_zero_commitment_is_zero() {
+        let wh = make_work_details(0.0, 2026, 1, 2026, 52, DayOfWeek::Sunday);
+        let result = committed_voluntary_weight_for_week(2026, 10, &wh);
+        assert!(
+            result.abs() < 0.001,
+            "D-64-06: Zusage 0 => 0.0 erwartet (Basis fuer die PSOLL-04-Byte-\
+             Identitaet), got {result}"
         );
     }
 }
