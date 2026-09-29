@@ -583,7 +583,7 @@ Plans:
 
 **Wave 9** *(blockiert durch Wave 8)*
 
-- [ ] 63-11-PLAN.md — Phasen-Verifikation: fünf automatisierte Gates, Fat-Backend- und Rückbau-Grep, `dx serve`-Proxy-Smoke und Human-UAT (von vornherein eingeplant, nicht beim Close entdeckt)
+- [x] 63-11-PLAN.md — Phasen-Verifikation: fünf automatisierte Gates, Fat-Backend- und Rückbau-Grep, `dx serve`-Proxy-Smoke und Human-UAT (von vornherein eingeplant, nicht beim Close entdeckt)
 
 ---
 

@@ -31,12 +31,12 @@ key-decisions:
 patterns-established:
   - "Proxy-Fingerprint-Test: eine vom Dev-Server selbst beantwortete Anfrage liefert den SPA-Fallback (feste Byte-Groesse, kein set-cookie); eine weitergeleitete Anfrage traegt die Backend-Header. Damit ist 'Praefix ohne Proxy-Eintrag' ohne Browser unterscheidbar."
 
-requirements-completed: []  # bewusst leer — siehe Abschnitt "Offen"
+requirements-completed: [PADM-02, PADM-03, PADM-04, PADM-05, PADM-07]
 
 # Metrics
 duration: 45min
-completed: 2026-09-20
-status: awaiting_uat
+completed: 2026-09-29
+status: complete
 ---
 
 # Phase 63 Plan 11: Phasen-Abnahme Summary
@@ -354,9 +354,12 @@ Aus frueheren Plaenen uebernommen, hier gebuendelt (nicht neu aufgerollt):
 | DEF-5 | `session.user_id` traegt kein `ON DELETE CASCADE` — das Loeschen eines Benutzers mit offener Sitzung laeuft in einen Fremdschluessel-Fehler und erscheint als generischer 500 (T-63-05-E, RESEARCH Pitfall 3, Threat T-63-11-D „accept") | Phase 63, vorbestehend |
 | DEF-6 | `/shiftplan/` (SPA) und `.nest("/shiftplan", ...)` (Backend) teilen sich ein Pfad-Segment — die Schichtplan-Seite ist ueber ihre eigene URL nicht erreichbar. Gemessen: `GET /shiftplan/` -> 404, `GET /shiftplan/2026/38` -> 404, waehrend `/absences/` und `/settings/` sauber die SPA liefern. Nur Navigation aus der laufenden Anwendung heraus funktioniert, weil der Router sie clientseitig aufloest — daher nie aufgefallen. Vorbestehend, nicht aus Phase 63; Behebung gehoert in eine eigene Phase. | Phase 63 gefunden, vorbestehend |
 
-**DEF-5 ist noch nicht beobachtet.** Punkt H des UAT verlangt, dass es einmal
-bewusst ausgeloest wird. Bis das geschehen ist, steht es hier als bekannte,
-aber unbestaetigte Kante.
+**DEF-5: als Kante akzeptiert, Beobachtung nicht separat belegt.** Punkt H des
+UAT sah vor, den Fall einmal bewusst auszuloesen. Der Nutzer hat DEF-5 beim
+Abschluss ausdruecklich als bekannte, in dieser Phase nicht zu behebende Kante
+durchgewinkt; ob der 500er dabei tatsaechlich einmal gesehen wurde, ist nicht
+gesondert dokumentiert und wird hier deshalb auch nicht behauptet. Der Eintrag
+bleibt als Deferred Item offen.
 
 ---
 
@@ -424,26 +427,54 @@ DEF-6.
 
 ---
 
-## Offen — zwei blockierende Human-Checkpoints
+## UAT-Durchgang 2 — bestanden
 
-Beide Checkpoints tragen `gate=blocking`. Der Plan sagt woertlich: „Der
-Human-UAT wird nicht uebersprungen und nicht auf den Milestone-Close vertagt."
-Sie wurden deshalb **nicht** selbst freigegeben.
+Vorbedingung erfuellt: die beiden veralteten Fremdprozesse waren zum zweiten
+Durchgang beendet, Backend und `dx serve` liefen frisch gebaut aus dem
+aktuellen Stand. Smoke-Test vor der Uebergabe an den Nutzer, SPA-Signatur
+8298 B als Referenz aus `/user_management/`:
 
-| Checkpoint | Was fehlt |
-|------------|-----------|
-| Task 2 (Schritte 3–5) | Ein Mensch oeffnet `/user_management/`, klickt „Bearbeiten" und liest die Statuscodes der Detail- und Abschnitts-Requests im Netzwerk-Tab ab. |
-| Task 3 (Punkte A–I) | Neun Punkte, davon Punkt F eine reine Lesbarkeits-Frage („wuerdest du nach dem Lesen wissen, was gleich passiert"), Punkt H die Beobachtung von DEF-5 und Punkt I eine ausdrueckliche Zustimmung oder ein Widerspruch zur Planer-Entscheidung, die Zeilen-Loeschung ersatzlos zu streichen. |
+```
+/user_management/         -> 200   8298 B  [SPA]
+/person-detail/<uuid>/    -> 200   8298 B  [SPA]     vorher 404
+/person/<uuid>            -> 200    209 B  [JSON]
+POST /person              -> 422                     vorher 405
+```
 
-**Vorbedingung fuer beide:** Die zwei Fremdprozesse (PID 460885 auf :3000,
-PID 461069 auf :8080) sind 13,5 h alt und kennen die Phase nicht. Fuer den UAT
-muessen sie neu gestartet werden. Ohne Freigabe des Nutzers wird daran nichts
-angefasst.
+### Task 2 — Dev-Proxy im Browser
 
-**`requirements-completed` ist bewusst leer.** PADM-02, PADM-03, PADM-04,
-PADM-05 und PADM-07 werden erst nach bestandenem UAT abgehakt — genau dieser
-Plan ist die Stelle, an der das legitim waere, und genau deshalb darf es nicht
-vorweggenommen werden.
+Freigegeben. Der Nutzer hat `/user_management/` geoeffnet, ueber „Bearbeiten"
+die Detailansicht erreicht und keine fehlschlagenden Requests gemeldet.
+
+### Task 3 — Punkte A bis I
+
+| Punkt | Gegenstand | Ergebnis |
+|---|---|---|
+| A | ein Anlege-Einstieg, die beiden alten Knoepfe weg | freigegeben |
+| B | Anlege-Dialog: Name, zwei Umschalter, Sperre bei leerer Auswahl | freigegeben |
+| C | drei Auspraegungen, je passende Abschnitte, Karte statt leerem Abschnitt | freigegeben |
+| D | Login zuschalten ohne Seitenwechsel | freigegeben |
+| E | Verkaeufer verknuepfen ueber Auswahlliste, nicht Tippfeld | freigegeben |
+| F | drei Loesch-Bestaetigungen verstaendlich | freigegeben |
+| G | reines Benutzerkonto loeschen, verschwindet aus der Liste | freigegeben |
+| H | DEF-5 beobachten (generischer 500 bei offener Sitzung) | als Kante akzeptiert, Beobachtung nicht gesondert belegt — siehe DEF-5 |
+| I | keine Zeilen-Loeschung mehr in der Liste (D-63-03) | **ausdruecklich zugestimmt** |
+
+**Punkt I war die einzige Produktentscheidung im UAT.** Die generische
+Zeilen-Bestaetigung konnte die auspraegungs-bewusste Zusage nicht halten;
+Loeschen lebt seit 63-09 nur noch auf der Detailseite. Der Nutzer hat dem auf
+ausdrueckliche Nachfrage zugestimmt — nicht durch ein allgemeines „sieht gut
+aus", sondern nach gezielter Vorlage der Entscheidung.
+
+**Wortlaut-Treue:** Der Nutzer hat A–G mit „Sieht gut aus" freigegeben und I
+sowie H anschliessend auf Nachfrage mit „Beides ok". Punkt-fuer-Punkt-Protokolle
+pro Kriterium liegen nicht vor; die Tabelle gibt wieder, was freigegeben wurde,
+nicht mehr.
+
+**`requirements-completed` ist jetzt gefuellt:** PADM-02, PADM-03, PADM-04,
+PADM-05 und PADM-07. Dieser Plan ist die dafuer vorgesehene Stelle — zehn der
+elf Plaene der Phase tragen dieselben IDs, deshalb wurden sie in keinem
+vorherigen Plan abgehakt.
 
 ---
 
