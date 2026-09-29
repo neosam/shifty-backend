@@ -142,6 +142,32 @@ expected(day) = if working_day(contract, day) then
 expected(from..to) = Σ expected(day) for day in from..to
 ```
 
+### Two kinds of "Soll": balance-relevant expected vs planning target
+
+Since Phase 64 the weekly short report carries **two** target figures.
+They are computed from the same three sources (contract, absences,
+public holidays) but answer different questions, and they behave
+differently on exactly one kind of contract — the dynamic one.
+
+| | `expected_hours` — *balance-relevant expected* | `planning_target_hours` — *planning target* |
+| --- | --- | --- |
+| What it is for | the `expected` leg of the base formula above | the figure a planner compares the assigned shifts against |
+| Dynamic contract | deliberately **`0`** | deliberately **not `0`** |
+| Enters the balance? | **yes** — it *is* the balance's expectation | **no**, never; also not Carryover, Billing snapshot, or availability |
+| Where it becomes visible | the hour-account surfaces (Employee Details, weekly histogram, employee list) | the overview below the shiftplan only |
+
+**The one sentence to remember:** on a dynamic contract the
+balance-relevant expected is deliberately zero, because *expected equals
+actual*; and the planning target is deliberately non-zero, because you
+cannot plan against a target of zero.
+
+Non-dynamic contracts are unaffected: there both figures carry the same
+number, by construction and not by coincidence. The reasoning — why the
+planning target needs its own reduction gate, and why it must not be
+"unified" back into the balance gate — is in
+[F07 §2.7](../features/F07-reporting-balance.md). Do not re-derive it
+here; there is exactly one place where it belongs.
+
 ## What is `carryover`?
 
 **Carryover** is the frozen year-end balance from the previous year.
@@ -194,7 +220,7 @@ Details: [F06](../features/F06-vacation-management.md).
 
 ## Where the calculation happens
 
-Centrally in `service_impl/src/reporting.rs` (2205 lines), aggregated
+Centrally in `service_impl/src/reporting.rs` (3261 lines), aggregated
 over `sales_person`, `booking`, `extra_hours`, `absence`, `carryover`,
 `special_days`.
 
@@ -202,12 +228,26 @@ Internal reads run with `Authentication::Full` — the REST handler has
 already verified the user auth, and the reporting layer needs the raw
 data without a per-read permission guard.
 
+The per-week short-report figures are not assembled in one place but in
+**two** — `assemble_weeks` (shared by the single-week and the whole-year
+read) and `get_reports_for_all_employees`. The **planning target** is
+produced at both of them, exactly like every other short-report figure;
+only its reduction condition deliberately differs from the one the
+balance formula uses. Reason and consequences:
+[F07 §2.7 and §3](../features/F07-reporting-balance.md).
+
 ## Where the calculation becomes visible
 
 - **Weekly Overview** — frontend page with blocks per Sales Person.
 - **My Shifts** — Sales Person's own view.
 - **Employee Details** — HR view with time range selector.
 - **Billing Period Details** — the frozen version.
+- **Overview below the shiftplan** — the only surface that shows the
+  **planning target** rather than the balance-relevant expected: the
+  `actual / target` figure, the utilisation bars and the target sum of
+  the footer row. Everything the hour account shows — Employee Details,
+  weekly histogram, employee list, every balance figure — keeps showing
+  the balance-relevant expected.
 
 ## Why this is complicated
 
