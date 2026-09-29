@@ -384,6 +384,12 @@ pub struct ShortEmployeeReportTO {
     pub expected_hours: f32,
     pub dynamic_hours: f32,
     pub overall_hours: f32,
+    // Phase 64 (PSOLL-01..PSOLL-04): feiertags-/abwesenheitsreduziertes
+    // Vertrags-Soll fuer die PLANUNG — auch bei dynamischen Vertraegen > 0.
+    // `#[serde(default)]` haelt die Wire-Kompat additiv: eine alte Antwort ohne
+    // das Feld deserialisiert weiterhin (zu 0.0).
+    #[serde(default)]
+    pub planning_target_hours: f32,
     #[serde(default)]
     pub volunteer_hours: f32,
     // Phase 55 (HR-ALERT-01/03, 55-03): backend-berechneter Alert-Flag fuer den
@@ -405,6 +411,7 @@ impl From<&service::reporting::ShortEmployeeReport> for ShortEmployeeReportTO {
             expected_hours: report.expected_hours,
             dynamic_hours: report.dynamic_hours,
             overall_hours: report.overall_hours,
+            planning_target_hours: report.planning_target_hours,
             volunteer_hours: report.volunteer_hours,
             has_pending_rebooking: report.has_pending_rebooking,
             pending_rebooking_id: report.pending_rebooking_id,

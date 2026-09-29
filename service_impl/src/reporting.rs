@@ -1129,6 +1129,8 @@ impl<Deps: ReportingServiceDeps> ReportingServiceImpl<Deps> {
                     dynamic_hours,
                     expected_hours,
                     overall_hours,
+                    // SCAFFOLD-64-01: Platzhalter, wird in Task 3 durch die echte Rechnung ersetzt.
+                    planning_target_hours: 0.0,
                     vacation_hours: vacation_hours + absence_derived_vacation_hours,
                     sick_leave_hours: sick_leave_hours + absence_derived_sick_leave_hours,
                     holiday_hours,
@@ -1653,6 +1655,8 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 dynamic_hours,
                 expected_hours,
                 overall_hours,
+                // SCAFFOLD-64-01: Platzhalter, wird in Task 3 durch die echte Rechnung ersetzt.
+                planning_target_hours: 0.0,
                 vacation_hours: weekly_hours.vacation_hours + absence_derived_vacation_hours,
                 sick_leave_hours: weekly_hours.sick_leave_hours + absence_derived_sick_leave_hours,
                 holiday_hours: weekly_hours.holiday_hours,

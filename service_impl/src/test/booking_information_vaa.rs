@@ -218,6 +218,7 @@ fn build_service(
                                 balance_hours: 0.0,
                                 dynamic_hours: 0.0,
                                 expected_hours: 8.0,
+                                planning_target_hours: 8.0,
                                 overall_hours: 0.0,
                                 vacation_hours: 0.0,
                                 sick_leave_hours: 0.0,

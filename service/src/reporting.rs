@@ -151,6 +151,17 @@ pub struct ShortEmployeeReport {
     pub dynamic_hours: f32,
     pub expected_hours: f32,
     pub overall_hours: f32,
+    // Phase 64 (PSOLL-01..PSOLL-04): das feiertags- und abwesenheitsreduzierte
+    // Vertrags-Soll fuer die PLANUNG. Anders als `expected_hours` wird dieses
+    // Feld unabhaengig von `is_dynamic` gefuellt — auch fuer einen dynamischen
+    // Vertrag traegt es die (reduzierte) Vertragsgroesse und nicht 0.
+    //
+    // Es geht in KEINE Bilanz ein: Balance, Carryover, Billing-Snapshot und die
+    // Verfuegbarkeitsrechnung (`available_hours` in
+    // `service_impl::booking_information`) lesen weiterhin ausschliesslich
+    // `expected_hours` bzw. `dynamic_hours`. Das Feld ist reine Anzeige-Groesse
+    // fuer die Schichtplan-Uebersicht.
+    pub planning_target_hours: f32,
     pub vacation_hours: f32,
     pub sick_leave_hours: f32,
     pub holiday_hours: f32,

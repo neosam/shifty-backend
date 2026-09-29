@@ -1279,6 +1279,7 @@ mod working_hours_mini_loader_tests {
             },
             balance_hours: 0.0,
             expected_hours: 8.0,
+            planning_target_hours: 8.0,
             dynamic_hours: 8.0,
             overall_hours: 5.0,
             volunteer_hours: 0.0,
