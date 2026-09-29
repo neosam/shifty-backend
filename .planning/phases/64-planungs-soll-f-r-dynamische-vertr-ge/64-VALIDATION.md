@@ -1,9 +1,9 @@
 ---
 phase: 64
 slug: planungs-soll-f-r-dynamische-vertr-ge
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: approved
+nyquist_compliant: true
+wave_0_complete: false  # Testdatei wird in Plan 64-01 Task 2 angelegt
 created: 2026-09-29
 ---
 
@@ -56,11 +56,22 @@ Requirements an ihre Nachweise, der Planner trägt die IDs ein.
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| {tbd} | {tbd} | 1 | PSOLL-01 | — | N/A (reine Anzeige-Berechnung) | unit | `cargo test -p service_impl test_planning_target_dynamic_get_week` | ❌ W0 | ⬜ pending |
-| {tbd} | {tbd} | 1 | PSOLL-03 | — | N/A | unit | `cargo test -p service_impl test_planning_target_parity_both_sites` | ❌ W0 | ⬜ pending |
-| {tbd} | {tbd} | 1 | PSOLL-04 | — | N/A | unit | `cargo test -p service_impl test_available_hours_unchanged_dynamic` | ❌ W0 | ⬜ pending |
-| {tbd} | {tbd} | 1 | PSOLL-04 | — | N/A | unit | `cargo test -p service_impl test_planning_target_matches_expected_for_fixed_contract` | ❌ W0 | ⬜ pending |
-| {tbd} | {tbd} | 2 | PSOLL-02 | — | N/A | statisch | siehe § Manual-Only — Grep-Assertion, kein sinnvoller Unit-Test | n/a | ⬜ pending |
+| 64-01 / Task 2 (RED), Task 3 (GREEN) | 64-01 | 1 | PSOLL-01 | — | N/A (reine Anzeige-Berechnung) | unit | `cargo test -p service_impl test_planning_target_dynamic_get_week` | ❌ W0 | ⬜ pending |
+| 64-01 / Task 2 (RED), Task 3 (GREEN) | 64-01 | 1 | PSOLL-01 | — | N/A | unit | `cargo test -p service_impl test_planning_target_dynamic_all_employees` | ❌ W0 | ⬜ pending |
+| 64-01 / Task 2 (RED), Task 3 (GREEN) | 64-01 | 1 | PSOLL-03 | — | N/A | unit | `cargo test -p service_impl test_planning_target_parity_both_sites` | ❌ W0 | ⬜ pending |
+| 64-01 / Task 2 | 64-01 | 1 | PSOLL-04 | T-64-02 | Verfuegbarkeitsrechnung liest weiterhin das bilanzrelevante Soll | unit | `cargo test -p service_impl test_available_hours_unchanged_dynamic` | ❌ W0 | ⬜ pending |
+| 64-01 / Task 2 (RED), Task 3 (GREEN) | 64-01 | 1 | PSOLL-04 | — | N/A | unit | `cargo test -p service_impl test_planning_target_matches_expected_for_fixed_contract` | ❌ W0 | ⬜ pending |
+| 64-01 / Task 3 | 64-01 | 1 | PSOLL-04 | T-64-02, T-64-03 | kein Feldname in Verfuegbarkeitsrechnung und Snapshot-Schreiber, Snapshot-Version 13 | statisch | Quellcode-Gates in `64-01-PLAN.md` Task 3 `<verify>` | n/a | ⬜ pending |
+| 64-02 / Task 2 | 64-02 | 2 | PSOLL-01 | — | N/A | component (SSR) | `cargo test --manifest-path shifty-dioxus/Cargo.toml working_hours_mini_overview_dynamic_contract_shows_planning_target` | ❌ W0 | ⬜ pending |
+| 64-02 / Task 2 | 64-02 | 2 | PSOLL-02 | — | N/A | statisch (Quellcode-Invariante im Testmodul) | `cargo test --manifest-path shifty-dioxus/Cargo.toml working_hours_mini_overview_reads_planning_target_only` | ❌ W0 | ⬜ pending |
+| 64-04 / Task 2 | 64-04 | 4 | PSOLL-01, PSOLL-02 | — | N/A | manuell | siehe § Manual-Only — blockierender Checkpoint | n/a | ⬜ pending |
+
+**Aenderung gegenueber dem Entwurf:** PSOLL-02 galt hier als „kein sinnvoller Unit-Test moeglich".
+Das gilt nur fuer die Vollstaendigkeitsaussage („keine Fallback-Regel welcher Art auch immer").
+Ein dauerhafter Quellcode-Invariantentest in derselben Datei ist sehr wohl moeglich und im Repo
+praezedenzgestuetzt (`working_hours_mini_overview_no_legacy_classes_in_source` liest die eigene
+Quelle und isoliert die Produktionsregion). Plan 64-02 baut ihn; die Sichtpruefung pro
+Trefferstelle bleibt zusaetzlich im UAT.
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -76,10 +87,17 @@ Requirements an ihre Nachweise, der Planner trägt die IDs ein.
 - [ ] Das Cross-Site-Paritätsmuster für PSOLL-03 ist in
       `reporting_additive_merge.rs` (Zeilen 962–1241) vorhanden und 1:1 kopierbar —
       nicht neu erfinden
-- [ ] Falls D-64-01 umgesetzt wird: die bestehenden
+- [ ] D-64-01 IST entschieden (alle drei Anzeigestellen, Plan 64-02): die bestehenden
       `working_hours_mini_overview.rs`-Tests um das neue Feld erweitern
-      (`make_row`-Helfer, `WorkingHoursMini`-Literale), sonst Compile-Fehler durch
-      fehlendes Struct-Feld
+      (`make_row`-Helfer plus elf `WorkingHoursMini`-Literale), sonst Compile-Fehler durch
+      fehlendes Struct-Feld. Plan 64-02 Task 1.
+- [ ] Zusaetzlicher Wave-0-Befund des Planners: das neue DTO-Feld bricht drei
+      `ShortEmployeeReportTO`-Literale im Frontend (`loader.rs` Testhelfer `make_report`,
+      `tests/volunteer_work_tests.rs` zweimal) und drei `ShortEmployeeReport`-Literale im
+      Backend-Testbaum (`booking_information_weekly_summary_year_boundary.rs` zweimal,
+      `booking_information_vaa.rs` einmal). Weil `shifty-dioxus` kein Workspace-Member ist,
+      MELDET `cargo test --workspace` den Frontend-Bruch nicht. Plan 64-01 Task 1 zieht deshalb
+      alle sechs Literale mit und fuehrt die Frontend-Gates in seiner Verifikation.
 
 ---
 
@@ -111,10 +129,10 @@ Diese vier sind der Grund, warum diese Phase eine eigene Test-Matrix braucht:
 ## Validation Sign-Off
 
 - [ ] Alle Tasks haben `<automated>` verify oder eine Wave-0-Abhängigkeit
-- [ ] Sampling-Kontinuität: keine drei aufeinanderfolgenden Tasks ohne automatisierten Verify
-- [ ] Wave 0 deckt alle MISSING-Referenzen
-- [ ] Keine Watch-Mode-Flags
-- [ ] Feedback-Latenz < 15 s
-- [ ] `nyquist_compliant: true` im Frontmatter gesetzt
+- [x] Sampling-Kontinuität: keine drei aufeinanderfolgenden Tasks ohne automatisierten Verify
+- [x] Wave 0 deckt alle MISSING-Referenzen
+- [x] Keine Watch-Mode-Flags
+- [x] Feedback-Latenz < 15 s
+- [x] `nyquist_compliant: true` im Frontmatter gesetzt
 
-**Approval:** pending
+**Approval:** approved (Planner, 2026-09-29) — Task-IDs eingetragen, PSOLL-02 auf einen automatisierten Quellcode-Invariantentest gehoben, zusaetzlicher Wave-0-Befund (sechs Struct-Literale) ergaenzt.
