@@ -5,8 +5,8 @@ milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 64
 current_phase_name: Planungs-Soll für dynamische Verträge
 status: executing
-stopped_at: Completed 64-03-PLAN.md
-last_updated: "2026-09-29T19:20:00.000Z"
+stopped_at: 64-04 Vorflug fertig — blockierender UAT-Checkpoint offen
+last_updated: "2026-09-29T19:15:00.000Z"
 progress:
   total_phases: 5
   completed_phases: 4
@@ -32,7 +32,29 @@ progress:
 ## Current Position
 
 Phase: 64 (Planungs-Soll für dynamische Verträge) — EXECUTING
-Plan: 4 von 4 (64-01, 64-02 und 64-03 abgeschlossen)
+Plan: 4 von 4 (64-01, 64-02 und 64-03 abgeschlossen; **64-04 haengt am UAT**)
+Status 64-04: **AWAITING_UAT — nicht abgeschlossen.** Der Vorflug (Task 1) ist
+gefahren und committet (`3b60dff4`): alle Gates gruen (Backend 1173 passed / 0
+failed, davon 963 lib + 104 Integration; Frontend 860 passed; Clippy
+`--all-targets` 0 Warnungen; WASM-Build gruen), die PSOLL-02-Trefferliste liegt
+als Tabelle in `64-UAT.md` (drei reine Feldzugriffe in der Produktionsregion, Z.
+123/186/238, Testmodul-Grenze Z. 333), und das Planungs-Soll ist erstmals an der
+laufenden Dev-Instanz gemessen: dynamischer Vertrag `planning_target_hours` 20.0
+(KW 38) bzw. 16.0 (KW 39 mit 4h Urlaub) bei `expected_hours` 0.0; fester Vertrag
+byte-identisch 20.0 = 20.0 und 768.0 = 768.0; Loeschen des Urlaubseintrags setzt
+den Wert zurueck. **Die vier Browser-Szenarien und die D-64-03-Frage stehen aus
+und sind NICHT vom Agenten abgehakt.** PSOLL-01 und PSOLL-02 bleiben offen.
+Zwei Befunde: **B-64-04-1** — der Dev-Bestand hatte keinen einzigen
+Arbeitszeitvertrag, PSOLL-01 waere nicht beobachtbar gewesen; zwei Vertraege und
+ein Urlaubstag wurden ueber die REST-API angelegt und muessen in Task 3
+zurueckgenommen werden (IDs und Kommandos in `64-UAT.md` Teil 2).
+**B-64-04-2** — `balance_hours` des festen Vertrags sprang einmalig um −12.0 und
+blieb dann stabil; ungeklaert, nicht durch diese Phase verursacht (beide
+Phase-64-Felder waren in allen fuenf Messungen unveraendert), nur auf frisch
+angelegten Testdaten beobachtet. DEF-6 ist bestaetigt: `/shiftplan/2026/39` per
+direkter URL liefert auch auf :8080 einen 404 — fuer das UAT von
+`http://localhost:8080/` aus navigieren.
+
 Status: 64-03 ist ausgefuehrt und gruen — das Docs-Freshness-Gate der Phase ist zentral
 geschlossen. Die vier von der CLAUDE.md-Trigger-Tabelle geforderten Dateien (F07 und
 time-accounting, je EN und DE) trennen jetzt bilanzrelevantes Soll und Planungs-Soll,
