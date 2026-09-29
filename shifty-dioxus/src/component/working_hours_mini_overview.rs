@@ -105,12 +105,22 @@ fn CardsLayout(props: LayoutInnerProps) -> Element {
                 {
                     let sales_person_id = working_hour.sales_person_id;
                     let actual = working_hour.actual_hours;
-                    // TARGET = expected_hours (das feiertags-/absence-reduzierte Soll), NICHT
-                    // dynamic_hours: der Band-Guard (HSP-03) hält dynamic_hours frei vom automatisch
-                    // angerechneten Feiertag, sodass ein derived Holiday sonst nie im angezeigten
-                    // Soll erschiene. expected_hours reflektiert manuelle UND automatische Feiertage
-                    // gleich — konsistent zum Stundenkonto/Report.
-                    let target = working_hour.expected_hours;
+                    // ANZEIGESTELLE 1 von 3 (Phase 64, PSOLL-01). TARGET ist das
+                    // Planungs-Soll: feiertags- und abwesenheitsreduziert wie das
+                    // bilanzrelevante Soll, aber auch fuer dynamische Vertraege groesser 0 —
+                    // genau die Zahl, die ein Planer beim Verteilen von Schichten ansieht.
+                    // Das Planungs-Soll bewegt die Bilanz NICHT; das Stundenkonto bleibt die
+                    // maßgebliche Bilanzflaeche. Der Wert kommt fertig aus dem Backend, hier
+                    // wird er nur gelesen (PSOLL-02).
+                    // Das rohe dynamische Soll bleibt weiterhin untauglich als Anzeige-Ziel:
+                    // der Band-Guard (HSP-03) haelt es frei vom automatisch angerechneten
+                    // Feiertag, sodass ein derived Holiday darin nie erschiene. Das
+                    // Planungs-Soll zieht Feiertage und Abwesenheiten backend-seitig ab.
+                    // Folge fuer die Fortschrittsanzeige: Balken und Farbschwellen unten messen
+                    // ab jetzt gegen diese Bindung. Fuer feste Vertraege ist das dieselbe Zahl
+                    // wie bisher; fuer dynamische Vertraege waren sie bei einem Soll von Null
+                    // degeneriert und werden hier erstmals aussagekraeftig.
+                    let target = working_hour.planning_target_hours;
                     let actual_hours_str = format_hours(actual, 1);
                     let target_hours_str = format_hours(target, 1);
                     let balance_hours_str = format_hours(working_hour.balance_hours, 1);
@@ -167,8 +177,13 @@ fn CardsLayout(props: LayoutInnerProps) -> Element {
 fn TableLayout(props: LayoutInnerProps) -> Element {
     let i18n = I18N.read().clone();
     let total_actual: f32 = props.rows.iter().map(|r| r.actual_hours).sum();
-    // TARGET total uses expected_hours (holiday-/absence-reduced Soll) — see the per-row note.
-    let total_target: f32 = props.rows.iter().map(|r| r.expected_hours).sum();
+    // ANZEIGESTELLE 3 von 3 (Phase 64, PSOLL-01): die Fusszeile summiert die Spalte
+    // darueber. Sie wechselt, weil die Zeilen-Stelle wechselt — bliebe sie stehen,
+    // widerspraeche die Fusszeile ihrer eigenen Spalte. Zur Bedeutung des Werts siehe
+    // den Kommentar an der Zeilen-Stelle in `TableLayout` weiter unten.
+    // Die Spaltensumme ueber Personen ist Darstellung, keine Ableitungsregel fuer den
+    // Wert einer einzelnen Person — PSOLL-02 bleibt unberuehrt.
+    let total_target: f32 = props.rows.iter().map(|r| r.planning_target_hours).sum();
     let total_actual_str = format_hours(total_actual, 1);
     let total_target_str = format_hours(total_target, 1);
 
@@ -208,12 +223,19 @@ fn TableLayout(props: LayoutInnerProps) -> Element {
                         {
                             let sales_person_id = working_hour.sales_person_id;
                             let actual = working_hour.actual_hours;
-                            // TARGET = expected_hours (das feiertags-/absence-reduzierte Soll), NICHT
-                    // dynamic_hours: der Band-Guard (HSP-03) hält dynamic_hours frei vom automatisch
-                    // angerechneten Feiertag, sodass ein derived Holiday sonst nie im angezeigten
-                    // Soll erschiene. expected_hours reflektiert manuelle UND automatische Feiertage
-                    // gleich — konsistent zum Stundenkonto/Report.
-                    let target = working_hour.expected_hours;
+                            // ANZEIGESTELLE 2 von 3 (Phase 64, PSOLL-01). Dieselbe Information
+                            // wie im Karten-Layout, nur dichter dargestellt: das Planungs-Soll,
+                            // feiertags- und abwesenheitsreduziert, auch fuer dynamische
+                            // Vertraege groesser 0, ohne Wirkung auf die Bilanz, fertig
+                            // berechnet aus dem Backend (PSOLL-02, nur gelesen).
+                            // Diese Stelle wechselt gemeinsam mit dem Karten-Layout: wuerde nur
+                            // dort gewechselt, zeigte dieselbe Person in der Tabelle 0 und in
+                            // den Karten das Planungs-Soll — ein gemischter Zustand waere
+                            // schlechter als der heutige einheitliche Fehler.
+                            // Das rohe dynamische Soll bleibt untauglich als Anzeige-Ziel: der
+                            // Band-Guard (HSP-03) haelt es frei vom automatisch angerechneten
+                            // Feiertag.
+                            let target = working_hour.planning_target_hours;
                             let balance = working_hour.balance_hours;
                             let actual_str = format_hours(actual, 1);
                             let target_str = format_hours(target, 1);
