@@ -135,6 +135,41 @@ Permission-Beobachtungen, 62–64 gegen sichtbares Verhalten im Browser.
   Folge für PSOLL-04: Zeichengleichheit mit `expected_hours` gilt nur noch bei
   Zusage 0; mit Zusage muss sich das Planungs-Soll um genau diese unterscheiden.
 
+- **D-64-06: Die Zusage wird mit `relation` skaliert, nicht tages-basiert pro-rata.**
+  Der Wochen-Betrag der Zusage ist `committed_voluntary * relation`, mit **demselben**
+  `relation`, mit dem der bezahlte Anteil in `weight_for_week` skaliert wird (gemeinsame
+  Quelle: `potential_workdays_for_week`). An einer Randwoche (Vertrag Mo–Fr, endet
+  Mittwoch, Zusage 7.0) ergibt das **4.2** (3/5). Begründet verworfen: die unskalierte
+  SUM `committed_voluntary_for_calendar_week` (**7.0** — überzeichnet die Zusage genau
+  dort, wo der bezahlte Anteil korrekt gekürzt wird) und die 7-Tage-Verteilung
+  `committed_voluntary_prorata_for_week` (**3.0** — mischt Kalendertags- und
+  Werktags-Skalierung in einer angezeigten Zahl).
+
+  **`committed_voluntary_target_in_range` wird NICHT wiederverwendet.** Seine
+  Abwesenheits-Semantik ist whole-week-out (D-54.5-01): eine Woche mit *einem*
+  Abwesenheitstag trägt 0 bei. Für das F2-Soll (Bilanz, Ist/Soll-Symmetrie) ist das
+  richtig; für das Planungs-Soll wäre es falsch — ein Urlaubstag würde die ganze
+  Wochenzusage löschen, während der bezahlte Anteil nur einen Tag verliert. D-64-05
+  verlangt *proportional*.
+
+  **Folge:** Planungs-Soll und F2-Soll dürfen sich an Randwochen unterscheiden. Das ist
+  gewollt und mit `committed_voluntary_weight_pins_relation_scaling_d_64_06` festgenagelt
+  — keine Drift, die jemand „aufräumen" soll.
+
+- **D-64-07: Die Reduktion greift proportional, über `target_reduction_scale`.**
+  Eine reine Subtraktion der Reduktionsterme von der vergrößerten Basis würde **nur den
+  bezahlten Anteil** kürzen: die Abwesenheitsstunden sind aus `expected_hours` abgeleitet
+  (Stunden je Werktag), nicht aus `expected_hours + committed_voluntary`. Beispiel: 40h
+  Vertrag + 10h Zusage, ein Abwesenheitstag von fünf → Reduktion 8h → `50 − 8 = 42`,
+  obwohl die Person nur 4/5 der Woche da ist und 4/5 von 50 = **40** zusagt. Die
+  Reduktion wird deshalb um genau den Faktor hochskaliert, um den die Basis gewachsen
+  ist: `target_reduction_scale = planning_base_for_target / dynamic_hours`, bei
+  `dynamic_hours == 0` gleich `1.0`.
+
+  **Nebenfolge, die den PSOLL-04-Beweis trägt:** bei Zusage 0 ist
+  `target_reduction_scale == 1.0`, die Formel fällt Zeile für Zeile auf die 64-01-Formel
+  zurück — die Byte-Identität bleibt strukturell beweisbar statt zufällig.
+
 - **Kein Snapshot-Schema-Version-Bump — für beide Features.**
   `CURRENT_SNAPSHOT_SCHEMA_VERSION` bleibt **13**. `person` ist rein administrativ
   (kein neuer persistierter `value_type`, keine geänderte Computation, kein
@@ -695,7 +730,7 @@ Plans:
 - [ ] 64-02-PLAN.md — Frontend: Feld an `WorkingHoursMini`, 1:1-Durchreichung im Ladepfad, alle drei Anzeigestellen umgestellt (D-64-01), dauerhafter Quellcode-Invariantentest für PSOLL-02
 - [ ] 64-03-PLAN.md — Docs-Freshness-Gate zentral: `F07-reporting-balance` + `time-accounting`, je EN und DE
 - [ ] 64-04-PLAN.md — Laufzeit-Verifikation + UAT: Zahl > 0 im Browser, Gegenprobe fester Vertrag, PSOLL-02-Review pro Trefferstelle
-- [ ] 64-05-PLAN.md — **Gap-Closure aus dem UAT von 64-04:** die ehrenamtliche Zusage (`committed_voluntary`) fließt in das Planungs-Soll ein (D-64-05), neues Gate für `expected_hours == 0` mit Zusage > 0, proportionale Reduktion (D-64-07), Verteilung per `relation` gepinnt (D-64-06), Doku-Korrektur EN+DE, UAT-Erwartungen nachgeführt
+- [x] 64-05-PLAN.md — **Gap-Closure aus dem UAT von 64-04:** die ehrenamtliche Zusage (`committed_voluntary`) fließt in das Planungs-Soll ein (D-64-05), neues Gate für `expected_hours == 0` mit Zusage > 0, proportionale Reduktion (D-64-07), Verteilung per `relation` gepinnt (D-64-06), Doku-Korrektur EN+DE, UAT-Erwartungen nachgeführt
 
 **Gepinnte Planungsentscheidungen** (keine discuss-phase — die ROADMAP-Sektion, `64-RESEARCH.md`
 und `64-PATTERNS.md` tragen diese Last):
@@ -721,7 +756,7 @@ und `64-PATTERNS.md` tragen diese Last):
 | 61. PersonService + Auflösung `sales_person_user` | 10/10 | Complete | 2026-09-17 |
 | 62. Personen-Verzeichnis — eine Liste statt Tabs | 7/7 | Complete | 2026-09-20 |
 | 63. Personen-Detailansicht + Ausprägungs-Aktionen | 11/11 | Complete | 2026-09-29 |
-| 64. Planungs-Soll für dynamische Verträge | 3/4 | In Progress | — |
+| 64. Planungs-Soll für dynamische Verträge | 3/5 | In Progress | — |
 
 **Requirements-Coverage: 18/18 gemappt**, keine Waisen, keine Doppelung.
 

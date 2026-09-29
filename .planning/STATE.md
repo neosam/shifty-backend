@@ -5,14 +5,14 @@ milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 64
 current_phase_name: Planungs-Soll für dynamische Verträge
 status: executing
-stopped_at: 64-04 Vorflug fertig — blockierender UAT-Checkpoint offen
-last_updated: "2026-09-29T19:15:00.000Z"
+stopped_at: 64-05 abgeschlossen (Gap-Closure) — 64-04 haengt weiter am UAT
+last_updated: "2026-09-29T21:40:00.000Z"
 progress:
   total_phases: 5
   completed_phases: 4
-  total_plans: 36
+  total_plans: 37
   completed_plans: 35
-  percent: 97
+  percent: 95
 ---
 
 # Project State: Shifty Backend
@@ -32,7 +32,38 @@ progress:
 ## Current Position
 
 Phase: 64 (Planungs-Soll für dynamische Verträge) — EXECUTING
-Plan: 4 von 4 (64-01, 64-02 und 64-03 abgeschlossen; **64-04 haengt am UAT**)
+Plan: 5 von 5 (64-01, 64-02, 64-03 und **64-05** abgeschlossen; **64-04 haengt
+weiter am UAT**)
+
+Status 64-05 (Gap-Closure, abgeschlossen): Das im UAT von 64-04 gefundene Loch
+ist geschlossen — das Planungs-Soll ist jetzt eine **Zusage**-Groesse [D-64-05]:
+die ehrenamtliche Zusage (`committed_voluntary`) fliesst an beiden
+`ShortEmployeeReport`-Konstruktionsstellen ein, reduziert um Abwesenheiten und
+Feiertage, und zwar **proportional** ueber `target_reduction_scale` [D-64-07];
+die Verteilung ist `committed_voluntary * relation` mit derselben `relation`-
+Quelle wie der bezahlte Anteil [D-64-06]. Das Reduktions-Gate haengt nicht mehr
+an `dynamic_hours`, sondern an `planning_base_for_target` — damit sieht auch eine
+Person mit `expected_hours == 0` und Zusage > 0 erstmals ein Planungs-Soll > 0.
+Gemessen: Workspace **1182 passed / 0 failed** (Baseline 1173 + 9 neue: fuenf
+Integrationstests, vier Pure-fn-Tests), Frontend **860 passed** unveraendert,
+Clippy `--all-targets` 0 Warnungen, WASM gruen. Zaehlergates gehalten:
+`available_hours: report.expected_hours` == 2, `CURRENT_SNAPSHOT_SCHEMA_VERSION`
+bleibt **13**, `booking_information.rs` / `billing_period_report.rs` /
+`service/src/reporting.rs` / `rest-types/src/lib.rs` in keinem Diff. **Keine
+bestehende Testerwartung editiert** — kein Bilanzwert hat sich bewegt. Doku in
+allen vier Dateien (F07 + time-accounting, EN und DE) korrigiert; 64-03 hatte die
+alte Vertrags-Definition geschrieben.
+**Ein negatives Planungs-Soll ist ab jetzt assertiertes Verhalten** (Reduktionen
+> Basis, kein Clamp — konsistent mit dem Bilanzpfad); als Produktfrage
+**D-64-05-Q1** in `64-UAT.md` gestellt.
+Zwei neue Blocker im UAT: **B-64-05-1** — die Dev-Server waren gestoppt, die
+Messreihe „nach 64-05" in `64-UAT.md` Teil 3 ist **hergeleitet, nicht gemessen**
+(jede Zahl mit Arithmetik); **B-64-05-2** — beide UAT-Vertraege haben
+`committed_voluntary = 0`, gegen diesen Bestand ist die neue Semantik nicht
+beobachtbar; Schritt 2b in `64-UAT.md` Teil 2 setzt 5.0h an Rosa und Béla.
+**PSOLL-01 und PSOLL-02 bleiben offen** — sie haengen weiter am UAT.
+`64-UAT.md` hat jetzt **fuenf** Szenarien (neu: 0-Stunden-Vertrag mit Zusage) und
+zwei Zusatzfragen; **kein Szenario ist abgehakt.**
 Status 64-04: **AWAITING_UAT — nicht abgeschlossen.** Der Vorflug (Task 1) ist
 gefahren und committet (`3b60dff4`): alle Gates gruen (Backend 1173 passed / 0
 failed, davon 963 lib + 104 Integration; Frontend 860 passed; Clippy
@@ -367,8 +398,8 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-09-29T19:20:00.000Z
-**Stopped at:** Completed 64-03-PLAN.md
+**Last session:** 2026-09-29T21:40:00.000Z
+**Stopped at:** Completed 64-05-PLAN.md (Gap-Closure) — 64-04 haengt weiter am UAT
 **Resume file:** None
 
 **To resume work in a new session:**
@@ -538,6 +569,10 @@ D-63-01/02, D-64-01/02/03).
 - [Phase 64]: 64-02: Fortschrittsbalken und Farbschwellen messen ab jetzt gegen das Planungs-Soll — Folge der target-Bindung, fuer feste Vertraege identisch, fuer dynamische erstmals aussagekraeftig statt bei Soll 0 degeneriert
 - [Phase 64]: 64-02: PSOLL-02 wird durch einen Quellcode-Invariantentest mit drei unabhaengigen Bloecken gehalten (Zugriffszahl == 3 / Verbot von .expected_hours und .dynamic_hours / kein +-*/ unmittelbar hinter dem Feldnamen). Mutations-geprueft: Fallback- und Arithmetik-Mutation lassen ihn nachweislich fallen
 - [Phase 64]: 64-02 (D-64-02 bestaetigt): aus ShortEmployeeReportTO zeigt kein zweiter Frontend-Pfad ein Soll — From<&ShortEmployeeReportTO> for Employee setzt expected_working_hours hart auf 0.0. Die Jahres-/Mitarbeiter-Ansichten lesen WorkingHoursReportTO/EmployeeReportTO und bleiben beim bilanzrelevanten Soll
+- [Phase 64]: D-64-06 (64-05): Der Wochen-Betrag der ehrenamtlichen Zusage ist committed_voluntary * relation, mit DEMSELBEN relation wie der bezahlte Anteil (gemeinsame Quelle potential_workdays_for_week). An einer Randwoche (Mo–Fr, endet Mittwoch, Zusage 7.0) ergibt das 4.2 (3/5). Verworfen: die unskalierte SUM committed_voluntary_for_calendar_week (7.0 — ueberzeichnet die Zusage genau dort, wo der bezahlte Anteil gekuerzt wird) und die 7-Tage-Verteilung committed_voluntary_prorata_for_week (3.0 — mischt Kalendertags- und Werktags-Skalierung). committed_voluntary_target_in_range wird NICHT wiederverwendet: seine whole-week-out-Semantik (D-54.5-01) ist fuer die BILANZ richtig und fuer die PLANUNG falsch — ein Urlaubstag wuerde die ganze Wochenzusage loeschen. Folge: Planungs-Soll und F2-Soll duerfen an Randwochen abweichen; gepinnt durch committed_voluntary_weight_pins_relation_scaling_d_64_06 mit zwei Gegen-Assertions
+- [Phase 64]: D-64-07 (64-05): Die Reduktion greift proportional ueber target_reduction_scale = planning_base_for_target / dynamic_hours (bei dynamic_hours == 0 gleich 1.0). Eine reine Subtraktion kuerzte nur den bezahlten Anteil, weil die Abwesenheitsstunden aus expected_hours abgeleitet sind: 40h Vertrag + 10h Zusage, ein Abwesenheitstag von fuenf ergaebe 50 − 8 = 42 statt der korrekten 40. Nebenfolge, die den PSOLL-04-Beweis traegt: bei Zusage 0 ist scale == 1.0, die Formel faellt Zeile fuer Zeile auf die 64-01-Formel zurueck — die Byte-Identitaet bleibt strukturell beweisbar statt zufaellig
+- [Phase 64]: 64-05: Das Reduktions-Gate haengt jetzt an planning_base_for_target statt an dynamic_hours. Das alte Gate war korrekt fuer eine Vertragsgroesse und ist der Defekt selbst, sobald die Zusage Teil der Basis ist: eine Person mit expected_hours == 0 und Zusage > 0 bekam 0.0. Die Null-Basis-Garantie bleibt (Vertragsstunden UND Zusage 0, oder relation == 0.0 ⇒ Basis exakt 0, Gate schaltet nicht); der vorbestehende 0/0-NaN bleibt unangetastet, weil NaN > 0.0 false ist
+- [Phase 64]: 64-05: Ein NEGATIVES Planungs-Soll ist ab jetzt assertiertes Verhalten (planning_target_not_clamped_when_reductions_exceed_base, gemessen −10.0) — kein .max(0.0), weil der Bilanzpfad ebenfalls nicht klemmt. Als Produktfrage D-64-05-Q1 in 64-UAT.md gestellt statt als Befund versteckt
 
 ## Performance Metrics
 
@@ -616,3 +651,4 @@ D-63-01/02, D-64-01/02/03).
 | Phase 64 P01 | 45min | 3 tasks | 10 files |
 | Phase 64 P02 | ~35min | 2 tasks | 3 files |
 | Phase 64 P03 | ~40min | 2 tasks | 4 files |
+| Phase 64 P05 | ~70min | 4 tasks | 10 files |
