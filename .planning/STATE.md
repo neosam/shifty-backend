@@ -4,9 +4,9 @@ milestone: v2.7
 milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 64
 current_phase_name: Planungs-Soll für dynamische Verträge
-status: ready_to_plan
-stopped_at: Phase 63 abgeschlossen und verifiziert (11/11)
-last_updated: "2026-09-29T16:42:52.859Z"
+status: ready_to_execute
+stopped_at: Phase 64 geplant (4 Plaene, 4 Wellen) — Ausfuehrung steht aus
+last_updated: "2026-09-29T17:33:13.000Z"
 progress:
   total_phases: 5
   completed_phases: 4
@@ -32,91 +32,37 @@ progress:
 ## Current Position
 
 Phase: 64 — Planungs-Soll für dynamische Verträge
-Plan: Not started
-Status: Welle 1 und der erste Plan von Welle 2 abgeschlossen. 63-01 hat `PermissionDao::create_user`/`delete_user` auf die
-geteilte Transaktion gehoben — SC-2-Atomaritaet und der D-63-01-Orphan-Cleanup sind
-damit ueberhaupt erst konstruierbar. `service::PermissionService` bleibt eingefroren.
-63-02 hat die DAO-Primitive nachgezogen (`PersonDao::delete`/`has_live_facets`/
-`find_by_sales_person`/`find_by_user`, `PersonDirectoryDao::find_directory_entry`) und
-D-63-01 als Lesart (b) festgeschrieben.
-63-03 hat die i18n-Schicht vorgezogen: 32 Keys fuer Detailansicht, Anlege-Dialog,
-Kandidaten-Picker und die drei Bestaetigungen stehen in de/en/cs bereit, abgesichert
-durch einen Key-Mengen- und einen `{name}`-Platzhalter-Test. Die zwei D-63-08-Saetze
-stehen zeichengleich in `de.rs`; es gibt genau einen Anlege-Einstieg
-(`Key::CreatePersonEntry`, D-63-03) und keinen Sammel-Loesch-Text (D-63-05).
-63-04 hat den Lesepfad der Detailansicht gebaut: vier Transport-Objekte
-(`CreatePersonEntryTO`, `CreatedPersonEntryTO`, `PersonFacetTO`, `AddPersonFacetTO`),
-das Business-Logic-Trait `PersonDetailService` mit drei admin-gegateten Lesemethoden und
-`PersonDetailServiceImpl`. Der Zuschnitt des Aggregats ist entschieden (D-63-04-A:
-Kern-Aggregat plus Nachladepfade), und `entry_from_row` ist `pub(crate)`, damit
-Auspraegung und Anzeigename genau eine Definition behalten. Der Service ist noch **nicht**
-in `shifty_bin/src/main.rs` verdrahtet und hat noch keinen REST-Handler — beides ist
-Sache von 63-06.
-63-05 hat die drei Auspraegungs-Mutationen nachgezogen: `create_combined` (PADM-02/SC-2,
-eine Transaktion ueber Benutzer UND Verkaeufer, leerer Auswahl-Satz serverseitig
-abgewiesen), `add_facet` (PADM-03/SC-3, gibt die RESULTIERENDE `person_id` zurueck — beim
-Zuschalten einer Sales Person gewinnt sie nach D-61-03 und der Eintrag wechselt seine
-Identitaet), `remove_facet` (PADM-07/SC-5, Hard Delete beim Login vs. Soft Delete beim
-Verkaeufer, plus D-63-01-Orphan-Cleanup in derselben Transaktion) und
-`get_detail_by_sales_person` (SC-4). Alle drei Testsuiten sind per Mutation gegen
-Vakuitaet abgesichert. **Fuer 63-06 wichtig:** `PersonDetailServiceDeps` hat jetzt ACHT
-Dependencies — `SalesPersonDao` ist dazugekommen.
-63-06 hat die HTTP-Oberflaeche gebaut: sieben `/person`-Routen mit OpenAPI, DI-Verdrahtung
-und Dev-Proxy, Integrationstests fuer Gate, Roundtrip und 409.
-63-07 hat die Frontend-Datenschicht nachgezogen: acht HTTP-Funktionen, acht Loader,
-fuenf Store-Felder und neun Koroutinen-Aktionen — 404 als Zustand, 409 als Konflikt,
-422 als Validierung.
-63-08 hat die sichtbare Haelfte gebaut: `page/person_detail.rs` mit **einer** Seite fuer
-alle drei Auspraegungen, den drei reinen Helfern (`visible_sections`, `is_last_facet`,
-`delete_confirmation_copy`), Missing-Facet-Karte, fuenf Dialogen und SSR-Rendertests je
-`PersonKindTO` (Positiv- UND Negativ-Assertions, per Mutation gegen Vakuitaet belegt).
-Die Route `/person/:person_id/` ist bereits registriert — sonst haelt rustc die Seite fuer
-toten Code und das Gate `clippy -D warnings` ist unerreichbar.
-63-09 hat den Rueckbau durchgezogen: die beiden alten Detailrouten und ihre Seiten
-(`page/user_details.rs`, `page/sales_person_details.rs`) sind **ersatzlos** entfernt —
-keine Weiterleitungs-Huellen (D-63-04), der Nachweis-Grep ist leer. Die Werkzeugleiste
-der Personenliste traegt genau einen Anlege-Knopf, der den `CreatePersonEntryDialog`
-oeffnet und nach Erfolg zur neuen Detailroute mit der vom Backend zurueckgegebenen
-`person_id` weiterleitet (D-63-03/D-63-07). Der Bearbeiten-Link jeder Zeile zeigt fuer
-alle drei Auspraegungen auf dasselbe Ziel (SC-1); die Zeilen-Loeschung ist entfallen,
-Loeschen lebt ausschliesslich auf der Detailseite (PADM-07). Fuenf Store-Aktionen und
-acht Loader-/API-Primitive sind mitgefallen; das letzte `#[allow(dead_code)]` aus 63-07
-ist weg, ohne ein neues an anderer Stelle. **Fuer 63-10 wichtig:** die Doku-Faelligkeit
-fuer `docs/architecture/06-frontend.md` + `_de.md` waechst um die entfallenen Routen,
-Seiten und Aktionen; 63-11 soll die Entscheidung „keine Zeilen-Loeschung" im UAT
-ausdruecklich bestaetigen.
-63-10 hat das Docs-Freshness-Gate der Phase geschlossen: siebzehn Doku-Dateien, paarweise
-EN und DE. Neu sind `F01 §4.7` (`PersonDetailService` — Trait-Auszug, sieben admin-Gates,
-acht Deps, Randfaelle) und `F01 §5.5` (die sieben `/person`-Operationen mit 404/409/422),
-dazu der Knoten `PersonDetail` im Runtime-Graphen, die transaktionsfaehigen
-`PermissionDao`-Schreibpfade in `04-auth`/`F12`, `PermissionDao` als bewusst gemischtes
-Trait in `05-transactions` und ein erstmals angelegtes Routen-/Seiten-Inventar in
-`06-frontend`. Der Konsistenz-Durchlauf fand drei Aussagen, die durch diese Phase nicht
-unvollstaendig, sondern **falsch** geworden waren: `03-data-model` behauptete „in v2.7
-wird keine Person geloescht" (seit 63-05 falsch), `F12` fuehrte die alte
-`create_user`-Signatur ohne `person_id`/`tx`, und `F10` zeigte an vier Stellen auf die von
-63-09 geloeschte `page/user_details.rs`. Alle drei korrigiert. **Fuer 63-11 wichtig:** die
-bekannte Kante T-63-05-E (`session.user_id` ohne Kaskade → generischer 500) ist jetzt an
-drei Stellen dokumentiert, damit sie im UAT nicht als Defekt gelesen wird.
+Plan: 0 von 4 (geplant, noch nicht ausgeführt)
+Status: Phase 63 ist abgeschlossen und verifiziert (11/11 must-haves, keine Lücken).
+Phase 64 ist geplant und vom Plan-Checker freigegeben — vier Pläne in vier Wellen,
+je ein Plan pro Welle, weil jeder auf dem Feld des Vorgängers aufsetzt.
 
-Was Phase 62 geliefert hat:
+64-01 (TDD) legt `planning_target_hours` an `ShortEmployeeReport` und
+`ShortEmployeeReportTO` an und berechnet es an BEIDEN `ShortEmployeeReport`-
+Konstruktionsstellen. Die eine nicht-triviale Entscheidung der Phase steckt im Gate:
+`has_contract_row && raw_target_hours > 0.0`. Beide Hälften sind nötig — die erste,
+weil die bestehenden Reduktionsterme an `planned_hours <= 0.0` hängen, was für
+dynamische Verträge immer wahr ist und die Reduktion genau dort überspringen würde,
+wo sie gebraucht wird; die zweite, weil Element 1 des `weight_for_week`-Tupels auch
+bei einer nicht-dynamischen Zeile mit 0 Vertragsstunden und an jeder Vertrags-Randwoche
+(`relation == 0.0`) null ist — davon abgezogen ergäbe ein negatives Planungs-Soll.
+Aus der zweiten Bedingung folgt die Byte-Identität für nicht-dynamische Verträge
+strukturell statt zufällig. Bewusst KEIN `.max(0.0)`: der Bilanzpfad klemmt auch nicht.
 
-- 62-01 `PersonDirectoryDao` mit Drei-Wege-Outer-Join; WR-02 (Soft-Delete in der
-  `ON`-Klausel) geschlossen.
+64-02 reicht das Feld ins Frontend durch und stellt die drei Anzeigestellen in
+`working_hours_mini_overview.rs` um — jede einzeln begründet, kein Suchen-und-Ersetzen.
+64-03 führt die Doku zentral (F07 + time-accounting, je EN und DE).
+64-04 ist der blockierende UAT-Checkpoint und braucht den Nutzer am laufenden Dev-Server.
 
-- 62-02 `PersonEntryTO`/`PersonKindTO` in `rest-types`, sechs Beschriftungen in de/en/cs.
-- 62-03 `PersonDirectoryService` — Admin-Gate als erste Anweisung (D-62-08),
-  Ausprägungs-Klassifikation, `display_name`-Ableitung, case-insensitive Sortierung.
+Gepinnt und nicht neu aufzumachen: `weight_for_week` behält seine Signatur; kein
+Snapshot-Schema-Bump (der Snapshot-Writer liest `EmployeeReport`, nie
+`ShortEmployeeReport`); kein visueller Hinweis und kein neuer i18n-Key (D-64-03).
 
-- 62-04 Frontend: eine Liste statt Tabs, Aggregat-Ladepfad statt N+1, Suche über
-  Anzeige- und Benutzername, Component-Level-Admin-Guard.
-
-- 62-05 `GET /person-directory` mit OpenAPI, DI nach dem Basic-Block,
-  `Dioxus.toml`-Proxy im selben Commit; Integrationstests 200/403.
-
-- 62-06 Docs-Freshness-Gate: F01 und 02-service-tiers je EN+DE, Runtime-Graph.
-- 62-07 Laufzeit-Verifikation + UAT mit dem Nutzer; zwei Änderungen ausgelöst
-  (Badge entfernt, Spaltenüberschrift „Verkäufer" → „Name") und D-63-03 gepinnt.
+Offen aus Phase 63, vor dem Milestone-Close zu klären: die ROADMAP-Fortschrittszeile
+für Phase 60 steht auf `0/? | Not started`, obwohl die Phase fertig ist (3 PLANs bei
+4 SUMMARYs — braucht eine Entscheidung über das vierte SUMMARY). Und DEF-6: `/shiftplan/`
+ist über direkte URL-Eingabe nicht erreichbar (404), dieselbe Kollisionsklasse wie der
+in Phase 63 behobene Routen-Defekt, aber vorbestehend und bewusst nicht mitgefixt.
 
 ## Quick Tasks Completed
 
