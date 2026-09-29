@@ -671,7 +671,7 @@ als unsicher).
 **Plans:** 4 plans
 
 Plans:
-- [ ] 64-01-PLAN.md — Planungs-Soll im Backend: Feld an `ShortEmployeeReport`/`ShortEmployeeReportTO`, Berechnung an BEIDEN Konstruktionsstellen mit eigenem `has_contract_row`-Gate, fünf Tests (PSOLL-01, PSOLL-03, PSOLL-04)
+- [x] 64-01-PLAN.md — Planungs-Soll im Backend: Feld an `ShortEmployeeReport`/`ShortEmployeeReportTO`, Berechnung an BEIDEN Konstruktionsstellen mit eigenem `has_contract_row`-Gate, fünf Tests (PSOLL-01, PSOLL-03, PSOLL-04)
 - [ ] 64-02-PLAN.md — Frontend: Feld an `WorkingHoursMini`, 1:1-Durchreichung im Ladepfad, alle drei Anzeigestellen umgestellt (D-64-01), dauerhafter Quellcode-Invariantentest für PSOLL-02
 - [ ] 64-03-PLAN.md — Docs-Freshness-Gate zentral: `F07-reporting-balance` + `time-accounting`, je EN und DE
 - [ ] 64-04-PLAN.md — Laufzeit-Verifikation + UAT: Zahl > 0 im Browser, Gegenprobe fester Vertrag, PSOLL-02-Review pro Trefferstelle
@@ -700,7 +700,7 @@ und `64-PATTERNS.md` tragen diese Last):
 | 61. PersonService + Auflösung `sales_person_user` | 10/10 | Complete | 2026-09-17 |
 | 62. Personen-Verzeichnis — eine Liste statt Tabs | 7/7 | Complete | 2026-09-20 |
 | 63. Personen-Detailansicht + Ausprägungs-Aktionen | 11/11 | Complete | 2026-09-29 |
-| 64. Planungs-Soll für dynamische Verträge | 0/4 | Planned | — |
+| 64. Planungs-Soll für dynamische Verträge | 1/4 | In Progress | — |
 
 **Requirements-Coverage: 18/18 gemappt**, keine Waisen, keine Doppelung.
 

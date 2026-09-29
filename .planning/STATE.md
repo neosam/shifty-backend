@@ -4,15 +4,15 @@ milestone: v2.7
 milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 64
 current_phase_name: Planungs-Soll für dynamische Verträge
-status: ready_to_execute
-stopped_at: Phase 64 geplant (4 Plaene, 4 Wellen) — Ausfuehrung steht aus
-last_updated: "2026-09-29T17:33:13.000Z"
+status: executing
+stopped_at: Completed 64-01-PLAN.md
+last_updated: "2026-09-29T18:13:27.088Z"
 progress:
   total_phases: 5
   completed_phases: 4
-  total_plans: 32
-  completed_plans: 32
-  percent: 80
+  total_plans: 35
+  completed_plans: 33
+  percent: 94
 ---
 
 # Project State: Shifty Backend
@@ -31,9 +31,10 @@ progress:
 
 ## Current Position
 
-Phase: 64 — Planungs-Soll für dynamische Verträge
-Plan: 0 von 4 (geplant, noch nicht ausgeführt)
-Status: Phase 63 ist abgeschlossen und verifiziert (11/11 must-haves, keine Lücken).
+Phase: 64 (Planungs-Soll für dynamische Verträge) — EXECUTING
+Plan: 2 von 4 (64-01 abgeschlossen)
+Status: 64-01 ist ausgefuehrt und gruen — Backend-Feld `planning_target_hours` steht an beiden
+Konstruktionsstellen; Welle 2 (64-02, Frontend-Anzeige) ist als naechstes dran.
 Phase 64 ist geplant und vom Plan-Checker freigegeben — vier Pläne in vier Wellen,
 je ein Plan pro Welle, weil jeder auf dem Feld des Vorgängers aufsetzt.
 
@@ -321,8 +322,8 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-09-20T22:52:32.682Z
-**Stopped at:** Completed 63-10-PLAN.md
+**Last session:** 2026-09-29T18:13:21.228Z
+**Stopped at:** Completed 64-01-PLAN.md
 **Resume file:** None
 
 **To resume work in a new session:**
@@ -483,6 +484,7 @@ D-63-01/02, D-64-01/02/03).
 - [Phase 63]: D-63-09-B: Die vierzehn durch den Rueckbau verwaisten i18n-Keys bleiben in de/en/cs registriert und werden nur benannt — Uebersetzungsdaten unter dem Key-Mengen-Test, kein funktionaler Gewinn durch Loeschen.
 - [Phase 63]: [D-63-10-A] Doku-Behauptungen werden gegen die Codebasis geprueft, nicht gegen die SUMMARYs — der Konsistenz-Durchlauf fand drei Aussagen, die durch Phase 63 FALSCH (nicht nur unvollstaendig) geworden waren: 03-data-model 'keine Person wird geloescht', F12 'create_user-Signatur unveraendert', F10 vier Verweise auf die geloeschte page/user_details.rs
 - [Phase 63]: [D-63-10-B] Ein Rueckbau macht Doku in FREMDEN Features falsch — die Dangling-Reference-Jagd laeuft ueber den ganzen docs/-Baum, nicht nur ueber die files_modified des Plans
+- [Phase 64]: 64-01: Planungs-Soll-Gate = has_contract_row && dynamic_hours > 0.0 (Element 1 des weight_for_week-Tupels), zeichengleich an beiden Konstruktionsstellen; kein .max(0.0)-Clamp
 
 ## Performance Metrics
 
@@ -558,3 +560,4 @@ D-63-01/02, D-64-01/02/03).
 | Phase 63 P08 | 38min | 3 tasks | 4 files |
 | Phase 63 P09 | 25min | 3 tasks | 10 files |
 | Phase 63 P10 | 58min | 3 tasks | 17 files |
+| Phase 64 P01 | 45min | 3 tasks | 10 files |
