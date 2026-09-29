@@ -1104,52 +1104,86 @@ impl<Deps: ReportingServiceDeps> ReportingServiceImpl<Deps> {
                     apply_weekly_cap(cap_active, raw_shiftplan_hours, expected_hours_for_cap);
                 let expected_hours = expected_hours_for_cap - holiday_derived_gated;
                 // Phase 64 (PSOLL-01..PSOLL-04) — Planungs-Soll, Konstruktionsstelle A.
+                // Wortgleich zu Konstruktionsstelle B (`get_reports_for_all_employees`);
+                // ein Seite-an-Seite-Diff zeigt nur die drei Reduktions-Quellausdruecke.
                 //
-                // Basis ist `dynamic_hours`, also Element 1 des
-                // `weight_for_week`-Rueckgabetupels. Das ist der einzige Wert der
-                // Kette, der auch bei `is_dynamic == true` ungezwungen bleibt:
-                // Element 0 (`planned_hours`) wird fuer dynamische Vertraege hart
-                // auf 0.0 gesetzt. An DIESER Stelle traegt `dynamic_hours` noch den
-                // Rohwert — weiter unten wird es von den Bilanz-Reduktionen
-                // ueberschattet.
+                // **Diese Zahl ist eine ZUSAGE-Groesse, keine Bilanz-Groesse**
+                // [D-64-05]. Ihr Zweck ist die Schichtplanung: die planende Person
+                // muss sehen, was die jeweilige Person fuer die Woche zusagt — ob
+                // diese Stunden bezahlt sind, ist dafuer unerheblich. Deshalb
+                // fliesst die ehrenamtliche Zusage (`committed_voluntary`) ein. Die
+                // Trennung von bezahltem Soll und Ehrenamt gilt fuer die BILANZ und
+                // bleibt dort unberuehrt; fuer die PLANUNG gilt sie nicht. Wer die
+                // Zusage hier wieder heraustrennt, „weil die Bilanz das auch so
+                // macht", bricht den Zweck des Feldes.
                 //
-                // Das Gate haengt BEWUSST an `dynamic_hours` und NICHT an
-                // `planned_hours`: am gezwungenen Wert waere `<= 0.0` fuer JEDE
-                // Woche eines dynamischen Vertrags wahr und wuerde die Reduktion
-                // genau dort ueberspringen, wo sie neu gebraucht wird (das ist der
-                // Defekt, den diese Phase behebt).
+                // Der bezahlte Anteil wird an `dynamic_hours` gemessen, also an
+                // Element 1 des `weight_for_week`-Rueckgabetupels — nie an Element 0
+                // (`planned_hours`), das fuer dynamische Vertraege hart auf 0.0
+                // gezwungen wird und die Reduktion genau dort ausfallen liesse, wo
+                // sie gebraucht wird. Das ist die 64-01-Lehre, unveraendert.
                 //
-                // Die zweite Bedingung darf trotzdem nicht entfallen: ohne sie
-                // wuerde bei einer Vertragszeile mit 0 Vertragsstunden oder in
-                // einer Randwoche mit `relation == 0.0` von einer 0-Basis abgezogen
-                // und das Planungs-Soll negativ, waehrend das bilanzrelevante Soll
-                // bei 0 bleibt.
+                // Das Gate haengt seit Plan 64-05 an `planning_base_for_target` und
+                // nicht mehr an `dynamic_hours`: eine Person mit
+                // `expected_hours == 0` und Zusage > 0 hat eine echte Zusage, und
+                // das alte Gate lieferte fuer sie 0.0 — genau der in 64-04
+                // gefundene Gap. Die Null-Basis-Garantie traegt es weiter: sind
+                // Vertragsstunden UND Zusage 0 (oder `relation == 0.0`, Woche
+                // ausserhalb der Vertragsgrenzen), ist die Basis exakt 0, das Gate
+                // schaltet nicht, und das Planungs-Soll ist 0.0. Eine
+                // Vertragszeile ohne gesetzten Wochentag ergibt `relation = NaN`
+                // (vorbestehend); `NaN > 0.0` ist false, das Gate schaltet also
+                // auch dort nicht.
                 //
-                // Daraus folgt die Zeichengleichheit fuer nicht-dynamische
-                // Vertraege STRUKTURELL: dort sind Element 0 und Element 1
-                // identisch, altes und neues Gate schalten unter derselben
-                // Bedingung, und beide Formeln subtrahieren dieselben Terme.
-                // Deshalb auch KEIN `.max(0.0)` — der Bilanzpfad klemmt ebenfalls
-                // nicht, und ein Klemmen wuerde die Zeichengleichheit unter
-                // schwerer Abwesenheit brechen.
-                let reduce_target = has_contract_row && dynamic_hours > 0.0;
-                let abense_hours_for_target = if reduce_target { abense_hours } else { 0.0f32 };
-                let absence_derived_for_target = if reduce_target {
-                    absence_derived_vacation_hours
-                        + absence_derived_sick_leave_hours
-                        + absence_derived_unpaid_leave_hours
+                // `target_reduction_scale` existiert, weil die Reduktionsterme aus
+                // `expected_hours` abgeleitet sind (Stunden je Werktag) und eine
+                // reine Subtraktion deshalb NUR den bezahlten Anteil kuerzen wuerde
+                // [D-64-07]: 40h Vertrag + 10h Zusage, ein Abwesenheitstag von
+                // fuenf ergaebe `50 - 8 = 42`, obwohl die Person nur 4/5 der Woche
+                // da ist und 4/5 von 50 = 40 zusagt.
+                //
+                // Bei Zusage 0 folgt die PSOLL-04-Byte-Identitaet STRUKTURELL:
+                // `committed_voluntary_for_target == 0` => `planning_base_for_target
+                // == dynamic_hours` => `target_reduction_scale == 1.0` — und damit
+                // steht Zeile fuer Zeile dieselbe Rechnung da, die 64-01 geschrieben
+                // hat.
+                //
+                // KEIN `.max(0.0)` — der Bilanzpfad klemmt ebenfalls nicht. Das Gate
+                // verhindert den STRUKTURELLEN Nullbasis-Fall, nicht Reduktionen
+                // groesser als die Basis; ein Clamp bricht
+                // `planning_target_not_clamped_when_reductions_exceed_base`.
+                //
+                // Die Zusage wird mit demselben `relation` skaliert wie der bezahlte
+                // Anteil (werktags-basiert) [D-64-06]. Die tages-basierte
+                // F2-Soll-Semantik (`committed_voluntary_target_in_range`,
+                // whole-week-out) wird hier bewusst NICHT wiederverwendet: sie
+                // loeschte die ganze Wochenzusage schon bei einem Abwesenheitstag,
+                // waehrend D-64-05 proportional verlangt.
+                let committed_voluntary_for_target: f32 =
+                    find_working_hours_for_calendar_week(working_hours, year, week)
+                        .map(|wh| committed_voluntary_weight_for_week(year, week, wh))
+                        .sum();
+                let planning_base_for_target = dynamic_hours + committed_voluntary_for_target;
+                let target_reduction_scale = if dynamic_hours > 0.0 {
+                    planning_base_for_target / dynamic_hours
+                } else {
+                    1.0f32
+                };
+                let reduce_target = has_contract_row && planning_base_for_target > 0.0;
+                let absence_manual_for_target = abense_hours;
+                let absence_derived_for_target = absence_derived_vacation_hours
+                    + absence_derived_sick_leave_hours
+                    + absence_derived_unpaid_leave_hours;
+                let holiday_derived_for_target = derived_holiday_for_week;
+                let planning_target_hours = if reduce_target {
+                    planning_base_for_target
+                        - (absence_manual_for_target
+                            + absence_derived_for_target
+                            + holiday_derived_for_target)
+                            * target_reduction_scale
                 } else {
                     0.0f32
                 };
-                let holiday_derived_for_target = if reduce_target {
-                    derived_holiday_for_week
-                } else {
-                    0.0f32
-                };
-                let planning_target_hours = dynamic_hours
-                    - abense_hours_for_target
-                    - absence_derived_for_target
-                    - holiday_derived_for_target;
                 let shiftplan_paid = if has_contract_row { shiftplan_hours } else { 0.0 };
                 let no_contract_volunteer = if has_contract_row {
                     0.0
@@ -1311,9 +1345,11 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 /// Gap (Phase 8.4 / CR-01): symmetrisch zu absense_hours (Z.263) und zur
                 /// Referenz hours_per_week (Z.988). Verhindert dynamic-contract Balance-Asymmetrie (M-02).
                 absence_derived_balance_hours: f32,
-                /// Phase 64 (PSOLL-01..PSOLL-04): Planungs-Soll dieser Woche —
-                /// das feiertags- und abwesenheitsreduzierte Vertrags-Soll, auch
-                /// fuer dynamische Vertraege gefuellt. Wird pro Woche bereits
+                /// Phase 64 (PSOLL-01..PSOLL-04): Planungs-Soll dieser Woche — die
+                /// feiertags- und abwesenheitsreduzierte **Zusage** der Person
+                /// [D-64-05]: bezahltes Wochen-Soll PLUS ehrenamtliche Zusage
+                /// (`committed_voluntary`), auch fuer dynamische Vertraege und auch
+                /// fuer 0h-Vertraege mit Zusage gefuellt. Wird pro Woche bereits
                 /// NETTO gebildet (siehe Push-Stelle) und im fold nur addiert.
                 planning_target_hours: f32,
                 /// Phase 55 (HR-ALERT-01, 55-03): war die Person in mindestens
@@ -1382,10 +1418,18 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                         find_working_hours_for_calendar_week(&working_hours, year, week)
                             .next()
                             .is_some();
-                    let (expected_hours, dynamic_hours) =
+                    let (expected_hours, dynamic_hours, committed_voluntary_for_target) =
                         find_working_hours_for_calendar_week(&working_hours, year, week)
-                            .map(|wh| weight_for_week(year, week,
-                                &wh.with_to_date(
+                            .map(|wh| {
+                                // Plan 64-05 (PSOLL-03): der auf das Zieljahr
+                                // geklammerte Row wird EINMAL gebunden und von
+                                // `weight_for_week` UND
+                                // `committed_voluntary_weight_for_week` gelesen —
+                                // sonst driften die Jahresgrenzen-Wochen zwischen
+                                // bezahltem Anteil und Zusage auseinander. Die
+                                // Klammer-Ausdruecke sind byte-identisch zu vorher,
+                                // nur verschoben.
+                                let clamped_work_details = wh.with_to_date(
                                     wh.to_date()
                                         .unwrap_or(ShiftyDate::last_day_in_year(target_year))
                                         .min(ShiftyDate::last_day_in_year(target_year))
@@ -1393,10 +1437,19 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                                         wh.from_date()
                                             .unwrap_or(ShiftyDate::first_day_in_year(target_year))
                                             .max(ShiftyDate::first_day_in_year(target_year))
-                                    )
-                                ))
-                            .map(|(expected_hours, dynamic_hours, _, _)| (expected_hours, dynamic_hours))
-                            .fold((0.0, 0.0), |(acc_a, acc_b), (a, b)| (acc_a + a, acc_b + b));
+                                    );
+                                let (expected_hours, dynamic_hours, _, _) =
+                                    weight_for_week(year, week, &clamped_work_details);
+                                let committed_voluntary = committed_voluntary_weight_for_week(
+                                    year,
+                                    week,
+                                    &clamped_work_details,
+                                );
+                                (expected_hours, dynamic_hours, committed_voluntary)
+                            })
+                            .fold((0.0, 0.0, 0.0), |(acc_a, acc_b, acc_c), (a, b, c)| {
+                                (acc_a + a, acc_b + b, acc_c + c)
+                            });
                     // If expected hours is 0 or less, the planned hours and the working hours are the same
                     // because the balance should never be affected in this case.
                     let raw_shiftplan_hours: f32 = detailed_shiftplan_report
@@ -1459,12 +1512,12 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                                 && eh.date_time.year() as u32 == year
                         })
                         .collect();
-                    let manual_absence_for_target = week_extra_hours_for_target
+                    let absence_manual_for_target = week_extra_hours_for_target
                         .iter()
                         .filter(|eh| eh.category.as_report_type() == ReportType::AbsenceHours)
                         .map(|eh| eh.amount)
                         .sum::<f32>();
-                    let derived_holiday_for_target: f32 = derived_holiday
+                    let holiday_derived_for_target: f32 = derived_holiday
                         .iter()
                         .filter(|(date, _)| {
                             let w = ShiftyDate::from(**date).as_shifty_week();
@@ -1472,7 +1525,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                         })
                         .map(|(_, h)| h)
                         .sum();
-                    let derived_absence_for_target: f32 = derived
+                    let absence_derived_for_target: f32 = derived
                         .iter()
                         .filter(|(d, _)| {
                             let w = ShiftyDate::from(**d).as_shifty_week();
@@ -1480,19 +1533,45 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                         })
                         .map(|(_, r)| r.hours)
                         .sum();
-                    // Gate zeichengleich zu Konstruktionsstelle A: Vertragszeile
-                    // vorhanden UND Rohwert > 0, gemessen an `dynamic_hours`
-                    // (Element 1 des `weight_for_week`-Tupels). NICHT an
-                    // `expected_hours` — das ist hier Element 0 und fuer jede Woche
-                    // eines dynamischen Vertrags 0, die Reduktion fiele dann genau
-                    // dort aus, wo sie gebraucht wird. Kein `.max(0.0)`; die
-                    // ausfuehrliche Begruendung steht an Stelle A (`assemble_weeks`).
-                    let planning_target_hours_for_week = if has_contract_row && dynamic_hours > 0.0
-                    {
-                        dynamic_hours
-                            - manual_absence_for_target
-                            - derived_absence_for_target
-                            - derived_holiday_for_target
+                    // **Diese Zahl ist eine ZUSAGE-Groesse, keine Bilanz-Groesse**
+                    // [D-64-05]. Ihr Zweck ist die Schichtplanung: die planende
+                    // Person muss sehen, was die jeweilige Person fuer die Woche
+                    // zusagt — ob diese Stunden bezahlt sind, ist dafuer
+                    // unerheblich. Die Trennung von bezahltem Soll und Ehrenamt
+                    // gilt fuer die BILANZ und bleibt dort unberuehrt; fuer die
+                    // PLANUNG gilt sie nicht. Wer die Zusage hier wieder
+                    // heraustrennt, „weil die Bilanz das auch so macht", bricht den
+                    // Zweck des Feldes.
+                    //
+                    // Der bezahlte Anteil wird an `dynamic_hours` gemessen, also an
+                    // Element 1 des `weight_for_week`-Tupels — NICHT an
+                    // `expected_hours`, das hier Element 0 ist und fuer jede Woche
+                    // eines dynamischen Vertrags 0; die Reduktion fiele dann genau
+                    // dort aus, wo sie gebraucht wird.
+                    //
+                    // Das Gate haengt seit Plan 64-05 an `planning_base_for_target`
+                    // und nicht mehr an `dynamic_hours`: eine Person mit
+                    // `expected_hours == 0` und Zusage > 0 hat eine echte Zusage,
+                    // und das alte Gate lieferte fuer sie 0.0.
+                    //
+                    // `target_reduction_scale` [D-64-07], die strukturelle
+                    // PSOLL-04-Byte-Identitaet bei Zusage 0, das fehlende
+                    // `.max(0.0)` und die `relation`-Skalierung [D-64-06]: die
+                    // ausfuehrliche Begruendung steht wortgleich an
+                    // Konstruktionsstelle A (`assemble_weeks`).
+                    let planning_base_for_target = dynamic_hours + committed_voluntary_for_target;
+                    let target_reduction_scale = if dynamic_hours > 0.0 {
+                        planning_base_for_target / dynamic_hours
+                    } else {
+                        1.0f32
+                    };
+                    let reduce_target = has_contract_row && planning_base_for_target > 0.0;
+                    let planning_target_hours_for_week = if reduce_target {
+                        planning_base_for_target
+                            - (absence_manual_for_target
+                                + absence_derived_for_target
+                                + holiday_derived_for_target)
+                                * target_reduction_scale
                     } else {
                         0.0f32
                     };
@@ -1786,6 +1865,11 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 // dynamische Wochen bewusst 0, die Endsubtraktion waere dort also
                 // wirkungslos. Das Planungs-Soll wird deshalb bereits pro Woche
                 // NETTO gebildet und hier nur durchgereicht.
+                //
+                // Plan 64-05: das gilt auch fuer die ehrenamtliche Zusage. Sie ist
+                // pro Woche bereits in `planning_target_hours_for_week` enthalten
+                // und dort proportional reduziert [D-64-05, D-64-07] — hier wird
+                // NICHTS nachgerechnet.
                 planning_target_hours: weekly_hours.planning_target_hours,
                 vacation_hours: weekly_hours.vacation_hours + absence_derived_vacation_hours,
                 sick_leave_hours: weekly_hours.sick_leave_hours + absence_derived_sick_leave_hours,
