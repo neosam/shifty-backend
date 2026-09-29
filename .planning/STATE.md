@@ -2,17 +2,17 @@
 gsd_state_version: 1.0
 milestone: v2.7
 milestone_name: — Personenverwaltung & Planungs-Soll
-current_phase: 63
-current_phase_name: personen-detailansicht-auspr-gungs-aktionen
-status: executing
-stopped_at: Completed 63-10-PLAN.md
-last_updated: "2026-09-20T22:52:32.690Z"
+current_phase: 64
+current_phase_name: Planungs-Soll für dynamische Verträge
+status: ready_to_plan
+stopped_at: Phase 63 abgeschlossen und verifiziert (11/11)
+last_updated: "2026-09-29T16:42:52.859Z"
 progress:
   total_phases: 5
-  completed_phases: 3
-  total_plans: 31
-  completed_plans: 31
-  percent: 60
+  completed_phases: 4
+  total_plans: 32
+  completed_plans: 32
+  percent: 80
 ---
 
 # Project State: Shifty Backend
@@ -31,8 +31,8 @@ progress:
 
 ## Current Position
 
-Phase: 63 (personen-detailansicht-auspr-gungs-aktionen) — EXECUTING
-Plan: 11 of 11 (63-01 bis 63-10 abgeschlossen; offen ist nur noch 63-11 — Human-UAT)
+Phase: 64 — Planungs-Soll für dynamische Verträge
+Plan: Not started
 Status: Welle 1 und der erste Plan von Welle 2 abgeschlossen. 63-01 hat `PermissionDao::create_user`/`delete_user` auf die
 geteilte Transaktion gehoben — SC-2-Atomaritaet und der D-63-01-Orphan-Cleanup sind
 damit ueberhaupt erst konstruierbar. `service::PermissionService` bleibt eingefroren.

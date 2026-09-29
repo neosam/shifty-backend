@@ -216,7 +216,7 @@ Code-Diff (MEMORY `feedback_docs_always_current_no_followup`).
       Lese-Aggregat + `PersonEntryTO` + ein Aggregat-Endpoint + admin-gated
       Listenansicht unter `/user_management/` mit Ausprägungs-Badge und Suche
 
-- [ ] **Phase 63: Personen-Detailansicht + Ausprägungs-Aktionen** — eine Komponente
+- [x] **Phase 63: Personen-Detailansicht + Ausprägungs-Aktionen** — eine Komponente (completed 2026-09-29)
       für alle drei Ausprägungen, Anlegen mit zuschaltbaren Teilen, „Login/Person
       hinzufügen", Verknüpfen per Kandidaten-Auswahl, ausprägungs-spezifische
       Lösch-Bestätigung
@@ -543,7 +543,7 @@ Human-UAT-Durchgang von vornherein einplanen, statt ihn beim Close zu entdecken.
 
 **UI hint**: yes
 
-**Plans:** 11 plans
+**Plans:** 11/11 plans complete
 
 Plans:
 
@@ -677,7 +677,7 @@ als unsicher).
 | 60. Person-Datenmodell + Backfill | 0/? | Not started | — |
 | 61. PersonService + Auflösung `sales_person_user` | 10/10 | Complete | 2026-09-17 |
 | 62. Personen-Verzeichnis — eine Liste statt Tabs | 7/7 | Complete | 2026-09-20 |
-| 63. Personen-Detailansicht + Ausprägungs-Aktionen | 10/11 | In Progress | — |
+| 63. Personen-Detailansicht + Ausprägungs-Aktionen | 11/11 | Complete | 2026-09-29 |
 | 64. Planungs-Soll für dynamische Verträge | 0/? | Not started | — |
 
 **Requirements-Coverage: 18/18 gemappt**, keine Waisen, keine Doppelung.
