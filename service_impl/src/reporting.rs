@@ -1089,6 +1089,53 @@ impl<Deps: ReportingServiceDeps> ReportingServiceImpl<Deps> {
                 let (shiftplan_hours, auto_volunteer_hours) =
                     apply_weekly_cap(cap_active, raw_shiftplan_hours, expected_hours_for_cap);
                 let expected_hours = expected_hours_for_cap - holiday_derived_gated;
+                // Phase 64 (PSOLL-01..PSOLL-04) — Planungs-Soll, Konstruktionsstelle A.
+                //
+                // Basis ist `dynamic_hours`, also Element 1 des
+                // `weight_for_week`-Rueckgabetupels. Das ist der einzige Wert der
+                // Kette, der auch bei `is_dynamic == true` ungezwungen bleibt:
+                // Element 0 (`planned_hours`) wird fuer dynamische Vertraege hart
+                // auf 0.0 gesetzt. An DIESER Stelle traegt `dynamic_hours` noch den
+                // Rohwert — weiter unten wird es von den Bilanz-Reduktionen
+                // ueberschattet.
+                //
+                // Das Gate haengt BEWUSST an `dynamic_hours` und NICHT an
+                // `planned_hours`: am gezwungenen Wert waere `<= 0.0` fuer JEDE
+                // Woche eines dynamischen Vertrags wahr und wuerde die Reduktion
+                // genau dort ueberspringen, wo sie neu gebraucht wird (das ist der
+                // Defekt, den diese Phase behebt).
+                //
+                // Die zweite Bedingung darf trotzdem nicht entfallen: ohne sie
+                // wuerde bei einer Vertragszeile mit 0 Vertragsstunden oder in
+                // einer Randwoche mit `relation == 0.0` von einer 0-Basis abgezogen
+                // und das Planungs-Soll negativ, waehrend das bilanzrelevante Soll
+                // bei 0 bleibt.
+                //
+                // Daraus folgt die Zeichengleichheit fuer nicht-dynamische
+                // Vertraege STRUKTURELL: dort sind Element 0 und Element 1
+                // identisch, altes und neues Gate schalten unter derselben
+                // Bedingung, und beide Formeln subtrahieren dieselben Terme.
+                // Deshalb auch KEIN `.max(0.0)` — der Bilanzpfad klemmt ebenfalls
+                // nicht, und ein Klemmen wuerde die Zeichengleichheit unter
+                // schwerer Abwesenheit brechen.
+                let reduce_target = has_contract_row && dynamic_hours > 0.0;
+                let abense_hours_for_target = if reduce_target { abense_hours } else { 0.0f32 };
+                let absence_derived_for_target = if reduce_target {
+                    absence_derived_vacation_hours
+                        + absence_derived_sick_leave_hours
+                        + absence_derived_unpaid_leave_hours
+                } else {
+                    0.0f32
+                };
+                let holiday_derived_for_target = if reduce_target {
+                    derived_holiday_for_week
+                } else {
+                    0.0f32
+                };
+                let planning_target_hours = dynamic_hours
+                    - abense_hours_for_target
+                    - absence_derived_for_target
+                    - holiday_derived_for_target;
                 let shiftplan_paid = if has_contract_row { shiftplan_hours } else { 0.0 };
                 let no_contract_volunteer = if has_contract_row {
                     0.0
@@ -1129,8 +1176,7 @@ impl<Deps: ReportingServiceDeps> ReportingServiceImpl<Deps> {
                     dynamic_hours,
                     expected_hours,
                     overall_hours,
-                    // SCAFFOLD-64-01: Platzhalter, wird in Task 3 durch die echte Rechnung ersetzt.
-                    planning_target_hours: 0.0,
+                    planning_target_hours,
                     vacation_hours: vacation_hours + absence_derived_vacation_hours,
                     sick_leave_hours: sick_leave_hours + absence_derived_sick_leave_hours,
                     holiday_hours,
@@ -1251,6 +1297,11 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 /// Gap (Phase 8.4 / CR-01): symmetrisch zu absense_hours (Z.263) und zur
                 /// Referenz hours_per_week (Z.988). Verhindert dynamic-contract Balance-Asymmetrie (M-02).
                 absence_derived_balance_hours: f32,
+                /// Phase 64 (PSOLL-01..PSOLL-04): Planungs-Soll dieser Woche —
+                /// das feiertags- und abwesenheitsreduzierte Vertrags-Soll, auch
+                /// fuer dynamische Vertraege gefuellt. Wird pro Woche bereits
+                /// NETTO gebildet (siehe Push-Stelle) und im fold nur addiert.
+                planning_target_hours: f32,
                 /// Phase 55 (HR-ALERT-01, 55-03): war die Person in mindestens
                 /// einer Woche des Report-Fensters gedeckelt
                 /// (`cap_planned_hours_to_expected`)? OR-reduziert im fold; Input
@@ -1378,6 +1429,59 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                         })
                         .map(|extra_hours| extra_hours.amount)
                         .sum();
+                    // Phase 64 (PSOLL-01..PSOLL-04) — Planungs-Soll, Konstruktionsstelle B.
+                    //
+                    // Die Bausteine werden VOR der Dreiwege-Verzweigung berechnet:
+                    // der dynamische Zweig kennt die Feiertags-/Abwesenheits-
+                    // Groessen heute ueberhaupt nicht — sie existieren nur im
+                    // Normal-Zweig. Die gefilterte Wochen-Liste bekommt einen
+                    // EIGENEN Namen und ersetzt die gleichnamige Variable im
+                    // Normal-Zweig NICHT: die kleine Doppelberechnung haelt die
+                    // bestehenden Bilanzpfade Zeile fuer Zeile unveraendert.
+                    let week_extra_hours_for_target: Vec<_> = extra_hours_array
+                        .iter()
+                        .filter(|eh| {
+                            eh.date_time.iso_week() == week
+                                && eh.date_time.year() as u32 == year
+                        })
+                        .collect();
+                    let manual_absence_for_target = week_extra_hours_for_target
+                        .iter()
+                        .filter(|eh| eh.category.as_report_type() == ReportType::AbsenceHours)
+                        .map(|eh| eh.amount)
+                        .sum::<f32>();
+                    let derived_holiday_for_target: f32 = derived_holiday
+                        .iter()
+                        .filter(|(date, _)| {
+                            let w = ShiftyDate::from(**date).as_shifty_week();
+                            w.year == year && w.week == week
+                        })
+                        .map(|(_, h)| h)
+                        .sum();
+                    let derived_absence_for_target: f32 = derived
+                        .iter()
+                        .filter(|(d, _)| {
+                            let w = ShiftyDate::from(**d).as_shifty_week();
+                            w.year == year && w.week == week
+                        })
+                        .map(|(_, r)| r.hours)
+                        .sum();
+                    // Gate zeichengleich zu Konstruktionsstelle A: Vertragszeile
+                    // vorhanden UND Rohwert > 0, gemessen an `dynamic_hours`
+                    // (Element 1 des `weight_for_week`-Tupels). NICHT an
+                    // `expected_hours` — das ist hier Element 0 und fuer jede Woche
+                    // eines dynamischen Vertrags 0, die Reduktion fiele dann genau
+                    // dort aus, wo sie gebraucht wird. Kein `.max(0.0)`; die
+                    // ausfuehrliche Begruendung steht an Stelle A (`assemble_weeks`).
+                    let planning_target_hours_for_week = if has_contract_row && dynamic_hours > 0.0
+                    {
+                        dynamic_hours
+                            - manual_absence_for_target
+                            - derived_absence_for_target
+                            - derived_holiday_for_target
+                    } else {
+                        0.0f32
+                    };
                     if !has_contract_row {
                         // Ehrenamt-Pfad (quick-260624-ujk): Keine Vertragszeile fuer diese KW.
                         // Shiftplan-Stunden fliessen als Ehrenamt, NICHT in overall/planned.
@@ -1408,6 +1512,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                                 + shiftplan_hours,
                             custom_absence_hours: HashMap::new(),
                             absence_derived_balance_hours: 0.0,
+                            planning_target_hours: planning_target_hours_for_week,
                             cap_active,
                         }
                     } else if expected_hours <= 0.0 {
@@ -1454,6 +1559,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                             volunteer_hours: manual_volunteer_hours + auto_volunteer_hours,
                             custom_absence_hours: HashMap::new(),
                             absence_derived_balance_hours: 0.0,
+                            planning_target_hours: planning_target_hours_for_week,
                             cap_active,
                         }
                     } else {
@@ -1540,6 +1646,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                             volunteer_hours,
                             custom_absence_hours,
                             absence_derived_balance_hours,
+                            planning_target_hours: planning_target_hours_for_week,
                             cap_active,
                         }
                     }
@@ -1559,6 +1666,7 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                         acc.unpaid_leave_hours += week.unpaid_leave_hours;
                         acc.volunteer_hours += week.volunteer_hours;
                         acc.absence_derived_balance_hours += week.absence_derived_balance_hours;
+                        acc.planning_target_hours += week.planning_target_hours;
                         // Phase 55 (HR-ALERT-01): cap_active auf Employee-Ebene
                         // OR-reduzieren (gedeckelt in irgendeiner Woche → true).
                         acc.cap_active = acc.cap_active || week.cap_active;
@@ -1655,8 +1763,16 @@ impl<Deps: ReportingServiceDeps> service::reporting::ReportingService
                 dynamic_hours,
                 expected_hours,
                 overall_hours,
-                // SCAFFOLD-64-01: Platzhalter, wird in Task 3 durch die echte Rechnung ersetzt.
-                planning_target_hours: 0.0,
+                // Phase 64 (PSOLL-01..PSOLL-04): KEINE weitere Subtraktion hier —
+                // anders als `expected_hours` und `dynamic_hours` zwei Zeilen
+                // weiter oben, die am Ende noch die akkumulierten
+                // Abwesenheitsgroessen abziehen. Grund: genau diese akkumulierten
+                // Groessen (`weekly_hours.absense_hours`,
+                // `weekly_hours.absence_derived_balance_hours`) sind fuer
+                // dynamische Wochen bewusst 0, die Endsubtraktion waere dort also
+                // wirkungslos. Das Planungs-Soll wird deshalb bereits pro Woche
+                // NETTO gebildet und hier nur durchgereicht.
+                planning_target_hours: weekly_hours.planning_target_hours,
                 vacation_hours: weekly_hours.vacation_hours + absence_derived_vacation_hours,
                 sick_leave_hours: weekly_hours.sick_leave_hours + absence_derived_sick_leave_hours,
                 holiday_hours: weekly_hours.holiday_hours,
