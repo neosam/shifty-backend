@@ -90,6 +90,57 @@ pub fn fixture_work_details_dynamic_mon_fri() -> EmployeeWorkDetails {
     }
 }
 
+/// Phase 64 / Plan 64-05 (PSOLL-01, D-64-05): dynamischer 40h-Vertrag Mo-Fr MIT
+/// ehrenamtlicher Zusage von 10.0h/Woche.
+///
+/// Das Planungs-Soll ist eine **Zusage**-Groesse, keine Vertrags-Groesse
+/// [D-64-05]: fuer eine volle Vertragswoche erwartet diese Fixture
+/// `40 + 10 = 50.0`. Die Bilanzfelder (`expected_hours`, `dynamic_hours`,
+/// `balance_hours`) sehen die Zusage NICHT und bleiben unveraendert.
+#[allow(dead_code)]
+pub fn fixture_work_details_dynamic_with_commitment() -> EmployeeWorkDetails {
+    EmployeeWorkDetails {
+        id: Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_0000_0012),
+        is_dynamic: true,
+        committed_voluntary: 10.0,
+        ..fixture_work_details_8h_mon_fri()
+    }
+}
+
+/// Phase 64 / Plan 64-05 (PSOLL-04, D-64-05): NICHT-dynamischer 40h-Vertrag Mo-Fr
+/// MIT ehrenamtlicher Zusage von 10.0h/Woche.
+///
+/// Der PSOLL-04-Anker in seiner neuen Fassung: das Planungs-Soll unterscheidet
+/// sich hier von `expected_hours` um genau die um Abwesenheiten und Feiertage
+/// reduzierte Zusage — Byte-Identitaet gilt nur noch bei Zusage 0.
+#[allow(dead_code)]
+pub fn fixture_work_details_fixed_with_commitment() -> EmployeeWorkDetails {
+    EmployeeWorkDetails {
+        id: Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_0000_0013),
+        is_dynamic: false,
+        committed_voluntary: 10.0,
+        ..fixture_work_details_8h_mon_fri()
+    }
+}
+
+/// Phase 64 / Plan 64-05 (PSOLL-01, D-64-05): 0 Vertragsstunden, nicht dynamisch,
+/// ehrenamtliche Zusage 10.0h/Woche.
+///
+/// Diese Fixture bildet die Klasse ab, fuer die das 64-01-Gate
+/// (`has_contract_row && dynamic_hours > 0.0`) **0.0** lieferte, obwohl die Person
+/// eine echte Zusage hat. Mit dem neuen Gate an `planning_base_for_target` zeigt
+/// sie ein Planungs-Soll von 10.0 je volle Vertragswoche.
+#[allow(dead_code)]
+pub fn fixture_work_details_zero_hours_with_commitment() -> EmployeeWorkDetails {
+    EmployeeWorkDetails {
+        id: Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_0000_0014),
+        is_dynamic: false,
+        expected_hours: 0.0,
+        committed_voluntary: 10.0,
+        ..fixture_work_details_8h_mon_fri()
+    }
+}
+
 /// Vacation Mo-Mi (3 Werktage) -- 2024-06-03..05.
 #[allow(dead_code)]
 pub fn fixture_vacation_period() -> AbsencePeriod {
