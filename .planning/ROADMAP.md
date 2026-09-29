@@ -688,13 +688,14 @@ als unsicher).
 
 **UI hint**: yes
 
-**Plans:** 4 plans
+**Plans:** 5 plans
 
 Plans:
 - [x] 64-01-PLAN.md — Planungs-Soll im Backend: Feld an `ShortEmployeeReport`/`ShortEmployeeReportTO`, Berechnung an BEIDEN Konstruktionsstellen mit eigenem `has_contract_row`-Gate, fünf Tests (PSOLL-01, PSOLL-03, PSOLL-04)
 - [ ] 64-02-PLAN.md — Frontend: Feld an `WorkingHoursMini`, 1:1-Durchreichung im Ladepfad, alle drei Anzeigestellen umgestellt (D-64-01), dauerhafter Quellcode-Invariantentest für PSOLL-02
 - [ ] 64-03-PLAN.md — Docs-Freshness-Gate zentral: `F07-reporting-balance` + `time-accounting`, je EN und DE
 - [ ] 64-04-PLAN.md — Laufzeit-Verifikation + UAT: Zahl > 0 im Browser, Gegenprobe fester Vertrag, PSOLL-02-Review pro Trefferstelle
+- [ ] 64-05-PLAN.md — **Gap-Closure aus dem UAT von 64-04:** die ehrenamtliche Zusage (`committed_voluntary`) fließt in das Planungs-Soll ein (D-64-05), neues Gate für `expected_hours == 0` mit Zusage > 0, proportionale Reduktion (D-64-07), Verteilung per `relation` gepinnt (D-64-06), Doku-Korrektur EN+DE, UAT-Erwartungen nachgeführt
 
 **Gepinnte Planungsentscheidungen** (keine discuss-phase — die ROADMAP-Sektion, `64-RESEARCH.md`
 und `64-PATTERNS.md` tragen diese Last):
