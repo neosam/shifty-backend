@@ -5,14 +5,14 @@ milestone_name: — Personenverwaltung & Planungs-Soll
 current_phase: 64
 current_phase_name: Planungs-Soll für dynamische Verträge
 status: executing
-stopped_at: Completed 64-01-PLAN.md
-last_updated: "2026-09-29T18:13:27.088Z"
+stopped_at: Completed 64-02-PLAN.md
+last_updated: "2026-09-29T18:32:02.091Z"
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 35
-  completed_plans: 33
-  percent: 94
+  completed_plans: 34
+  percent: 97
 ---
 
 # Project State: Shifty Backend
@@ -32,11 +32,14 @@ progress:
 ## Current Position
 
 Phase: 64 (Planungs-Soll für dynamische Verträge) — EXECUTING
-Plan: 2 von 4 (64-01 abgeschlossen)
-Status: 64-01 ist ausgefuehrt und gruen — Backend-Feld `planning_target_hours` steht an beiden
-Konstruktionsstellen; Welle 2 (64-02, Frontend-Anzeige) ist als naechstes dran.
-Phase 64 ist geplant und vom Plan-Checker freigegeben — vier Pläne in vier Wellen,
-je ein Plan pro Welle, weil jeder auf dem Feld des Vorgängers aufsetzt.
+Plan: 3 von 4 (64-01 und 64-02 abgeschlossen)
+Status: 64-02 ist ausgefuehrt und gruen — das Planungs-Soll steht jetzt bis in die Anzeige.
+Alle drei Anzeigestellen der Uebersicht unterhalb des Schichtplans (Karten-`target`,
+Tabellen-`target` pro Zeile, Tabellen-`total_target`) lesen `planning_target_hours`;
+Fortschrittsbalken und Farbschwellen messen damit gegen das Planungs-Soll. Frontend-Suite
+860 (Baseline 858 + 2), Backend nachweislich unberuehrt. Welle 3 (64-03, Doku) ist als
+naechstes dran. Phase 64 ist geplant und vom Plan-Checker freigegeben — vier Pläne in vier
+Wellen, je ein Plan pro Welle, weil jeder auf dem Feld des Vorgängers aufsetzt.
 
 64-01 (TDD) legt `planning_target_hours` an `ShortEmployeeReport` und
 `ShortEmployeeReportTO` an und berechnet es an BEIDEN `ShortEmployeeReport`-
@@ -50,8 +53,15 @@ bei einer nicht-dynamischen Zeile mit 0 Vertragsstunden und an jeder Vertrags-Ra
 Aus der zweiten Bedingung folgt die Byte-Identität für nicht-dynamische Verträge
 strukturell statt zufällig. Bewusst KEIN `.max(0.0)`: der Bilanzpfad klemmt auch nicht.
 
-64-02 reicht das Feld ins Frontend durch und stellt die drei Anzeigestellen in
-`working_hours_mini_overview.rs` um — jede einzeln begründet, kein Suchen-und-Ersetzen.
+64-02 hat das Feld ins Frontend durchgereicht und die drei Anzeigestellen in
+`working_hours_mini_overview.rs` umgestellt — jede einzeln begründet, kein
+Suchen-und-Ersetzen. PSOLL-02 ist durch einen dauerhaften Quellcode-Invariantentest
+abgesichert, der gegen zwei künstlich wiedereingeführte Rückfälle (Fallback auf
+`expected_hours`, Arithmetik am Feld) nachweislich fällt. D-64-02 ist bestätigt: aus
+`ShortEmployeeReportTO` zeigt kein zweiter Frontend-Pfad ein Soll — die Jahres-/
+Mitarbeiter-Ansichten lesen `WorkingHoursReportTO`/`EmployeeReportTO` und zeigen
+weiterhin das bilanzrelevante Soll (Flächen-Zuordnung steht im 64-02-SUMMARY,
+Vorlage für die F07-Frontend-Sektion).
 64-03 führt die Doku zentral (F07 + time-accounting, je EN und DE).
 64-04 ist der blockierende UAT-Checkpoint und braucht den Nutzer am laufenden Dev-Server.
 
@@ -322,8 +332,8 @@ Aus `milestones/v2.5-MILESTONE-AUDIT.md`, nicht-blockierend für v2.5, Kandidate
 
 ## Session Continuity
 
-**Last session:** 2026-09-29T18:13:21.228Z
-**Stopped at:** Completed 64-01-PLAN.md
+**Last session:** 2026-09-29T18:32:02.091Z
+**Stopped at:** Completed 64-02-PLAN.md
 **Resume file:** None
 
 **To resume work in a new session:**
@@ -485,6 +495,10 @@ D-63-01/02, D-64-01/02/03).
 - [Phase 63]: [D-63-10-A] Doku-Behauptungen werden gegen die Codebasis geprueft, nicht gegen die SUMMARYs — der Konsistenz-Durchlauf fand drei Aussagen, die durch Phase 63 FALSCH (nicht nur unvollstaendig) geworden waren: 03-data-model 'keine Person wird geloescht', F12 'create_user-Signatur unveraendert', F10 vier Verweise auf die geloeschte page/user_details.rs
 - [Phase 63]: [D-63-10-B] Ein Rueckbau macht Doku in FREMDEN Features falsch — die Dangling-Reference-Jagd laeuft ueber den ganzen docs/-Baum, nicht nur ueber die files_modified des Plans
 - [Phase 64]: 64-01: Planungs-Soll-Gate = has_contract_row && dynamic_hours > 0.0 (Element 1 des weight_for_week-Tupels), zeichengleich an beiden Konstruktionsstellen; kein .max(0.0)-Clamp
+- [Phase 64]: 64-02 (D-64-01 umgesetzt): alle DREI Anzeigestellen in working_hours_mini_overview.rs wechseln aufs Planungs-Soll — Karten-target (Gegenstand des Origin-Todos), Tabellen-target pro Zeile (gemischter Zustand waere schlechter als der einheitliche Fehler), Tabellen-total_target (Fusszeile darf ihrer eigenen Spalte nicht widersprechen). Jede Stelle einzeln editiert und einzeln im Kommentar begruendet, kein Suchen-und-Ersetzen
+- [Phase 64]: 64-02: Fortschrittsbalken und Farbschwellen messen ab jetzt gegen das Planungs-Soll — Folge der target-Bindung, fuer feste Vertraege identisch, fuer dynamische erstmals aussagekraeftig statt bei Soll 0 degeneriert
+- [Phase 64]: 64-02: PSOLL-02 wird durch einen Quellcode-Invariantentest mit drei unabhaengigen Bloecken gehalten (Zugriffszahl == 3 / Verbot von .expected_hours und .dynamic_hours / kein +-*/ unmittelbar hinter dem Feldnamen). Mutations-geprueft: Fallback- und Arithmetik-Mutation lassen ihn nachweislich fallen
+- [Phase 64]: 64-02 (D-64-02 bestaetigt): aus ShortEmployeeReportTO zeigt kein zweiter Frontend-Pfad ein Soll — From<&ShortEmployeeReportTO> for Employee setzt expected_working_hours hart auf 0.0. Die Jahres-/Mitarbeiter-Ansichten lesen WorkingHoursReportTO/EmployeeReportTO und bleiben beim bilanzrelevanten Soll
 
 ## Performance Metrics
 
@@ -561,3 +575,4 @@ D-63-01/02, D-64-01/02/03).
 | Phase 63 P09 | 25min | 3 tasks | 10 files |
 | Phase 63 P10 | 58min | 3 tasks | 17 files |
 | Phase 64 P01 | 45min | 3 tasks | 10 files |
+| Phase 64 P02 | ~35min | 2 tasks | 3 files |

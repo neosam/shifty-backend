@@ -700,7 +700,7 @@ und `64-PATTERNS.md` tragen diese Last):
 | 61. PersonService + Auflösung `sales_person_user` | 10/10 | Complete | 2026-09-17 |
 | 62. Personen-Verzeichnis — eine Liste statt Tabs | 7/7 | Complete | 2026-09-20 |
 | 63. Personen-Detailansicht + Ausprägungs-Aktionen | 11/11 | Complete | 2026-09-29 |
-| 64. Planungs-Soll für dynamische Verträge | 1/4 | In Progress | — |
+| 64. Planungs-Soll für dynamische Verträge | 2/4 | In Progress | — |
 
 **Requirements-Coverage: 18/18 gemappt**, keine Waisen, keine Doppelung.
 
