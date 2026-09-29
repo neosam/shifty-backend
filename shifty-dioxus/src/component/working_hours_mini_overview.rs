@@ -1014,4 +1014,131 @@ mod tests {
             "selected row's <tr> class must NOT carry bg-surface-2 (selected wins over zebra): {tr_open_tag}"
         );
     }
+
+    // ----- Phase 64: Planungs-Soll (PSOLL-01, PSOLL-02) -----
+
+    /// Zwei Zeilen eines dynamischen Vertrags: bilanzrelevantes Soll 0, aber ein
+    /// Planungs-Soll von 20 bzw. 10. Genau diese Konstellation meldet der
+    /// Origin-Todo — heute steht in der Uebersicht deshalb eine Null.
+    fn dynamic_contract_rows() -> Vec<WorkingHoursMini> {
+        vec![
+            WorkingHoursMini {
+                sales_person_id: Uuid::nil(),
+                sales_person_name: "Dyn A".into(),
+                expected_hours: 0.0,
+                planning_target_hours: 20.0,
+                dynamic_hours: 40.0,
+                actual_hours: 12.0,
+                balance_hours: 0.0,
+                background_color: "#abc".into(),
+            },
+            WorkingHoursMini {
+                sales_person_id: Uuid::nil(),
+                sales_person_name: "Dyn B".into(),
+                expected_hours: 0.0,
+                planning_target_hours: 10.0,
+                dynamic_hours: 40.0,
+                actual_hours: 3.0,
+                balance_hours: 0.0,
+                background_color: "#def".into(),
+            },
+        ]
+    }
+
+    /// PSOLL-01: Beide Layouts UND die Summenzeile zeigen das Planungs-Soll.
+    /// Vor der Umstellung ist dieser Test rot, weil das bilanzrelevante Soll
+    /// eines dynamischen Vertrags 0 ist und die Uebersicht diese Null rendert.
+    #[test]
+    fn working_hours_mini_overview_dynamic_contract_shows_planning_target() {
+        fn cards_app() -> Element {
+            rsx! {
+                WorkingHoursMiniOverview {
+                    working_hours: Rc::from(dynamic_contract_rows()),
+                    selected_sales_person_id: None,
+                    layout: WorkingHoursLayout::Cards,
+                    on_dbl_click: |_| {},
+                }
+            }
+        }
+        fn table_app() -> Element {
+            rsx! {
+                WorkingHoursMiniOverview {
+                    working_hours: Rc::from(dynamic_contract_rows()),
+                    selected_sales_person_id: None,
+                    layout: WorkingHoursLayout::Table,
+                    on_dbl_click: |_| {},
+                }
+            }
+        }
+
+        let cards_html = render(cards_app);
+        assert!(
+            cards_html.contains("12.0 / 20.0h"),
+            "card layout must show the planning target (20.0), not the balance-relevant Soll: {cards_html}"
+        );
+        assert!(
+            !cards_html.contains("12.0 / 0.0h"),
+            "card layout must not show the zero balance-relevant Soll of a dynamic contract: {cards_html}"
+        );
+
+        let table_html = render(table_app);
+        assert!(
+            table_html.contains(">20.0h<"),
+            "table row must show the planning target 20.0h: {table_html}"
+        );
+        assert!(
+            table_html.contains(">10.0h<"),
+            "table row must show the planning target 10.0h: {table_html}"
+        );
+        assert!(
+            table_html.contains(">30.0h<"),
+            "table footer must sum the planning targets to 30.0h: {table_html}"
+        );
+        assert!(
+            !table_html.contains(">0.0h<"),
+            "no target cell may render the zero balance-relevant Soll: {table_html}"
+        );
+    }
+
+    /// PSOLL-02: Das Frontend LIEST das Planungs-Soll nur — keine Ableitung, kein
+    /// Fallback, keine Rechnung. Nach dem Muster des Klassen-Sweeps oben wird die
+    /// Produktionsregion ueber den Split an der Test-Attribut-Zeichenkette
+    /// isoliert; deshalb treffen die Suchbegriffe dieses Testmoduls sich nicht
+    /// selbst.
+    ///
+    /// Drei Assertion-Bloecke, jeder gegen eine andere Rueckfall-Form:
+    /// die Zahl der Feldzugriffe schlaegt bei einem zusaetzlichen Zweig aus, das
+    /// Verbot der alten Felder schlaegt bei einem `else`-Fallback aus, und die
+    /// Operator-Pruefung schlaegt bei einer Umrechnung aus.
+    #[test]
+    fn working_hours_mini_overview_reads_planning_target_only() {
+        let source = include_str!("working_hours_mini_overview.rs");
+        let production = source.split("#[cfg(test)]").next().unwrap_or(source);
+
+        let field = ".planning_target_hours";
+        let hits: Vec<usize> = production.match_indices(field).map(|(i, _)| i).collect();
+        assert_eq!(
+            hits.len(),
+            3,
+            "production region must read the planning target at exactly the three display sites \
+             (cards target, table row target, table footer total), found {}",
+            hits.len()
+        );
+
+        for legacy in [".expected_hours", ".dynamic_hours"] {
+            assert!(
+                !production.contains(legacy),
+                "production region must no longer read `{legacy}` — the display sites switched to the planning target"
+            );
+        }
+
+        for idx in hits {
+            let tail = production[idx + field.len()..].trim_start_matches([' ', '\t']);
+            let next = tail.chars().next().unwrap_or(';');
+            assert!(
+                !matches!(next, '+' | '-' | '*' | '/'),
+                "arithmetic operator `{next}` directly after the planning-target field — the frontend must read it, not compute with it"
+            );
+        }
+    }
 }
