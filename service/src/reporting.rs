@@ -253,6 +253,30 @@ pub fn average_worked_hours_per_week(weeks: &[GroupedReportHours]) -> EmployeeWe
     }
 }
 
+/// Story 39 (F1-Fix / Research 210): Ø freiwillige Stunden pro Woche mit
+/// freiwilligen Stunden.
+///
+/// `ist_per_contract_week` hatte `contract_weeks` als Nenner — ohne Vertrag
+/// oder in leer geratenen Wochen `0.0`. Der Nenner zählt stattdessen die
+/// ISO-Wochen im Report-Range mit `volunteer_hours > 0` (Wochen mit 0
+/// Freiwilligen-Stunden zerren den Durchschnitt nicht mehr nach unten).
+///
+/// - `ist_total` ist der aggregierte `EmployeeReport::volunteer_hours` (muss
+///   zur Summe der `volunteer_hours`-Werte der `weeks` passen).
+/// - Keine Woche mit `volunteer_hours > 0` (leere `weeks` eingeschlossen) →
+///   `0.0` statt `None` / `NAN`: `None` blende die UI-Zeile komplett aus,
+///   der bewusste `0.0`-Falls ohne freiwillige Stunden bleibt erhalten.
+/// - Unberührt: `contract_weeks`, `soll_total`, `delta`, `ist_per_soll_pct`
+///   (Semantik D-F1-01 / D-F2-01 / D-54.5-Absence-Overlay).
+pub fn voluntary_hours_per_volunteered_week(ist_total: f32, weeks: &[GroupedReportHours]) -> f32 {
+    let count = weeks.iter().filter(|w| w.volunteer_hours > 0.0).count() as f32;
+    if count == 0.0 {
+        0.0
+    } else {
+        ist_total / count
+    }
+}
+
 /// RPT-01: per-weekday attendance-day statistic (Phase 47).
 ///
 /// One entry per weekday (Mon..Sun). `count` is the number of DISTINCT

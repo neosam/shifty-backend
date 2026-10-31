@@ -27,6 +27,7 @@
 
 use crate::gen_service_impl;
 use crate::reporting::{committed_voluntary_target_in_range, contract_weeks_count_in_range};
+use service::reporting::voluntary_hours_per_volunteered_week;
 use async_trait::async_trait;
 use dao::TransactionDao;
 use service::absence::AbsenceService;
@@ -148,11 +149,16 @@ impl<Deps: VoluntaryStatsServiceDeps> VoluntaryStatsService for VoluntaryStatsSe
             to_date,
             &absences_vec,
         );
-        let ist_per_contract_week = if contract_weeks == 0 {
-            0.0
-        } else {
-            ist_total / contract_weeks as f32
-        };
+        // Story 39 (F1-Fix, Research 210): Nenner ist die Anzahl Wochen im
+        // Range mit `volunteer_hours > 0` (aus `report.by_week`) statt
+        // `contract_weeks`. Ohne Vertrag oder in leer geratenen Wochen
+        // (keine freiwilligen Stunden) waere der alte Nenner 0 bzw. zerre
+        // den Durchschnitt nach unten. `contract_weeks` bleibt UNBERUEHRT
+        // (D-F1-01) und wird weiterhin als DTO-Feld geliefert; nur der
+        // F1-Nenner aendert sich. Ohne freiwillige Stunden: 0.0 (keine
+        // None — None blende die UI-Zeile aus).
+        let ist_per_contract_week =
+            voluntary_hours_per_volunteered_week(ist_total, &report.by_week);
         let delta = ist_total - soll_total;
         // Erfuellungsgrad: None wenn kein Soll (Nicht-Freiwillige oder Range
         // komplett in Absence-Wochen → Division-by-zero-Guard). Sonst
