@@ -394,12 +394,15 @@ async fn fall_e_no_contract_f1_over_weeks_with_hours_end_to_end() {
     ];
     let shiftplan: Arc<[ShiftplanReportDay]> = shiftplan_days
         .into_iter()
-        .map(|(d, hours)| ShiftplanReportDay {
-            sales_person_id: sp_id,
-            hours,
-            year: 2026,
-            calendar_week: 0, // unused — to_date() leitet Woche aus Datum ab
-            day_of_week: d.weekday().into(),
+        .map(|(d, hours)| {
+            let (year, week, dow) = d.to_iso_week_date();
+            ShiftplanReportDay {
+                sales_person_id: sp_id,
+                hours,
+                year: year as u32,
+                calendar_week: week,
+                day_of_week: DayOfWeek::from(dow),
+            }
         })
         .collect();
 
@@ -540,6 +543,8 @@ async fn fall_f_committed_voluntary_only_contract_not_diluted_end_to_end() {
     wh.sales_person_id = sp_id;
     wh.id = Uuid::new_v4();
     wh.expected_hours = 0.0;
+    wh.from_year = 2026;
+    wh.to_year = 2026;
     wh.from_calendar_week = 10;
     wh.to_calendar_week = 13;
     let committed_wh = EmployeeWorkDetails {
@@ -555,12 +560,15 @@ async fn fall_f_committed_voluntary_only_contract_not_diluted_end_to_end() {
     ];
     let shiftplan: Arc<[ShiftplanReportDay]> = shiftplan_days
     .into_iter()
-    .map(|(d, hours)| ShiftplanReportDay {
-        sales_person_id: sp_id,
-        hours,
-        year: 2026,
-        calendar_week: 0,
-        day_of_week: d.weekday(),
+    .map(|(d, hours)| {
+        let (year, week, dow) = d.to_iso_week_date();
+        ShiftplanReportDay {
+            sales_person_id: sp_id,
+            hours,
+            year: year as u32,
+            calendar_week: week,
+            day_of_week: DayOfWeek::from(dow),
+        }
     })
     .collect();
 
