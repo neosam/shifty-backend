@@ -760,6 +760,108 @@ mod service_tests {
         assert!(result.ist_per_soll_pct.is_none());
     }
 
+    /// Story 39 (Szenario b): Vertrag AUSSCHLIESSLICH mit
+    /// committed_voluntary (expected_hours=0, D-F1-01: zaeHLT als
+    /// Vertragswoche) + geleistete freiwillige Stunden.
+    /// Der F1-Mittelwert MUSS nur ueber die Wochen mit Stunden laufen —
+    /// leere Wochen (hier: 2 von 4) duerfen den Schnitt NICHT veroessern:
+    /// ist_total 8.0 / 2 Wochen mit >0 = 4.0 (alt: 8.0/4 = 2.0, bzw.
+    /// 0.0 wenn expected_hours=0 nicht als Nenner gezahlt waere).
+    /// contract_weeks bleibt 4 (Semantik D-F1-01), soll_total = 4 Wo *
+    /// 4.0/7*7 = 16.0 (tages-basiert D-F2-01), delta = 8.0-16.0 = -8.0,
+    /// ist_per_soll_pct = 50.0.
+    #[tokio::test]
+    async fn service_hr_committed_voluntary_only_contract_per_week_not_diluted() {
+        let sp_id = Uuid::new_v4();
+
+        let mut permission_service = MockPermissionService::new();
+        permission_service
+            .expect_check_permission()
+            .returning(|_, _| Ok(()));
+
+        let mut sales_person_service = MockSalesPersonService::new();
+        let sp = make_sales_person(sp_id);
+        let sp_clone = sp.clone();
+        sales_person_service
+            .expect_get()
+            .returning(move |_, _, _| Ok(sp_clone.clone()));
+
+        // 8.0h freiwillig, verteilt ueber KW 10 (5.0) + KW 12 (3.0);
+        // KW 11 und KW 13 sind leer.
+        let mut reporting_service = MockReportingService::new();
+        let sp_for_report = sp.clone();
+        reporting_service
+            .expect_get_report_for_employee_range()
+            .returning(move |_, _, _, _, _, _| Ok(make_report_with_by_week(
+                sp_for_report.clone(),
+                8.0,
+                Arc::from(
+                    [
+                        vol_week(10, 5.0),
+                        vol_week(11, 0.0),
+                        vol_week(12, 3.0),
+                        vol_week(13, 0.0),
+                    ]
+                    .to_vec(),
+                ),
+            )));
+
+        // Ausschliesslich freiwillig: expected_hours=0, committed_voluntary=4.0
+        // ueber KW 10..=13 (4 Vertragswochen, D-F1-01).
+        let wh: Arc<[EmployeeWorkDetails]> = Arc::from(vec![make_working_hours(
+            sp_id,
+            (2026, 10),
+            (2026, 13),
+            0.0,
+            4.0,
+        )]);
+        let mut employee_work_details_service = MockEmployeeWorkDetailsService::new();
+        employee_work_details_service
+            .expect_find_by_sales_person_id()
+            .returning(move |_, _, _| Ok(wh.clone()));
+
+        let mut absence_service = MockAbsenceService::new();
+        absence_service
+            .expect_find_by_sales_person()
+            .returning(|_, _, _| Ok(Arc::from(Vec::<AbsencePeriod>::new())));
+
+        let mut transaction_dao = dao::MockTransactionDao::new();
+        transaction_dao
+            .expect_use_transaction()
+            .returning(|_| Ok(dao::MockTransaction));
+        transaction_dao.expect_commit().returning(|_| Ok(()));
+
+        let svc: VoluntaryStatsServiceImpl<TestDeps> = VoluntaryStatsServiceImpl {
+            reporting_service: Arc::new(reporting_service),
+            employee_work_details_service: Arc::new(employee_work_details_service),
+            sales_person_service: Arc::new(sales_person_service),
+            absence_service: Arc::new(absence_service),
+            permission_service: Arc::new(permission_service),
+            transaction_dao: Arc::new(transaction_dao),
+        };
+
+        let from = ShiftyDate::from_ymd(2026, 3, 2).unwrap();
+        let to = ShiftyDate::from_ymd(2026, 3, 29).unwrap();
+        let result = svc
+            .get_voluntary_stats(sp_id, from, to, Authentication::Context(()), None)
+            .await
+            .expect("HR must succeed");
+
+        // F1-Fix: 8.0h / 2 Wochen mit >0 = 4.0 statt 8.0/4 = 2.0.
+        assert!(
+            (result.ist_per_contract_week.unwrap() - 4.0).abs() < 1e-3,
+            "committed_voluntary-only contract must yield 4.0 (8.0/2 active weeks, not diluted by 2 empty weeks), got {:?}",
+            result.ist_per_contract_week
+        );
+        // Semantik bleibt stabil: 4 Vertragswochen (expected_hours=0 zaehlt
+        // mit, D-F1-01), Soll tages-basiert, Delta = Ist - Soll.
+        assert_eq!(result.contract_weeks, Some(4));
+        assert!((result.ist_total.unwrap() - 8.0).abs() < 1e-3);
+        assert!((result.soll_total.unwrap() - 16.0).abs() < 1e-3);
+        assert!((result.delta.unwrap() - (-8.0)).abs() < 1e-3);
+        assert!((result.ist_per_soll_pct.unwrap() - 50.0).abs() < 1e-3);
+    }
+
     /// VOL-STAT-02 / VOL-ACCT-02: Non-HR liefert VoluntaryStats mit lauter
     /// None-Feldern. Zusaetzlich MUSS kein Datenabruf erfolgen (kein
     /// ReportingService-Call, kein DAO-Call).
