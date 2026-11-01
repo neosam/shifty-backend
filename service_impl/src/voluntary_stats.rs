@@ -149,16 +149,25 @@ impl<Deps: VoluntaryStatsServiceDeps> VoluntaryStatsService for VoluntaryStatsSe
             to_date,
             &absences_vec,
         );
-        // Story 39 (F1-Fix, Research 210): Nenner ist die Anzahl Wochen im
-        // Range mit `volunteer_hours > 0` (aus `report.by_week`) statt
-        // `contract_weeks`. Ohne Vertrag oder in leer geratenen Wochen
-        // (keine freiwilligen Stunden) waere der alte Nenner 0 bzw. zerre
-        // den Durchschnitt nach unten. `contract_weeks` bleibt UNBERUEHRT
-        // (D-F1-01) und wird weiterhin als DTO-Feld geliefert; nur der
-        // F1-Nenner aendert sich. Ohne freiwillige Stunden: 0.0 (keine
-        // None — None blende die UI-Zeile aus).
-        let ist_per_contract_week =
-            voluntary_hours_per_volunteered_week(ist_total, &report.by_week);
+        // Story 39 (F1-Hybrid-Nenner, User-Entscheid Task 345 / Notiz 224):
+        // Nenner = max(Wochen im Range mit `volunteer_hours > 0` (aus
+        // `report.by_week`), contract_weeks) — Vertragswochen zaehlen auch
+        // mit 0h mit, freie aktive Wochen mit 0h (keine freiwilligen
+        // Stunden) nicht. Die max-Variante vermeidet die Doppelzaehlung,
+        // die eine reine Addition (aktive + contract_weeks) ergaeben wuerde,
+        // wenn in den expected=0-Vertragswochen contract_weekly_hours==0
+        // ist (die 30h liegen dann in shiftplan_hours) — Fallfalle:
+        // 30h / (2 freie + 4 Vertragswochen) = 5.0 statt 30/4 = 7.5
+        // (Probe 369 / Notiz 225). Ohne Vertrag (contract_weeks == 0) ist
+        // max(a, 0) == a: bit-identisch zur Phase-42- bzw. Task-341-
+        // Semantik (Nenner = aktive Ehrenamt-Wochen). `contract_weeks`
+        // bleibt als DTO-Feld UNBERUEHRT (D-F1-01). Ohne freiwillige
+        // Stunden: 0.0 (keine None — None blende die UI-Zeile aus).
+        let ist_per_contract_week = voluntary_hours_per_volunteered_week(
+            ist_total,
+            &report.by_week,
+            contract_weeks as u32,
+        );
         let delta = ist_total - soll_total;
         // Erfuellungsgrad: None wenn kein Soll (Nicht-Freiwillige oder Range
         // komplett in Absence-Wochen → Division-by-zero-Guard). Sonst

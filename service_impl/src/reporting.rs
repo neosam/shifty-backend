@@ -2220,10 +2220,28 @@ fn hours_per_week(
                 .is_some();
         let (shiftplan_hours, auto_volunteer_hours) =
             apply_weekly_cap(cap_active, raw_shiftplan_hours, working_hours_for_week);
-        // no-contract: shiftplan-Stunden gehen NICHT in overall, sondern als Ehrenamt.
-        // dynamic (has_contract_row && working_hours_for_week == 0): shiftplan_paid bleibt shiftplan_hours (Soll=Ist).
-        let shiftplan_paid = if has_contract_row { shiftplan_hours } else { 0.0 };
-        let no_contract_volunteer = if has_contract_row { 0.0 } else { shiftplan_hours };
+        // no-contract (quick-260624-ujk): shiftplan-Stunden gehen NICHT in
+        // overall, sondern als Ehrenamt. dynamic (Zeile vorhanden, is_dynamic,
+        // expected=0): Soll=Ist — shiftplan bleibt bezahlt.
+        //
+        // Story 39 (Routing-Fix, atomar zum F1-Hybrid-Nenner / Notiz 225):
+        // NICHTDynamische Zeilen mit expected_hours=0 (z.B. committed_voluntary-
+        // Vertrag: Zeile vorhanden, aber kein bezahltes Soll) routen die
+        // Shiftplan-Stunden NICHT in overall, sondern als Ehrenamt — konsistent
+        // zum no-contract-Pfad. Dynamische Zeilen (is_dynamic) bleiben UNBERUEHRT
+        // (Soll=Ist, Praezedenz quick-260624-ujk Fall B — `is_dynamic` wird
+        // explizit geprueft, weil `weight_for_week` auch dynamische Zeilen auf
+        // 0.0 legt und `working_hours_for_week == 0.0` allein sie nicht
+        // abgrenzen kann).
+        // `dynamic_week` ist true exakt in den Faellen, die ueberall wie bisher
+        // behandelt werden: ohne Vertrag (shiftplan = bezahlt), mit Vertrag
+        // expected>0 (bezahlt) oder mit dynamischer Zeile (Soll=Ist).
+        let dynamic_week = !has_contract_row
+            || working_hours_for_week > 0.0
+            || find_working_hours_for_calendar_week(working_hours, week.year, week.week)
+                .any(|wh| wh.is_dynamic);
+        let shiftplan_paid = if dynamic_week { shiftplan_hours } else { 0.0 };
+        let no_contract_volunteer = if dynamic_week { 0.0 } else { shiftplan_hours };
         let extra_work_hours = filtered_extra_hours_list
             .iter()
             .filter(|eh| eh.category.as_report_type() == ReportType::WorkingHours)

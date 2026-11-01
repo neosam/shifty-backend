@@ -532,7 +532,9 @@ fn f1_denominator_counts_only_weeks_with_volunteer_hours() {
         vol_week(16, 0.0),
     ];
     let ist_total = 6.0;
-    let per_week = voluntary_hours_per_volunteered_week(ist_total, &weeks);
+    // Ohne Vertrag (contract_weeks=0): max(3 aktive, 0) = 3 — bit-identisch
+    // zur alten Task-341-Semantik.
+    let per_week = voluntary_hours_per_volunteered_week(ist_total, &weeks, 0);
     assert!((per_week - 2.0).abs() < 1e-3, "expected 2.0, got {per_week}");
 }
 
@@ -540,7 +542,7 @@ fn f1_denominator_counts_only_weeks_with_volunteer_hours() {
 #[test]
 fn f1_no_volunteer_hours_yields_zero() {
     let weeks = [vol_week(10, 0.0), vol_week(11, 0.0)];
-    let per_week = voluntary_hours_per_volunteered_week(0.0, &weeks);
+    let per_week = voluntary_hours_per_volunteered_week(0.0, &weeks, 0);
     assert!((per_week - 0.0).abs() < 1e-3, "expected 0.0, got {per_week}");
     assert!(per_week.is_finite());
 }
@@ -554,7 +556,7 @@ fn f1_single_volunteer_week_not_diluted() {
         vol_week(12, 0.0),
         vol_week(13, 0.0),
     ];
-    let per_week = voluntary_hours_per_volunteered_week(8.0, &weeks);
+    let per_week = voluntary_hours_per_volunteered_week(8.0, &weeks, 0);
     assert!((per_week - 8.0).abs() < 1e-3, "expected 8.0, got {per_week}");
 }
 
@@ -562,9 +564,70 @@ fn f1_single_volunteer_week_not_diluted() {
 #[test]
 fn f1_empty_by_week_yields_zero() {
     let weeks: &[GroupedReportHours] = &[];
-    let per_week = voluntary_hours_per_volunteered_week(5.0, weeks);
+    let per_week = voluntary_hours_per_volunteered_week(5.0, weeks, 0);
     assert!((per_week - 0.0).abs() < 1e-3, "expected 0.0, got {per_week}");
     assert!(per_week.is_finite());
+}
+
+/// (e) Story 39 (Szenario b): 4 Vertragswochen (expected_hours=0), in
+/// denen 30h freiwillig in 2 Wochen (20h + 10h) liegen. Nenner =
+/// max(2 aktive, 4 Vertragswochen) = 4 → 30.0/4 = 7.5 statt 30.0/2 = 15.0
+/// (User-Entscheid: leere Vertragswochen verdünnen — aber NUR Vertrags-
+/// wochen, nicht vertraglose leere Wochen).
+#[test]
+fn f1_contract_weeks_with_zero_hours_count_in_denominator() {
+    let weeks = [
+        vol_week(10, 20.0),
+        vol_week(11, 0.0),
+        vol_week(12, 10.0),
+        vol_week(13, 0.0),
+    ];
+    let per_week = voluntary_hours_per_volunteered_week(30.0, &weeks, 4);
+    assert!(
+        (per_week - 7.5).abs() < 1e-3,
+        "4 contract weeks + 30h in 2 of them => 30/4 = 7.5, got {per_week}"
+    );
+}
+
+/// (f) Story 39 (Szenario b) kontrast: gleiche 30h/2 aktive Wochen, ABER
+/// ohne Vertrag (contract_weeks=0) → Nenner = 2 → 15.0. Zeigt, dass der
+/// Hybrid-Nenner exakt den Unterschied zwischen Szenario (a) und (b)
+/// abbildet (max(2,4)=4 vs. max(2,0)=2).
+#[test]
+fn f1_same_hours_without_contract_not_diluted() {
+    let weeks = [
+        vol_week(10, 20.0),
+        vol_week(11, 0.0),
+        vol_week(12, 10.0),
+        vol_week(13, 0.0),
+    ];
+    let per_week = voluntary_hours_per_volunteered_week(30.0, &weeks, 0);
+    assert!(
+        (per_week - 15.0).abs() < 1e-3,
+        "no contract: 30h in 2 active weeks => 15.0, got {per_week}"
+    );
+}
+
+/// (g) Story 39 (Szenario c, gemischt): 2 Vertragswochen im Range + 1
+/// vertragliche freie aktive Woche (cwh==0 && vol>0, NACH den
+/// Vertragswochen). Nenner = max(1 freie aktive, 2 Vertragswochen) + 1 =
+/// 3 → 30.0/3 = 10.0. Die freie aktive Woche wird NICHT doppelt gezählt
+/// (sie ist cwh==0, zählt über die aktive-Wochen-Seite, nicht zusätzlich
+/// zu contract_weeks).
+#[test]
+fn f1_mixed_contract_and_free_active_weeks() {
+    let weeks = [
+        vol_week(10, 10.0),
+        vol_week(11, 0.0),
+        // Vertragsfreie aktive Woche NACH den 2 Vertragswochen:
+        // cwh==0 (kein Vertrag) && vol>0.
+        vol_week(14, 10.0),
+    ];
+    let per_week = voluntary_hours_per_volunteered_week(30.0, &weeks, 2);
+    assert!(
+        (per_week - 10.0).abs() < 1e-3,
+        "2 contract weeks + 1 free active week => 30/3 = 10.0, got {per_week}"
+    );
 }
 
 // ─── Service-Tests (mockall) ──────────────────────────────────────────────────
