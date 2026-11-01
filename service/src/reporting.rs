@@ -253,23 +253,57 @@ pub fn average_worked_hours_per_week(weeks: &[GroupedReportHours]) -> EmployeeWe
     }
 }
 
-/// Story 39 (F1-Fix / Research 210): Ø freiwillige Stunden pro Woche mit
-/// freiwilligen Stunden.
+/// Story 39 (F1-Hybrid-Nenner, User-Entscheid Task 345 / Notiz 224;
+/// Vorstufe Research 210): Ø freiwillige Stunden pro Woche, wobei leere
+/// Wochen NUR dann in den Nenner aufgenommen werden, wenn in dieser Woche
+/// ein Arbeitsvertrag besteht.
 ///
-/// `ist_per_contract_week` hatte `contract_weeks` als Nenner — ohne Vertrag
-/// oder in leer geratenen Wochen `0.0`. Der Nenner zählt stattdessen die
-/// ISO-Wochen im Report-Range mit `volunteer_hours > 0` (Wochen mit 0
-/// Freiwilligen-Stunden zerren den Durchschnitt nicht mehr nach unten).
+/// Nenner = (by_week-Wochen mit `contract_weekly_hours == 0` UND
+/// `volunteer_hours > 0`) + `contract_weeks`.
 ///
-/// - `ist_total` ist der aggregierte `EmployeeReport::volunteer_hours` (muss
-///   zur Summe der `volunteer_hours`-Werte der `weeks` passen).
-/// - Keine Woche mit `volunteer_hours > 0` (leere `weeks` eingeschlossen) →
-///   `0.0` statt `None` / `NAN`: `None` blende die UI-Zeile komplett aus,
-///   der bewusste `0.0`-Falls ohne freiwillige Stunden bleibt erhalten.
+/// User-Entscheid (Task 345): „Wochen mit 0 sollen auch in den Durchschnitt
+/// rein — aber nur bei Wochen, an denen ein Arbeitsvertrag besteht." Damit
+/// zählen in der Hybrid-Semantik
+///   (1) ALLE Vertragswochen im Range — auch mit 0 freiwilligen Stunden
+///   (`contract_weeks`, D-F1-01, auch expected_hours=0), und
+///   (2) zusätzlich die vertraglosen aktiven Wochen mit >0 freiwilligen
+///   Stunden (Task-341-Semantik; vertraglose Wochen mit 0h bleiben außen).
+///
+/// Der Nenner wird über `contract_weekly_hours` (cwh) gebildet. WICHTIGE
+/// ABGRENZUNG (Probe Task 369 / Notiz 225): `cwh == 0` ist KEIN
+/// verlässlicher Verträge-Marker — eine Vertragswoche mit
+/// `expected_hours == 0` (committed_voluntary-Vertrag) UND eine
+/// vertraglose Woche tragen im Report beide `cwh == 0`. Der Nenner ist
+/// exakt zur User-Semantik (1)+(2) dann, wenn jede cwh==0-Woche im
+/// by_week-Range eine Vertragswoche ist (die E2E-Situation:
+/// committed_voluntary-Vertrag deckt den gesamten Range ab — fall_f:
+/// 30/4 = 7.5 statt 30/(2+4) = 5.0 über die naive Doppelzählung). Sind
+/// im Range NACH den Vertragswochen vertraglose aktive Wochen, zählt die
+/// Summenformel diese exakt 1× (als cwh==0 && vol>0) — nicht als
+/// "vertraglos" über (1)+(2); sie wird also NICHT zusätzlich zu den
+/// `contract_weeks` geschlagen, zählt aber trotzdem mit.
+///
+/// - Ohne Vertrag (`contract_weeks == 0`): Nenner = Wochen mit cwh==0 &&
+///   `volunteer_hours > 0` = exakt die aktiven vertraglosen Wochen →
+///   bit-identisch zur Task-341-Semantik (30h in 2 Wochen = 15.0).
+/// - `ist_total` ist der aggregierte `EmployeeReport::volunteer_hours`
+///   (muss zur Summe der `volunteer_hours`-Werte der `weeks` passen).
+/// - Nenner 0 (keine aktive Woche UND keine Vertragswoche, leere `weeks`
+///   eingeschlossen) → `0.0` statt `None` / `NAN`: `None` blende die
+///   UI-Zeile komplett aus, der bewusste `0.0`-Fall ohne freiwillige
+///   Stunden bleibt erhalten.
 /// - Unberührt: `contract_weeks`, `soll_total`, `delta`, `ist_per_soll_pct`
 ///   (Semantik D-F1-01 / D-F2-01 / D-54.5-Absence-Overlay).
-pub fn voluntary_hours_per_volunteered_week(ist_total: f32, weeks: &[GroupedReportHours]) -> f32 {
-    let count = weeks.iter().filter(|w| w.volunteer_hours > 0.0).count() as f32;
+pub fn voluntary_hours_per_volunteered_week(
+    ist_total: f32,
+    weeks: &[GroupedReportHours],
+    contract_weeks: u32,
+) -> f32 {
+    let active_weeks = weeks
+        .iter()
+        .filter(|w| w.contract_weekly_hours == 0.0 && w.volunteer_hours > 0.0)
+        .count() as u32;
+    let count = contract_weeks.max(active_weeks) as f32;
     if count == 0.0 {
         0.0
     } else {
