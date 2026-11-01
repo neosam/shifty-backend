@@ -224,12 +224,25 @@ pub fn contract_weeks_count_in_range(
     to_date: ShiftyDate,
     absences: &[AbsencePeriod],
 ) -> u32 {
+    contract_weeks_in_range(working_hours, from_date, to_date, absences).len() as u32
+}
+
+/// Story 39: Die ISO-Wochen `(Jahr, KW)`, die
+/// [`contract_weeks_count_in_range`] zaehlt. Der F1-Hybrid-Nenner braucht die
+/// Identitaet der Wochen, weil `contract_weekly_hours == 0` eine
+/// expected_hours=0-Vertragswoche nicht von einer vertraglosen Woche trennt.
+pub fn contract_weeks_in_range(
+    working_hours: &[EmployeeWorkDetails],
+    from_date: ShiftyDate,
+    to_date: ShiftyDate,
+    absences: &[AbsencePeriod],
+) -> BTreeSet<(u32, u8)> {
+    let mut contract_weeks = BTreeSet::new();
     if from_date > to_date {
-        return 0;
+        return contract_weeks;
     }
     let from = from_date.to_date();
     let to = to_date.to_date();
-    let mut count: u32 = 0;
     let mut day = from;
     while day <= to {
         // Bestimme ISO-Woche des aktuellen Tages und deren Mo/So.
@@ -267,7 +280,7 @@ pub fn contract_weeks_count_in_range(
             p.deleted.is_none() && period_overlaps_week(p.from_date, p.to_date, monday, sunday)
         });
         if has_contract && !has_absence {
-            count += 1;
+            contract_weeks.insert((iso_year as u32, iso_week));
         }
         // Naechster Loop-Anker: sunday+1 (Anfang der Folgewoche), es sei denn
         // sunday >= to (dann sind wir fertig).
@@ -276,7 +289,7 @@ pub fn contract_weeks_count_in_range(
         }
         day = sunday + time::Duration::days(1);
     }
-    count
+    contract_weeks
 }
 
 /// Phase 54 Gap-Closure G1 (VOL-ACCT-01-Soll, D-F2-01) +
@@ -2220,28 +2233,10 @@ fn hours_per_week(
                 .is_some();
         let (shiftplan_hours, auto_volunteer_hours) =
             apply_weekly_cap(cap_active, raw_shiftplan_hours, working_hours_for_week);
-        // no-contract (quick-260624-ujk): shiftplan-Stunden gehen NICHT in
-        // overall, sondern als Ehrenamt. dynamic (Zeile vorhanden, is_dynamic,
-        // expected=0): Soll=Ist — shiftplan bleibt bezahlt.
-        //
-        // Story 39 (Routing-Fix, atomar zum F1-Hybrid-Nenner / Notiz 225):
-        // NICHTDynamische Zeilen mit expected_hours=0 (z.B. committed_voluntary-
-        // Vertrag: Zeile vorhanden, aber kein bezahltes Soll) routen die
-        // Shiftplan-Stunden NICHT in overall, sondern als Ehrenamt — konsistent
-        // zum no-contract-Pfad. Dynamische Zeilen (is_dynamic) bleiben UNBERUEHRT
-        // (Soll=Ist, Praezedenz quick-260624-ujk Fall B — `is_dynamic` wird
-        // explizit geprueft, weil `weight_for_week` auch dynamische Zeilen auf
-        // 0.0 legt und `working_hours_for_week == 0.0` allein sie nicht
-        // abgrenzen kann).
-        // `dynamic_week` ist true exakt in den Faellen, die ueberall wie bisher
-        // behandelt werden: ohne Vertrag (shiftplan = bezahlt), mit Vertrag
-        // expected>0 (bezahlt) oder mit dynamischer Zeile (Soll=Ist).
-        let dynamic_week = !has_contract_row
-            || working_hours_for_week > 0.0
-            || find_working_hours_for_calendar_week(working_hours, week.year, week.week)
-                .any(|wh| wh.is_dynamic);
-        let shiftplan_paid = if dynamic_week { shiftplan_hours } else { 0.0 };
-        let no_contract_volunteer = if dynamic_week { 0.0 } else { shiftplan_hours };
+        // no-contract: shiftplan-Stunden gehen NICHT in overall, sondern als Ehrenamt.
+        // dynamic (has_contract_row && working_hours_for_week == 0): shiftplan_paid bleibt shiftplan_hours (Soll=Ist).
+        let shiftplan_paid = if has_contract_row { shiftplan_hours } else { 0.0 };
+        let no_contract_volunteer = if has_contract_row { 0.0 } else { shiftplan_hours };
         let extra_work_hours = filtered_extra_hours_list
             .iter()
             .filter(|eh| eh.category.as_report_type() == ReportType::WorkingHours)

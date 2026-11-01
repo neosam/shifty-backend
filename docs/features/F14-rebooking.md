@@ -305,11 +305,13 @@ the field is `None`.
 `VoluntaryStatsTO` (5 fields, all `Option<f32>`/`Option<u32>`, serde
 `#[serde(default)]` for wire compatibility):
 
-- `ist_per_contract_week` — F1 (Ø voluntary / contract-week).
+- `ist_per_contract_week` — F1: `ist_total` divided by all contract weeks
+  (including weeks with 0 h) plus weeks without a contract that have voluntary
+  hours (Story 39; 0.0 if there are none).
 - `ist_total` — F2 Ist (absolute Manual Volunteer sum for the range).
 - `soll_total` — F2 Soll (`committed_voluntary` pro-rata across the range).
 - `delta` — `ist_total − soll_total`.
-- `contract_weeks` — F1 denominator (audit).
+- `contract_weeks` — contract-week part of the F1 denominator (audit).
 - `ist_per_soll_pct` — fulfillment ratio in percent (`ist_total /
   soll_total * 100`), `None` when `soll_total ≈ 0`.
 

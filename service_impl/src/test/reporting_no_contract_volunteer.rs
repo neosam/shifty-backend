@@ -24,7 +24,7 @@ use service::absence::MockAbsenceService;
 use service::carryover::MockCarryoverService;
 use service::clock::MockClockService;
 use service::employee_work_details::{EmployeeWorkDetails, MockEmployeeWorkDetailsService};
-use service::extra_hours::MockExtraHoursService;
+use service::extra_hours::{ExtraHours, ExtraHoursCategory, ExtraHoursSource, MockExtraHoursService};
 use service::permission::Authentication;
 use service::reporting::ReportingService;
 use service::sales_person::MockSalesPersonService;
@@ -97,6 +97,15 @@ fn build_detail_service(
     work_details: Vec<EmployeeWorkDetails>,
     shiftplan: Arc<[ShiftplanReportDay]>,
 ) -> ReportingServiceImpl<TestDeps> {
+    build_detail_service_with_extra_hours(work_details, shiftplan, Vec::new())
+}
+
+/// Wie [`build_detail_service`], aber mit manuellen ExtraHours-Buchungen.
+fn build_detail_service_with_extra_hours(
+    work_details: Vec<EmployeeWorkDetails>,
+    shiftplan: Arc<[ShiftplanReportDay]>,
+    extra_hours: Vec<ExtraHours>,
+) -> ReportingServiceImpl<TestDeps> {
     let mut permission_service = MockPermissionService::new();
     permission_service
         .expect_check_permission()
@@ -123,7 +132,7 @@ fn build_detail_service(
     let mut extra_hours_service = MockExtraHoursService::new();
     extra_hours_service
         .expect_find_by_sales_person_id_and_year_range()
-        .returning(|_, _, _, _, _| Ok(Arc::from(Vec::new())));
+        .returning(move |_, _, _, _, _| Ok(Arc::from(extra_hours.clone())));
 
     let mut absence_service = MockAbsenceService::new();
     absence_service
@@ -522,16 +531,17 @@ async fn fall_e_no_contract_f1_over_weeks_with_hours_end_to_end() {
 /// Fall F (Story 39, Szenario b): Vertrag AUSSCHLIESSLICH mit
 /// committed_voluntary (expected_hours=0) + geleistete freiwillige Stunden.
 ///
-/// Die echte ReportingKette: 30h Shiftplan, verteilt ueber KW 10 (20h) +
-/// KW 12 (10h) von 4 Vertragswochen (KW 10..=13, expected_hours=0 =>
-/// Soll=Ist-neutral, Shiftplan-Stunden gehen als Ehrenamt).
+/// Die echte ReportingKette: 30h manuelle VolunteerWork, verteilt ueber KW 10
+/// (20h) + KW 12 (10h) von 4 Vertragswochen (KW 10..=13, expected_hours=0);
+/// der Shiftplan derselben Wochen bleibt bezahlt (Soll=Ist, Routing unberuehrt)
+/// und zaehlt nicht als Ehrenamt.
 /// Erwartet: contract_weeks=4 (expected_hours=0 zaehlt MIT, D-F1-01),
 /// soll_total = 4 Wochen * 4.0h committed = 16.0 (tages-basiert),
-/// ist_total=30.0, delta=14.0, pct=187.5 — UND der Story-39-Fix:
-/// ist_per_contract_week = 30.0 / 2 Wochen mit >0 = 15.0 statt
-/// 30.0/4 = 7.5 (leere Wochen verdünnen den Ø nicht).
+/// ist_total=30.0, delta=14.0, pct=187.5 — UND der F1-Hybrid-Nenner
+/// (User-Entscheid Task 345): ist_per_contract_week = 30.0 / 4 = 7.5, leere
+/// Vertragswochen zaehlen mit.
 #[tokio::test]
-async fn fall_f_committed_voluntary_only_contract_not_diluted_end_to_end() {
+async fn fall_f_committed_voluntary_only_contract_counts_all_contract_weeks_end_to_end() {
     use time::macros::date;
     use uuid::Uuid;
 
@@ -552,7 +562,7 @@ async fn fall_f_committed_voluntary_only_contract_not_diluted_end_to_end() {
         ..wh
     };
 
-    // Shiftplan: 20h in KW 10, 10h in KW 12; KW 11 + KW 13 leer.
+    // Shiftplan bleibt in Vertragswochen bezahlt und zaehlt nicht fuer F1.
     let shiftplan_days: Vec<(time::Date, f32)> = vec![
         (date!(2026 - 03 - 02), 10.0),
         (date!(2026 - 03 - 03), 10.0),
@@ -572,7 +582,25 @@ async fn fall_f_committed_voluntary_only_contract_not_diluted_end_to_end() {
     })
     .collect();
 
-    let reporting_service = build_detail_service(vec![committed_wh], shiftplan);
+    // Manuelle VolunteerWork: 20h in KW 10, 10h in KW 12; KW 11 + KW 13 leer.
+    let extra_hours: Vec<ExtraHours> = [(date!(2026 - 03 - 02), 20.0), (date!(2026 - 03 - 18), 10.0)]
+        .into_iter()
+        .map(|(d, amount)| ExtraHours {
+            id: Uuid::new_v4(),
+            sales_person_id: sp_id,
+            amount,
+            category: ExtraHoursCategory::VolunteerWork,
+            description: "Freiwillig".into(),
+            date_time: time::PrimitiveDateTime::new(d, time::Time::MIDNIGHT),
+            created: None,
+            deleted: None,
+            version: Uuid::nil(),
+            source: ExtraHoursSource::Manual,
+        })
+        .collect();
+
+    let reporting_service =
+        build_detail_service_with_extra_hours(vec![committed_wh], shiftplan, extra_hours);
     let report = reporting_service
         .get_report_for_employee_range(
             &sp_id,
@@ -586,7 +614,7 @@ async fn fall_f_committed_voluntary_only_contract_not_diluted_end_to_end() {
         .expect("report must succeed");
     assert!(
         (report.volunteer_hours - 30.0).abs() < 0.01,
-        "contract with expected=0 keeps shiftplan in volunteer_hours, got {}",
+        "manual VolunteerWork must land in volunteer_hours, shiftplan stays paid, got {}",
         report.volunteer_hours
     );
     let active_weeks = report.by_week.iter().filter(|w| w.volunteer_hours > 0.0).count();
@@ -677,14 +705,13 @@ async fn fall_f_committed_voluntary_only_contract_not_diluted_end_to_end() {
         "pct = 30/16*100 = 187.5, got {:?}",
         stats.ist_per_soll_pct
     );
-    // Story 39 (b): Ø nur ueber die 2 Wochen mit Stunden = 15.0
-    // (alt: 30.0/4 = 7.5 — Verdünnung durch leere Wochen).
+    // Story 39 (b): Hybrid-Nenner = alle 4 Vertragswochen → 30.0/4 = 7.5.
     let ist_per = stats
         .ist_per_contract_week
         .expect("HR path sets ist_per_contract_week");
     assert!(
-        (ist_per - 15.0).abs() < 0.01,
-        "Story 39 (b): Ø only over weeks with hours (15.0, not diluted to 7.5), got {ist_per}"
+        (ist_per - 7.5).abs() < 0.01,
+        "Story 39 (b): Ø over all 4 contract weeks (30/4 = 7.5), got {ist_per}"
     );
     let _ = Uuid::nil();
 }

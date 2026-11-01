@@ -320,11 +320,13 @@ ausgeblendet, wenn das Feld `None` ist.
 `VoluntaryStatsTO` (5 Felder, alle `Option<f32>`/`Option<u32>`,
 serde `#[serde(default)]` für Wire-Kompatibilität):
 
-- `ist_per_contract_week` — F1 (Ø Freiwillig / Vertragswoche).
+- `ist_per_contract_week` — F1: `ist_total` geteilt durch alle Vertragswochen
+  (auch mit 0 h) plus vertraglose Wochen mit freiwilligen Stunden (Story 39;
+  0.0, wenn es keine gibt).
 - `ist_total` — F2-Ist (absolute Manual-Volunteer-Summe im Range).
 - `soll_total` — F2-Soll (`committed_voluntary` pro-rata über den Range).
 - `delta` — `ist_total − soll_total`.
-- `contract_weeks` — F1-Nenner (Audit).
+- `contract_weeks` — Vertragswochen-Anteil des F1-Nenners (Audit).
 - `ist_per_soll_pct` — Erfüllungsgrad in Prozent (`ist_total /
   soll_total * 100`), `None` wenn `soll_total ≈ 0`.
 

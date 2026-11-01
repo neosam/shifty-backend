@@ -10,7 +10,7 @@
 //!
 //! Soll-Aggregat: `committed_voluntary_target_in_range` — tages-basiert
 //! pro-rata (D-F2-01).
-//! Contract-Weeks-Nenner: `contract_weeks_count_in_range` — D-F1-01
+//! Contract-Weeks-Nenner: `contract_weeks_in_range` — D-F1-01
 //! (expected_hours=0 zaehlt MIT).
 //!
 //! HR-Gate an erster Stelle; Non-HR-Aufrufer erhalten alle Felder als
@@ -26,7 +26,7 @@
 //! auch diese Kette treffen.
 
 use crate::gen_service_impl;
-use crate::reporting::{committed_voluntary_target_in_range, contract_weeks_count_in_range};
+use crate::reporting::{committed_voluntary_target_in_range, contract_weeks_in_range};
 use service::reporting::voluntary_hours_per_volunteered_week;
 use async_trait::async_trait;
 use dao::TransactionDao;
@@ -143,30 +143,25 @@ impl<Deps: VoluntaryStatsServiceDeps> VoluntaryStatsService for VoluntaryStatsSe
             to_date,
             &absences_vec,
         );
-        let contract_weeks = contract_weeks_count_in_range(
+        let contract_week_set = contract_weeks_in_range(
             &working_hours_vec,
             from_date,
             to_date,
             &absences_vec,
         );
+        let contract_weeks = contract_week_set.len() as u32;
         // Story 39 (F1-Hybrid-Nenner, User-Entscheid Task 345 / Notiz 224):
-        // Nenner = max(Wochen im Range mit `volunteer_hours > 0` (aus
-        // `report.by_week`), contract_weeks) — Vertragswochen zaehlen auch
-        // mit 0h mit, freie aktive Wochen mit 0h (keine freiwilligen
-        // Stunden) nicht. Die max-Variante vermeidet die Doppelzaehlung,
-        // die eine reine Addition (aktive + contract_weeks) ergaeben wuerde,
-        // wenn in den expected=0-Vertragswochen contract_weekly_hours==0
-        // ist (die 30h liegen dann in shiftplan_hours) — Fallfalle:
-        // 30h / (2 freie + 4 Vertragswochen) = 5.0 statt 30/4 = 7.5
-        // (Probe 369 / Notiz 225). Ohne Vertrag (contract_weeks == 0) ist
-        // max(a, 0) == a: bit-identisch zur Phase-42- bzw. Task-341-
-        // Semantik (Nenner = aktive Ehrenamt-Wochen). `contract_weeks`
-        // bleibt als DTO-Feld UNBERUEHRT (D-F1-01). Ohne freiwillige
-        // Stunden: 0.0 (keine None — None blende die UI-Zeile aus).
+        // Nenner = aktive Wochen (`volunteer_hours > 0` aus `report.by_week`)
+        // ohne Vertrag + ALLE Vertragswochen — Vertragswochen zaehlen auch
+        // mit 0h mit, vertraglose Wochen mit 0h nicht. Ohne Vertrag bleibt
+        // es die Task-341-Semantik (Nenner = aktive Wochen). `contract_weeks`
+        // bleibt als DTO-Feld UNBERUEHRT (D-F1-01). Ohne freiwillige Stunden
+        // und ohne Vertragswoche: 0.0 (keine None — None blende die UI-Zeile
+        // aus).
         let ist_per_contract_week = voluntary_hours_per_volunteered_week(
             ist_total,
             &report.by_week,
-            contract_weeks as u32,
+            &contract_week_set,
         );
         let delta = ist_total - soll_total;
         // Erfuellungsgrad: None wenn kein Soll (Nicht-Freiwillige oder Range

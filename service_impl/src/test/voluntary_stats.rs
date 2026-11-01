@@ -483,11 +483,16 @@ fn f2_soll_deleted_absence_is_ignored() {
     assert_eq!(cw, 1, "deleted absence must not remove contract week, got {cw}");
 }
 
-// ─── Pure-fn Tests (Story 39: F1-Nenner = Wochen mit >0 freiwilligen Stunden) ──
+// ─── Pure-fn Tests (Story 39: F1-Hybrid-Nenner) ────────────────────────────────
+
+/// Helper: Vertragswochen-Menge im ISO-Jahr 2026 (passend zu [`vol_week`]).
+fn contract_kws(weeks: &[u8]) -> std::collections::BTreeSet<(u32, u8)> {
+    weeks.iter().map(|week| (2026, *week)).collect()
+}
 
 /// Helper: `GroupedReportHours` mit nur `volunteer_hours` gesetzt,
 /// alle anderen Felder benign (0.0 / empty) — der F1-Nenner liest
-/// ausschließlich `volunteer_hours`. `week` positioniert die Woche im
+/// nur `year`, `week` und `volunteer_hours`. `week` positioniert die Woche im
 /// ISO-Jahr 2026 (KW 10+), damit die Service-Mocks konsistente
 /// Report-Daten liefern.
 fn vol_week(week: u8, volunteer_hours: f32) -> GroupedReportHours {
@@ -532,9 +537,8 @@ fn f1_denominator_counts_only_weeks_with_volunteer_hours() {
         vol_week(16, 0.0),
     ];
     let ist_total = 6.0;
-    // Ohne Vertrag (contract_weeks=0): max(3 aktive, 0) = 3 — bit-identisch
-    // zur alten Task-341-Semantik.
-    let per_week = voluntary_hours_per_volunteered_week(ist_total, &weeks, 0);
+    // Ohne Vertrag: Nenner = 3 aktive Wochen — identisch zur Task-341-Semantik.
+    let per_week = voluntary_hours_per_volunteered_week(ist_total, &weeks, &contract_kws(&[]));
     assert!((per_week - 2.0).abs() < 1e-3, "expected 2.0, got {per_week}");
 }
 
@@ -542,7 +546,7 @@ fn f1_denominator_counts_only_weeks_with_volunteer_hours() {
 #[test]
 fn f1_no_volunteer_hours_yields_zero() {
     let weeks = [vol_week(10, 0.0), vol_week(11, 0.0)];
-    let per_week = voluntary_hours_per_volunteered_week(0.0, &weeks, 0);
+    let per_week = voluntary_hours_per_volunteered_week(0.0, &weeks, &contract_kws(&[]));
     assert!((per_week - 0.0).abs() < 1e-3, "expected 0.0, got {per_week}");
     assert!(per_week.is_finite());
 }
@@ -556,7 +560,7 @@ fn f1_single_volunteer_week_not_diluted() {
         vol_week(12, 0.0),
         vol_week(13, 0.0),
     ];
-    let per_week = voluntary_hours_per_volunteered_week(8.0, &weeks, 0);
+    let per_week = voluntary_hours_per_volunteered_week(8.0, &weeks, &contract_kws(&[]));
     assert!((per_week - 8.0).abs() < 1e-3, "expected 8.0, got {per_week}");
 }
 
@@ -564,16 +568,14 @@ fn f1_single_volunteer_week_not_diluted() {
 #[test]
 fn f1_empty_by_week_yields_zero() {
     let weeks: &[GroupedReportHours] = &[];
-    let per_week = voluntary_hours_per_volunteered_week(5.0, weeks, 0);
+    let per_week = voluntary_hours_per_volunteered_week(5.0, weeks, &contract_kws(&[]));
     assert!((per_week - 0.0).abs() < 1e-3, "expected 0.0, got {per_week}");
     assert!(per_week.is_finite());
 }
 
 /// (e) Story 39 (Szenario b): 4 Vertragswochen (expected_hours=0), in
-/// denen 30h freiwillig in 2 Wochen (20h + 10h) liegen. Nenner =
-/// max(2 aktive, 4 Vertragswochen) = 4 → 30.0/4 = 7.5 statt 30.0/2 = 15.0
-/// (User-Entscheid: leere Vertragswochen verdünnen — aber NUR Vertrags-
-/// wochen, nicht vertraglose leere Wochen).
+/// denen 30h freiwillig in 2 Wochen (20h + 10h) liegen. Nenner = 4 → 7.5.
+/// Die aktiven Vertragswochen werden nicht doppelt gezaehlt (nicht 30/6).
 #[test]
 fn f1_contract_weeks_with_zero_hours_count_in_denominator() {
     let weeks = [
@@ -582,17 +584,16 @@ fn f1_contract_weeks_with_zero_hours_count_in_denominator() {
         vol_week(12, 10.0),
         vol_week(13, 0.0),
     ];
-    let per_week = voluntary_hours_per_volunteered_week(30.0, &weeks, 4);
+    let per_week =
+        voluntary_hours_per_volunteered_week(30.0, &weeks, &contract_kws(&[10, 11, 12, 13]));
     assert!(
         (per_week - 7.5).abs() < 1e-3,
         "4 contract weeks + 30h in 2 of them => 30/4 = 7.5, got {per_week}"
     );
 }
 
-/// (f) Story 39 (Szenario b) kontrast: gleiche 30h/2 aktive Wochen, ABER
-/// ohne Vertrag (contract_weeks=0) → Nenner = 2 → 15.0. Zeigt, dass der
-/// Hybrid-Nenner exakt den Unterschied zwischen Szenario (a) und (b)
-/// abbildet (max(2,4)=4 vs. max(2,0)=2).
+/// (f) Story 39 (Szenario a, Kontrast zu (e)): gleiche 30h in 2 aktiven
+/// Wochen, ABER ohne Vertrag → leere Wochen verduennen nicht → 15.0.
 #[test]
 fn f1_same_hours_without_contract_not_diluted() {
     let weeks = [
@@ -601,32 +602,48 @@ fn f1_same_hours_without_contract_not_diluted() {
         vol_week(12, 10.0),
         vol_week(13, 0.0),
     ];
-    let per_week = voluntary_hours_per_volunteered_week(30.0, &weeks, 0);
+    let per_week = voluntary_hours_per_volunteered_week(30.0, &weeks, &contract_kws(&[]));
     assert!(
         (per_week - 15.0).abs() < 1e-3,
         "no contract: 30h in 2 active weeks => 15.0, got {per_week}"
     );
 }
 
-/// (g) Story 39 (Szenario c, gemischt): 2 Vertragswochen im Range + 1
-/// vertragliche freie aktive Woche (cwh==0 && vol>0, NACH den
-/// Vertragswochen). Nenner = max(1 freie aktive, 2 Vertragswochen) + 1 =
-/// 3 → 30.0/3 = 10.0. Die freie aktive Woche wird NICHT doppelt gezählt
-/// (sie ist cwh==0, zählt über die aktive-Wochen-Seite, nicht zusätzlich
-/// zu contract_weeks).
+/// (g) Story 39 (Szenario c, gemischt): 2 Vertragswochen (davon 1 leer) + 1
+/// vertraglose aktive Woche + 1 vertraglose leere Woche. Nenner = 2 + 1 = 3
+/// → 10.0; die vertraglose leere Woche bleibt draussen.
 #[test]
 fn f1_mixed_contract_and_free_active_weeks() {
     let weeks = [
-        vol_week(10, 10.0),
+        vol_week(10, 20.0),
         vol_week(11, 0.0),
-        // Vertragsfreie aktive Woche NACH den 2 Vertragswochen:
-        // cwh==0 (kein Vertrag) && vol>0.
         vol_week(14, 10.0),
+        vol_week(15, 0.0),
     ];
-    let per_week = voluntary_hours_per_volunteered_week(30.0, &weeks, 2);
+    let per_week = voluntary_hours_per_volunteered_week(30.0, &weeks, &contract_kws(&[10, 11]));
     assert!(
         (per_week - 10.0).abs() < 1e-3,
         "2 contract weeks + 1 free active week => 30/3 = 10.0, got {per_week}"
+    );
+}
+
+/// (h) Story 39: Die Wochen-Identitaet haengt NICHT an
+/// `contract_weekly_hours` — eine aktive Woche mit cwh>0, die keine
+/// `contract_weeks`-Woche ist (z.B. Absence-Woche unter Vertrag), zaehlt als
+/// aktive Woche zusaetzlich zu den Vertragswochen.
+#[test]
+fn f1_active_week_outside_contract_weeks_counts_regardless_of_cwh() {
+    let weeks = [
+        vol_week(10, 10.0),
+        GroupedReportHours {
+            contract_weekly_hours: 40.0,
+            ..vol_week(11, 20.0)
+        },
+    ];
+    let per_week = voluntary_hours_per_volunteered_week(30.0, &weeks, &contract_kws(&[10]));
+    assert!(
+        (per_week - 15.0).abs() < 1e-3,
+        "1 contract week + 1 active non-contract week => 30/2 = 15.0, got {per_week}"
     );
 }
 
@@ -680,10 +697,8 @@ mod service_tests {
     }
 
     fn make_report(sp: SalesPerson, volunteer_hours: f32) -> EmployeeReport {
-        // Story 39: F1-Nenner = Wochen mit >0 freiwilligen Stunden (aus
-        // report.by_week). Der Mock-Report spiegelt den Volunteer-Aggregat
-        // in `by_week` wider — ist_per_contract_week ist damit
-        // volunteer_hours / (Anzahl Wochen mit >0).
+        // Story 39: F1-Hybrid-Nenner liest aktive Wochen aus report.by_week.
+        // Der Mock-Report spiegelt den Volunteer-Aggregat in `by_week` wider.
         make_report_with_by_week(sp, volunteer_hours, by_week_of(1, volunteer_hours))
     }
 
@@ -826,15 +841,14 @@ mod service_tests {
     /// Story 39 (Szenario b): Vertrag AUSSCHLIESSLICH mit
     /// committed_voluntary (expected_hours=0, D-F1-01: zaeHLT als
     /// Vertragswoche) + geleistete freiwillige Stunden.
-    /// Der F1-Mittelwert MUSS nur ueber die Wochen mit Stunden laufen —
-    /// leere Wochen (hier: 2 von 4) duerfen den Schnitt NICHT veroessern:
-    /// ist_total 8.0 / 2 Wochen mit >0 = 4.0 (alt: 8.0/4 = 2.0, bzw.
-    /// 0.0 wenn expected_hours=0 nicht als Nenner gezahlt waere).
+    /// Der F1-Mittelwert laeuft ueber ALLE Vertragswochen (User-Entscheid
+    /// Task 345) — leere Vertragswochen (hier: 2 von 4) zaehlen mit:
+    /// ist_total 8.0 / 4 Vertragswochen = 2.0.
     /// contract_weeks bleibt 4 (Semantik D-F1-01), soll_total = 4 Wo *
     /// 4.0/7*7 = 16.0 (tages-basiert D-F2-01), delta = 8.0-16.0 = -8.0,
     /// ist_per_soll_pct = 50.0.
     #[tokio::test]
-    async fn service_hr_committed_voluntary_only_contract_per_week_not_diluted() {
+    async fn service_hr_committed_voluntary_only_contract_per_week_over_all_contract_weeks() {
         let sp_id = Uuid::new_v4();
 
         let mut permission_service = MockPermissionService::new();
@@ -910,10 +924,11 @@ mod service_tests {
             .await
             .expect("HR must succeed");
 
-        // F1-Fix: 8.0h / 2 Wochen mit >0 = 4.0 statt 8.0/4 = 2.0.
+        // F1-Hybrid (User-Entscheid Task 345): 8.0h / 4 Vertragswochen = 2.0,
+        // leere Vertragswochen zaehlen mit.
         assert!(
-            (result.ist_per_contract_week.unwrap() - 4.0).abs() < 1e-3,
-            "committed_voluntary-only contract must yield 4.0 (8.0/2 active weeks, not diluted by 2 empty weeks), got {:?}",
+            (result.ist_per_contract_week.unwrap() - 2.0).abs() < 1e-3,
+            "committed_voluntary-only contract must yield 2.0 (8.0/4 contract weeks), got {:?}",
             result.ist_per_contract_week
         );
         // Semantik bleibt stabil: 4 Vertragswochen (expected_hours=0 zaehlt
@@ -1006,8 +1021,8 @@ mod service_tests {
         //   soll_total = 28 * 1.0/7.0 = 4.0
         //   contract_weeks = 4 (KW 10..=13)
         //   ist_total = 10.0 (aus report.volunteer_hours)
-        //   ist_per_contract_week = 10.0/1 = 10.0 (Story 39: Nenner =
-        //   Wochen mit >0 freiwilligen Stunden; Mock-Report hat 1)
+        //   ist_per_contract_week = 10.0/4 = 2.5 (Story 39: Hybrid-Nenner =
+        //   alle Vertragswochen)
         //   delta = 10 - 4 = 6.0
         let wh: Arc<[EmployeeWorkDetails]> = Arc::from(vec![make_working_hours(
             sp_id,
@@ -1063,11 +1078,10 @@ mod service_tests {
             "expected delta=6.0 (10.0 - 4.0), got {}",
             result.delta.unwrap()
         );
-        // Story 39 (F1-Fix): Nenner = Wochen mit >0 freiwilligen Stunden
-        // (Mock-Report: 1 Woche) statt contract_weeks=4 → 10.0/1 = 10.0.
+        // Story 39 (F1-Hybrid): Nenner = alle contract_weeks=4 → 10.0/4 = 2.5.
         assert!(
-            (result.ist_per_contract_week.unwrap() - 10.0).abs() < 1e-3,
-            "expected ist_per_contract_week=10.0 (10.0/1 volunteer-week), got {}",
+            (result.ist_per_contract_week.unwrap() - 2.5).abs() < 1e-3,
+            "expected ist_per_contract_week=2.5 (10.0/4 contract weeks), got {}",
             result.ist_per_contract_week.unwrap()
         );
         // Erfuellungsgrad: 10 / 4 * 100 = 250 % (Ist uebersteigt Soll,
@@ -1348,8 +1362,8 @@ mod service_tests {
     /// liefert **byte-genau** dieselben Soll/Contract-Weeks-Werte wie v2.6.0.
     /// Dieser Test setzt zusaetzlich `times(1)` auf `find_by_sales_person`,
     /// damit auch der HR-Path immer genau einmal Absences laedt.
-    /// (F1 `ist_per_contract_week` hat Story 39 den Nenner geaendert: 10.0/1
-    /// statt 10.0/4 — siehe F1-Fix oben.)
+    /// (F1 `ist_per_contract_week` bleibt mit dem Story-39-Hybrid-Nenner
+    /// 10.0/4, weil alle Vertragswochen zaehlen.)
     #[tokio::test]
     async fn service_hr_no_absence_matches_v260_output() {
         let sp_id = Uuid::new_v4();
@@ -1413,12 +1427,12 @@ mod service_tests {
             .expect("HR must succeed");
 
         // v2.6.0-Werte: 28 Tage * 1.0/7 = 4.0, 4 KW, ist=10, delta=6.
-        // F1: Story 39 Nenner = 1 volunteer-Woche → 10.0 (alt: 10/4 = 2.5).
+        // F1: Story 39 Hybrid-Nenner = 4 Vertragswochen → 10/4 = 2.5.
         assert_eq!(result.contract_weeks, Some(4));
         assert!((result.ist_total.unwrap() - 10.0).abs() < 1e-3);
         assert!((result.soll_total.unwrap() - 4.0).abs() < 1e-3);
         assert!((result.delta.unwrap() - 6.0).abs() < 1e-3);
-        assert!((result.ist_per_contract_week.unwrap() - 10.0).abs() < 1e-3);
+        assert!((result.ist_per_contract_week.unwrap() - 2.5).abs() < 1e-3);
         // Erfuellungsgrad: 10/4*100 = 250 %.
         assert!((result.ist_per_soll_pct.unwrap() - 250.0).abs() < 1e-3);
     }
