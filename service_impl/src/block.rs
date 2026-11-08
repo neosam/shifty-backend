@@ -141,7 +141,7 @@ impl<Deps: BlockServiceDeps> BlockService for BlockServiceImpl<Deps> {
         }
 
         // Sort each day's entries by their slot.from time in ascending order.
-        for (_, items) in day_map.iter_mut() {
+        for items in day_map.values_mut() {
             items.sort_by_key(|(_, slot)| slot.from);
         }
 

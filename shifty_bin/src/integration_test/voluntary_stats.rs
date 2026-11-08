@@ -48,7 +48,8 @@ use crate::integration_test::TestSetup;
 /// - ist_total     = 8.0 (Manual VolunteerWork)
 /// - soll_total    = 4 * 2.0 = 8.0
 /// - delta         = ist_total - soll_total = 0.0
-/// - ist_per_contract_week = 8.0 / 4 = 2.0
+/// - ist_per_contract_week = 8.0 / 4 = 2.0 (Story 39 F1-Hybrid-Nenner:
+///   alle Vertragswochen KW 10..=13 zaehlen mit, auch ohne VolunteerWork)
 async fn seed_voluntary_scenario(test_setup: &TestSetup) -> Uuid {
     let sales_person = test_setup
         .rest_state
@@ -187,7 +188,7 @@ async fn rest_voluntary_stats_hr_returns_populated_fields() {
     );
     assert!(
         (ist_per - 2.0).abs() < 1e-3,
-        "HR expects F1 = 8.0 / 4 = 2.0; got {ist_per}"
+        "HR expects F1 = 8.0 / 4 Vertragswochen = 2.0 (Story 39 Hybrid-Nenner); got {ist_per}"
     );
     // Quick-Task 260710: Erfuellungsgrad = ist_total / soll_total * 100.
     // Fixture liefert ist=8.0, soll=8.0 => 100 %.

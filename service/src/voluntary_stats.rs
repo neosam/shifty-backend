@@ -48,7 +48,8 @@ use crate::ServiceError;
 
 /// HR-Only Voluntary-Stundenkonto-Sicht pro SalesPerson + Date-Range.
 ///
-/// - F1 = `ist_per_contract_week` = `ist_total / contract_weeks`
+/// - F1 = `ist_per_contract_week` = `ist_total / (Vertragswochen + aktive Wochen
+///   ohne Vertrag)`, siehe `voluntary_hours_per_volunteered_week`
 /// - F2 = `soll_total` = `committed_voluntary_target_in_range` (tages-basierte pro-rata)
 /// - Delta = `ist_total − soll_total`
 ///

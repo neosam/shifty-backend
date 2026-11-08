@@ -10,7 +10,7 @@
 //!
 //! Soll-Aggregat: `committed_voluntary_target_in_range` — tages-basiert
 //! pro-rata (D-F2-01).
-//! Contract-Weeks-Nenner: `contract_weeks_count_in_range` — D-F1-01
+//! Contract-Weeks-Nenner: `contract_weeks_in_range` — D-F1-01
 //! (expected_hours=0 zaehlt MIT).
 //!
 //! HR-Gate an erster Stelle; Non-HR-Aufrufer erhalten alle Felder als
@@ -26,7 +26,8 @@
 //! auch diese Kette treffen.
 
 use crate::gen_service_impl;
-use crate::reporting::{committed_voluntary_target_in_range, contract_weeks_count_in_range};
+use crate::reporting::{committed_voluntary_target_in_range, contract_weeks_in_range};
+use service::reporting::voluntary_hours_per_volunteered_week;
 use async_trait::async_trait;
 use dao::TransactionDao;
 use service::absence::AbsenceService;
@@ -142,17 +143,26 @@ impl<Deps: VoluntaryStatsServiceDeps> VoluntaryStatsService for VoluntaryStatsSe
             to_date,
             &absences_vec,
         );
-        let contract_weeks = contract_weeks_count_in_range(
+        let contract_week_set = contract_weeks_in_range(
             &working_hours_vec,
             from_date,
             to_date,
             &absences_vec,
         );
-        let ist_per_contract_week = if contract_weeks == 0 {
-            0.0
-        } else {
-            ist_total / contract_weeks as f32
-        };
+        let contract_weeks = contract_week_set.len() as u32;
+        // Story 39 (F1-Hybrid-Nenner, User-Entscheid Task 345 / Notiz 224):
+        // Nenner = aktive Wochen (`volunteer_hours > 0` aus `report.by_week`)
+        // ohne Vertrag + ALLE Vertragswochen — Vertragswochen zaehlen auch
+        // mit 0h mit, vertraglose Wochen mit 0h nicht. Ohne Vertrag bleibt
+        // es die Task-341-Semantik (Nenner = aktive Wochen). `contract_weeks`
+        // bleibt als DTO-Feld UNBERUEHRT (D-F1-01). Ohne freiwillige Stunden
+        // und ohne Vertragswoche: 0.0 (keine None — None blende die UI-Zeile
+        // aus).
+        let ist_per_contract_week = voluntary_hours_per_volunteered_week(
+            ist_total,
+            &report.by_week,
+            &contract_week_set,
+        );
         let delta = ist_total - soll_total;
         // Erfuellungsgrad: None wenn kein Soll (Nicht-Freiwillige oder Range
         // komplett in Absence-Wochen → Division-by-zero-Guard). Sonst

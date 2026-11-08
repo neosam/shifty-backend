@@ -24,7 +24,7 @@ use service::absence::MockAbsenceService;
 use service::carryover::MockCarryoverService;
 use service::clock::MockClockService;
 use service::employee_work_details::{EmployeeWorkDetails, MockEmployeeWorkDetailsService};
-use service::extra_hours::MockExtraHoursService;
+use service::extra_hours::{ExtraHours, ExtraHoursCategory, ExtraHoursSource, MockExtraHoursService};
 use service::permission::Authentication;
 use service::reporting::ReportingService;
 use service::sales_person::MockSalesPersonService;
@@ -33,6 +33,7 @@ use service::special_days::MockSpecialDayService;
 use service::toggle::MockToggleService;
 use service::rebooking_batch::MockRebookingBatchService;
 use service::uuid_service::MockUuidService;
+use service::voluntary_stats::VoluntaryStatsService;
 use service::MockPermissionService;
 use shifty_utils::{DayOfWeek, ShiftyDate};
 
@@ -40,6 +41,7 @@ use crate::reporting::{ReportingServiceDeps, ReportingServiceImpl};
 use crate::test::reporting_phase2_fixtures::{
     fixture_sales_person, fixture_sales_person_id, fixture_work_details_8h_mon_fri,
 };
+use crate::voluntary_stats::{VoluntaryStatsServiceDeps, VoluntaryStatsServiceImpl};
 
 struct TestDeps;
 impl ReportingServiceDeps for TestDeps {
@@ -95,6 +97,15 @@ fn build_detail_service(
     work_details: Vec<EmployeeWorkDetails>,
     shiftplan: Arc<[ShiftplanReportDay]>,
 ) -> ReportingServiceImpl<TestDeps> {
+    build_detail_service_with_extra_hours(work_details, shiftplan, Vec::new())
+}
+
+/// Wie [`build_detail_service`], aber mit manuellen ExtraHours-Buchungen.
+fn build_detail_service_with_extra_hours(
+    work_details: Vec<EmployeeWorkDetails>,
+    shiftplan: Arc<[ShiftplanReportDay]>,
+    extra_hours: Vec<ExtraHours>,
+) -> ReportingServiceImpl<TestDeps> {
     let mut permission_service = MockPermissionService::new();
     permission_service
         .expect_check_permission()
@@ -121,7 +132,7 @@ fn build_detail_service(
     let mut extra_hours_service = MockExtraHoursService::new();
     extra_hours_service
         .expect_find_by_sales_person_id_and_year_range()
-        .returning(|_, _, _, _, _| Ok(Arc::from(Vec::new())));
+        .returning(move |_, _, _, _, _| Ok(Arc::from(extra_hours.clone())));
 
     let mut absence_service = MockAbsenceService::new();
     absence_service
@@ -363,6 +374,346 @@ async fn fall_c_normal_contract_regression() {
         "Fall C: no volunteer_hours with normal contract, got {}",
         report.volunteer_hours
     );
+}
+
+/// Fall E (Story 39, Szenario a): KEIN Vertrag + freiwillige Shiftplan-Stunden
+/// in EINIGEN Wochen.
+///
+/// Die echte ReportingKette (get_report_for_employee_range) muss
+/// volunteer_hours=30 + by_week mit genauen 20h/10h in je 1 Woche liefern
+/// (3 leere Wochen im Range); der echte VoluntaryStatsService berechnet
+/// darauf: ist_total=30.0, contract_weeks=0 (keine WH-Row, D-F1-01),
+/// soll_total=0.0, delta=30.0 und — Story-39-Fix — ist_per_contract_week =
+/// 30.0 / 2 (Wochen mit >0 freiwilligen Stunden) = 15.0 statt des alten
+/// 0.0 (Nenner contract_weeks=0).
+#[tokio::test]
+async fn fall_e_no_contract_f1_over_weeks_with_hours_end_to_end() {
+    use time::macros::date;
+    use uuid::Uuid;
+
+    let sp = fixture_sales_person();
+    let sp_id = fixture_sales_person_id();
+
+    // Shiftplan: 20h in KW 10/2026 (Mo 2026-03-02, Di 2026-03-03),
+    // 10h in KW 12/2026 (Mi 2026-03-18). KW 11, 13, 14 sind leer.
+    let shiftplan_days: Vec<(time::Date, f32)> = vec![
+        (date!(2026 - 03 - 02), 10.0),
+        (date!(2026 - 03 - 03), 10.0),
+        (date!(2026 - 03 - 18), 10.0),
+    ];
+    let shiftplan: Arc<[ShiftplanReportDay]> = shiftplan_days
+        .into_iter()
+        .map(|(d, hours)| {
+            let (year, week, dow) = d.to_iso_week_date();
+            ShiftplanReportDay {
+                sales_person_id: sp_id,
+                hours,
+                year: year as u32,
+                calendar_week: week,
+                day_of_week: DayOfWeek::from(dow),
+            }
+        })
+        .collect();
+
+    // (1) ReportingService (echt): no-contract => volunteer=30, by_week mit
+    // 2 aktiven Freiwilligen-Wochen.
+    let reporting_service = build_detail_service(vec![], shiftplan);
+    let report = reporting_service
+        .get_report_for_employee_range(
+            &sp_id,
+            ShiftyDate::from_ymd(2026, 3, 2).unwrap(),
+            ShiftyDate::from_ymd(2026, 4, 5).unwrap(),
+            false,
+            Authentication::Full,
+            None,
+        )
+        .await
+        .expect("report must succeed");
+    assert!(
+        (report.volunteer_hours - 30.0).abs() < 0.01,
+        "no-contract shiftplan must land in volunteer_hours, got {}",
+        report.volunteer_hours
+    );
+    let active_weeks = report.by_week.iter().filter(|w| w.volunteer_hours > 0.0).count();
+    assert_eq!(
+        active_weeks, 2,
+        "range must contain exactly 2 weeks with volunteer hours (KW 10 + KW 12), got {active_weeks}"
+    );
+
+    // (2) VoluntaryStatsService (echt) auf derselben ReportingKette.
+    struct StatsDeps;
+    impl VoluntaryStatsServiceDeps for StatsDeps {
+        type Context = ();
+        type Transaction = dao::MockTransaction;
+        type ReportingService = ReportingServiceImpl<TestDeps>;
+        type EmployeeWorkDetailsService = MockEmployeeWorkDetailsService;
+        type SalesPersonService = MockSalesPersonService;
+        type AbsenceService = MockAbsenceService;
+        type PermissionService = MockPermissionService;
+        type TransactionDao = dao::MockTransactionDao;
+    }
+
+    let mut permission_service = MockPermissionService::new();
+    permission_service.expect_check_permission().returning(|_, _| Ok(()));
+
+    let mut sales_person_service = MockSalesPersonService::new();
+    let sp_clone = sp.clone();
+    sales_person_service
+        .expect_get()
+        .returning(move |_, _, _| Ok(sp_clone.clone()));
+
+    // Kein Vertrag.
+    let empty_wh: Arc<[EmployeeWorkDetails]> = Arc::from(Vec::new());
+    let mut employee_work_details_service = MockEmployeeWorkDetailsService::new();
+    employee_work_details_service
+        .expect_find_by_sales_person_id()
+        .returning(move |_, _, _| Ok(empty_wh.clone()));
+
+    let mut absence_service = MockAbsenceService::new();
+    absence_service
+        .expect_find_by_sales_person()
+        .returning(|_, _, _| Ok(Arc::from(Vec::new())));
+
+    let mut transaction_dao = dao::MockTransactionDao::new();
+    transaction_dao.expect_use_transaction().returning(|_| Ok(dao::MockTransaction));
+    transaction_dao.expect_commit().returning(|_| Ok(()));
+
+    let stats_service: VoluntaryStatsServiceImpl<StatsDeps> = VoluntaryStatsServiceImpl {
+        reporting_service: Arc::new(reporting_service),
+        employee_work_details_service: Arc::new(employee_work_details_service),
+        sales_person_service: Arc::new(sales_person_service),
+        absence_service: Arc::new(absence_service),
+        permission_service: Arc::new(permission_service),
+        transaction_dao: Arc::new(transaction_dao),
+    };
+
+    let stats = stats_service
+        .get_voluntary_stats(
+            sp_id,
+            ShiftyDate::from_ymd(2026, 3, 2).unwrap(),
+            ShiftyDate::from_ymd(2026, 4, 5).unwrap(),
+            Authentication::Full,
+            None,
+        )
+        .await
+        .expect("stats must succeed");
+
+    assert!(
+        (stats.ist_total.unwrap() - 30.0).abs() < 0.01,
+        "ist_total must be 30.0, got {:?}",
+        stats.ist_total
+    );
+    assert_eq!(
+        stats.contract_weeks,
+        Some(0),
+        "no contract rows => contract_weeks = 0 (D-F1-01)"
+    );
+    assert!(
+        stats.soll_total.unwrap().abs() < 0.01,
+        "no committed voluntary => soll_total = 0.0"
+    );
+    assert!(
+        (stats.delta.unwrap() - 30.0).abs() < 0.01,
+        "delta = ist_total - soll_total = 30.0"
+    );
+    assert!(stats.ist_per_soll_pct.is_none(), "no soll => pct None");
+    // Story 39: F1 = 30.0 / 2 aktive Freiwilligen-Wochen = 15.0 (vorher 0.0).
+    let ist_per = stats
+        .ist_per_contract_week
+        .expect("HR path sets ist_per_contract_week");
+    assert!(
+        (ist_per - 15.0).abs() < 0.01,
+        "Story 39 (a): no contract + 30h ueber 2 aktive Wochen => F1 = 15.0 (not 0.0), got {ist_per}"
+    );
+    let _ = Uuid::nil();
+}
+
+/// Fall F (Story 39, Szenario b): Vertrag AUSSCHLIESSLICH mit
+/// committed_voluntary (expected_hours=0) + geleistete freiwillige Stunden.
+///
+/// Die echte ReportingKette: 30h manuelle VolunteerWork, verteilt ueber KW 10
+/// (20h) + KW 12 (10h) von 4 Vertragswochen (KW 10..=13, expected_hours=0);
+/// der Shiftplan derselben Wochen bleibt bezahlt (Soll=Ist, Routing unberuehrt)
+/// und zaehlt nicht als Ehrenamt.
+/// Erwartet: contract_weeks=4 (expected_hours=0 zaehlt MIT, D-F1-01),
+/// soll_total = 4 Wochen * 4.0h committed = 16.0 (tages-basiert),
+/// ist_total=30.0, delta=14.0, pct=187.5 — UND der F1-Hybrid-Nenner
+/// (User-Entscheid Task 345): ist_per_contract_week = 30.0 / 4 = 7.5, leere
+/// Vertragswochen zaehlen mit.
+#[tokio::test]
+async fn fall_f_committed_voluntary_only_contract_counts_all_contract_weeks_end_to_end() {
+    use time::macros::date;
+    use uuid::Uuid;
+
+    let sp_id = fixture_sales_person_id();
+
+    // Vertrag: 4 Wochen (KW 10..=13/2026), expected_hours=0,
+    // committed_voluntary=4.0.
+    let mut wh = fixture_work_details_8h_mon_fri();
+    wh.sales_person_id = sp_id;
+    wh.id = Uuid::new_v4();
+    wh.expected_hours = 0.0;
+    wh.from_year = 2026;
+    wh.to_year = 2026;
+    wh.from_calendar_week = 10;
+    wh.to_calendar_week = 13;
+    let committed_wh = EmployeeWorkDetails {
+        committed_voluntary: 4.0,
+        ..wh
+    };
+
+    // Shiftplan bleibt in Vertragswochen bezahlt und zaehlt nicht fuer F1.
+    let shiftplan_days: Vec<(time::Date, f32)> = vec![
+        (date!(2026 - 03 - 02), 10.0),
+        (date!(2026 - 03 - 03), 10.0),
+        (date!(2026 - 03 - 18), 10.0),
+    ];
+    let shiftplan: Arc<[ShiftplanReportDay]> = shiftplan_days
+    .into_iter()
+    .map(|(d, hours)| {
+        let (year, week, dow) = d.to_iso_week_date();
+        ShiftplanReportDay {
+            sales_person_id: sp_id,
+            hours,
+            year: year as u32,
+            calendar_week: week,
+            day_of_week: DayOfWeek::from(dow),
+        }
+    })
+    .collect();
+
+    // Manuelle VolunteerWork: 20h in KW 10, 10h in KW 12; KW 11 + KW 13 leer.
+    let extra_hours: Vec<ExtraHours> = [(date!(2026 - 03 - 02), 20.0), (date!(2026 - 03 - 18), 10.0)]
+        .into_iter()
+        .map(|(d, amount)| ExtraHours {
+            id: Uuid::new_v4(),
+            sales_person_id: sp_id,
+            amount,
+            category: ExtraHoursCategory::VolunteerWork,
+            description: "Freiwillig".into(),
+            date_time: time::PrimitiveDateTime::new(d, time::Time::MIDNIGHT),
+            created: None,
+            deleted: None,
+            version: Uuid::nil(),
+            source: ExtraHoursSource::Manual,
+        })
+        .collect();
+
+    let reporting_service =
+        build_detail_service_with_extra_hours(vec![committed_wh], shiftplan, extra_hours);
+    let report = reporting_service
+        .get_report_for_employee_range(
+            &sp_id,
+            ShiftyDate::from_ymd(2026, 3, 2).unwrap(),
+            ShiftyDate::from_ymd(2026, 3, 29).unwrap(),
+            false,
+            Authentication::Full,
+            None,
+        )
+        .await
+        .expect("report must succeed");
+    assert!(
+        (report.volunteer_hours - 30.0).abs() < 0.01,
+        "manual VolunteerWork must land in volunteer_hours, shiftplan stays paid, got {}",
+        report.volunteer_hours
+    );
+    let active_weeks = report.by_week.iter().filter(|w| w.volunteer_hours > 0.0).count();
+    assert_eq!(active_weeks, 2, "KW 10 + KW 12 active, got {active_weeks}");
+
+    struct StatsDeps2;
+    impl VoluntaryStatsServiceDeps for StatsDeps2 {
+        type Context = ();
+        type Transaction = dao::MockTransaction;
+        type ReportingService = ReportingServiceImpl<TestDeps>;
+        type EmployeeWorkDetailsService = MockEmployeeWorkDetailsService;
+        type SalesPersonService = MockSalesPersonService;
+        type AbsenceService = MockAbsenceService;
+        type PermissionService = MockPermissionService;
+        type TransactionDao = dao::MockTransactionDao;
+    }
+
+    let mut permission_service = MockPermissionService::new();
+    permission_service.expect_check_permission().returning(|_, _| Ok(()));
+
+    let mut sales_person_service = MockSalesPersonService::new();
+    sales_person_service
+        .expect_get()
+        .returning(|_, _, _| Ok(fixture_sales_person()));
+
+    let wh_arc: Arc<[EmployeeWorkDetails]> =
+        Arc::from(vec![EmployeeWorkDetails {
+            committed_voluntary: 4.0,
+            ..wh.clone()
+        }]);
+    let mut employee_work_details_service = MockEmployeeWorkDetailsService::new();
+    employee_work_details_service
+        .expect_find_by_sales_person_id()
+        .returning(move |_, _, _| Ok(wh_arc.clone()));
+
+    let mut absence_service = MockAbsenceService::new();
+    absence_service
+        .expect_find_by_sales_person()
+        .returning(|_, _, _| Ok(Arc::from(Vec::new())));
+
+    let mut transaction_dao = dao::MockTransactionDao::new();
+    transaction_dao.expect_use_transaction().returning(|_| Ok(dao::MockTransaction));
+    transaction_dao.expect_commit().returning(|_| Ok(()));
+
+    let stats_service: VoluntaryStatsServiceImpl<StatsDeps2> = VoluntaryStatsServiceImpl {
+        reporting_service: Arc::new(reporting_service),
+        employee_work_details_service: Arc::new(employee_work_details_service),
+        sales_person_service: Arc::new(sales_person_service),
+        absence_service: Arc::new(absence_service),
+        permission_service: Arc::new(permission_service),
+        transaction_dao: Arc::new(transaction_dao),
+    };
+
+    let stats = stats_service
+        .get_voluntary_stats(
+            sp_id,
+            ShiftyDate::from_ymd(2026, 3, 2).unwrap(),
+            ShiftyDate::from_ymd(2026, 3, 29).unwrap(),
+            Authentication::Full,
+            None,
+        )
+        .await
+        .expect("stats must succeed");
+
+    assert_eq!(
+        stats.contract_weeks,
+        Some(4),
+        "expected_hours=0 weeks count (D-F1-01)"
+    );
+    assert!(
+        (stats.ist_total.unwrap() - 30.0).abs() < 0.01,
+        "ist_total = 30.0, got {:?}",
+        stats.ist_total
+    );
+    // 28 aktive Tage * 4.0/7 (tages-basiert, D-F2-01) = 16.0.
+    assert!(
+        (stats.soll_total.unwrap() - 16.0).abs() < 0.01,
+        "soll_total = 16.0, got {:?}",
+        stats.soll_total
+    );
+    assert!(
+        (stats.delta.unwrap() - 14.0).abs() < 0.01,
+        "delta = 30.0 - 16.0 = 14.0, got {:?}",
+        stats.delta
+    );
+    assert!(
+        (stats.ist_per_soll_pct.unwrap() - 187.5).abs() < 0.01,
+        "pct = 30/16*100 = 187.5, got {:?}",
+        stats.ist_per_soll_pct
+    );
+    // Story 39 (b): Hybrid-Nenner = alle 4 Vertragswochen → 30.0/4 = 7.5.
+    let ist_per = stats
+        .ist_per_contract_week
+        .expect("HR path sets ist_per_contract_week");
+    assert!(
+        (ist_per - 7.5).abs() < 0.01,
+        "Story 39 (b): Ø over all 4 contract weeks (30/4 = 7.5), got {ist_per}"
+    );
+    let _ = Uuid::nil();
 }
 
 /// Fall D: Konsistenz-Check Detail-Report vs. Summary-Report.

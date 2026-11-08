@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -264,6 +265,54 @@ pub fn average_worked_hours_per_week(weeks: &[GroupedReportHours]) -> EmployeeWe
     }
 }
 
+/// Story 39 (F1-Hybrid-Nenner, User-Entscheid Task 345 / Notiz 224;
+/// Vorstufe Research 210): Ø freiwillige Stunden pro Woche, wobei leere
+/// Wochen NUR dann in den Nenner aufgenommen werden, wenn in dieser Woche
+/// ein Arbeitsvertrag besteht.
+///
+/// Nenner = (Wochen in `weeks` mit `volunteer_hours > 0`, die NICHT in
+/// `contract_weeks` liegen) + (ALLE `contract_weeks`).
+///
+/// User-Entscheid (Task 345): „Wochen mit 0 sollen auch in den Durchschnitt
+/// rein — aber nur bei Wochen, an denen ein Arbeitsvertrag besteht."
+///
+/// `contract_weeks` sind die `(Jahr, KW)` der Vertragswochen im Range
+/// (D-F1-01: auch expected_hours=0; D-54.5-02: ohne Absence-Wochen). Die
+/// Identitaet der Wochen ist noetig: `contract_weekly_hours == 0` gilt sowohl
+/// fuer vertraglose Wochen als auch fuer expected_hours=0-Vertragswochen
+/// (Probe Task 369 / Notiz 225), eine reine Addition der Wochenzahlen wuerde
+/// aktive Vertragswochen doppelt zaehlen (30h, 2 davon aktiv, 4
+/// Vertragswochen: 30/6 = 5.0 statt 30/4 = 7.5).
+///
+/// - Ohne Vertrag (`contract_weeks` leer): Nenner = Wochen mit
+///   `volunteer_hours > 0` — identisch zur Task-341-Semantik (30h in 2
+///   Wochen = 15.0).
+/// - Eine Absence-Woche unter Vertrag ist keine `contract_weeks`-Woche und
+///   zaehlt daher nur mit, wenn in ihr freiwillige Stunden angefallen sind.
+/// - `ist_total` ist der aggregierte `EmployeeReport::volunteer_hours`
+///   (muss zur Summe der `volunteer_hours`-Werte der `weeks` passen).
+/// - Nenner 0 (leere `weeks` eingeschlossen) → `0.0` statt `None` / `NAN`:
+///   `None` blende die UI-Zeile komplett aus, der bewusste `0.0`-Fall ohne
+///   freiwillige Stunden bleibt erhalten.
+/// - Unberührt: `contract_weeks`, `soll_total`, `delta`, `ist_per_soll_pct`
+///   (Semantik D-F1-01 / D-F2-01 / D-54.5-Absence-Overlay).
+pub fn voluntary_hours_per_volunteered_week(
+    ist_total: f32,
+    weeks: &[GroupedReportHours],
+    contract_weeks: &BTreeSet<(u32, u8)>,
+) -> f32 {
+    let active_weeks_without_contract = weeks
+        .iter()
+        .filter(|w| w.volunteer_hours > 0.0 && !contract_weeks.contains(&(w.year, w.week)))
+        .count();
+    let count = active_weeks_without_contract + contract_weeks.len();
+    if count == 0 {
+        0.0
+    } else {
+        ist_total / count as f32
+    }
+}
+
 /// RPT-01: per-weekday attendance-day statistic (Phase 47).
 ///
 /// One entry per weekday (Mon..Sun). `count` is the number of DISTINCT
@@ -310,7 +359,6 @@ pub fn weekday_attendance_distribution(
     days: &[WorkingHoursDay],
     counted_calendar_weeks: u32,
 ) -> EmployeeAttendanceStatistics {
-    use std::collections::BTreeSet;
     use ExtraHoursReportCategory::{ExtraWork, Shiftplan, VolunteerWork};
 
     // Seven distinct-date buckets, indexed by Monday=0..Sunday=6.

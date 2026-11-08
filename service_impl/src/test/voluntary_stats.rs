@@ -33,6 +33,7 @@ use crate::reporting::{
     committed_voluntary_prorata_for_week, committed_voluntary_target_in_range,
     contract_weeks_count_in_range,
 };
+use service::reporting::{GroupedReportHours, voluntary_hours_per_volunteered_week};
 
 /// Phase 54.5: Helper zum Bauen einer aktiven `AbsencePeriod` fuer die
 /// whole-week-out-Tests. `deleted = None`, `day_fraction = Full`.
@@ -482,6 +483,170 @@ fn f2_soll_deleted_absence_is_ignored() {
     assert_eq!(cw, 1, "deleted absence must not remove contract week, got {cw}");
 }
 
+// ─── Pure-fn Tests (Story 39: F1-Hybrid-Nenner) ────────────────────────────────
+
+/// Helper: Vertragswochen-Menge im ISO-Jahr 2026 (passend zu [`vol_week`]).
+fn contract_kws(weeks: &[u8]) -> std::collections::BTreeSet<(u32, u8)> {
+    weeks.iter().map(|week| (2026, *week)).collect()
+}
+
+/// Helper: `GroupedReportHours` mit nur `volunteer_hours` gesetzt,
+/// alle anderen Felder benign (0.0 / empty) — der F1-Nenner liest
+/// nur `year`, `week` und `volunteer_hours`. `week` positioniert die Woche im
+/// ISO-Jahr 2026 (KW 10+), damit die Service-Mocks konsistente
+/// Report-Daten liefern.
+fn vol_week(week: u8, volunteer_hours: f32) -> GroupedReportHours {
+    let from = ShiftyDate::new(2026, week, DayOfWeek::Monday).unwrap();
+    let to = ShiftyDate::new(2026, week, DayOfWeek::Sunday).unwrap();
+    GroupedReportHours {
+        from,
+        to,
+        year: 2026,
+        week,
+        contract_weekly_hours: 0.0,
+        expected_hours: 0.0,
+        dynamic_hours: 0.0,
+        overall_hours: 0.0,
+        balance: 0.0,
+        days_per_week: 0,
+        workdays_per_week: 0.0,
+        shiftplan_hours: 0.0,
+        extra_work_hours: 0.0,
+        vacation_hours: 0.0,
+        sick_leave_hours: 0.0,
+        holiday_hours: 0.0,
+        unpaid_leave_hours: 0.0,
+        volunteer_hours,
+        custom_extra_hours: Arc::new([]),
+        days: Arc::new([]),
+    }
+}
+
+/// (a) 3 Wochen mit je 2h freiwillig + 4 leere Wochen → Nenner zählt nur
+/// die 3 Wochen mit Stunden → ist_total 6.0 / 3 = 2.0 (statt 6.0/7 = 0.857
+/// bzw. 0.0 bei altem contract_weeks-Nenner ohne Vertrag).
+#[test]
+fn f1_denominator_counts_only_weeks_with_volunteer_hours() {
+    let weeks = [
+        vol_week(10, 2.0),
+        vol_week(11, 0.0),
+        vol_week(12, 2.0),
+        vol_week(13, 0.0),
+        vol_week(14, 2.0),
+        vol_week(15, 0.0),
+        vol_week(16, 0.0),
+    ];
+    let ist_total = 6.0;
+    // Ohne Vertrag: Nenner = 3 aktive Wochen — identisch zur Task-341-Semantik.
+    let per_week = voluntary_hours_per_volunteered_week(ist_total, &weeks, &contract_kws(&[]));
+    assert!((per_week - 2.0).abs() < 1e-3, "expected 2.0, got {per_week}");
+}
+
+/// (b) Gar keine freiwilligen Stunden → 0.0 (kein 0/0-NAN, keine None).
+#[test]
+fn f1_no_volunteer_hours_yields_zero() {
+    let weeks = [vol_week(10, 0.0), vol_week(11, 0.0)];
+    let per_week = voluntary_hours_per_volunteered_week(0.0, &weeks, &contract_kws(&[]));
+    assert!((per_week - 0.0).abs() < 1e-3, "expected 0.0, got {per_week}");
+    assert!(per_week.is_finite());
+}
+
+/// (c) Eine Woche mit Stunden, Rest leer → ist_total unverdünnt (Nenner 1).
+#[test]
+fn f1_single_volunteer_week_not_diluted() {
+    let weeks = [
+        vol_week(10, 8.0),
+        vol_week(11, 0.0),
+        vol_week(12, 0.0),
+        vol_week(13, 0.0),
+    ];
+    let per_week = voluntary_hours_per_volunteered_week(8.0, &weeks, &contract_kws(&[]));
+    assert!((per_week - 8.0).abs() < 1e-3, "expected 8.0, got {per_week}");
+}
+
+/// (d) Leere `by_week` → 0.0 (Division-by-zero-Guard).
+#[test]
+fn f1_empty_by_week_yields_zero() {
+    let weeks: &[GroupedReportHours] = &[];
+    let per_week = voluntary_hours_per_volunteered_week(5.0, weeks, &contract_kws(&[]));
+    assert!((per_week - 0.0).abs() < 1e-3, "expected 0.0, got {per_week}");
+    assert!(per_week.is_finite());
+}
+
+/// (e) Story 39 (Szenario b): 4 Vertragswochen (expected_hours=0), in
+/// denen 30h freiwillig in 2 Wochen (20h + 10h) liegen. Nenner = 4 → 7.5.
+/// Die aktiven Vertragswochen werden nicht doppelt gezaehlt (nicht 30/6).
+#[test]
+fn f1_contract_weeks_with_zero_hours_count_in_denominator() {
+    let weeks = [
+        vol_week(10, 20.0),
+        vol_week(11, 0.0),
+        vol_week(12, 10.0),
+        vol_week(13, 0.0),
+    ];
+    let per_week =
+        voluntary_hours_per_volunteered_week(30.0, &weeks, &contract_kws(&[10, 11, 12, 13]));
+    assert!(
+        (per_week - 7.5).abs() < 1e-3,
+        "4 contract weeks + 30h in 2 of them => 30/4 = 7.5, got {per_week}"
+    );
+}
+
+/// (f) Story 39 (Szenario a, Kontrast zu (e)): gleiche 30h in 2 aktiven
+/// Wochen, ABER ohne Vertrag → leere Wochen verduennen nicht → 15.0.
+#[test]
+fn f1_same_hours_without_contract_not_diluted() {
+    let weeks = [
+        vol_week(10, 20.0),
+        vol_week(11, 0.0),
+        vol_week(12, 10.0),
+        vol_week(13, 0.0),
+    ];
+    let per_week = voluntary_hours_per_volunteered_week(30.0, &weeks, &contract_kws(&[]));
+    assert!(
+        (per_week - 15.0).abs() < 1e-3,
+        "no contract: 30h in 2 active weeks => 15.0, got {per_week}"
+    );
+}
+
+/// (g) Story 39 (Szenario c, gemischt): 2 Vertragswochen (davon 1 leer) + 1
+/// vertraglose aktive Woche + 1 vertraglose leere Woche. Nenner = 2 + 1 = 3
+/// → 10.0; die vertraglose leere Woche bleibt draussen.
+#[test]
+fn f1_mixed_contract_and_free_active_weeks() {
+    let weeks = [
+        vol_week(10, 20.0),
+        vol_week(11, 0.0),
+        vol_week(14, 10.0),
+        vol_week(15, 0.0),
+    ];
+    let per_week = voluntary_hours_per_volunteered_week(30.0, &weeks, &contract_kws(&[10, 11]));
+    assert!(
+        (per_week - 10.0).abs() < 1e-3,
+        "2 contract weeks + 1 free active week => 30/3 = 10.0, got {per_week}"
+    );
+}
+
+/// (h) Story 39: Die Wochen-Identitaet haengt NICHT an
+/// `contract_weekly_hours` — eine aktive Woche mit cwh>0, die keine
+/// `contract_weeks`-Woche ist (z.B. Absence-Woche unter Vertrag), zaehlt als
+/// aktive Woche zusaetzlich zu den Vertragswochen.
+#[test]
+fn f1_active_week_outside_contract_weeks_counts_regardless_of_cwh() {
+    let weeks = [
+        vol_week(10, 10.0),
+        GroupedReportHours {
+            contract_weekly_hours: 40.0,
+            ..vol_week(11, 20.0)
+        },
+    ];
+    let per_week = voluntary_hours_per_volunteered_week(30.0, &weeks, &contract_kws(&[10]));
+    assert!(
+        (per_week - 15.0).abs() < 1e-3,
+        "1 contract week + 1 active non-contract week => 30/2 = 15.0, got {per_week}"
+    );
+}
+
 // ─── Service-Tests (mockall) ──────────────────────────────────────────────────
 //
 // Gap-Closure 54-09-Ist-Fix: Ist-Aggregat kommt aus
@@ -532,6 +697,26 @@ mod service_tests {
     }
 
     fn make_report(sp: SalesPerson, volunteer_hours: f32) -> EmployeeReport {
+        // Story 39: F1-Hybrid-Nenner liest aktive Wochen aus report.by_week.
+        // Der Mock-Report spiegelt den Volunteer-Aggregat in `by_week` wider.
+        make_report_with_by_week(sp, volunteer_hours, by_week_of(1, volunteer_hours))
+    }
+
+    /// by_week mit `n` Wochen, in denen je `per_week` freiwillige Stunden
+    /// liegen (KW 10..20/2026, benachbart). Rest-Wochen sind leer — die
+    /// muessen den F1-Nenner NICHT belegen (Story 39).
+    fn by_week_of(n: u8, per_week: f32) -> Arc<[GroupedReportHours]> {
+        let weeks: Vec<GroupedReportHours> = (0u8..n)
+            .map(|i| vol_week(10 + i, per_week))
+            .collect();
+        Arc::from(weeks)
+    }
+
+    fn make_report_with_by_week(
+        sp: SalesPerson,
+        volunteer_hours: f32,
+        by_week: Arc<[GroupedReportHours]>,
+    ) -> EmployeeReport {
         EmployeeReport {
             sales_person: Arc::new(sp),
             balance_hours: 0.0,
@@ -553,9 +738,206 @@ mod service_tests {
             absence_days: 0.0,
             carryover_hours: 0.0,
             custom_extra_hours: Arc::from(Vec::new()),
-            by_week: Arc::from(Vec::new()),
+            by_week,
             by_month: Arc::from(Vec::new()),
         }
+    }
+
+    /// Story 39 (F1-Fix): HR-Aufrufer OHNE Vertrag (keine
+    /// EmployeeWorkDetails) und ausschließlich freiwilliger Zusage
+    /// (3 Wochen je 2.0h + 4 leere Wochen im Range).
+    /// Alt: contract_weeks=0 → ist_per_contract_week=0.0.
+    /// Neu: Nenner = 3 Wochen mit >0 freiwilligen Stunden → 6.0/3 = 2.0
+    /// (leere Wochen verdünnen nicht). contract_weeks bleibt korrekt 0
+    /// (D-F1-01), und weil es kein Soll gibt: soll_total=0.0,
+    /// ist_per_soll_pct=None, delta=ist_total.
+    #[tokio::test]
+    async fn service_hr_no_contract_volunteer_only_per_week_positive() {
+        let sp_id = Uuid::new_v4();
+
+        let mut permission_service = MockPermissionService::new();
+        permission_service
+            .expect_check_permission()
+            .returning(|_, _| Ok(()));
+
+        let mut sales_person_service = MockSalesPersonService::new();
+        let sp = make_sales_person(sp_id);
+        let sp_clone = sp.clone();
+        sales_person_service
+            .expect_get()
+            .returning(move |_, _, _| Ok(sp_clone.clone()));
+
+        // Report: 6.0h freiwillig über 3 Wochen (je 2.0) + 4 leere Wochen.
+        let mut reporting_service = MockReportingService::new();
+        let sp_for_report = sp.clone();
+        reporting_service
+            .expect_get_report_for_employee_range()
+            .returning(move |_, _, _, _, _, _| Ok(make_report_with_by_week(
+                sp_for_report.clone(),
+                6.0,
+                Arc::from(
+                    [
+                        vol_week(10, 2.0),
+                        vol_week(11, 0.0),
+                        vol_week(12, 2.0),
+                        vol_week(13, 2.0),
+                        vol_week(14, 0.0),
+                        vol_week(15, 0.0),
+                        vol_week(16, 0.0),
+                    ]
+                    .to_vec(),
+                ),
+            )));
+
+        // Kein Vertrag: leere WorkingHours-Liste => contract_weeks = 0.
+        let empty_wh: Arc<[EmployeeWorkDetails]> = Arc::from(Vec::new());
+        let mut employee_work_details_service = MockEmployeeWorkDetailsService::new();
+        employee_work_details_service
+            .expect_find_by_sales_person_id()
+            .returning(move |_, _, _| Ok(empty_wh.clone()));
+
+        let mut absence_service = MockAbsenceService::new();
+        absence_service
+            .expect_find_by_sales_person()
+            .returning(|_, _, _| Ok(Arc::from(Vec::<AbsencePeriod>::new())));
+
+        let mut transaction_dao = dao::MockTransactionDao::new();
+        transaction_dao
+            .expect_use_transaction()
+            .returning(|_| Ok(dao::MockTransaction));
+        transaction_dao.expect_commit().returning(|_| Ok(()));
+
+        let svc: VoluntaryStatsServiceImpl<TestDeps> = VoluntaryStatsServiceImpl {
+            reporting_service: Arc::new(reporting_service),
+            employee_work_details_service: Arc::new(employee_work_details_service),
+            sales_person_service: Arc::new(sales_person_service),
+            absence_service: Arc::new(absence_service),
+            permission_service: Arc::new(permission_service),
+            transaction_dao: Arc::new(transaction_dao),
+        };
+
+        let from = ShiftyDate::from_ymd(2026, 3, 2).unwrap();
+        let to = ShiftyDate::from_ymd(2026, 4, 12).unwrap();
+        let result = svc
+            .get_voluntary_stats(sp_id, from, to, Authentication::Context(()), None)
+            .await
+            .expect("HR must succeed");
+
+        // F1-Fix: 6.0h / 3 Wochen mit >0 = 2.0 statt 0.0.
+        assert!(
+            (result.ist_per_contract_week.unwrap() - 2.0).abs() < 1e-3,
+            "no-contract volunteer must yield 2.0 (6.0/3), got {:?}",
+            result.ist_per_contract_week
+        );
+        // Semantik-Unterschiede bleiben unverändert: contract_weeks=0
+        // (keine Vertrag-Row), soll_total=0.0, pct=None (kein Soll).
+        assert_eq!(result.contract_weeks, Some(0));
+        assert!((result.ist_total.unwrap() - 6.0).abs() < 1e-3);
+        assert!((result.soll_total.unwrap() - 0.0).abs() < 1e-3);
+        assert!((result.delta.unwrap() - 6.0).abs() < 1e-3);
+        assert!(result.ist_per_soll_pct.is_none());
+    }
+
+    /// Story 39 (Szenario b): Vertrag AUSSCHLIESSLICH mit
+    /// committed_voluntary (expected_hours=0, D-F1-01: zaeHLT als
+    /// Vertragswoche) + geleistete freiwillige Stunden.
+    /// Der F1-Mittelwert laeuft ueber ALLE Vertragswochen (User-Entscheid
+    /// Task 345) — leere Vertragswochen (hier: 2 von 4) zaehlen mit:
+    /// ist_total 8.0 / 4 Vertragswochen = 2.0.
+    /// contract_weeks bleibt 4 (Semantik D-F1-01), soll_total = 4 Wo *
+    /// 4.0/7*7 = 16.0 (tages-basiert D-F2-01), delta = 8.0-16.0 = -8.0,
+    /// ist_per_soll_pct = 50.0.
+    #[tokio::test]
+    async fn service_hr_committed_voluntary_only_contract_per_week_over_all_contract_weeks() {
+        let sp_id = Uuid::new_v4();
+
+        let mut permission_service = MockPermissionService::new();
+        permission_service
+            .expect_check_permission()
+            .returning(|_, _| Ok(()));
+
+        let mut sales_person_service = MockSalesPersonService::new();
+        let sp = make_sales_person(sp_id);
+        let sp_clone = sp.clone();
+        sales_person_service
+            .expect_get()
+            .returning(move |_, _, _| Ok(sp_clone.clone()));
+
+        // 8.0h freiwillig, verteilt ueber KW 10 (5.0) + KW 12 (3.0);
+        // KW 11 und KW 13 sind leer.
+        let mut reporting_service = MockReportingService::new();
+        let sp_for_report = sp.clone();
+        reporting_service
+            .expect_get_report_for_employee_range()
+            .returning(move |_, _, _, _, _, _| Ok(make_report_with_by_week(
+                sp_for_report.clone(),
+                8.0,
+                Arc::from(
+                    [
+                        vol_week(10, 5.0),
+                        vol_week(11, 0.0),
+                        vol_week(12, 3.0),
+                        vol_week(13, 0.0),
+                    ]
+                    .to_vec(),
+                ),
+            )));
+
+        // Ausschliesslich freiwillig: expected_hours=0, committed_voluntary=4.0
+        // ueber KW 10..=13 (4 Vertragswochen, D-F1-01).
+        let wh: Arc<[EmployeeWorkDetails]> = Arc::from(vec![make_working_hours(
+            sp_id,
+            (2026, 10),
+            (2026, 13),
+            0.0,
+            4.0,
+        )]);
+        let mut employee_work_details_service = MockEmployeeWorkDetailsService::new();
+        employee_work_details_service
+            .expect_find_by_sales_person_id()
+            .returning(move |_, _, _| Ok(wh.clone()));
+
+        let mut absence_service = MockAbsenceService::new();
+        absence_service
+            .expect_find_by_sales_person()
+            .returning(|_, _, _| Ok(Arc::from(Vec::<AbsencePeriod>::new())));
+
+        let mut transaction_dao = dao::MockTransactionDao::new();
+        transaction_dao
+            .expect_use_transaction()
+            .returning(|_| Ok(dao::MockTransaction));
+        transaction_dao.expect_commit().returning(|_| Ok(()));
+
+        let svc: VoluntaryStatsServiceImpl<TestDeps> = VoluntaryStatsServiceImpl {
+            reporting_service: Arc::new(reporting_service),
+            employee_work_details_service: Arc::new(employee_work_details_service),
+            sales_person_service: Arc::new(sales_person_service),
+            absence_service: Arc::new(absence_service),
+            permission_service: Arc::new(permission_service),
+            transaction_dao: Arc::new(transaction_dao),
+        };
+
+        let from = ShiftyDate::from_ymd(2026, 3, 2).unwrap();
+        let to = ShiftyDate::from_ymd(2026, 3, 29).unwrap();
+        let result = svc
+            .get_voluntary_stats(sp_id, from, to, Authentication::Context(()), None)
+            .await
+            .expect("HR must succeed");
+
+        // F1-Hybrid (User-Entscheid Task 345): 8.0h / 4 Vertragswochen = 2.0,
+        // leere Vertragswochen zaehlen mit.
+        assert!(
+            (result.ist_per_contract_week.unwrap() - 2.0).abs() < 1e-3,
+            "committed_voluntary-only contract must yield 2.0 (8.0/4 contract weeks), got {:?}",
+            result.ist_per_contract_week
+        );
+        // Semantik bleibt stabil: 4 Vertragswochen (expected_hours=0 zaehlt
+        // mit, D-F1-01), Soll tages-basiert, Delta = Ist - Soll.
+        assert_eq!(result.contract_weeks, Some(4));
+        assert!((result.ist_total.unwrap() - 8.0).abs() < 1e-3);
+        assert!((result.soll_total.unwrap() - 16.0).abs() < 1e-3);
+        assert!((result.delta.unwrap() - (-8.0)).abs() < 1e-3);
+        assert!((result.ist_per_soll_pct.unwrap() - 50.0).abs() < 1e-3);
     }
 
     /// VOL-STAT-02 / VOL-ACCT-02: Non-HR liefert VoluntaryStats mit lauter
@@ -639,7 +1021,8 @@ mod service_tests {
         //   soll_total = 28 * 1.0/7.0 = 4.0
         //   contract_weeks = 4 (KW 10..=13)
         //   ist_total = 10.0 (aus report.volunteer_hours)
-        //   ist_per_contract_week = 10/4 = 2.5
+        //   ist_per_contract_week = 10.0/4 = 2.5 (Story 39: Hybrid-Nenner =
+        //   alle Vertragswochen)
         //   delta = 10 - 4 = 6.0
         let wh: Arc<[EmployeeWorkDetails]> = Arc::from(vec![make_working_hours(
             sp_id,
@@ -695,7 +1078,12 @@ mod service_tests {
             "expected delta=6.0 (10.0 - 4.0), got {}",
             result.delta.unwrap()
         );
-        assert!((result.ist_per_contract_week.unwrap() - 2.5).abs() < 1e-3);
+        // Story 39 (F1-Hybrid): Nenner = alle contract_weeks=4 → 10.0/4 = 2.5.
+        assert!(
+            (result.ist_per_contract_week.unwrap() - 2.5).abs() < 1e-3,
+            "expected ist_per_contract_week=2.5 (10.0/4 contract weeks), got {}",
+            result.ist_per_contract_week.unwrap()
+        );
         // Erfuellungsgrad: 10 / 4 * 100 = 250 % (Ist uebersteigt Soll,
         // typisch bei Freiwilligen, die mehr leisten als zugesagt).
         assert!(
@@ -705,8 +1093,9 @@ mod service_tests {
         );
     }
 
-    /// Divisions-Guard: contract_weeks == 0 => ist_per_contract_week = 0
-    /// statt f32::NAN oder inf. Report liefert volunteer_hours = 0.0.
+    /// Divisions-Guard: keine Woche mit >0 freiwilligen Stunden
+    /// (leere by_week) => ist_per_contract_week = 0.0 statt f32::NAN.
+    /// Report liefert volunteer_hours = 0.0.
     #[tokio::test]
     async fn service_zero_contract_weeks_yields_zero_per_week() {
         let sp_id = Uuid::new_v4();
@@ -970,9 +1359,11 @@ mod service_tests {
     }
 
     /// D-54.5-03 Regression-Sicherheitsnetz: HR-Path mit leerer Absence-Liste
-    /// liefert **byte-genau** dieselben Werte wie v2.6.0. Dieser Test setzt
-    /// zusaetzlich `times(1)` auf `find_by_sales_person`, damit auch der
-    /// HR-Path immer genau einmal Absences laedt.
+    /// liefert **byte-genau** dieselben Soll/Contract-Weeks-Werte wie v2.6.0.
+    /// Dieser Test setzt zusaetzlich `times(1)` auf `find_by_sales_person`,
+    /// damit auch der HR-Path immer genau einmal Absences laedt.
+    /// (F1 `ist_per_contract_week` bleibt mit dem Story-39-Hybrid-Nenner
+    /// 10.0/4, weil alle Vertragswochen zaehlen.)
     #[tokio::test]
     async fn service_hr_no_absence_matches_v260_output() {
         let sp_id = Uuid::new_v4();
@@ -1035,8 +1426,8 @@ mod service_tests {
             .await
             .expect("HR must succeed");
 
-        // Byte-genaue v2.6.0-Werte (28 Tage * 1.0/7 = 4.0, 4 KW,
-        // ist=10, delta=6, per-week=2.5).
+        // v2.6.0-Werte: 28 Tage * 1.0/7 = 4.0, 4 KW, ist=10, delta=6.
+        // F1: Story 39 Hybrid-Nenner = 4 Vertragswochen → 10/4 = 2.5.
         assert_eq!(result.contract_weeks, Some(4));
         assert!((result.ist_total.unwrap() - 10.0).abs() < 1e-3);
         assert!((result.soll_total.unwrap() - 4.0).abs() < 1e-3);

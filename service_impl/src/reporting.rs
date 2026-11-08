@@ -256,12 +256,25 @@ pub fn contract_weeks_count_in_range(
     to_date: ShiftyDate,
     absences: &[AbsencePeriod],
 ) -> u32 {
+    contract_weeks_in_range(working_hours, from_date, to_date, absences).len() as u32
+}
+
+/// Story 39: Die ISO-Wochen `(Jahr, KW)`, die
+/// [`contract_weeks_count_in_range`] zaehlt. Der F1-Hybrid-Nenner braucht die
+/// Identitaet der Wochen, weil `contract_weekly_hours == 0` eine
+/// expected_hours=0-Vertragswoche nicht von einer vertraglosen Woche trennt.
+pub fn contract_weeks_in_range(
+    working_hours: &[EmployeeWorkDetails],
+    from_date: ShiftyDate,
+    to_date: ShiftyDate,
+    absences: &[AbsencePeriod],
+) -> BTreeSet<(u32, u8)> {
+    let mut contract_weeks = BTreeSet::new();
     if from_date > to_date {
-        return 0;
+        return contract_weeks;
     }
     let from = from_date.to_date();
     let to = to_date.to_date();
-    let mut count: u32 = 0;
     let mut day = from;
     while day <= to {
         // Bestimme ISO-Woche des aktuellen Tages und deren Mo/So.
@@ -299,7 +312,7 @@ pub fn contract_weeks_count_in_range(
             p.deleted.is_none() && period_overlaps_week(p.from_date, p.to_date, monday, sunday)
         });
         if has_contract && !has_absence {
-            count += 1;
+            contract_weeks.insert((iso_year as u32, iso_week));
         }
         // Naechster Loop-Anker: sunday+1 (Anfang der Folgewoche), es sei denn
         // sunday >= to (dann sind wir fertig).
@@ -308,7 +321,7 @@ pub fn contract_weeks_count_in_range(
         }
         day = sunday + time::Duration::days(1);
     }
-    count
+    contract_weeks
 }
 
 /// Phase 54 Gap-Closure G1 (VOL-ACCT-01-Soll, D-F2-01) +
