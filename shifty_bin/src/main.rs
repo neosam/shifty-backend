@@ -1,4 +1,5 @@
-mod backfill_booking_authorship;
+#[cfg(test)]
+mod booking_authorship_backfill_test;
 #[cfg(test)]
 mod integration_test;
 #[cfg(test)]
@@ -1849,28 +1850,6 @@ async fn main() {
         .run(pool.as_ref())
         .await
         .expect("Failed to run migrations");
-
-    // Wartungs-Unterkommandos laufen NACH den Migrationen, aber VOR allem, was
-    // Zustand anlegt (Admin-Benutzer) oder Hintergrund-Jobs startet. Ohne
-    // Argument bleibt alles wie bisher: der Server startet.
-    let args: Vec<String> = std::env::args().collect();
-    if let Some(subcommand) = args.get(1) {
-        match subcommand.as_str() {
-            "backfill-booking-authorship" => {
-                let mode = args.get(2).map(String::as_str).unwrap_or("--report");
-                backfill_booking_authorship::run(pool.clone(), mode).await;
-                return;
-            }
-            other => {
-                eprintln!(
-                    "Unbekanntes Unterkommando '{other}'.\n\
-                     Verfuegbar: backfill-booking-authorship [--report|--dry-run|--apply]\n\
-                     Ohne Argument startet der Server."
-                );
-                std::process::exit(2);
-            }
-        }
-    }
 
     let rest_state = RestStateImpl::new(pool.clone());
     create_admin_user(pool.clone(), "DEVUSER").await;
