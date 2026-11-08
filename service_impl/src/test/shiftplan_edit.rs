@@ -1995,3 +1995,161 @@ async fn test_msw_last_week_of_bounded_slot_no_date_order_error() {
         "Rückgabe muss Segment-2-Slot sein"
     );
 }
+
+// Sammler fuer die `created_by`-Werte, die `BookingService::create` sieht —
+// je Eintrag die Kalenderwoche und der mitgegebene Urheber.
+type CreatedByByWeek = Arc<Mutex<Vec<(i32, Option<String>)>>>;
+
+// ---------- Erhalt der Buchungs-Urheberschaft ueber einen Slot-Umbau ----------
+//
+// Die `*`-Markierung im Schichtplan zeigt dem Schichtplaner, wer sich selbst
+// eingetragen hat. Sie haengt an `ShiftplanBooking::self_added`, und das wird in
+// `service_impl/src/shiftplan.rs` abgeleitet aus
+// `booking.created_by == <Benutzer dieser Sales Person>` — nicht gespeichert.
+//
+// Beide Umbau-Pfade loeschen die Buchungen des Slots und legen sie neu an. Setzten
+// sie dabei `created_by` zurueck, stempelte die Fallback-Kette in
+// `BookingService::create` "system" (`current_user` ist bei `Authentication::Full`
+// None), und `self_added` war danach fuer ALLE Buchungen des Slots falsch — die
+// Markierung verschwand. Genau diese Interaktion war auf beiden Seiten ungetestet:
+// `shiftplan.rs` prueft nur die Ableitung, und hier wurde `created_by` der neu
+// erzeugten Buchungen nie assertiert.
+
+/// `modify_slot` muss `created_by` der Buchung in die neu erzeugte Zeile
+/// uebernehmen. Faellt die Uebernahme weg, stempelt die Fallback-Kette "system"
+/// und die `*`-Markierung verschwindet nach jedem Struktur-Umbau.
+#[tokio::test]
+async fn test_modify_slot_preserves_booking_created_by() {
+    let mut deps = build_dependencies(true, true);
+
+    deps.slot_service
+        .expect_update_slot()
+        .returning(|_, _, _| Ok(()));
+    deps.slot_service
+        .expect_create_slot()
+        .returning(|slot, _, _| Ok(slot.clone()));
+
+    let booked_by_self = Booking {
+        id: uuid!("B0170000-0000-0000-0000-000000000001"),
+        version: uuid!("B0170000-0000-0000-0000-000000000010"),
+        created_by: Some("alice".into()),
+        ..default_booking()
+    };
+
+    deps.booking_service.checkpoint();
+    let booking_c = booked_by_self.clone();
+    deps.booking_service
+        .expect_get_for_slot_id_since()
+        .returning(move |_, _, _, _, _| Ok(Arc::from(vec![booking_c.clone()])));
+    deps.booking_service
+        .expect_delete()
+        .times(1)
+        .returning(|_, _, _| Ok(()));
+
+    let seen: Arc<Mutex<Vec<Option<String>>>> = Arc::new(Mutex::new(Vec::new()));
+    let seen_c = seen.clone();
+    deps.booking_service
+        .expect_create()
+        .times(1)
+        .returning(move |booking, _, _| {
+            seen_c
+                .lock()
+                .unwrap()
+                .push(booking.created_by.as_ref().map(|s| s.to_string()));
+            Ok(persisted_booking())
+        });
+
+    let service = deps.build_service();
+    service
+        .modify_slot(&monday_slot(), 2026, 26, ().auth(), None)
+        .await
+        .expect("modify_slot muss gelingen");
+
+    let seen = seen.lock().unwrap();
+    assert_eq!(seen.len(), 1, "genau eine Buchung neu angelegt");
+    assert_eq!(
+        seen[0].as_deref(),
+        Some("alice"),
+        "modify_slot muss created_by mitnehmen — sonst stempelt die Fallback-Kette \
+         \"system\" und die *-Markierung des Schichtplaners verschwindet"
+    );
+}
+
+/// Dasselbe fuer `modify_slot_single_week`. Beide Pfade muessen gleich
+/// formulieren, sonst haengt die `*`-Markierung davon ab, welcher Umbau gelaufen
+/// ist. Zwei Buchungen, damit auch die Partition ueber die Segmente abgedeckt ist.
+#[tokio::test]
+async fn test_modify_slot_single_week_preserves_booking_created_by() {
+    let mut deps = build_dependencies(true, true);
+
+    deps.slot_service
+        .expect_update_slot()
+        .returning(|_, _, _| Ok(()));
+    msw_setup_create_slot_2x(&mut deps);
+
+    let kw26 = Booking {
+        id: uuid!("B0260000-0000-0000-0000-000000000001"),
+        calendar_week: 26,
+        year: 2026,
+        version: uuid!("B0260000-0000-0000-0000-000000000010"),
+        created_by: Some("alice".into()),
+        ..default_booking()
+    };
+    let kw27 = Booking {
+        id: uuid!("B0270000-0000-0000-0000-000000000001"),
+        calendar_week: 27,
+        year: 2026,
+        version: uuid!("B0270000-0000-0000-0000-000000000010"),
+        created_by: Some("bob".into()),
+        ..default_booking()
+    };
+
+    deps.booking_service.checkpoint();
+    let kw26_c = kw26.clone();
+    let kw27_c = kw27.clone();
+    deps.booking_service
+        .expect_get_for_slot_id_since()
+        .returning(move |_, _, _, _, _| Ok(Arc::from(vec![kw26_c.clone(), kw27_c.clone()])));
+    deps.booking_service
+        .expect_delete()
+        .times(2)
+        .returning(|_, _, _| Ok(()));
+
+    // (calendar_week, created_by) je create-Aufruf — die Zuordnung muss pro
+    // Buchung stimmen, nicht nur die Menge der Namen.
+    let seen: CreatedByByWeek = Arc::new(Mutex::new(Vec::new()));
+    let seen_c = seen.clone();
+    deps.booking_service
+        .expect_create()
+        .times(2)
+        .returning(move |booking, _, _| {
+            seen_c.lock().unwrap().push((
+                booking.calendar_week,
+                booking.created_by.as_ref().map(|s| s.to_string()),
+            ));
+            Ok(persisted_booking())
+        });
+
+    let service = deps.build_service();
+    service
+        .modify_slot_single_week(&monday_slot(), 2026, 26, ().auth(), None)
+        .await
+        .expect("modify_slot_single_week muss gelingen");
+
+    let seen = seen.lock().unwrap();
+    assert_eq!(seen.len(), 2, "genau zwei Buchungen neu angelegt");
+    assert_eq!(
+        seen.iter()
+            .find(|(cw, _)| *cw == 26)
+            .and_then(|(_, by)| by.as_deref()),
+        Some("alice"),
+        "KW26-Buchung muss ihren eigenen Urheber behalten"
+    );
+    assert_eq!(
+        seen.iter()
+            .find(|(cw, _)| *cw == 27)
+            .and_then(|(_, by)| by.as_deref()),
+        Some("bob"),
+        "KW27-Buchung muss ihren eigenen Urheber behalten — nicht den der anderen"
+    );
+}

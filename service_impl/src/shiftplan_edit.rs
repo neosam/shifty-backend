@@ -136,10 +136,23 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
             new_booking.year = booking.year;
             new_booking.calendar_week = booking.calendar_week;
             new_booking.created = None;
-            // created_by = None → BookingService::create's fallback chain stamps
-            // "system" (Authentication::Full). The original booker's authorship
-            // survives in the soft-deleted predecessor row in bookings_view.
-            new_booking.created_by = None;
+            // created_by wird MITGENOMMEN, nicht zurueckgesetzt.
+            //
+            // Vorher stand hier `= None`, worauf die Fallback-Kette in
+            // BookingService::create "system" stempelte (current_user ist bei
+            // Authentication::Full None). Damit war nach jedem Struktur-Umbau
+            // `ShiftplanBooking::self_added` fuer ALLE Buchungen des Slots falsch,
+            // denn das Flag wird abgeleitet aus
+            // `created_by == <Benutzer dieser Sales Person>` (shiftplan.rs). Im
+            // Schichtplan verschwand dadurch die `*`-Markierung, die dem
+            // Schichtplaner zeigt, wer sich selbst eingetragen hat.
+            //
+            // Die Urheberschaft einer Buchung ("wer hat diese Person in diese
+            // Schicht gebucht") ist eine Fach-Aussage und ueberlebt einen
+            // Slot-Umbau. Dass dieser Zeilen-Umbau stattgefunden hat, bleibt
+            // ueber `created` und die soft-geloeschte Vorgaenger-Zeile
+            // (`deleted_by = "system"`) nachvollziehbar.
+            new_booking.created_by = booking.created_by.clone();
 
             self.booking_service
                 .create(&new_booking, Authentication::Full, tx.clone().into())
@@ -346,8 +359,11 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
             new_booking.year = booking.year;
             new_booking.calendar_week = booking.calendar_week;
             new_booking.created = None;
-            // created_by = None → ursprünglicher Ersteller bleibt in soft-deleted Vorgänger-Row
-            new_booking.created_by = None;
+            // created_by wird MITGENOMMEN — wortgleich zu `modify_slot`. Die
+            // beiden Stellen muessen gleich formuliert bleiben, sonst
+            // verschwindet die `*`-Markierung je nachdem, welcher der beiden
+            // Umbau-Pfade gelaufen ist. Begruendung siehe `modify_slot`.
+            new_booking.created_by = booking.created_by.clone();
 
             self.booking_service
                 .create(&new_booking, Authentication::Full, tx.clone().into())
