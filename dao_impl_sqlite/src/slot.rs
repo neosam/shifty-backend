@@ -15,6 +15,52 @@ use crate::{ResultDbErrorExt, TransactionImpl};
 pub struct SlotDaoImpl {
     _pool: Arc<SqlitePool>,
 }
+/// Parst den `deleted`-Zeitstempel eines Slots.
+///
+/// **Der Defekt.** `create_slot`/`update_slot` haben den Wert mit
+/// `PrimitiveDateTime::to_string()` geschrieben. Das ist `time`s
+/// `Display`-Format und **kein ISO8601**: Leerzeichen statt `T`, Stunde ohne
+/// führende Null, variabel viele Nachkommastellen — `2026-11-08 7:17:18.220225594`.
+/// Gelesen wird mit einem ISO8601-Parser, der dieses Format nicht kennt: er
+/// verbraucht den Datumsteil und meldet am Rest `UnexpectedTrailingCharacters`.
+/// Jeder Lesezugriff auf einen soft-gelöschten Slot endete deshalb in
+/// `DaoError` → `ServiceError::DatabaseQueryError` → HTTP 500.
+///
+/// Im Feld trat das beim zweiten „Slot ab KW ändern" auf: der erste Umbau
+/// soft-löscht den alten Slot (Erste-KW-Randfall in
+/// `ShiftplanEditService::modify_slot`), und das Frontend schickt danach die
+/// alte `id` weiter — `edit_slot` gibt den neuen Slot zwar zurück, aber
+/// `api::update_slot` verwirft die Antwort. Verdeckt wurde der Fehler dadurch,
+/// dass drei der vier Lesepfade `WHERE deleted IS NULL` haben: dort ist die
+/// Spalte immer `NULL` und `map` läuft nie. Nur `get_slot WHERE id = ?` hat
+/// diesen Filter nicht.
+///
+/// **Was NICHT die Ursache war.** Die Lesestellen standen auf `Iso8601::DATE`,
+/// einem Format ohne Zeitanteil — das sieht nach der Ursache aus, ist aber
+/// keine: `time`s well-known-`Iso8601`-Parser ignoriert die Konfiguration beim
+/// Parsen und akzeptiert jedes gültige ISO8601, Zeitanteil inklusive. Auf
+/// `DATE_TIME` umgestellt ist es trotzdem, weil es die Absicht ausspricht und
+/// zur Schreibseite passt — verhaltensgleich ist beides.
+///
+/// **Der Fallback bleibt dauerhaft.** Geschrieben wird jetzt
+/// `Iso8601::DATE_TIME` wie bei `booking`, aber der Altbestand liegt weiter im
+/// `Display`-Format in der Datenbank. Eine SQL-Normalisierung ist dafür kein
+/// Weg: SQLites Datumsfunktionen liefern für eine einstellige Stunde `NULL`,
+/// das Format ist für sie nicht verarbeitbar.
+fn parse_slot_deleted(value: &str) -> Result<PrimitiveDateTime, DaoError> {
+    match PrimitiveDateTime::parse(value, &Iso8601::DATE_TIME) {
+        Ok(parsed) => Ok(parsed),
+        Err(iso_error) => {
+            let legacy = format_description!(
+                "[year]-[month]-[day] [hour padding:none]:[minute]:[second].[subsecond]"
+            );
+            // Schlaegt auch der Fallback fehl, ist der ISO-Fehler die
+            // nuetzlichere Meldung -- ISO8601 ist das Soll-Format.
+            PrimitiveDateTime::parse(value, legacy).map_err(|_| DaoError::from(iso_error))
+        }
+    }
+}
+
 impl SlotDaoImpl {
     pub fn new(pool: Arc<SqlitePool>) -> Self {
         Self { _pool: pool }
@@ -49,8 +95,8 @@ impl dao::slot::SlotDao for SlotDaoImpl {
                         .transpose()?,
                     deleted: row
                         .deleted
-                        .as_ref()
-                        .map(|deleted| PrimitiveDateTime::parse(deleted, &Iso8601::DATE))
+                        .as_deref()
+                        .map(parse_slot_deleted)
                         .transpose()?,
                     version: Uuid::from_slice(&row.update_version)?,
                     shiftplan_id: row.shiftplan_id.as_ref().map(|id| Uuid::from_slice(id)).transpose()?,
@@ -87,8 +133,8 @@ impl dao::slot::SlotDao for SlotDaoImpl {
                         .transpose()?,
                     deleted: row
                         .deleted
-                        .as_ref()
-                        .map(|deleted| PrimitiveDateTime::parse(deleted, &Iso8601::DATE))
+                        .as_deref()
+                        .map(parse_slot_deleted)
                         .transpose()?,
                     version: Uuid::from_slice(&row.update_version)?,
                     shiftplan_id: row.shiftplan_id.as_ref().map(|id| Uuid::from_slice(id)).transpose()?,
@@ -138,8 +184,8 @@ impl dao::slot::SlotDao for SlotDaoImpl {
                         .transpose()?,
                     deleted: row
                         .deleted
-                        .as_ref()
-                        .map(|deleted| PrimitiveDateTime::parse(deleted, &Iso8601::DATE))
+                        .as_deref()
+                        .map(parse_slot_deleted)
                         .transpose()?,
                     version: Uuid::from_slice(&row.update_version)?,
                     shiftplan_id: row.shiftplan_id.as_ref().map(|id| Uuid::from_slice(id)).transpose()?,
@@ -188,8 +234,8 @@ impl dao::slot::SlotDao for SlotDaoImpl {
                         .transpose()?,
                     deleted: row
                         .deleted
-                        .as_ref()
-                        .map(|deleted| PrimitiveDateTime::parse(deleted, &Iso8601::DATE))
+                        .as_deref()
+                        .map(parse_slot_deleted)
                         .transpose()?,
                     version: Uuid::from_slice(&row.update_version)?,
                     shiftplan_id: row.shiftplan_id.as_ref().map(|id| Uuid::from_slice(id)).transpose()?,
@@ -212,7 +258,13 @@ impl dao::slot::SlotDao for SlotDaoImpl {
         let to = slot.to.format(&time_format)?;
         let valid_from = slot.valid_from.to_string();
         let valid_to = slot.valid_to.map(|valid_to| valid_to.to_string());
-        let deleted = slot.deleted.as_ref().map(|deleted| deleted.to_string());
+        // ISO8601 mit Zeitanteil -- `to_string()` (time's Display) ist kein
+        // ISO8601 und war nicht wieder einlesbar. Siehe `parse_slot_deleted`.
+        let deleted = slot
+            .deleted
+            .as_ref()
+            .map(|deleted| deleted.format(&Iso8601::DATE_TIME))
+            .transpose()?;
         let min_resources = slot.min_resources;
         let max_paid_employees = slot.max_paid_employees;
         let shiftplan_id_vec = slot.shiftplan_id.map(|id| id.as_bytes().to_vec());
@@ -245,7 +297,13 @@ impl dao::slot::SlotDao for SlotDaoImpl {
         let id_vec = slot.id.as_bytes().to_vec();
         let version_vec = slot.version.as_bytes().to_vec();
         let valid_to = slot.valid_to.map(|valid_to| valid_to.to_string());
-        let deleted = slot.deleted.as_ref().map(|deleted| deleted.to_string());
+        // ISO8601 mit Zeitanteil -- `to_string()` (time's Display) ist kein
+        // ISO8601 und war nicht wieder einlesbar. Siehe `parse_slot_deleted`.
+        let deleted = slot
+            .deleted
+            .as_ref()
+            .map(|deleted| deleted.format(&Iso8601::DATE_TIME))
+            .transpose()?;
         let max_paid_employees = slot.max_paid_employees;
         query!("UPDATE slot SET valid_to = ?, deleted = ?, max_paid_employees = ?, update_version = ?, update_process = ? WHERE id = ?",
             valid_to,

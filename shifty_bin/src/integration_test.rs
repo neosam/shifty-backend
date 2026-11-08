@@ -1480,3 +1480,185 @@ mod person_directory;
 #[cfg(test)]
 mod person_detail;
 mod dev_seed;
+
+/// Hilfsfunktion: der geseedete Donnerstag-17-Uhr-Slot.
+#[cfg(test)]
+async fn donnerstag_17_uhr_slot(rest_state: &RestStateImpl) -> Slot {
+    rest_state
+        .slot_service()
+        .get_slots(Authentication::Full, None)
+        .await
+        .unwrap()
+        .iter()
+        .find(|s| {
+            s.day_of_week == DayOfWeek::Thursday && s.from == time::Time::from_hms(17, 0, 0).unwrap()
+        })
+        .cloned()
+        .expect("Donnerstag 17:00 gehoert zu den Standard-Slots (20240619085745_default-slots.sql)")
+}
+
+/// Regression: ein Slot-Umbau „ab KW" soft-löscht den alten Slot. Wird danach
+/// noch einmal mit der **alten** `id` umgebaut, muss das eine saubere Aussage
+/// geben — nicht HTTP 500.
+///
+/// Der Fehler war ein Formatbruch im DAO: `slot.deleted` wurde mit
+/// `PrimitiveDateTime::to_string()` geschrieben (time's `Display`) und mit
+/// `Iso8601::DATE` gelesen, einem Format ohne Zeitanteil. Jeder Lesezugriff auf
+/// einen soft-gelöschten Slot lief in `UnexpectedTrailingCharacters` →
+/// `DatabaseQueryError` → 500. Die drei Lesepfade mit `WHERE deleted IS NULL`
+/// haben es verdeckt; nur `get_slot WHERE id = ?` hat den Filter nicht.
+#[test]
+fn test_modify_slot_mit_geloeschter_slot_id_gibt_kein_500() {
+    use service::shiftplan_edit::ShiftplanEditService;
+    Runtime::new().unwrap().block_on(async {
+        let test_setup = TestSetup::new().await;
+        let rest_state = &test_setup.rest_state;
+        let ausgang = donnerstag_17_uhr_slot(rest_state).await;
+
+        // Erster Umbau ab KW 46/2026.
+        let mut erster = ausgang.clone();
+        erster.min_resources = 3;
+        let neuer = rest_state
+            .shiftplan_edit_service()
+            .modify_slot(&erster, 2026, 46, Authentication::Full, None)
+            .await
+            .expect("erster Umbau muss gelingen");
+
+        // Zweiter Umbau ab derselben KW -- jetzt ist der Ausgangs-Slot
+        // soft-geloescht (Erste-KW-Randfall) und wir schicken seine alte id,
+        // wie es das Frontend mit einem nicht neu geladenen Slot tut.
+        let mut nochmal = neuer.clone();
+        nochmal.min_resources = 4;
+        let zweiter = rest_state
+            .shiftplan_edit_service()
+            .modify_slot(&nochmal, 2026, 46, Authentication::Full, None)
+            .await
+            .expect("zweiter Umbau mit der NEUEN id muss gelingen");
+
+        // Und nun der gemeldete Fall: die inzwischen geloeschte id.
+        let mut veraltet = neuer.clone();
+        veraltet.min_resources = 5;
+        let ergebnis = rest_state
+            .shiftplan_edit_service()
+            .modify_slot(&veraltet, 2026, 48, Authentication::Full, None)
+            .await;
+
+        match ergebnis {
+            Err(ServiceError::EntityNotFound(id)) => {
+                assert_eq!(id, neuer.id, "die Meldung muss die nicht mehr vorhandene id nennen");
+            }
+            Err(ServiceError::DatabaseQueryError(e)) => panic!(
+                "der Formatbruch ist zurueck -- das wird im REST-Layer ein 500: {e:?}"
+            ),
+            other => panic!("erwartet EntityNotFound, bekommen: {other:?}"),
+        }
+
+        // Der zweite Umbau ist trotzdem durchgegangen und hat gewirkt.
+        assert_eq!(zweiter.min_resources, 4);
+    });
+}
+
+/// Der Lese-Rundlauf selbst: ein soft-gelöschter Slot muss wieder lesbar sein
+/// und seinen Zeitstempel behalten.
+#[test]
+fn test_geloeschter_slot_bleibt_lesbar() {
+    Runtime::new().unwrap().block_on(async {
+        let test_setup = TestSetup::new().await;
+        let rest_state = &test_setup.rest_state;
+        let slot = donnerstag_17_uhr_slot(rest_state).await;
+
+        rest_state
+            .slot_service()
+            .delete_slot(&slot.id, Authentication::Full, None)
+            .await
+            .expect("delete_slot");
+
+        let gelesen = rest_state
+            .slot_service()
+            .get_slot(&slot.id, Authentication::Full, None)
+            .await
+            .expect("ein soft-geloeschter Slot muss lesbar bleiben");
+        assert!(
+            gelesen.deleted.is_some(),
+            "der geloeschte Slot muss seinen Zeitstempel tragen"
+        );
+    });
+}
+
+/// Altbestand: Zeilen, die noch im `Display`-Format in der Datenbank liegen,
+/// müssen weiter lesbar sein. Deshalb hat `parse_slot_deleted` einen Fallback
+/// und es gibt keine SQL-Normalisierung — SQLites Datumsfunktionen können das
+/// Format mit einstelliger Stunde nicht verarbeiten.
+#[test]
+fn test_altbestand_im_display_format_bleibt_lesbar() {
+    Runtime::new().unwrap().block_on(async {
+        let test_setup = TestSetup::new().await;
+        let rest_state = &test_setup.rest_state;
+        let slot = donnerstag_17_uhr_slot(rest_state).await;
+
+        // Genau das Format, das `to_string()` erzeugt hat: Leerzeichen statt
+        // `T`, Stunde ohne fuehrende Null, variabel viele Nachkommastellen.
+        for alt_format in [
+            "2026-11-08 7:17:18.220225594",
+            "2026-11-08 17:05:03.0",
+            "2026-11-08 0:00:00.001",
+        ] {
+            sqlx::query("UPDATE slot SET deleted = ?1 WHERE id = ?2")
+                .bind(alt_format)
+                .bind(slot.id.as_bytes().to_vec())
+                .execute(test_setup.pool.as_ref())
+                .await
+                .expect("Altbestand setzen");
+
+            let gelesen = rest_state
+                .slot_service()
+                .get_slot(&slot.id, Authentication::Full, None)
+                .await;
+            assert!(
+                gelesen.is_ok(),
+                "Altbestand {alt_format:?} muss lesbar bleiben, war: {:?}",
+                gelesen.err()
+            );
+            assert!(gelesen.unwrap().deleted.is_some());
+        }
+    });
+}
+
+/// Und das Soll-Format der Schreibseite: nach einem `delete_slot` muss in der
+/// Spalte ISO8601 mit Zeitanteil stehen, nicht `Display`.
+#[test]
+fn test_geloeschter_slot_wird_als_iso8601_geschrieben() {
+    Runtime::new().unwrap().block_on(async {
+        use sqlx::Row;
+        let test_setup = TestSetup::new().await;
+        let rest_state = &test_setup.rest_state;
+        let slot = donnerstag_17_uhr_slot(rest_state).await;
+
+        rest_state
+            .slot_service()
+            .delete_slot(&slot.id, Authentication::Full, None)
+            .await
+            .expect("delete_slot");
+
+        let roh: String = sqlx::query("SELECT deleted FROM slot WHERE id = ?1")
+            .bind(slot.id.as_bytes().to_vec())
+            .fetch_one(test_setup.pool.as_ref())
+            .await
+            .expect("lesen")
+            .try_get("deleted")
+            .expect("deleted ist gesetzt");
+
+        assert!(
+            time::PrimitiveDateTime::parse(
+                &roh,
+                &time::format_description::well_known::Iso8601::DATE_TIME
+            )
+            .is_ok(),
+            "die Spalte muss ISO8601 mit Zeitanteil enthalten, steht aber: {roh:?}"
+        );
+        assert!(
+            roh.contains('T'),
+            "ISO8601 trennt mit 'T', Display mit einem Leerzeichen -- steht: {roh:?}"
+        );
+    });
+}

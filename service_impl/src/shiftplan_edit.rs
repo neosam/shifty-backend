@@ -74,6 +74,25 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
             .get_slot(&slot.id, Authentication::Full, tx.clone().into())
             .await?;
 
+
+        // Ein soft-geloeschter Slot darf nicht umgebaut werden.
+        //
+        // `SlotService::get_slot` liest ueber `WHERE id = ?` OHNE
+        // `deleted IS NULL` -- geloeschte Slots kommen also zurueck. Ohne diese
+        // Pruefung wuerde der Umbau auf einer Leiche weiterarbeiten: `delete_slot`
+        // laesst die Version unveraendert, der Versionsvergleich unten geht
+        // deshalb durch, und es entstuende ein neuer Slot aus einem bereits
+        // geloeschten. Im Feld passiert das, wenn der erste Umbau den Slot
+        // soft-loescht (Erste-KW-Randfall) und das Frontend danach die alte `id`
+        // weiterschickt -- `edit_slot` gibt den neuen Slot zwar zurueck, aber
+        // `api::update_slot` verwirft die Antwort.
+        //
+        // `EntityNotFound` ist die richtige Aussage: dieser Slot existiert nicht
+        // mehr. Als HTTP 404 sagt das dem Frontend, dass es neu laden muss.
+        if stored_slot.deleted.is_some() {
+            return Err(ServiceError::EntityNotFound(slot.id));
+        }
+
         if stored_slot.version != slot.version {
             return Err(ServiceError::EntityConflicts(
                 slot.id,
@@ -184,6 +203,25 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
             .get_slot(&slot_id, Authentication::Full, tx.clone().into())
             .await?;
 
+
+        // Ein soft-geloeschter Slot darf nicht umgebaut werden.
+        //
+        // `SlotService::get_slot` liest ueber `WHERE id = ?` OHNE
+        // `deleted IS NULL` -- geloeschte Slots kommen also zurueck. Ohne diese
+        // Pruefung wuerde der Umbau auf einer Leiche weiterarbeiten: `delete_slot`
+        // laesst die Version unveraendert, der Versionsvergleich unten geht
+        // deshalb durch, und es entstuende ein neuer Slot aus einem bereits
+        // geloeschten. Im Feld passiert das, wenn der erste Umbau den Slot
+        // soft-loescht (Erste-KW-Randfall) und das Frontend danach die alte `id`
+        // weiterschickt -- `edit_slot` gibt den neuen Slot zwar zurueck, aber
+        // `api::update_slot` verwirft die Antwort.
+        //
+        // `EntityNotFound` ist die richtige Aussage: dieser Slot existiert nicht
+        // mehr. Als HTTP 404 sagt das dem Frontend, dass es neu laden muss.
+        if stored_slot.deleted.is_some() {
+            return Err(ServiceError::EntityNotFound(slot_id));
+        }
+
         let new_slot_valid_from =
             time::Date::from_iso_week_date(change_year as i32, change_week, time::Weekday::Monday)?;
         let old_slot_valid_to = new_slot_valid_from - time::Duration::days(1);
@@ -243,6 +281,25 @@ impl<Deps: ShiftplanEditServiceDeps> ShiftplanEditService for ShiftplanEditServi
             .slot_service
             .get_slot(&slot.id, Authentication::Full, tx.clone().into())
             .await?;
+
+
+        // Ein soft-geloeschter Slot darf nicht umgebaut werden.
+        //
+        // `SlotService::get_slot` liest ueber `WHERE id = ?` OHNE
+        // `deleted IS NULL` -- geloeschte Slots kommen also zurueck. Ohne diese
+        // Pruefung wuerde der Umbau auf einer Leiche weiterarbeiten: `delete_slot`
+        // laesst die Version unveraendert, der Versionsvergleich unten geht
+        // deshalb durch, und es entstuende ein neuer Slot aus einem bereits
+        // geloeschten. Im Feld passiert das, wenn der erste Umbau den Slot
+        // soft-loescht (Erste-KW-Randfall) und das Frontend danach die alte `id`
+        // weiterschickt -- `edit_slot` gibt den neuen Slot zwar zurueck, aber
+        // `api::update_slot` verwirft die Antwort.
+        //
+        // `EntityNotFound` ist die richtige Aussage: dieser Slot existiert nicht
+        // mehr. Als HTTP 404 sagt das dem Frontend, dass es neu laden muss.
+        if stored_slot.deleted.is_some() {
+            return Err(ServiceError::EntityNotFound(slot.id));
+        }
 
         // Versionskonflikt-Check (T-35-04)
         if stored_slot.version != slot.version {
