@@ -140,6 +140,20 @@ Chronologische Liste:
 - `migrations/sqlite/20250115000001_update-bookings-view-add-user-tracking.sql`
   — `DROP VIEW`/`CREATE VIEW` zieht die neuen Spalten in die
   `bookings_view` nach.
+- `migrations/sqlite/20261108000000_backfill-booking-authorship.sql` — **reiner
+  Daten-Nachzug, keine DDL.** Stellt `created_by` dort wieder her, wo ein
+  Slot-Umbau es durch `'system'` ersetzt hatte (die `*`-Markierung des
+  Schichtplaners hängt daran, siehe `service_impl/src/shiftplan.rs`
+  → `self_added`). Rekonstruiert über die soft-gelöschte Vorgänger-Zeile.
+  Gruppierte nach `(sales_person_id, year, calendar_week, slot.day_of_week)` —
+  dieser Schlüssel war zu grob, siehe v2.
+- `migrations/sqlite/20261108120000_backfill-booking-authorship-v2.sql` —
+  **reiner Daten-Nachzug, keine DDL.** Korrigiert v1: verbindet Vorgängerin und
+  Nachfolgerin über die zeitliche Nachbarschaft von `deleted` und `created`
+  (`modify_slot` ruft pro Buchung `delete()` und direkt danach `create()`, die
+  Stempel liegen Millisekunden auseinander) statt über den Gruppenschlüssel.
+  Rechnet von v1 gestempelte Zeilen neu und nimmt zurück, was sie nicht
+  bestätigen kann. Nachweise in `shifty_bin/src/booking_authorship_backfill_v2_test.rs`.
 
 ### Beziehungen
 

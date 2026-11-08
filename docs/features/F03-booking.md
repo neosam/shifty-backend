@@ -139,6 +139,20 @@ Chronological list:
 - `migrations/sqlite/20250115000001_update-bookings-view-add-user-tracking.sql`
   — `DROP VIEW`/`CREATE VIEW` carries the new columns into
   `bookings_view`.
+- `migrations/sqlite/20261108000000_backfill-booking-authorship.sql` — **data
+  backfill only, no DDL.** Restores `created_by` where a slot rebuild had
+  replaced it with `'system'` (the shift planner's `*` marking depends on it,
+  see `service_impl/src/shiftplan.rs` → `self_added`). Reconstructed from the
+  soft-deleted predecessor row. Grouped by
+  `(sales_person_id, year, calendar_week, slot.day_of_week)` — that key was too
+  coarse, see v2.
+- `migrations/sqlite/20261108120000_backfill-booking-authorship-v2.sql` —
+  **data backfill only, no DDL.** Corrects v1: links predecessor and successor
+  through the temporal adjacency of `deleted` and `created` (`modify_slot` calls
+  `delete()` and immediately `create()` per booking, the stamps are
+  milliseconds apart) instead of the grouping key. Recomputes rows stamped by
+  v1 and reverts what it cannot confirm. Evidence in
+  `shifty_bin/src/booking_authorship_backfill_v2_test.rs`.
 
 ### Relationships
 

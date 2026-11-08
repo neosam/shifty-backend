@@ -1,6 +1,8 @@
 #[cfg(test)]
 mod booking_authorship_backfill_test;
 #[cfg(test)]
+mod booking_authorship_backfill_v2_test;
+#[cfg(test)]
 mod integration_test;
 #[cfg(test)]
 mod person_link_migration_test;
